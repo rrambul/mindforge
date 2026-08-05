@@ -32,16 +32,143 @@ function flatten(value, prefix = "", out = new Map()) {
 }
 
 /**
- * Placeholder names only — not the plural bodies, which differ by design: English has
- * two plural forms and Portuguese's rules are its own.
+ * Argument names only — not the branch bodies of a `plural` or `select`, which differ by
+ * design: English has two plural forms, Portuguese's rules are its own, and a `select`
+ * branch body is translated prose.
+ *
+ * This needs a real (if small) parse rather than a regex. `/\{\s*(\w+)/g` looks like it
+ * does the job and does not: in `{unit, select, page {Page} other {Progress}}` it reports
+ * `Page` and `Progress` as arguments, so translating them — which is the entire point of
+ * having them — reads as a mismatch. It only appeared to work on `plural` because those
+ * bodies conventionally start with `#`, which is not an identifier character.
  */
 function placeholders(message) {
   if (typeof message !== "string") return new Set();
   const names = new Set();
-  for (const match of message.matchAll(/\{\s*([A-Za-z0-9_]+)/g)) {
-    names.add(match[1]);
-  }
+  collectArguments(message, 0, message.length, names);
   return names;
+}
+
+const SUBMESSAGE_TYPES = new Set(["plural", "select", "selectordinal"]);
+
+/** Walks text, recursing into every `{...}` it finds. */
+function collectArguments(text, start, end, names) {
+  let index = start;
+
+  while (index < end) {
+    const char = text[index];
+
+    if (char === "'") {
+      index = skipQuoted(text, index, end);
+      continue;
+    }
+    if (char !== "{") {
+      index += 1;
+      continue;
+    }
+
+    const close = matchingBrace(text, index, end);
+    readArgument(text, index + 1, close, names);
+    index = close + 1;
+  }
+}
+
+/**
+ * One `{...}`: records its name, and for a submessage recurses into each branch body so a
+ * nested argument is still found, while the branch *keys* are ignored.
+ */
+function readArgument(text, start, end, names) {
+  const comma = indexOfTopLevel(text, ",", start, end);
+  const nameEnd = comma === -1 ? end : comma;
+  const name = text.slice(start, nameEnd).trim();
+
+  // An empty name is malformed ICU; formatjs will reject it at runtime with a better message
+  // than this script could give, so it is not this check's business.
+  if (name !== "") names.add(name);
+  if (comma === -1) return;
+
+  const typeStart = comma + 1;
+  const typeComma = indexOfTopLevel(text, ",", typeStart, end);
+  const type = text.slice(typeStart, typeComma === -1 ? end : typeComma).trim();
+
+  // `number`, `date`, and `time` are followed by a style, not by branches — nothing to recurse into.
+  if (!SUBMESSAGE_TYPES.has(type) || typeComma === -1) return;
+
+  collectBranches(text, typeComma + 1, end, names);
+}
+
+/**
+ * The `key {body} key {body}` tail of a submessage.
+ *
+ * Each `{...}` here is a *body*, not an argument, so this recurses into the interior rather
+ * than reading it as one — the distinction is the whole reason a regex cannot do this job. The
+ * keys between the groups (`one`, `other`, `page`) are skipped: they are ICU vocabulary and a
+ * `select` key is a domain enum value, neither of which is ever translated.
+ */
+function collectBranches(text, start, end, names) {
+  let index = start;
+
+  while (index < end) {
+    if (text[index] === "'") {
+      index = skipQuoted(text, index, end);
+      continue;
+    }
+    if (text[index] !== "{") {
+      index += 1;
+      continue;
+    }
+
+    const close = matchingBrace(text, index, end);
+    collectArguments(text, index + 1, close, names);
+    index = close + 1;
+  }
+}
+
+/** The index of the `{` group's matching `}`, or `end` if the message is unbalanced. */
+function matchingBrace(text, open, end) {
+  let depth = 0;
+  for (let index = open; index < end; index += 1) {
+    const char = text[index];
+    if (char === "'") {
+      index = skipQuoted(text, index, end) - 1;
+      continue;
+    }
+    if (char === "{") depth += 1;
+    else if (char === "}") {
+      depth -= 1;
+      if (depth === 0) return index;
+    }
+  }
+  return end;
+}
+
+function indexOfTopLevel(text, needle, start, end) {
+  let depth = 0;
+  for (let index = start; index < end; index += 1) {
+    const char = text[index];
+    if (char === "'") {
+      index = skipQuoted(text, index, end) - 1;
+      continue;
+    }
+    if (char === "{") depth += 1;
+    else if (char === "}") depth -= 1;
+    else if (char === needle && depth === 0) return index;
+  }
+  return -1;
+}
+
+/**
+ * ICU quoting: a `'` escapes only when it precedes `{`, `}`, or `#`, and `''` is a literal
+ * apostrophe. Everywhere else — "isn't", "what's" — it is just a character, which is why this
+ * returns the next index rather than hunting for a closing quote that was never opened.
+ */
+function skipQuoted(text, index, end) {
+  const next = text[index + 1];
+  if (next === "'") return index + 2;
+  if (next !== "{" && next !== "}" && next !== "#") return index + 1;
+
+  const close = text.indexOf("'", index + 2);
+  return close === -1 ? end : close + 1;
 }
 
 async function readLocale(locale) {

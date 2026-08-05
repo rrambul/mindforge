@@ -114,6 +114,60 @@ describe("enqueue", () => {
   });
 });
 
+describe("the method", () => {
+  it("defaults to POST, which every capture but progress uses", async () => {
+    const storage = memoryStorage();
+    const queue = new OfflineQueue({ storage, send: () => Promise.resolve() });
+
+    await queue.enqueue("friction:abc", "/friction", { type: "tooling" });
+    expect(storage.entries[0]?.method).toBe("POST");
+  });
+
+  it("replays a progress update as the PATCH it was", async () => {
+    // A progress update sent as a POST would hit the collection route and mint a second resource.
+    const calls: { path: string; method: string }[] = [];
+    const queue = new OfflineQueue({
+      storage: memoryStorage(),
+      send: (path, _body, method) => {
+        calls.push({ path, method });
+        return Promise.resolve();
+      },
+    });
+
+    await queue.enqueue("progress:r1", "/resources/r1/progress", { current: 137 }, "PATCH");
+    await queue.flush();
+
+    expect(calls).toEqual([{ path: "/resources/r1/progress", method: "PATCH" }]);
+  });
+
+  it("replays an entry stored before methods existed", async () => {
+    // A queue survives a deploy. Treating a missing method as unreplayable would drop exactly the
+    // captures this class exists to keep.
+    const storage = memoryStorage();
+    await storage.write([
+      {
+        key: "friction:legacy",
+        path: "/friction",
+        body: { type: "tooling" },
+        queuedAt: "2026-08-05T12:00:00.000Z",
+        attempts: 0,
+      },
+    ]);
+
+    const methods: string[] = [];
+    const queue = new OfflineQueue({
+      storage,
+      send: (_path, _body, method) => {
+        methods.push(method);
+        return Promise.resolve();
+      },
+    });
+
+    await expect(queue.flush()).resolves.toMatchObject({ sent: 1, remaining: 0 });
+    expect(methods).toEqual(["POST"]);
+  });
+});
+
 describe("flush", () => {
   let sent: string[];
 

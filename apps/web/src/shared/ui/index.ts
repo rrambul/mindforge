@@ -9,13 +9,14 @@
  * `ui/` (§2.2 rule 7). `RunningSession`, `FrictionChips`, and `MissionCard` are all correctly
  * outside it.
  */
-export { Button } from "./Button.js";
+export { Button, ButtonLink } from "./Button.js";
 export { Callout } from "./Callout.js";
 export { Card } from "./Card.js";
 export { ChoiceGroup, type Choice } from "./ChoiceGroup.js";
 export { Field, TextareaField } from "./Field.js";
 export { Heading } from "./Heading.js";
 export { Row } from "./Row.js";
+export { Select, type SelectOption } from "./Select.js";
 export { Spread } from "./Spread.js";
 export { Stack } from "./Stack.js";
 export { StatusChip } from "./StatusChip.js";

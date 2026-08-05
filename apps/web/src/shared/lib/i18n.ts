@@ -10,6 +10,7 @@ import enFriction from "../../locales/en/friction.json";
 import enGlossary from "../../locales/en/glossary.json";
 import enMissions from "../../locales/en/missions.json";
 import enNotes from "../../locales/en/notes.json";
+import enResources from "../../locales/en/resources.json";
 import ptAuth from "../../locales/pt-BR/auth.json";
 import ptCommon from "../../locales/pt-BR/common.json";
 import ptFocus from "../../locales/pt-BR/focus.json";
@@ -17,6 +18,7 @@ import ptFriction from "../../locales/pt-BR/friction.json";
 import ptGlossary from "../../locales/pt-BR/glossary.json";
 import ptMissions from "../../locales/pt-BR/missions.json";
 import ptNotes from "../../locales/pt-BR/notes.json";
+import ptResources from "../../locales/pt-BR/resources.json";
 
 /**
  * react-i18next with ICU MessageFormat, the same syntax the server-side bundle uses
@@ -37,6 +39,7 @@ export const NAMESPACES = [
   "focus",
   "friction",
   "notes",
+  "resources",
 ] as const;
 
 const resources = {
@@ -48,6 +51,7 @@ const resources = {
     focus: enFocus,
     friction: enFriction,
     notes: enNotes,
+    resources: enResources,
   },
   "pt-BR": {
     common: ptCommon,
@@ -57,6 +61,7 @@ const resources = {
     focus: ptFocus,
     friction: ptFriction,
     notes: ptNotes,
+    resources: ptResources,
   },
 } as const satisfies Record<Locale, Record<(typeof NAMESPACES)[number], unknown>>;
 

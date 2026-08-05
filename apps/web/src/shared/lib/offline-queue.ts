@@ -30,9 +30,23 @@ export interface QueuedRequest {
   readonly key: string;
   readonly path: string;
   readonly body: unknown;
+  /**
+   * Absent on everything queued before progress updates existed, which is why it is optional and
+   * why `send` defaults it. A stored queue survives a deploy, so a required field here would make
+   * every already-queued capture unreplayable — losing exactly the data this class exists to keep.
+   */
+  readonly method?: QueuedMethod;
   readonly queuedAt: string;
   readonly attempts: number;
 }
+
+/**
+ * Only the two verbs a capture uses.
+ *
+ * Not `string`: a queue that can replay a DELETE is a queue that can silently destroy something on
+ * reconnect, and no capture path needs one.
+ */
+export type QueuedMethod = "POST" | "PATCH";
 
 /**
  * The persistence seam.
@@ -96,7 +110,7 @@ export function isRetryable(error: unknown): boolean {
 export interface OfflineQueueOptions {
   readonly storage?: QueueStorage;
   /** Injected so the queue does not depend on the http client, which depends on auth. */
-  readonly send: (path: string, body: unknown) => Promise<unknown>;
+  readonly send: (path: string, body: unknown, method: QueuedMethod) => Promise<unknown>;
   readonly onChange?: (pending: number) => void;
   /** Reported rather than swallowed — a dropped capture is data loss and must be visible. */
   readonly onDropped?: (request: QueuedRequest, error: unknown) => void;
@@ -114,9 +128,14 @@ export class OfflineQueue {
     return (await this.storage.read()).length;
   }
 
-  async enqueue(key: string, path: string, body: unknown): Promise<void> {
+  async enqueue(
+    key: string,
+    path: string,
+    body: unknown,
+    method: QueuedMethod = "POST",
+  ): Promise<void> {
     const queue = await this.storage.read();
-    const entry: QueuedRequest = { key, path, body, queuedAt: nowIso(), attempts: 0 };
+    const entry: QueuedRequest = { key, path, body, method, queuedAt: nowIso(), attempts: 0 };
 
     const existing = queue.findIndex((request) => request.key === key);
     if (existing === -1) {
@@ -181,7 +200,9 @@ export class OfflineQueue {
 
   private async attempt(request: QueuedRequest): Promise<Disposition> {
     try {
-      await this.options.send(request.path, request.body);
+      // Defaulted rather than required: see `QueuedRequest.method`. Every capture that predates
+      // progress updates was a POST.
+      await this.options.send(request.path, request.body, request.method ?? "POST");
       return "sent";
     } catch (error) {
       if (!isRetryable(error) || request.attempts + 1 >= MAX_ATTEMPTS) {

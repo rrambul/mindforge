@@ -31,5 +31,22 @@
     "assessment": "Avaliação",
     "artifact": "Artefato",
     "standalone": "Sem pasta"
+  },
+  "resourceType": {
+    "book": "Livro",
+    "podcast": "Podcast",
+    "article": "Artigo",
+    "video": "Vídeo",
+    "course": "Curso",
+    "docs": "Documentação",
+    "paper": "Artigo científico"
+  },
+  "resourceStatus": {
+    "inbox": "Entrada",
+    "queued": "Na fila",
+    "active": "Lendo",
+    "finished": "Concluído",
+    "abandoned": "Parado",
+    "reference": "Referência"
   }
 }

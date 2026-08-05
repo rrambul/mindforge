@@ -52,6 +52,11 @@ const EN = {
   "error.focus.not_stopped": "Stop the session before writing its debrief.",
 
   "error.note.not_found": "That note no longer exists.",
+
+  "error.resource.not_found": "That resource no longer exists.",
+  "error.resource.no_progress": "This kind of resource isn't measured in units.",
+  "error.resource.progress_out_of_range":
+    "{total, plural, =0 {That position isn't valid.} other {This has # {unit}, so that position isn't valid.}}",
 } as const;
 
 export type ServerMessageKey = keyof typeof EN;
@@ -83,6 +88,11 @@ const PT_BR: Readonly<Record<ServerMessageKey, string>> = {
   "error.focus.not_stopped": "Encerre a sessão antes de escrever o debrief.",
 
   "error.note.not_found": "Essa nota não existe mais.",
+
+  "error.resource.not_found": "Esse recurso não existe mais.",
+  "error.resource.no_progress": "Esse tipo de recurso não é medido em unidades.",
+  "error.resource.progress_out_of_range":
+    "{total, plural, =0 {Essa posição não é válida.} other {Isto tem # {unit}, então essa posição não é válida.}}",
 };
 
 const CATALOG: Readonly<Record<Locale, Readonly<Record<ServerMessageKey, string>>>> = {

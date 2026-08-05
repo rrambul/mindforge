@@ -1,4 +1,4 @@
-import type { ButtonHTMLAttributes, ReactNode } from "react";
+import type { AnchorHTMLAttributes, ButtonHTMLAttributes, ReactNode } from "react";
 import "./styles/button.css";
 
 type Variant = "primary" | "default" | "quiet";
@@ -17,4 +17,36 @@ interface ButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, "cla
  */
 export function Button({ variant = "default", type = "button", ...rest }: ButtonProps) {
   return <button type={type} className="mf-button" data-variant={variant} {...rest} />;
+}
+
+interface ButtonLinkProps extends Omit<AnchorHTMLAttributes<HTMLAnchorElement>, "className"> {
+  readonly variant?: Variant;
+  readonly href: string;
+  readonly children: ReactNode;
+}
+
+/**
+ * A link that looks like a button.
+ *
+ * A separate component rather than a polymorphic `as` prop on `Button`, because the two are not
+ * interchangeable: a link navigates, so it must be an `<a>` for middle-click, open-in-new-tab, and
+ * copy-link to work, and it takes `href` rather than `onClick`. Collapsing them into one component
+ * makes it possible to write a `<button href>`, which does nothing at all.
+ *
+ * It lives here rather than in a feature — despite one caller today — for the reason `Button` refuses
+ * `className`: a feature has no way to style its own anchor, so without this the only options are a
+ * bare link where a button belongs or a hole in the design system.
+ */
+export function ButtonLink({ variant = "default", target, rel, ...rest }: ButtonLinkProps) {
+  return (
+    <a
+      className="mf-button"
+      data-variant={variant}
+      {...(target === undefined ? {} : { target })}
+      // `noreferrer` implies `noopener`, and omitting it on a `target="_blank"` link hands the
+      // opened page a handle on this one. Defaulted rather than left to each caller to remember.
+      rel={rel ?? (target === "_blank" ? "noreferrer" : undefined)}
+      {...rest}
+    />
+  );
 }

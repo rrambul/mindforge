@@ -1,11 +1,12 @@
 import { QueryClientProvider } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactElement } from "react";
 import { useTranslation } from "react-i18next";
 import { useMe } from "../features/auth/api/use-me.js";
 import { useSupabaseSession } from "../features/auth/api/use-supabase-session.js";
 import { SignInForm } from "../features/auth/ui/SignInForm.js";
 import { MissionsRoute } from "../features/missions/routes/MissionsRoute.js";
 import { NotesRoute } from "../features/notes/routes/NotesRoute.js";
+import { ResourcesRoute } from "../features/resources/routes/ResourcesRoute.js";
 import { supabase } from "../shared/api/supabase.js";
 import { guessLocaleFromBrowser } from "../shared/lib/i18n.js";
 import { OfflineQueueProvider, useOfflineQueue } from "../shared/lib/queue-context.js";
@@ -66,21 +67,36 @@ interface ShellProps {
   readonly sessionKnown: boolean;
 }
 
-type Screen = "today" | "missions" | "notes";
+type Screen = "today" | "missions" | "notes" | "resources";
+
+/**
+ * A lookup rather than a chain of ternaries, which stopped being readable at the third screen.
+ *
+ * Components rather than elements, so a screen is only constructed when it is the current one —
+ * `{today: <TodayScreen />, ...}` would build all four on every render.
+ */
+const SCREENS: Readonly<Record<Screen, () => ReactElement>> = {
+  today: TodayScreen,
+  missions: MissionsRoute,
+  notes: NotesRoute,
+  resources: ResourcesRoute,
+};
 
 function Shell({ signedIn, sessionKnown }: ShellProps) {
   const { t } = useTranslation("common");
   const { t: auth } = useTranslation("auth");
   const { theme, toggle } = useTheme();
-  // Two screens, so two buttons — still not a router. When Today grows a "next" block that
-  // deep-links into a mission, and mission detail exists to link to, that is the moment the
-  // route tree earns its place and can be designed against real routes.
+  // Four screens and still not a router — but this is the last one that can be justified. There is no
+  // URL for a resource, so the library cannot be linked to, bookmarked, or shared, and a browser Back
+  // does not go back. The next screen that needs to be linked *to* is where the route tree earns its
+  // place, and it should be designed against real routes rather than retrofitted around these.
   const [screen, setScreen] = useState<Screen>("today");
 
   const items: NavItem<Screen>[] = [
     { id: "today", label: t("nav.today") },
     { id: "missions", label: t("nav.missions") },
     { id: "notes", label: t("nav.notes") },
+    { id: "resources", label: t("nav.resources") },
   ];
 
   return (
@@ -112,13 +128,10 @@ function Shell({ signedIn, sessionKnown }: ShellProps) {
       {!sessionKnown ? (
         <Text tone="muted">{t("state.loading")}</Text>
       ) : signedIn ? (
-        screen === "today" ? (
-          <TodayScreen />
-        ) : screen === "missions" ? (
-          <MissionsRoute />
-        ) : (
-          <NotesRoute />
-        )
+        (() => {
+          const Screen = SCREENS[screen];
+          return <Screen />;
+        })()
       ) : (
         <SignInForm />
       )}

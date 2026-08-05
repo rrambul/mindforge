@@ -31,5 +31,22 @@
     "assessment": "Assessment",
     "artifact": "Artifact",
     "standalone": "Unfiled"
+  },
+  "resourceType": {
+    "book": "Book",
+    "podcast": "Podcast",
+    "article": "Article",
+    "video": "Video",
+    "course": "Course",
+    "docs": "Documentation",
+    "paper": "Paper"
+  },
+  "resourceStatus": {
+    "inbox": "Inbox",
+    "queued": "Queued",
+    "active": "Reading",
+    "finished": "Finished",
+    "abandoned": "Stopped",
+    "reference": "Reference"
   }
 }

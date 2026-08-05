@@ -5,10 +5,19 @@ import { FocusModule } from "./modules/focus/presentation/focus.module.js";
 import { FrictionModule } from "./modules/friction/presentation/friction.module.js";
 import { MissionsModule } from "./modules/missions/presentation/missions.module.js";
 import { NotesModule } from "./modules/notes/presentation/notes.module.js";
+import { ResourcesModule } from "./modules/resources/presentation/resources.module.js";
 import { SharedModule } from "./shared/shared.module.js";
 
 @Module({
-  imports: [SharedModule, AccountModule, MissionsModule, FocusModule, FrictionModule, NotesModule],
+  imports: [
+    SharedModule,
+    AccountModule,
+    MissionsModule,
+    FocusModule,
+    FrictionModule,
+    NotesModule,
+    ResourcesModule,
+  ],
   controllers: [HealthController],
 })
 export class AppModule {}

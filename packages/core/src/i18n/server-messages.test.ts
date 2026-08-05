@@ -15,6 +15,7 @@ import {
  */
 const SAMPLE_VARS: Partial<Record<ServerMessageKey, Record<string, string | number>>> = {
   "error.mission.wip_limit": { limit: 3 },
+  "error.resource.progress_out_of_range": { total: 590, unit: "page" },
 };
 
 describe("catalog completeness", () => {
@@ -47,6 +48,28 @@ describe("catalog completeness", () => {
     for (const key of SERVER_MESSAGE_KEYS) {
       expect(serverMessageSource("pt-BR", key), key).not.toBe(serverMessageSource("en", key));
     }
+  });
+});
+
+describe("error.resource.progress_out_of_range", () => {
+  it("quotes the bound when there is one", () => {
+    expect(
+      formatServerMessage("en", "error.resource.progress_out_of_range", {
+        total: 590,
+        unit: "page",
+      }),
+    ).toContain("590");
+  });
+
+  it("does not invent a bound when the total is unknown", () => {
+    // A resource whose length was never recorded has no end to quote, and "this has 0 pages" would be
+    // both wrong and confusing about a book you are 137 pages into.
+    const message = formatServerMessage("en", "error.resource.progress_out_of_range", {
+      total: 0,
+      unit: "page",
+    });
+    expect(message).not.toContain("0");
+    expect(message).toBe("That position isn't valid.");
   });
 });
 

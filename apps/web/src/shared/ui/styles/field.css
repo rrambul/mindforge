@@ -30,3 +30,18 @@ textarea.mf-field__control {
   font-size: var(--mf-step--1);
   color: var(--mf-danger);
 }
+
+/* A select is a .mf-field__control too, but the browser's own appearance ignores most of what that
+   sets. Reset it and draw the arrow, or it sits next to the inputs looking like a different app. */
+select.mf-field__control {
+  appearance: none;
+  padding-right: var(--mf-space-4);
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--mf-muted) 50%),
+    linear-gradient(135deg, var(--mf-muted) 50%, transparent 50%);
+  background-position:
+    calc(100% - 14px) calc(50% + 1px),
+    calc(100% - 9px) calc(50% + 1px);
+  background-size: 5px 5px;
+  background-repeat: no-repeat;
+}
