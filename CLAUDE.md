@@ -14,7 +14,21 @@ Don't restate these docs here. When something changes, update the doc, not this 
 
 ## Status
 
-**M0 — Foundations**, in progress. Monorepo, `packages/core`, and CI are in. Supabase, Prisma schema, and Railway are next.
+**M0 complete. M1 — the capture loop — is next** (`NORTHSTAR.md` §4).
+
+Done: monorepo, `packages/core` (scoring, decay, bands, friction classification — 100% covered), Prisma schema for the whole M1 slice, RLS on every table with 8 isolation tests, CI, hooks, design tokens.
+
+Deferred deliberately: **Railway is not provisioned.** Deploying an empty skeleton costs money and shows a blank page; revisit at the end of M1. **No cloud Supabase project either** — the org is at its 2-project free limit, and local is sufficient until deploy.
+
+## Getting started
+
+```sh
+supabase start                                # local Postgres + Auth + Storage
+pnpm install                                  # postinstall runs prisma generate
+pnpm --filter @mindforge/db exec prisma migrate deploy
+```
+
+`.env.local` holds the local connection strings and is gitignored; `packages/db/.env` is a copy the Prisma CLI reads. `.env.example` documents the shape.
 
 ## Commands
 
@@ -24,11 +38,21 @@ pnpm typecheck       # tsc across the workspace
 pnpm lint            # eslint, including the boundary rules
 pnpm test:coverage   # unit + the coverage gate
 pnpm format          # prettier — run before committing
+
+pnpm --filter @mindforge/db exec vitest run   # RLS tests (needs supabase start)
+pnpm --filter @mindforge/db generate          # regenerate the Prisma client
 ```
 
-Runtimes are not uniform: **`apps/lessons` runs on Bun** (pure I/O, no Prisma, no Nest, isolated by design); everything else is Node 22. TypeScript is pinned to 6.0.3 because `typescript-eslint` caps at `<6.1.0` — do not bump it to 7 without checking that the boundary rules still load.
+## Environment facts that bite
 
-**Never commit with `--no-verify` or `core.hooksPath=/dev/null`.** Run `pnpm format` and fix the failure instead; a bypassed gate is how CI ends up red.
+- **Runtimes are not uniform.** `apps/lessons` runs on Bun (pure I/O, no Prisma, no Nest, isolated by design); everything else is Node 22.
+- **TypeScript is pinned to 6.0.3** because `typescript-eslint` caps at `<6.1.0`. Bumping to 7 silently loses the boundary rules.
+- **Prisma 7 has no `datasourceUrl`** — build clients through `createPrismaClient()` in `packages/db`, which uses a driver adapter. Connection URLs live in `prisma.config.ts`, not the schema.
+- **`prisma migrate reset` drops the `public` schema**, taking Supabase's role grants with it. The `20260805154500_supabase_grants` migration restores them; if you ever see `42P01 relation does not exist` as `authenticated`, that is the cause — not RLS.
+- **The generated Prisma client is gitignored.** `postinstall` regenerates it; CI does so explicitly before lint and typecheck.
+- **`packages/db` has the `no-unsafe-*` rules disabled** because eslint cannot follow Prisma's runtime-built client class. `tsc` still checks those files.
+
+**Never commit with `--no-verify` or `core.hooksPath=/dev/null`.** Run `pnpm format` and fix the failure instead; a bypassed gate is how CI ends up red. lint-staged runs `eslint --fix` _before_ prettier — that order matters, since eslint rewrites source.
 
 ## Non-negotiables
 
