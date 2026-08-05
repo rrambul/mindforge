@@ -29,6 +29,11 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      # The generated Prisma client is not committed, and lint/typecheck cannot
+      # resolve types without it.
+      - name: Generate Prisma client
+        run: pnpm --filter @mindforge/db generate
+
       - name: Format
         run: pnpm format:check
 

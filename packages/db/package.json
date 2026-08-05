@@ -16,7 +16,8 @@
     "migrate:deploy": "prisma migrate deploy",
     "seed:minimal": "tsx scripts/seed-minimal.ts",
     "seed:rich": "tsx scripts/seed-rich.ts",
-    "test:integration": "vitest run"
+    "test:integration": "vitest run",
+    "postinstall": "prisma generate"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.9.1",
