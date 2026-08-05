@@ -4,17 +4,31 @@ Mindforge — a personal system for tracking learning, attention, and cognitive 
 
 ## Read first
 
-| Doc | For |
-| --- | --- |
-| [`NORTHSTAR.md`](./NORTHSTAR.md) | The destination, the principles, and which milestone we're on |
+| Doc                                    | For                                                                                                 |
+| -------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| [`NORTHSTAR.md`](./NORTHSTAR.md)       | The destination, the principles, and which milestone we're on                                       |
 | [`REQUIREMENTS.md`](./REQUIREMENTS.md) | What to build. Requirements are referenced by ID (FR-S3, FR-C1…) — use those IDs in commits and PRs |
-| [`TECH-DESIGN.md`](./TECH-DESIGN.md) | How to build it: architecture, schema, algorithms, testing |
+| [`TECH-DESIGN.md`](./TECH-DESIGN.md)   | How to build it: architecture, schema, algorithms, testing                                          |
 
 Don't restate these docs here. When something changes, update the doc, not this file.
 
 ## Status
 
-**Pre-M0** — no code yet. Commands and file-path conventions get filled in once the monorepo exists.
+**M0 — Foundations**, in progress. Monorepo, `packages/core`, and CI are in. Supabase, Prisma schema, and Railway are next.
+
+## Commands
+
+```sh
+pnpm dev             # all services (turbo)
+pnpm typecheck       # tsc across the workspace
+pnpm lint            # eslint, including the boundary rules
+pnpm test:coverage   # unit + the coverage gate
+pnpm format          # prettier — run before committing
+```
+
+Runtimes are not uniform: **`apps/lessons` runs on Bun** (pure I/O, no Prisma, no Nest, isolated by design); everything else is Node 22. TypeScript is pinned to 6.0.3 because `typescript-eslint` caps at `<6.1.0` — do not bump it to 7 without checking that the boundary rules still load.
+
+**Never commit with `--no-verify` or `core.hooksPath=/dev/null`.** Run `pnpm format` and fix the failure instead; a bypassed gate is how CI ends up red.
 
 ## Non-negotiables
 
@@ -45,17 +59,19 @@ These are the rules that are cheap to follow and expensive to discover you broke
 ## Architecture rules
 
 **Backend** (`apps/api`, DDD + Clean Architecture — `TECH-DESIGN.md` §2.1)
+
 - Layers: `domain/` ← `application/` ← `{infrastructure/, presentation/}`. Domain imports nothing but itself and `packages/core`.
 - Prisma lives only in `infrastructure/persistence/`. Domain and application never import `@prisma/client`.
 - The worker calls the API's use cases; it does not reimplement writes.
 - Add layers when there's an invariant to protect. CRUD-ish modules stay thin — the ceremony is not the point.
 
 **Frontend** (`apps/web`, feature-sliced — `TECH-DESIGN.md` §2.2)
+
 - Server state lives in TanStack Query and is never copied into `useState`.
 - Components never fetch. Requests go through hooks in `features/<x>/api/`.
 - Features never import each other. Cross-feature goes through `shared/` or route composition.
 - Routes are smart, components are dumb.
-- Don't port the backend's four layers into React. Query *is* the data layer.
+- Don't port the backend's four layers into React. Query _is_ the data layer.
 
 ## Testing
 
@@ -70,7 +86,7 @@ Unit + integration + E2E, **80% global floor enforced in CI**, `packages/core` a
 - **TypeScript strict**, no `any` without a comment explaining why.
 - **Zod schemas live in `packages/core`** and are shared by API validation, SPA forms, and LLM structured outputs. One definition, three consumers.
 - **Timestamps are `timestamptz`.** Every "day", "week", and scheduled job derives from the user's IANA timezone, never server-local.
-- **No hardcoded user-facing strings.** en + pt-BR, `react-i18next` with ICU. Enum values are keys; the UI translates at render. Format dates, numbers, and durations with `Intl` or a `packages/core` helper — never by hand. UI locale, timezone, and *content language* (what the agent writes lessons in) are three separate settings. (`TECH-DESIGN.md` §5.2)
+- **No hardcoded user-facing strings.** en + pt-BR, `react-i18next` with ICU. Enum values are keys; the UI translates at render. Format dates, numbers, and durations with `Intl` or a `packages/core` helper — never by hand. UI locale, timezone, and _content language_ (what the agent writes lessons in) are three separate settings. (`TECH-DESIGN.md` §5.2)
 - **Money and tokens** — store token counts as integers, cost as `numeric`, never float.
 - **Commits** reference the requirement ID where one applies: `feat(friction): one-tap logging (FR-C1, FR-C2)`.
 

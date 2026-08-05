@@ -4,7 +4,7 @@
 **Date:** 2026-08-05
 **Companions:** [`REQUIREMENTS.md`](./REQUIREMENTS.md) (what to build) · [`TECH-DESIGN.md`](./TECH-DESIGN.md) (how to build it)
 
-This document is the destination and the staircase. It answers two questions: *what does "done" look like*, and *what is the next thing I build*.
+This document is the destination and the staircase. It answers two questions: _what does "done" look like_, and _what is the next thing I build_.
 
 ---
 
@@ -16,15 +16,15 @@ Not how much you consumed. Whether it worked.
 
 ### A Tuesday, once it exists
 
-You open Mindforge at 8:40am. It doesn't greet you. It says: **three reviews due, 12 minutes**, and below that, one line — *your ownership model held; lifetimes didn't.* You do the reviews. Two land, one doesn't; the one that doesn't schedules itself closer.
+You open Mindforge at 8:40am. It doesn't greet you. It says: **three reviews due, 12 minutes**, and below that, one line — _your ownership model held; lifetimes didn't._ You do the reviews. Two land, one doesn't; the one that doesn't schedules itself closer.
 
-You hit **Start focus**. One field: what does done look like? You type *"get the parser handling nested groups."* The timer runs. Forty minutes in, a build tool breaks. You tap once — **tooling** — and keep going. At the end: did you hit it? *Partly.* Focus quality 4. Energy 3.
+You hit **Start focus**. One field: what does done look like? You type _"get the parser handling nested groups."_ The timer runs. Forty minutes in, a build tool breaks. You tap once — **tooling** — and keep going. At the end: did you hit it? _Partly._ Focus quality 4. Energy 3.
 
-At 4pm you open a lesson the agent generated overnight from your mission, your last three learning records, and the two skills the graph says you're now ready for. It takes eight minutes. It's hard in the right way. You finish it and mark it *shaky*, which is honest, and the app believes you.
+At 4pm you open a lesson the agent generated overnight from your mission, your last three learning records, and the two skills the graph says you're now ready for. It takes eight minutes. It's hard in the right way. You finish it and mark it _shaky_, which is honest, and the app believes you.
 
 ### A Sunday, once it exists
 
-The weekly review takes six minutes. It shows you planned 5 hours on Rust and spent 6:20 — but 59% of that was **slag**, and most of it was tooling on the same project. The suggestion is not motivational: *"Tooling friction is 40% of your Rust sessions over the last 14 days. Spend one session fixing your environment."*
+The weekly review takes six minutes. It shows you planned 5 hours on Rust and spent 6:20 — but 59% of that was **slag**, and most of it was tooling on the same project. The suggestion is not motivational: _"Tooling friction is 40% of your Rust sessions over the last 14 days. Spend one session fixing your environment."_
 
 It shows your Postgres skill has faded to `37 ±22`, edges dissolved, because you last proved anything in January.
 
@@ -36,12 +36,12 @@ Everything you know about a domain is one **galaxy**. Foundations sit at the cor
 
 The galaxy isn't decoration, because every visual property carries a value the app already computes:
 
-| You see | It means |
-| --- | --- |
-| **Brightness** | Skill score. Dim stars are unproven, not unknown. |
-| **Haze** | Uncertainty — the same feathering language as the temper gauge. A skill untested for months goes soft at the edges. |
-| **Dimming over time** | Decay. Light fading is what decay actually feels like. |
-| **Dark regions** | Your frontier. The zone of proximal development is the ring just past where the light stops. |
+| You see               | It means                                                                                                            |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| **Brightness**        | Skill score. Dim stars are unproven, not unknown.                                                                   |
+| **Haze**              | Uncertainty — the same feathering language as the temper gauge. A skill untested for months goes soft at the edges. |
+| **Dimming over time** | Decay. Light fading is what decay actually feels like.                                                              |
+| **Dark regions**      | Your frontier. The zone of proximal development is the ring just past where the light stops.                        |
 
 Nobody places stars by hand. The teach agent proposes structure as it teaches; position is computed from the prerequisite graph. And the galaxy is the **navigation** view, not the analysis view — radial layouts are superb for "where am I, where next" and poor for comparing two numbers, so gauges and lists stay for that.
 
@@ -61,7 +61,7 @@ In priority order (detail in `REQUIREMENTS.md` §8):
 1. **Still in use after 90 days.** Everything else is moot.
 2. Retention lift on active skills.
 3. Ember share up, slag share down.
-4. Plans get more honest (adherence up, *or* plans get smaller — both are wins).
+4. Plans get more honest (adherence up, _or_ plans get smaller — both are wins).
 5. Artifacts shipped per quarter.
 6. Calibration gap shrinking.
 
@@ -71,17 +71,17 @@ In priority order (detail in `REQUIREMENTS.md` §8):
 
 These don't change between milestones. When a decision is close, these break the tie.
 
-| Principle | Consequence |
-| --- | --- |
-| **Capture in ≤5s, ≤2 taps** | If a feature can't meet this, automate it or cut it. Non-negotiable. |
-| **Mobile-first for capture and review** | Friction logging, the timer, and the review queue are phone interactions before they are desktop ones. Analysis and authoring stay desktop-first. `TECH-DESIGN.md` §5.1. |
-| **Honesty over encouragement** | No fake celebration, no inflated scores, no hidden decay. |
-| **Evidence over self-report** | Scores are derived. Self-ratings are stored separately and compared, never trusted. |
-| **Files stay canonical** | The teach workspace must always be usable from a terminal without Mindforge. |
-| **Every insight names an action** | An insight that doesn't change what you do next gets cut. |
-| **Boring where it's not the point** | Spend novelty on the temper gauge and the friction split. Everything else is quiet. |
-| **Ship a usable thing each milestone** | If you stop after any step, what's there still earns its keep. |
-| **Tested at all three levels, 80% floor** | Unit, integration, and E2E ship *with* the feature, not after. CI fails below 80%. `packages/core` is held to 100% — see `TECH-DESIGN.md` §13. |
+| Principle                                 | Consequence                                                                                                                                                              |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Capture in ≤5s, ≤2 taps**               | If a feature can't meet this, automate it or cut it. Non-negotiable.                                                                                                     |
+| **Mobile-first for capture and review**   | Friction logging, the timer, and the review queue are phone interactions before they are desktop ones. Analysis and authoring stay desktop-first. `TECH-DESIGN.md` §5.1. |
+| **Honesty over encouragement**            | No fake celebration, no inflated scores, no hidden decay.                                                                                                                |
+| **Evidence over self-report**             | Scores are derived. Self-ratings are stored separately and compared, never trusted.                                                                                      |
+| **Files stay canonical**                  | The teach workspace must always be usable from a terminal without Mindforge.                                                                                             |
+| **Every insight names an action**         | An insight that doesn't change what you do next gets cut.                                                                                                                |
+| **Boring where it's not the point**       | Spend novelty on the temper gauge and the friction split. Everything else is quiet.                                                                                      |
+| **Ship a usable thing each milestone**    | If you stop after any step, what's there still earns its keep.                                                                                                           |
+| **Tested at all three levels, 80% floor** | Unit, integration, and E2E ship _with_ the feature, not after. CI fails below 80%. `packages/core` is held to 100% — see `TECH-DESIGN.md` §13.                           |
 
 ---
 
@@ -92,6 +92,7 @@ Ten steps. Each is a week or three of evenings, ships something usable, and has 
 ---
 
 ### M0 — Foundations
+
 **Goal:** a deployed skeleton you can log into.
 
 - Monorepo (`apps/web|api|worker|lessons`, `packages/core|db|llm`) — **pnpm + Turborepo**, Node 22, shared tsconfig, Vitest + Playwright wired
@@ -111,6 +112,7 @@ Ten steps. Each is a week or three of evenings, ships something usable, and has 
 ---
 
 ### M1 — The capture loop
+
 **Goal:** the daily habit, with zero AI.
 
 - Missions (create, edit, park — with the WIP limit of 3) and Goals
@@ -119,7 +121,7 @@ Ten steps. Each is a week or three of evenings, ships something usable, and has 
 - URL capture → server-side metadata extraction (no model call)
 - **Focus timer:** start with an intention → run → stop → ≤30s debrief
 - **Friction logging:** one tap, typed, mid-session, no modal
-- Manual and retroactive session entry (you *will* forget the timer)
+- Manual and retroactive session entry (you _will_ forget the timer)
 - **Notes on anything** — one tap from a running session, or from any resource, skill, or mission (FR-N1..N3)
 - Command palette (⌘K) for start-focus, log-friction, add-resource
 - Offline queue in IndexedDB with client-generated UUIDs
@@ -133,6 +135,7 @@ Ten steps. Each is a week or three of evenings, ships something usable, and has 
 ---
 
 ### M2 — The weekly rhythm
+
 **Goal:** the habit loop that stops it being abandoned at week three.
 
 - Weekly planning grid: target minutes per mission/skill
@@ -150,6 +153,7 @@ Ten steps. Each is a week or three of evenings, ships something usable, and has 
 ---
 
 ### M3 — The workspace and the agent
+
 **Goal:** `teach` runs in the cloud. The riskiest milestone — timebox the spike.
 
 - **Day one: read the Agent SDK docs** and correct `TECH-DESIGN.md` §7.3 against the real API
@@ -166,6 +170,7 @@ Ten steps. Each is a week or three of evenings, ships something usable, and has 
 ---
 
 ### M4 — Lessons in the product
+
 **Goal:** the generated material is usable, not just stored.
 
 - Sandboxed lesson renderer: separate origin, `sandbox="allow-scripts"` without `allow-same-origin`, strict CSP
@@ -179,6 +184,7 @@ Ten steps. Each is a week or three of evenings, ships something usable, and has 
 ---
 
 ### M5 — Retention
+
 **Goal:** make the learning stick, and make scores mean something.
 
 - FSRS via `ts-fsrs` in `packages/core`, fully unit-tested
@@ -194,6 +200,7 @@ Ten steps. Each is a week or three of evenings, ships something usable, and has 
 ---
 
 ### M6 — Measurement
+
 **Goal:** the numbers become honest.
 
 - AI assessment generation, grounded in your own lessons, records, and resources
@@ -210,11 +217,12 @@ Ten steps. Each is a week or three of evenings, ships something usable, and has 
 ---
 
 ### M7 — The galaxy
+
 **Goal:** you can see the whole shape of what you know, and where the edge is.
 
 Deliberately after M6: a galaxy drawn from self-reported scores would be a pretty lie. It only becomes honest once brightness is backed by evidence.
 
-- **Schema delta:** `domains` (a galaxy) and `tracks` (an arm); skills gain `domain_id` and an optional `track_id`. Core-ness is *derived* — a skill with no prerequisites inside its domain is core, and radial distance is prerequisite depth. Nothing is hand-positioned. (Needs a corresponding update to `TECH-DESIGN.md` §3 when this milestone starts.)
+- **Schema delta:** `domains` (a galaxy) and `tracks` (an arm); skills gain `domain_id` and an optional `track_id`. Core-ness is _derived_ — a skill with no prerequisites inside its domain is core, and radial distance is prerequisite depth. Nothing is hand-positioned. (Needs a corresponding update to `TECH-DESIGN.md` §3 when this milestone starts.)
 - Layout computed from `skill_edges`; cross-arm bridges rendered faint rather than forbidden
 - Visual encoding: brightness = score, haze = confidence interval, dimming = decay, dark = frontier — reusing the temper palette and the gauge's feathering, not inventing a second visual language
 - Zoom levels: domain → track → skill, so a 200-skill galaxy stays readable
@@ -227,6 +235,7 @@ Deliberately after M6: a galaxy drawn from self-reported scores would be a prett
 ---
 
 ### M8 — Insights
+
 **Goal:** the app tells you something you didn't know.
 
 - Focus analytics: by mission/skill/week, best time-of-day, best-conditions
@@ -241,6 +250,7 @@ Deliberately after M6: a galaxy drawn from self-reported scores would be a prett
 ---
 
 ### M9 — Reduce the friction it measures
+
 **Goal:** close the loop — the app stops being a source of the thing it tracks.
 
 - Readwise / Kindle highlights
@@ -258,14 +268,14 @@ Deliberately after M6: a galaxy drawn from self-reported scores would be a prett
 
 ## 5. Not building (and when that changes)
 
-| Not now | Revisit when |
-| --- | --- |
-| Multi-user, sharing, social | Never, unless the single-user version has been in daily use for a year |
-| Native mobile apps | PWA proves insufficient in real use |
-| Managed Agents instead of the Agent SDK | It leaves beta — it would delete the whole sync subsystem |
-| Automatic time capture (IDE/browser activity) | M9, opt-in and local-first only |
-| Personalized FSRS parameters | ~1000 reviews logged |
-| Gamification of any kind | Never. It corrupts the data the product exists to collect. |
+| Not now                                       | Revisit when                                                           |
+| --------------------------------------------- | ---------------------------------------------------------------------- |
+| Multi-user, sharing, social                   | Never, unless the single-user version has been in daily use for a year |
+| Native mobile apps                            | PWA proves insufficient in real use                                    |
+| Managed Agents instead of the Agent SDK       | It leaves beta — it would delete the whole sync subsystem              |
+| Automatic time capture (IDE/browser activity) | M9, opt-in and local-first only                                        |
+| Personalized FSRS parameters                  | ~1000 reviews logged                                                   |
+| Gamification of any kind                      | Never. It corrupts the data the product exists to collect.             |
 
 ---
 

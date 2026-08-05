@@ -43,7 +43,9 @@ const SECURITY_HEADERS: Record<string, string> = {
 
 const server = Bun.serve({
   port: PORT,
-  async fetch(req) {
+  // Not async yet: becomes async when Storage streaming lands, and lint should
+  // tell us the day it doesn't need to be.
+  fetch(req) {
     const url = new URL(req.url);
 
     if (url.pathname === "/health") {

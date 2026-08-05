@@ -23,7 +23,11 @@ interface TxLike {
 
 interface OperationArgs {
   args: unknown;
-  query(args: unknown): Promise<unknown>;
+  /**
+   * `this: void` is deliberate — Prisma hands this callback in already bound,
+   * and declaring it makes destructuring safe rather than relying on that.
+   */
+  query(this: void, args: unknown): Promise<unknown>;
 }
 
 export interface PrismaLike {

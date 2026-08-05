@@ -38,7 +38,8 @@ describe("estimateCostUsd", () => {
     // The whole reason the cache strategy exists: one write plus N reads must
     // beat N full-price prefixes. If this inverts, §8.4 is wrong.
     const prefix = 100_000;
-    const uncached = 5 * estimateCostUsd(MODELS.reasoning, { inputTokens: prefix, outputTokens: 0, ...none });
+    const uncached =
+      5 * estimateCostUsd(MODELS.reasoning, { inputTokens: prefix, outputTokens: 0, ...none });
     const cached =
       estimateCostUsd(MODELS.reasoning, {
         inputTokens: 0,
@@ -65,8 +66,9 @@ describe("estimateCostUsd", () => {
 
   it("throws on an unconfigured model instead of reporting zero cost", () => {
     // Silently costing $0 would hide spend, which defeats the point of the meter.
-    expect(() => estimateCostUsd("claude-imaginary-9", { inputTokens: 1, outputTokens: 1, ...none }))
-      .toThrow(/No pricing configured/);
+    expect(() =>
+      estimateCostUsd("claude-imaginary-9", { inputTokens: 1, outputTokens: 1, ...none }),
+    ).toThrow(/No pricing configured/);
   });
 });
 

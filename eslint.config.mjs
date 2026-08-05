@@ -1,6 +1,6 @@
 import js from "@eslint/js";
-import ts from "typescript-eslint";
 import boundaries from "eslint-plugin-boundaries";
+import ts from "typescript-eslint";
 
 export default ts.config([
   js.configs.recommended,
