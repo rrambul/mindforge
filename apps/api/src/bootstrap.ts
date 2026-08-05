@@ -18,7 +18,19 @@ export async function createApp(): Promise<NestFastifyApplication> {
   app.setGlobalPrefix("v1");
 
   const env = app.get<Env>(ENV);
-  app.enableCors({ origin: env.APP_ORIGIN, credentials: true });
+  app.enableCors({
+    origin: env.APP_ORIGIN,
+    credentials: true,
+    // Spelled out because `@fastify/cors` defaults to GET,HEAD,POST only — unlike
+    // Express's cors, which allows the full set. Without this a browser blocks
+    // `PATCH /v1/missions/:id` at the preflight, and the symptom is a CORS error that
+    // names the origin rather than the method, so it reads as an origin problem.
+    //
+    // OPTIONS is absent deliberately: Fastify answers the preflight itself, and listing
+    // it would imply a route that does not exist.
+    methods: ["GET", "HEAD", "POST", "PATCH", "PUT", "DELETE"],
+    allowedHeaders: ["authorization", "content-type"],
+  });
 
   // Without this, `onModuleDestroy` never runs on SIGTERM — which is how Railway
   // stops a container — and the Postgres pool is dropped mid-query rather than

@@ -77,6 +77,10 @@ pnpm --filter @mindforge/db generate           # regenerate the Prisma client
 
 - **`*.module.ts` is exempt from the boundary rule.** A Nest module's job is binding abstractions to implementations, which cannot be written without naming the implementation (TECH-DESIGN.md §2.1's own example does it). The exemption is scoped to that filename; a controller importing a repository is still an error.
 
+- **The web dev server uses `strictPort`.** Vite's default is to increment to the next free port, and the port is load-bearing: the API's CORS allow-list is exactly `APP_ORIGIN`, so a silent move to 5174 turns every request into a preflight failure whose message names the _origin_ rather than the port. `Port 5173 is in use` is a diagnosis; a wall of CORS errors is a puzzle.
+
+- **CORS methods are listed explicitly.** `@fastify/cors` defaults to `GET,HEAD,POST` — unlike Express's `cors`, which allows the full set — so `PATCH` and `DELETE` fail their preflight while the endpoints themselves work. Not observable through `app.inject()`, which is why `apps/api/test/cors.test.ts` drives the preflight directly.
+
 - **Every package is ESM** (`"type": "module"`). `apps/api` was CommonJS while the packages it imports were ESM, which made named imports across that boundary fail at runtime while type-checking fine.
 - **TypeScript is pinned to 6.0.3** because `typescript-eslint` caps at `<6.1.0`. Bumping to 7 silently loses the boundary rules.
 - **Prisma 7 has no `datasourceUrl`** — build clients through `createPrismaClient()` in `packages/db`, which uses a driver adapter. Connection URLs live in `prisma.config.ts`, not the schema.
