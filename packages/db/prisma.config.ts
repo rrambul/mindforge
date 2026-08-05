@@ -1,4 +1,4 @@
-import { defineConfig, env } from "prisma/config";
+import { defineConfig } from "prisma/config";
 
 // Prisma 7 no longer auto-loads .env. Node 22 does it natively.
 try {
@@ -7,6 +7,8 @@ try {
   // Expected in CI and on Railway, where the environment is already populated.
 }
 
+const directUrl = process.env["DIRECT_URL"];
+
 /**
  * Migration-time configuration only.
  *
@@ -14,6 +16,12 @@ try {
  * the DIRECT connection — migrations cannot run through pgbouncer. The runtime
  * client is constructed separately with the pooled DATABASE_URL.
  * See TECH-DESIGN.md §14.
+ *
+ * The datasource is included only when DIRECT_URL is present. `prisma generate`
+ * needs no database, and CI runs it without one — using prisma/config's `env()`
+ * here would throw during install. Omitting the key instead means a genuine
+ * migration against a missing URL still fails loudly, with Prisma's own error,
+ * rather than silently connecting to a placeholder.
  */
 export default defineConfig({
   schema: "prisma/schema.prisma",
@@ -22,9 +30,7 @@ export default defineConfig({
   experimental: {
     externalTables: true,
   },
-  datasource: {
-    url: env("DIRECT_URL"),
-  },
+  ...(directUrl ? { datasource: { url: directUrl } } : {}),
   migrations: {
     path: "prisma/migrations",
     // Supabase's auth schema does not exist in Prisma's throwaway shadow DB,
