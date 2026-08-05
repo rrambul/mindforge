@@ -45,6 +45,11 @@ jobs:
       - name: Verify architectural boundaries
         run: pnpm check:boundaries
 
+      # FR-L7: a missing translation key fails the build rather than rendering a raw
+      # key to the user.
+      - name: Verify translation bundles
+        run: pnpm check:i18n
+
       - name: Typecheck
         run: pnpm typecheck
 

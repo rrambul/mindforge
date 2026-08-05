@@ -1,0 +1,21 @@
+{
+  "appName": "Mindforge",
+  "action": {
+    "cancel": "Cancel",
+    "retry": "Try again",
+    "save": "Save"
+  },
+  "state": {
+    "loading": "Loading",
+    "offline": "That request didn't reach the server. Check your connection and try again."
+  },
+  "error": {
+    "unexpectedTitle": "Something broke",
+    "unexpectedBody": "This screen failed to render. Reloading usually clears it."
+  },
+  "theme": {
+    "toggle": "Switch theme",
+    "light": "Light",
+    "dark": "Dark"
+  }
+}

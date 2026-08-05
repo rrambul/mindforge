@@ -1,0 +1,21 @@
+{
+  "appName": "Mindforge",
+  "action": {
+    "cancel": "Cancelar",
+    "retry": "Tentar de novo",
+    "save": "Salvar"
+  },
+  "state": {
+    "loading": "Carregando",
+    "offline": "A requisição não chegou ao servidor. Verifique sua conexão e tente de novo."
+  },
+  "error": {
+    "unexpectedTitle": "Algo quebrou",
+    "unexpectedBody": "Esta tela falhou ao renderizar. Recarregar normalmente resolve."
+  },
+  "theme": {
+    "toggle": "Trocar tema",
+    "light": "Claro",
+    "dark": "Escuro"
+  }
+}

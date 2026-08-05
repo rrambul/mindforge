@@ -100,6 +100,17 @@ export const CreateMissionSchema = z.object({
 export type CreateMissionInput = z.infer<typeof CreateMissionSchema>;
 
 /**
+ * What a form holds *before* defaults and transforms run — the prose fields are still
+ * optional and still possibly `""`.
+ *
+ * Distinct from `CreateMissionInput` because `.default()` and `.transform()` make the
+ * schema's input and output genuinely different types, and react-hook-form needs the
+ * input one. Exported so the SPA does not have to reach for `z.input` itself, which
+ * would put a zod type in a component signature.
+ */
+export type CreateMissionFormValues = z.input<typeof CreateMissionSchema>;
+
+/**
  * PATCH: every field optional, but a body that changes nothing is a mistake worth
  * reporting rather than a no-op to absorb.
  *

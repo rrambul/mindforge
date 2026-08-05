@@ -18,9 +18,13 @@ Don't restate these docs here. When something changes, update the doc, not this 
 
 Done in M0: monorepo, `packages/core` (scoring, decay, bands, friction classification — 100% covered), Prisma schema for the whole M1 slice, RLS on every table, CI, hooks, design tokens.
 
-Done in M1 so far: the server message bundle (`packages/core/src/i18n`), the API request foundation (auth guard, RFC 7807 errors, Zod validation, RLS-scoped access), and the **missions module** — create, edit with revision history, park/unpark, WIP limit of 3. `/v1/missions` works end to end against the local stack. `apps/web` is still M0's single `<main>`.
+Done in M1 so far: the server message bundle (`packages/core/src/i18n`), the API request foundation (auth guard, RFC 7807 errors, Zod validation, RLS-scoped access), the **missions module** (create, edit with revision history, park/unpark, WIP limit of 3), `GET /v1/me`, and the **web app shell** — Supabase browser auth, TanStack Query, react-i18next with ICU in en + pt-BR, the shared/ui primitives on the Temper tokens, and a working missions screen.
 
-Next in M1: goals, then skills, then the capture loop proper (focus timer, friction logging) — and the web app, which needs a router, a Query provider, and i18n scaffolding before any of it is visible.
+`pnpm dev` gives you a sign-in screen, and after that a missions list you can create, park, and resume from.
+
+Next in M1: the capture loop proper — focus timer (start with an intention → run → stop → ≤30s debrief) and one-tap friction logging. Then the Today screen, then goals/skills/resources. There is deliberately **no router yet**: two states do not need a route tree, and it should be designed against the real routes once Today and mission detail exist.
+
+Three checks run outside the test suites, all wired into CI: `pnpm check:boundaries` (the architecture rules actually fire), `pnpm check:i18n` (FR-L7), and the per-package coverage gates.
 
 Two M0 claims turned out not to hold, both fixed:
 

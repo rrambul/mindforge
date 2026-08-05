@@ -1,0 +1,96 @@
+import { useState, type FormEvent } from "react";
+import { useTranslation } from "react-i18next";
+import { supabase } from "../../../shared/api/supabase.js";
+import { Button } from "../../../shared/ui/Button.js";
+import { Callout } from "../../../shared/ui/Callout.js";
+import { Field } from "../../../shared/ui/Field.js";
+
+type Mode = "signIn" | "signUp";
+
+/**
+ * The front door. Email and password against Supabase Auth (FR-A1); the API never
+ * issues tokens.
+ *
+ * Not react-hook-form: two fields with no cross-field rules and no schema shared with
+ * a server DTO. The form machinery earns its place on the mission editor and the
+ * session debrief, not here.
+ *
+ * Supabase's own error text is not rendered. It is English, it leaks whether an
+ * account exists ("Invalid login credentials" vs "Email not confirmed"), and it is not
+ * ours to translate — so both failures collapse to one catalogued message.
+ */
+export function SignInForm() {
+  const { t } = useTranslation("auth");
+  const [mode, setMode] = useState<Mode>("signIn");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [failed, setFailed] = useState(false);
+  const [pending, setPending] = useState(false);
+
+  async function submit(event: FormEvent): Promise<void> {
+    event.preventDefault();
+    setFailed(false);
+    setPending(true);
+
+    const { error } =
+      mode === "signIn"
+        ? await supabase.auth.signInWithPassword({ email, password })
+        : await supabase.auth.signUp({ email, password });
+
+    setPending(false);
+    // No success branch: onAuthStateChange fires and the router re-renders. Setting
+    // state here would fight it.
+    if (error) setFailed(true);
+  }
+
+  const other: Mode = mode === "signIn" ? "signUp" : "signIn";
+
+  return (
+    <form className="mf-stack" onSubmit={(event) => void submit(event)} noValidate>
+      <h1 className="mf-h1">{t(`${mode}.heading`)}</h1>
+
+      {failed ? (
+        <Callout tone="danger" live>
+          {t(`${mode}.failed`)}
+        </Callout>
+      ) : null}
+
+      <Field
+        label={t("signIn.email")}
+        type="email"
+        name="email"
+        autoComplete="email"
+        required
+        value={email}
+        onChange={(event) => setEmail(event.target.value)}
+      />
+
+      <Field
+        label={t("signIn.password")}
+        type="password"
+        name="password"
+        // Tells a password manager which of the two this is, so it offers to save on
+        // sign-up and to fill on sign-in.
+        autoComplete={mode === "signIn" ? "current-password" : "new-password"}
+        required
+        value={password}
+        onChange={(event) => setPassword(event.target.value)}
+      />
+
+      <div className="mf-row">
+        <Button variant="primary" type="submit" disabled={pending}>
+          {t(`${mode}.submit`)}
+        </Button>
+        <Button
+          variant="quiet"
+          onClick={() => {
+            setMode(other);
+            setFailed(false);
+          }}
+        >
+          {t(`${mode}.switchTo${other === "signUp" ? "SignUp" : "SignIn"}`)}
+        </Button>
+      </div>
+    </form>
+  );
+}

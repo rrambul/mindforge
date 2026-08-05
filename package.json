@@ -20,8 +20,8 @@
     "test:coverage": "turbo run test:coverage",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "i18n:check": "node scripts/check-i18n-keys.mjs",
-    "prepare": "husky"
+    "prepare": "husky",
+    "check:i18n": "node scripts/check-i18n-keys.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

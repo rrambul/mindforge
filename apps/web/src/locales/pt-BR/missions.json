@@ -1,0 +1,37 @@
+{
+  "heading": "Missões",
+  "empty": {
+    "body": "Nada aqui ainda. Uma missão é algo em que você quer melhorar, e o porquê.",
+    "action": "Começar sua primeira missão"
+  },
+  "wip": {
+    "used": "{used} de {limit} ativas",
+    "full": "Você está no limite de {limit, plural, one {# missão ativa} other {# missões ativas}}. Pause uma para começar outra.",
+    "atLimitHint": "Pause uma missão para liberar espaço."
+  },
+  "new": {
+    "heading": "Nova missão",
+    "topic": "Em que você quer melhorar?",
+    "topicHint": "Uma habilidade ou assunto, não uma tarefa.",
+    "why": "Por que isso importa?",
+    "whyHint": "É nisso que o agente de ensino se baseia. Vale uma frase.",
+    "successLooksLike": "Como seria ter chegado lá?",
+    "submit": "Criar missão",
+    "creating": "Criando",
+    "open": "Nova missão"
+  },
+  "card": {
+    "park": "Pausar",
+    "unpark": "Retomar",
+    "parking": "Pausando",
+    "unparking": "Retomando",
+    "noWhy": "Nenhum motivo registrado ainda."
+  },
+  "field": {
+    "topic": {
+      "too_small": "No mínimo 3 caracteres.",
+      "too_big": "Isso é longo demais para um tópico — tente uma frase mais curta.",
+      "invalid_type": "O tópico é obrigatório."
+    }
+  }
+}

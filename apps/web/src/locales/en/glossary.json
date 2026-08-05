@@ -1,0 +1,22 @@
+{
+  "ember": "Ember",
+  "slag": "Slag",
+  "temper": "Temper",
+  "frontier": "Frontier",
+  "mission": "Mission",
+  "mission_plural": "Missions",
+  "focusSession": "Focus session",
+  "band": {
+    "aware": "Aware",
+    "assisted": "Assisted",
+    "working": "Working",
+    "fluent": "Fluent",
+    "teaching": "Teaching"
+  },
+  "missionStatus": {
+    "active": "Active",
+    "parked": "Parked",
+    "completed": "Completed",
+    "abandoned": "Abandoned"
+  }
+}

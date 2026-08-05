@@ -1,0 +1,37 @@
+{
+  "heading": "Missions",
+  "empty": {
+    "body": "Nothing here yet. A mission is one thing you're trying to get better at, and why.",
+    "action": "Start your first mission"
+  },
+  "wip": {
+    "used": "{used} of {limit} active",
+    "full": "You're at the limit of {limit, plural, one {# active mission} other {# active missions}}. Park one to start another.",
+    "atLimitHint": "Park a mission to free a slot."
+  },
+  "new": {
+    "heading": "New mission",
+    "topic": "What do you want to get better at?",
+    "topicHint": "A skill or subject, not a task.",
+    "why": "Why does it matter?",
+    "whyHint": "This is what the teach agent grounds everything on. Worth a sentence.",
+    "successLooksLike": "What would it look like to have got there?",
+    "submit": "Create mission",
+    "creating": "Creating",
+    "open": "New mission"
+  },
+  "card": {
+    "park": "Park",
+    "unpark": "Resume",
+    "parking": "Parking",
+    "unparking": "Resuming",
+    "noWhy": "No reason recorded yet."
+  },
+  "field": {
+    "topic": {
+      "too_small": "At least 3 characters.",
+      "too_big": "That's too long for a topic — try a shorter phrase.",
+      "invalid_type": "A topic is required."
+    }
+  }
+}
