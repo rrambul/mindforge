@@ -18,7 +18,9 @@ Don't restate these docs here. When something changes, update the doc, not this 
 
 Done in M0: monorepo, `packages/core` (scoring, decay, bands, friction classification — 100% covered), Prisma schema for the whole M1 slice, RLS on every table, CI, hooks, design tokens.
 
-Done in M1 so far: the server message bundle (`packages/core/src/i18n`), and the API request foundation — auth guard, RFC 7807 errors, Zod validation, RLS-scoped database access. The API boots and serves; `apps/web` is still M0's single `<main>`.
+Done in M1 so far: the server message bundle (`packages/core/src/i18n`), the API request foundation (auth guard, RFC 7807 errors, Zod validation, RLS-scoped access), and the **missions module** — create, edit with revision history, park/unpark, WIP limit of 3. `/v1/missions` works end to end against the local stack. `apps/web` is still M0's single `<main>`.
+
+Next in M1: goals, then skills, then the capture loop proper (focus timer, friction logging) — and the web app, which needs a router, a Query provider, and i18n scaffolding before any of it is visible.
 
 Two M0 claims turned out not to hold, both fixed:
 

@@ -1,6 +1,10 @@
 {
   "extends": "./tsconfig.json",
   "compilerOptions": {
+    // Only the emit config sets rootDir: tsconfig.json also includes test/**, which
+    // lives outside src, and tsc refuses a program whose rootDir does not contain
+    // every file in it.
+    "rootDir": "./src",
     // Inside dist on purpose — see packages/core/tsconfig.build.json. Nest's CLI
     // picks this file up automatically for `nest build`.
     "tsBuildInfoFile": "./dist/.tsbuildinfo"
