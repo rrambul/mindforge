@@ -1,3 +1,4 @@
+export * from "./errors/domain-error.js";
 export * from "./friction/classify.js";
 export * from "./i18n/locales.js";
 export * from "./i18n/server-messages.js";
