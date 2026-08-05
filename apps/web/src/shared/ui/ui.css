@@ -416,3 +416,10 @@ body {
     font-size: var(--mf-step-2);
   }
 }
+
+/* Three short fields on one line, wrapping on a narrow screen rather than
+   shrinking below the touch floor. */
+.mf-row--fields > .mf-field {
+  flex: 1 1 8rem;
+  min-width: 8rem;
+}

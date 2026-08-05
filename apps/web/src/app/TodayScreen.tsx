@@ -3,11 +3,13 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   useDebriefSession,
+  useRecordSession,
   useRunningSession,
   useStartSession,
   useStopSession,
 } from "../features/focus/api/use-focus.js";
 import { Debrief } from "../features/focus/ui/Debrief.js";
+import { LogPastSession } from "../features/focus/ui/LogPastSession.js";
 import { RunningSession } from "../features/focus/ui/RunningSession.js";
 import { StartFocus } from "../features/focus/ui/StartFocus.js";
 import {
@@ -17,6 +19,7 @@ import {
 } from "../features/friction/api/use-friction.js";
 import { FrictionChips } from "../features/friction/ui/FrictionChips.js";
 import { ApiError, NetworkError, PROBLEM, isProblemOfType } from "../shared/api/problem.js";
+import { Button } from "../shared/ui/Button.js";
 import { Callout } from "../shared/ui/Callout.js";
 
 /**
@@ -41,6 +44,7 @@ export function TodayScreen() {
   const start = useStartSession();
   const stop = useStopSession();
   const debrief = useDebriefSession();
+  const record = useRecordSession();
   const logFriction = useLogFriction();
 
   /**
@@ -49,6 +53,7 @@ export function TodayScreen() {
    * session stopped yesterday must not reopen its debrief when you come back.
    */
   const [awaitingDebrief, setAwaitingDebrief] = useState<string | null>(null);
+  const [loggingPast, setLoggingPast] = useState(false);
 
   const session = running.data?.session ?? null;
 
@@ -131,6 +136,32 @@ export function TodayScreen() {
         <section className="mf-stack">
           <h1 className="mf-h1">{t("start.heading")}</h1>
           <StartFocus onStart={onStart} starting={start.isPending} />
+
+          {/* Offered only when nothing is running. The moment you remember a block you forgot is
+              when you sit down to an idle Today — and on mobile the running state is the bottom
+              bar, which must not grow a second form inside the thumb zone (§5.1). */}
+          {loggingPast ? (
+            <>
+              {refused(record.error) ? (
+                <Callout tone="danger" live>
+                  {describe(record.error, common)}
+                </Callout>
+              ) : null}
+              <LogPastSession
+                onSubmit={(input) =>
+                  record.mutate(input, { onSuccess: () => setLoggingPast(false) })
+                }
+                onCancel={() => setLoggingPast(false)}
+                pending={record.isPending}
+              />
+            </>
+          ) : (
+            <div className="mf-row">
+              <Button variant="quiet" onClick={() => setLoggingPast(true)}>
+                {t("past.open")}
+              </Button>
+            </div>
+          )}
         </section>
       )}
     </div>

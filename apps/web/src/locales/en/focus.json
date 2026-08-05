@@ -26,5 +26,23 @@
     "save": "Save",
     "saving": "Saving",
     "skip": "Skip"
+  },
+  "past": {
+    "label": "Log a past session",
+    "heading": "Log a past session",
+    "open": "Log a session you forgot to time",
+    "date": "Date",
+    "startTime": "Started at",
+    "minutes": "Minutes",
+    "intention": "What were you doing?",
+    "intentionHint": "Optional.",
+    "submit": "Log it",
+    "saving": "Saving",
+    "error": {
+      "required": "Needed to place the session.",
+      "invalid": "That date doesn't parse.",
+      "future": "That session hasn't happened yet.",
+      "too_long": "Longer than a day — check the number."
+    }
   }
 }

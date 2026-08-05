@@ -1,5 +1,5 @@
 import { COLD_START_CHIPS } from "@mindforge/core";
-import { screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -361,5 +361,100 @@ describe("pt-BR", () => {
     expect(screen.getByRole("button", { name: "Ferramentas" })).toBeVisible();
     // The friction glossary is translated once and derived everywhere (§5.2).
     expect(screen.getByRole("button", { name: "Esforço produtivo" })).toBeVisible();
+  });
+});
+
+describe("logging a past session (FR-F2)", () => {
+  it("is offered when nothing is running", async () => {
+    // The moment you remember a forgotten block is when you sit down to an idle Today.
+    runningReturns(null);
+    renderWithProviders(<TodayScreen />);
+
+    expect(await screen.findByRole("button", { name: /forgot to time/ })).toBeInTheDocument();
+  });
+
+  it("is not offered while a session is running", async () => {
+    // On mobile the running state is the bottom bar, which must not grow a second form inside the
+    // thumb zone (§5.1).
+    runningReturns(session());
+    renderWithProviders(<TodayScreen />);
+
+    await screen.findByRole("button", { name: "Stop" });
+    expect(screen.queryByRole("button", { name: /forgot to time/ })).not.toBeInTheDocument();
+  });
+
+  it("arrives pre-filled, so the common case is one edit", async () => {
+    runningReturns(null);
+    renderWithProviders(<TodayScreen />);
+
+    await userEvent.click(await screen.findByRole("button", { name: /forgot to time/ }));
+
+    expect(await screen.findByLabelText("Date")).toHaveValue();
+    expect(screen.getByLabelText("Started at")).toHaveValue();
+    expect(screen.getByLabelText("Minutes")).toHaveValue(30);
+  });
+
+  it("posts two instants derived from the length, not an end time", async () => {
+    runningReturns(null);
+    const sent = vi.fn();
+    server.use(
+      http.post(`${API}/focus/sessions`, async ({ request }) => {
+        sent(await request.json());
+        return HttpResponse.json(session({ isRunning: false }), { status: 201 });
+      }),
+    );
+
+    renderWithProviders(<TodayScreen />);
+    await userEvent.click(await screen.findByRole("button", { name: /forgot to time/ }));
+
+    // Moved to a past date first. Raising the duration while leaving the start where it is pushes
+    // the session past now, which the app correctly refuses — so the test has to move the anchor,
+    // exactly as a user logging yesterday's block would.
+    fireEvent.change(screen.getByLabelText("Date"), { target: { value: "2026-01-15" } });
+    fireEvent.change(screen.getByLabelText("Started at"), { target: { value: "09:00" } });
+    fireEvent.change(screen.getByLabelText("Minutes"), { target: { value: "45" } });
+
+    await userEvent.click(screen.getByRole("button", { name: "Log it" }));
+
+    await waitFor(() => expect(sent).toHaveBeenCalled());
+    const body = sent.mock.calls[0]?.[0] as { startedAt: string; endedAt: string };
+    expect(new Date(body.endedAt).getTime() - new Date(body.startedAt).getTime()).toBe(45 * 60_000);
+  });
+
+  it("refuses a session in the future without asking the server", async () => {
+    // A block in the future did not happen, and recording it would put time into the week's totals
+    // that nobody spent.
+    runningReturns(null);
+    const posted = vi.fn();
+    server.use(
+      http.post(`${API}/focus/sessions`, () => {
+        posted();
+        return HttpResponse.json(session(), { status: 201 });
+      }),
+    );
+
+    renderWithProviders(<TodayScreen />);
+    await userEvent.click(await screen.findByRole("button", { name: /forgot to time/ }));
+
+    const minutes = screen.getByLabelText("Minutes");
+    await userEvent.clear(minutes);
+    await userEvent.type(minutes, "1200");
+    await userEvent.click(screen.getByRole("button", { name: "Log it" }));
+
+    expect(await screen.findByText("That session hasn't happened yet.")).toBeVisible();
+    expect(posted).not.toHaveBeenCalled();
+  });
+
+  it("uses the same debrief controls as the live flow", async () => {
+    // The questions mean the same thing; asking them differently would make the two populations of
+    // answers incomparable.
+    runningReturns(null);
+    renderWithProviders(<TodayScreen />);
+    await userEvent.click(await screen.findByRole("button", { name: /forgot to time/ }));
+
+    const partly = screen.getByRole("button", { name: "Partly" });
+    expect(partly).toHaveAttribute("aria-pressed", "false");
+    await userEvent.click(partly);
+    expect(partly).toHaveAttribute("aria-pressed", "true");
   });
 });

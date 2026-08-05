@@ -1,4 +1,5 @@
 import type {
+  CreateFocusSessionInput,
   DebriefFocusSessionInput,
   EntryMode,
   IntentionOutcome,
@@ -178,6 +179,27 @@ export function useDebriefSession(): UseMutationResult<
   return useMutation({
     mutationFn: ({ id, debrief }) =>
       api.post<FocusSession>(`/focus/sessions/${id}/debrief`, debrief),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: focusKeys.all }),
+  });
+}
+
+/**
+ * FR-F2 — manual and retroactive entry.
+ *
+ * Not optimistic and not queued. A block you are recording after the fact is not on the ≤5s
+ * budget, and unlike a live capture there is no running timer whose state would be wrong while it
+ * settled — so the honest behaviour is to wait for the server and report a failure, because the
+ * form still holds everything needed to try again.
+ */
+export function useRecordSession(): UseMutationResult<
+  FocusSession,
+  RequestError,
+  CreateFocusSessionInput
+> {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (input) => api.post<FocusSession>("/focus/sessions", input),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: focusKeys.all }),
   });
 }

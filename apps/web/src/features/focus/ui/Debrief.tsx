@@ -1,19 +1,14 @@
-import {
-  INTENTION_OUTCOMES,
-  type DebriefFocusSessionInput,
-  type IntentionOutcome,
-} from "@mindforge/core";
+import type { DebriefFocusSessionInput, IntentionOutcome } from "@mindforge/core";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "../../../shared/ui/Button.js";
+import { OutcomeChips, RatingRow } from "./debrief-controls.js";
 
 interface DebriefProps {
   readonly onSubmit: (debrief: DebriefFocusSessionInput) => void;
   readonly onSkip: () => void;
   readonly pending: boolean;
 }
-
-const RATINGS = [1, 2, 3, 4, 5] as const;
 
 /**
  * The ≤30-second debrief (FR-F3).
@@ -46,25 +41,11 @@ export function Debrief({ onSubmit, onSkip, pending }: DebriefProps) {
     <section className="mf-card mf-stack" aria-label={t("debrief.label")}>
       <h2 className="mf-h2">{t("debrief.heading")}</h2>
 
-      <fieldset className="mf-fieldset">
-        <legend className="mf-label">{t("debrief.hitIntention")}</legend>
-        <div className="mf-chips__row">
-          {INTENTION_OUTCOMES.map((outcome) => (
-            <button
-              key={outcome}
-              type="button"
-              className={
-                hitIntention === outcome ? "mf-chip-button mf-chip-button--on" : "mf-chip-button"
-              }
-              aria-pressed={hitIntention === outcome}
-              onClick={() => setHitIntention(outcome)}
-            >
-              {t(`debrief.outcome.${outcome}`)}
-            </button>
-          ))}
-        </div>
-      </fieldset>
-
+      <OutcomeChips
+        legend={t("debrief.hitIntention")}
+        value={hitIntention}
+        onChange={setHitIntention}
+      />
       <RatingRow
         legend={t("debrief.focusQuality")}
         value={focusQuality}
@@ -82,32 +63,5 @@ export function Debrief({ onSubmit, onSkip, pending }: DebriefProps) {
         </Button>
       </div>
     </section>
-  );
-}
-
-interface RatingRowProps {
-  readonly legend: string;
-  readonly value: number | null;
-  readonly onChange: (value: number) => void;
-}
-
-function RatingRow({ legend, value, onChange }: RatingRowProps) {
-  return (
-    <fieldset className="mf-fieldset">
-      <legend className="mf-label">{legend}</legend>
-      <div className="mf-chips__row">
-        {RATINGS.map((rating) => (
-          <button
-            key={rating}
-            type="button"
-            className={value === rating ? "mf-chip-button mf-chip-button--on" : "mf-chip-button"}
-            aria-pressed={value === rating}
-            onClick={() => onChange(rating)}
-          >
-            <span className="mf-figure">{rating}</span>
-          </button>
-        ))}
-      </div>
-    </fieldset>
   );
 }

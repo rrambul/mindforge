@@ -26,5 +26,23 @@
     "save": "Salvar",
     "saving": "Salvando",
     "skip": "Pular"
+  },
+  "past": {
+    "label": "Registrar uma sessão passada",
+    "heading": "Registrar uma sessão passada",
+    "open": "Registrar uma sessão que você esqueceu de cronometrar",
+    "date": "Data",
+    "startTime": "Começou às",
+    "minutes": "Minutos",
+    "intention": "O que você estava fazendo?",
+    "intentionHint": "Opcional.",
+    "submit": "Registrar",
+    "saving": "Salvando",
+    "error": {
+      "required": "Necessário para situar a sessão.",
+      "invalid": "Essa data não é válida.",
+      "future": "Essa sessão ainda não aconteceu.",
+      "too_long": "Mais de um dia — verifique o número."
+    }
   }
 }
