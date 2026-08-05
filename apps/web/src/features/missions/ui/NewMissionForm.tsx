@@ -6,8 +6,7 @@ import {
 } from "@mindforge/core";
 import { useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
-import { Button } from "../../../shared/ui/Button.js";
-import { Field, TextareaField } from "../../../shared/ui/Field.js";
+import { Button, Field, Heading, Row, Stack, TextareaField } from "../../../shared/ui/index.js";
 
 interface NewMissionFormProps {
   readonly onSubmit: (input: CreateMissionInput) => void;
@@ -52,40 +51,42 @@ export function NewMissionForm({ onSubmit, pending, onCancel, serverErrors }: Ne
   }
 
   return (
-    <form className="mf-stack" onSubmit={(event) => void handleSubmit(onSubmit)(event)} noValidate>
-      <h2 className="mf-h2">{t("new.heading")}</h2>
+    <form onSubmit={(event) => void handleSubmit(onSubmit)(event)} noValidate>
+      <Stack>
+        <Heading level={2}>{t("new.heading")}</Heading>
 
-      <Field
-        label={t("new.topic")}
-        hint={t("new.topicHint")}
-        autoFocus
-        {...register("topic")}
-        error={errorFor("topic", errors.topic?.type)}
-      />
+        <Field
+          label={t("new.topic")}
+          hint={t("new.topicHint")}
+          autoFocus
+          {...register("topic")}
+          error={errorFor("topic", errors.topic?.type)}
+        />
 
-      <TextareaField
-        label={t("new.why")}
-        hint={t("new.whyHint")}
-        rows={3}
-        {...register("why")}
-        error={errorFor("why", errors.why?.type)}
-      />
+        <TextareaField
+          label={t("new.why")}
+          hint={t("new.whyHint")}
+          rows={3}
+          {...register("why")}
+          error={errorFor("why", errors.why?.type)}
+        />
 
-      <TextareaField
-        label={t("new.successLooksLike")}
-        rows={2}
-        {...register("successLooksLike")}
-        error={errorFor("successLooksLike", errors.successLooksLike?.type)}
-      />
+        <TextareaField
+          label={t("new.successLooksLike")}
+          rows={2}
+          {...register("successLooksLike")}
+          error={errorFor("successLooksLike", errors.successLooksLike?.type)}
+        />
 
-      <div className="mf-row">
-        <Button variant="primary" type="submit" disabled={pending}>
-          {pending ? t("new.creating") : t("new.submit")}
-        </Button>
-        <Button variant="quiet" onClick={onCancel}>
-          {t("action.cancel", { ns: "common" })}
-        </Button>
-      </div>
+        <Row>
+          <Button variant="primary" type="submit" disabled={pending}>
+            {pending ? t("new.creating") : t("new.submit")}
+          </Button>
+          <Button variant="quiet" onClick={onCancel}>
+            {t("action.cancel", { ns: "common" })}
+          </Button>
+        </Row>
+      </Stack>
     </form>
   );
 }

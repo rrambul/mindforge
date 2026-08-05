@@ -1,0 +1,66 @@
+.mf-shell {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  min-height: 100dvh;
+}
+
+.mf-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--mf-space-4);
+  padding: var(--mf-space-3) var(--mf-space-4);
+  /* Respected here as on the bottom bar, or it sits under the notch. */
+  padding-top: max(var(--mf-space-3), env(safe-area-inset-top));
+  border-bottom: 1px solid var(--mf-scale);
+  background: var(--mf-surface);
+}
+
+.mf-brand {
+  font-family: var(--mf-font-display);
+  font-size: var(--mf-step-0);
+  font-weight: 600;
+  letter-spacing: var(--mf-tracking-label);
+  text-transform: uppercase;
+  color: var(--mf-text);
+}
+
+.mf-main {
+  width: 100%;
+  /* Measure, not pixels: 62ch keeps prose readable regardless of the reader's type size. */
+  max-width: 62ch;
+  margin: 0 auto;
+  padding: var(--mf-space-5) var(--mf-space-4) var(--mf-space-8);
+}
+
+@media (max-width: 640px) {
+  /* Room for the running-session bar, so the last element is never trapped behind it. */
+  .mf-main {
+    padding-bottom: calc(var(--mf-space-8) * 2);
+  }
+}
+
+.mf-nav {
+  display: flex;
+  gap: var(--mf-space-1);
+}
+
+.mf-nav__item {
+  min-height: var(--mf-touch-min);
+  padding: 0 var(--mf-space-3);
+  border: 1px solid transparent;
+  border-radius: var(--mf-r);
+  background: none;
+  color: var(--mf-muted);
+  font-family: var(--mf-font-display);
+  font-size: var(--mf-step--1);
+  letter-spacing: var(--mf-tracking-label);
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.mf-nav__item[aria-current="page"] {
+  color: var(--mf-text);
+  border-color: var(--mf-scale);
+  background: var(--mf-sunk);
+}

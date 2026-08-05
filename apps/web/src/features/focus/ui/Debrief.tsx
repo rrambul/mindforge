@@ -1,7 +1,7 @@
 import type { DebriefFocusSessionInput, IntentionOutcome } from "@mindforge/core";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Button } from "../../../shared/ui/Button.js";
+import { Button, Card, Heading, Row, Stack } from "../../../shared/ui/index.js";
 import { OutcomeChips, RatingRow } from "./debrief-controls.js";
 
 interface DebriefProps {
@@ -13,10 +13,10 @@ interface DebriefProps {
 /**
  * The ≤30-second debrief (FR-F3).
  *
- * Three questions, all answerable by tapping, none required — and **Skip is a first-class
- * button, not a dismissal**. A debrief you cannot decline is one you learn to answer carelessly,
- * and careless answers are worse than absent ones: `producedLearning` reads `hitIntention`, so a
- * reflexive "yes" would inflate the ember share permanently.
+ * Three questions, all answerable by tapping, none required — and **Skip is a first-class button,
+ * not a dismissal**. A debrief you cannot decline is one you learn to answer carelessly, and
+ * careless is worse than absent: `producedLearning` reads `hitIntention`, so a reflexive "yes" would
+ * inflate the ember share permanently.
  *
  * Submit stays disabled until something is answered, because an empty debrief is a mistake rather
  * than an answer — and Skip is right there for when nothing is what you mean.
@@ -38,30 +38,32 @@ export function Debrief({ onSubmit, onSkip, pending }: DebriefProps) {
   }
 
   return (
-    <section className="mf-card mf-stack" aria-label={t("debrief.label")}>
-      <h2 className="mf-h2">{t("debrief.heading")}</h2>
+    <Card as="section" label={t("debrief.label")}>
+      <Stack>
+        <Heading level={2}>{t("debrief.heading")}</Heading>
 
-      <OutcomeChips
-        legend={t("debrief.hitIntention")}
-        value={hitIntention}
-        onChange={setHitIntention}
-      />
-      <RatingRow
-        legend={t("debrief.focusQuality")}
-        value={focusQuality}
-        onChange={setFocusQuality}
-      />
-      <RatingRow legend={t("debrief.energy")} value={energy} onChange={setEnergy} />
+        <OutcomeChips
+          legend={t("debrief.hitIntention")}
+          value={hitIntention}
+          onChange={setHitIntention}
+        />
+        <RatingRow
+          legend={t("debrief.focusQuality")}
+          value={focusQuality}
+          onChange={setFocusQuality}
+        />
+        <RatingRow legend={t("debrief.energy")} value={energy} onChange={setEnergy} />
 
-      <div className="mf-row">
-        <Button variant="primary" onClick={submit} disabled={pending || !answered}>
-          {pending ? t("debrief.saving") : t("debrief.save")}
-        </Button>
-        {/* Not a quiet link: declining is a legitimate answer and should look like one. */}
-        <Button onClick={onSkip} disabled={pending}>
-          {t("debrief.skip")}
-        </Button>
-      </div>
-    </section>
+        <Row>
+          <Button variant="primary" onClick={submit} disabled={pending || !answered}>
+            {pending ? t("debrief.saving") : t("debrief.save")}
+          </Button>
+          {/* Not quiet: declining is a legitimate answer and should look like one. */}
+          <Button onClick={onSkip} disabled={pending}>
+            {t("debrief.skip")}
+          </Button>
+        </Row>
+      </Stack>
+    </Card>
   );
 }

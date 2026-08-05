@@ -1,0 +1,16 @@
+.mf-callout {
+  display: grid;
+  gap: var(--mf-space-2);
+  padding: var(--mf-space-3) var(--mf-space-4);
+  border-left: 3px solid var(--mf-scale);
+  border-radius: var(--mf-r);
+  background: var(--mf-surface);
+  font-size: var(--mf-step-0);
+}
+
+.mf-callout[data-tone="warning"] {
+  border-left-color: var(--mf-warning);
+}
+.mf-callout[data-tone="danger"] {
+  border-left-color: var(--mf-danger);
+}

@@ -1,0 +1,59 @@
+/* Read-only badge. Looks like a chip button and is deliberately a different component:
+   one is information, the other is a control, and a badge that looked tappable lies. */
+.mf-status-chip {
+  display: inline-block;
+  padding: 2px var(--mf-space-2);
+  border: 1px solid var(--mf-scale);
+  border-radius: var(--mf-r);
+  font-size: var(--mf-step--1);
+  letter-spacing: var(--mf-tracking-label);
+  text-transform: uppercase;
+  color: var(--mf-muted);
+  white-space: nowrap;
+}
+
+.mf-fieldset {
+  margin: 0;
+  padding: 0;
+  border: none;
+  display: grid;
+  gap: var(--mf-space-2);
+}
+
+.mf-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--mf-space-2);
+  align-items: center;
+}
+
+.mf-chip-button {
+  /* §5.1 names these as the control most likely to be drawn too small. */
+  min-height: var(--mf-touch-min);
+  padding: 0 var(--mf-space-3);
+  border: 1px solid var(--mf-scale);
+  border-radius: var(--mf-r);
+  background: var(--mf-sunk);
+  color: var(--mf-text);
+  font-family: var(--mf-font-body);
+  font-size: var(--mf-step--1);
+  cursor: pointer;
+  transition: background var(--mf-dur-ui) ease;
+}
+
+.mf-chip-button:hover {
+  background: var(--mf-scale);
+}
+
+/* Productive struggle. Ember, never green: productive friction feels bad and is good for
+   you, so a good/bad palette would moralise and mislead. */
+.mf-chip-button[data-accent="ember"] {
+  border-color: var(--mf-ember);
+  color: var(--mf-ember);
+}
+
+.mf-chip-button[data-on="true"] {
+  background: var(--mf-accent);
+  border-color: var(--mf-accent);
+  color: var(--mf-accent-text);
+}

@@ -1,0 +1,42 @@
+.mf-running {
+  display: grid;
+  gap: var(--mf-space-4);
+  padding: var(--mf-space-4);
+  border: 1px solid var(--mf-scale);
+  border-radius: var(--mf-r-lg);
+  background: var(--mf-surface);
+  box-shadow: var(--mf-elevation-1);
+}
+
+.mf-running__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--mf-space-4);
+}
+
+.mf-running__elapsed {
+  margin: 0 0 var(--mf-space-1);
+  /* The one big number on the screen. */
+  font-size: var(--mf-step-3);
+  line-height: var(--mf-leading-tight);
+}
+
+@media (max-width: 640px) {
+  /* The thumb zone (§5.1). dvh and the safe-area inset are both load bearing: 100vh is
+     wrong under iOS Safari's dynamic toolbar, and without the inset the bar sits under
+     the home indicator. */
+  .mf-running {
+    position: fixed;
+    inset: auto 0 0 0;
+    z-index: 10;
+    border-radius: 0;
+    border-inline: none;
+    border-bottom: none;
+    padding-bottom: max(var(--mf-space-4), env(safe-area-inset-bottom));
+  }
+
+  .mf-running__elapsed {
+    font-size: var(--mf-step-2);
+  }
+}

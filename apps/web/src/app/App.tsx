@@ -9,7 +9,8 @@ import { supabase } from "../shared/api/supabase.js";
 import { guessLocaleFromBrowser } from "../shared/lib/i18n.js";
 import { OfflineQueueProvider, useOfflineQueue } from "../shared/lib/queue-context.js";
 import { useTheme } from "../shared/lib/theme.js";
-import { Button } from "../shared/ui/Button.js";
+import { Button, Row, StatusChip, Text } from "../shared/ui/index.js";
+import { AppShell, Brand, Nav, type NavItem } from "./AppShell.js";
 import { createQueryClient, I18nProvider } from "./providers.js";
 import { TodayScreen } from "./TodayScreen.js";
 
@@ -75,78 +76,57 @@ function Shell({ signedIn, sessionKnown }: ShellProps) {
   // route tree earns its place and can be designed against real routes.
   const [screen, setScreen] = useState<Screen>("today");
 
-  return (
-    <div className="mf-shell">
-      <header className="mf-topbar">
-        <div className="mf-row">
-          <span className="mf-brand">{t("appName")}</span>
-          {signedIn ? (
-            <nav className="mf-nav" aria-label={t("appName")}>
-              {(["today", "missions"] as const).map((item) => (
-                <button
-                  key={item}
-                  type="button"
-                  className="mf-nav__item"
-                  aria-current={screen === item ? "page" : undefined}
-                  onClick={() => setScreen(item)}
-                >
-                  {t(`nav.${item}`)}
-                </button>
-              ))}
-            </nav>
-          ) : null}
-        </div>
-        <div className="mf-row">
-          <Button variant="quiet" onClick={toggle} aria-label={t("theme.toggle")}>
-            {t(theme === "dark" ? "theme.light" : "theme.dark")}
-          </Button>
-          {signedIn ? <PendingCaptures /> : null}
-          {signedIn ? (
-            <Button variant="quiet" onClick={() => void supabase.auth.signOut()}>
-              {auth("signOut")}
-            </Button>
-          ) : null}
-        </div>
-      </header>
+  const items: NavItem<Screen>[] = [
+    { id: "today", label: t("nav.today") },
+    { id: "missions", label: t("nav.missions") },
+  ];
 
-      <main className="mf-main">
-        {/* Undetermined is not signed out: rendering the sign-in form while the stored
-            session is still being read would flash it on every reload. */}
-        {!sessionKnown ? (
-          <p className="mf-muted">{t("state.loading")}</p>
-        ) : signedIn ? (
-          screen === "today" ? (
-            <TodayScreen />
-          ) : (
-            <MissionsRoute />
-          )
+  return (
+    <AppShell
+      bar={
+        <>
+          <Row>
+            <Brand>{t("appName")}</Brand>
+            {signedIn ? (
+              <Nav label={t("appName")} items={items} current={screen} onSelect={setScreen} />
+            ) : null}
+          </Row>
+          <Row>
+            <Button variant="quiet" onClick={toggle} aria-label={t("theme.toggle")}>
+              {t(theme === "dark" ? "theme.light" : "theme.dark")}
+            </Button>
+            {signedIn ? <PendingCaptures /> : null}
+            {signedIn ? (
+              <Button variant="quiet" onClick={() => void supabase.auth.signOut()}>
+                {auth("signOut")}
+              </Button>
+            ) : null}
+          </Row>
+        </>
+      }
+    >
+      {/* Undetermined is not signed out: rendering the sign-in form while the stored session is
+          still being read would flash it on every reload. */}
+      {!sessionKnown ? (
+        <Text tone="muted">{t("state.loading")}</Text>
+      ) : signedIn ? (
+        screen === "today" ? (
+          <TodayScreen />
         ) : (
-          <SignInForm />
-        )}
-      </main>
-    </div>
+          <MissionsRoute />
+        )
+      ) : (
+        <SignInForm />
+      )}
+    </AppShell>
   );
 }
 
-/**
- * Says how many captures are waiting to reach the server.
- *
- * Present because the alternative is dishonest: the capture paths are optimistic, so a tap looks
- * identical whether it saved or is sitting in IndexedDB. Silence would mean the app told you
- * everything was fine while holding data it had not sent — and this product's one job is telling
- * you the truth about your own data.
- *
- * Absent when the queue is empty. A permanent "0 pending" is noise.
- */
 function PendingCaptures() {
   const { t } = useTranslation("common");
   const offline = useOfflineQueue();
 
   if (!offline || offline.pending === 0) return null;
 
-  return (
-    <span className="mf-chip" role="status">
-      {t("offline.pending", { count: offline.pending })}
-    </span>
-  );
+  return <StatusChip live>{t("offline.pending", { count: offline.pending })}</StatusChip>;
 }

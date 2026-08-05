@@ -1,8 +1,7 @@
 import type { CreateFocusSessionInput } from "@mindforge/core";
 import { useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
-import { Button } from "../../../shared/ui/Button.js";
-import { Field } from "../../../shared/ui/Field.js";
+import { Button, Card, Field, Heading, Row, Stack } from "../../../shared/ui/index.js";
 import {
   defaultPastSession,
   pastSessionToInput,
@@ -20,13 +19,12 @@ interface LogPastSessionProps {
 /**
  * FR-F2 — the session you forgot to time.
  *
- * "You _will_ forget the timer. If backfilling is painful, the data dies within two weeks." So the
- * shape is date, start, and a duration in minutes rather than two datetimes: three fields that are
- * already filled in plausibly, so the common case is one edit. Asking for an end time instead of a
- * length would be asking you to do arithmetic about a block you barely remember.
+ * "You _will_ forget the timer. If backfilling is painful, the data dies within two weeks." So it is
+ * date, start, and a duration rather than two datetimes: three fields already filled in plausibly, so
+ * the common case is one edit. Asking for an end time would be asking you to do arithmetic about a
+ * block you barely remember.
  *
- * The debrief is optional and uses the same controls as the live flow — the questions mean the same
- * thing, and asking them differently here would make the two sets of answers incomparable.
+ * The debrief reuses the live flow's controls — the questions mean the same thing.
  */
 export function LogPastSession({ onSubmit, onCancel, pending }: LogPastSessionProps) {
   const { t } = useTranslation("focus");
@@ -36,6 +34,8 @@ export function LogPastSession({ onSubmit, onCancel, pending }: LogPastSessionPr
 
   function patch(changes: Partial<PastSessionForm>): void {
     setForm((current) => ({ ...current, ...changes }));
+    // Cleared on edit: leaving a stale error beside a field you have just corrected reads as the
+    // correction having been rejected.
     setProblem(null);
   }
 
@@ -53,66 +53,70 @@ export function LogPastSession({ onSubmit, onCancel, pending }: LogPastSessionPr
     problem?.field === field ? t(`past.error.${problem.code}`) : undefined;
 
   return (
-    <form className="mf-card mf-stack" onSubmit={submit} aria-label={t("past.label")} noValidate>
-      <h2 className="mf-h2">{t("past.heading")}</h2>
+    <Card as="section" label={t("past.label")}>
+      <form onSubmit={submit} noValidate>
+        <Stack>
+          <Heading level={2}>{t("past.heading")}</Heading>
 
-      <div className="mf-row mf-row--fields">
-        <Field
-          label={t("past.date")}
-          type="date"
-          value={form.date}
-          onChange={(event) => patch({ date: event.target.value })}
-          error={errorFor("date")}
-        />
-        <Field
-          label={t("past.startTime")}
-          type="time"
-          value={form.startTime}
-          onChange={(event) => patch({ startTime: event.target.value })}
-          error={errorFor("startTime")}
-        />
-        <Field
-          label={t("past.minutes")}
-          type="number"
-          inputMode="numeric"
-          min={1}
-          value={form.minutes}
-          onChange={(event) => patch({ minutes: Number(event.target.value) })}
-          error={errorFor("minutes")}
-        />
-      </div>
+          <Row fill>
+            <Field
+              label={t("past.date")}
+              type="date"
+              value={form.date}
+              onChange={(event) => patch({ date: event.target.value })}
+              error={errorFor("date")}
+            />
+            <Field
+              label={t("past.startTime")}
+              type="time"
+              value={form.startTime}
+              onChange={(event) => patch({ startTime: event.target.value })}
+              error={errorFor("startTime")}
+            />
+            <Field
+              label={t("past.minutes")}
+              type="number"
+              inputMode="numeric"
+              min={1}
+              value={form.minutes}
+              onChange={(event) => patch({ minutes: Number(event.target.value) })}
+              error={errorFor("minutes")}
+            />
+          </Row>
 
-      <Field
-        label={t("past.intention")}
-        hint={t("past.intentionHint")}
-        value={form.intention}
-        onChange={(event) => patch({ intention: event.target.value })}
-      />
+          <Field
+            label={t("past.intention")}
+            hint={t("past.intentionHint")}
+            value={form.intention}
+            onChange={(event) => patch({ intention: event.target.value })}
+          />
 
-      <OutcomeChips
-        legend={t("debrief.hitIntention")}
-        value={form.hitIntention}
-        onChange={(hitIntention) => patch({ hitIntention })}
-      />
-      <RatingRow
-        legend={t("debrief.focusQuality")}
-        value={form.focusQuality}
-        onChange={(focusQuality) => patch({ focusQuality })}
-      />
-      <RatingRow
-        legend={t("debrief.energy")}
-        value={form.energy}
-        onChange={(energy) => patch({ energy })}
-      />
+          <OutcomeChips
+            legend={t("debrief.hitIntention")}
+            value={form.hitIntention}
+            onChange={(hitIntention) => patch({ hitIntention })}
+          />
+          <RatingRow
+            legend={t("debrief.focusQuality")}
+            value={form.focusQuality}
+            onChange={(focusQuality) => patch({ focusQuality })}
+          />
+          <RatingRow
+            legend={t("debrief.energy")}
+            value={form.energy}
+            onChange={(energy) => patch({ energy })}
+          />
 
-      <div className="mf-row">
-        <Button variant="primary" type="submit" disabled={pending}>
-          {pending ? t("past.saving") : t("past.submit")}
-        </Button>
-        <Button variant="quiet" onClick={onCancel}>
-          {common("action.cancel")}
-        </Button>
-      </div>
-    </form>
+          <Row>
+            <Button variant="primary" type="submit" disabled={pending}>
+              {pending ? t("past.saving") : t("past.submit")}
+            </Button>
+            <Button variant="quiet" onClick={onCancel}>
+              {common("action.cancel")}
+            </Button>
+          </Row>
+        </Stack>
+      </form>
+    </Card>
   );
 }

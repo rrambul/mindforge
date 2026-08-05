@@ -1,0 +1,19 @@
+/* Document-level ground. Everything reads from tokens.css — nothing here declares a
+   raw colour, radius, or type size. */
+
+body {
+  margin: 0;
+  background: var(--mf-ground);
+  color: var(--mf-text);
+  font-family: var(--mf-font-body);
+  font-size: var(--mf-step-0);
+  line-height: var(--mf-leading-body);
+  /* dvh, not vh: iOS Safari's dynamic toolbar makes 100vh wrong, and a timer screen
+     that scrolls under the URL bar looks broken (§5.1). */
+  min-height: 100dvh;
+}
+
+*:focus-visible {
+  outline: 2px solid var(--mf-focus-ring);
+  outline-offset: 2px;
+}

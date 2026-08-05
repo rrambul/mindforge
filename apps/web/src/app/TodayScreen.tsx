@@ -19,8 +19,7 @@ import {
 } from "../features/friction/api/use-friction.js";
 import { FrictionChips } from "../features/friction/ui/FrictionChips.js";
 import { ApiError, NetworkError, PROBLEM, isProblemOfType } from "../shared/api/problem.js";
-import { Button } from "../shared/ui/Button.js";
-import { Callout } from "../shared/ui/Callout.js";
+import { Button, Callout, Heading, Row, Stack, Text } from "../shared/ui/index.js";
 
 /**
  * Today (§5.3). One job: get you into a focus session in one tap, or tell you why you shouldn't.
@@ -82,11 +81,11 @@ export function TodayScreen() {
   }
 
   if (running.isPending) {
-    return <p className="mf-muted">{common("state.loading")}</p>;
+    return <Text tone="muted">{common("state.loading")}</Text>;
   }
 
   return (
-    <div className="mf-stack">
+    <Stack>
       {/* Only failures the server actually *refused*. A capture that merely did not arrive has
           been queued and will land, so a red "didn't reach the server" alert beside a running
           timer would contradict itself — the pending-captures count in the shell is what reports
@@ -133,8 +132,8 @@ export function TodayScreen() {
           />
         </>
       ) : (
-        <section className="mf-stack">
-          <h1 className="mf-h1">{t("start.heading")}</h1>
+        <Stack>
+          <Heading level={1}>{t("start.heading")}</Heading>
           <StartFocus onStart={onStart} starting={start.isPending} />
 
           {/* Offered only when nothing is running. The moment you remember a block you forgot is
@@ -156,15 +155,15 @@ export function TodayScreen() {
               />
             </>
           ) : (
-            <div className="mf-row">
+            <Row>
               <Button variant="quiet" onClick={() => setLoggingPast(true)}>
                 {t("past.open")}
               </Button>
-            </div>
+            </Row>
           )}
-        </section>
+        </Stack>
       )}
-    </div>
+    </Stack>
   );
 }
 

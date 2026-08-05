@@ -83,6 +83,10 @@ pnpm --filter @mindforge/db generate           # regenerate the Prisma client
 
 - **CORS methods are listed explicitly.** `@fastify/cors` defaults to `GET,HEAD,POST` — unlike Express's `cors`, which allows the full set — so `PATCH` and `DELETE` fail their preflight while the endpoints themselves work. Not observable through `app.inject()`, which is why `apps/api/test/cors.test.ts` drives the preflight directly.
 
+- **`apps/web/src/shared/ui` is the component library, one component per file, each importing its own stylesheet from `shared/ui/styles/`.** Features compose it and never write a raw `mf-*` class — the only files that do are the three that own their own layout role (`AppShell`, `RunningSession`, `FrictionChips`'s sheet). `Button` deliberately does not accept `className`: a one-off style has to become a variant, which is what keeps the library from turning into a junk drawer (§2.2 rule 7). Anything used by exactly one feature stays in that feature's `ui/`.
+
+- **Assert on `data-variant`, not on class names.** A class assertion pins the stylesheet rather than the behaviour, and broke the moment `Card` grew a variant API without its rendering changing at all.
+
 - **Every package is ESM** (`"type": "module"`). `apps/api` was CommonJS while the packages it imports were ESM, which made named imports across that boundary fail at runtime while type-checking fine.
 - **TypeScript is pinned to 6.0.3** because `typescript-eslint` caps at `<6.1.0`. Bumping to 7 silently loses the boundary rules.
 - **Prisma 7 has no `datasourceUrl`** — build clients through `createPrismaClient()` in `packages/db`, which uses a driver adapter. Connection URLs live in `prisma.config.ts`, not the schema.

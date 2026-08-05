@@ -1,0 +1,33 @@
+.mf-stack {
+  display: grid;
+}
+.mf-stack[data-gap="tight"] {
+  gap: var(--mf-space-2);
+}
+.mf-stack[data-gap="normal"] {
+  gap: var(--mf-space-4);
+}
+.mf-stack[data-gap="loose"] {
+  gap: var(--mf-space-6);
+}
+
+.mf-row {
+  display: flex;
+  align-items: center;
+  gap: var(--mf-space-2);
+  /* Wraps rather than shrinks: a control squeezed below the touch floor stops being
+     tappable, and §5.1 names the chips as the ones most likely to be drawn too small. */
+  flex-wrap: wrap;
+}
+
+.mf-row[data-fill="true"] > * {
+  flex: 1 1 8rem;
+  min-width: 8rem;
+}
+
+.mf-spread {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--mf-space-3);
+}

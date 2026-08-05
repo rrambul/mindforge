@@ -1,8 +1,9 @@
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { Button } from "../../../shared/ui/Button.js";
+import { Button, Figure, Text } from "../../../shared/ui/index.js";
 import type { FocusSession } from "../api/use-focus.js";
 import { formatElapsed, useElapsed } from "../model/use-elapsed.js";
+import "./running-session.css";
 
 interface RunningSessionProps {
   readonly session: FocusSession;
@@ -15,9 +16,11 @@ interface RunningSessionProps {
 /**
  * The running-session block, which on mobile *is* the persistent bottom bar (§5.1).
  *
- * Stop and the friction chips live together and are reachable one-handed without navigating,
- * because both are things you do mid-session while your attention is elsewhere. The elapsed
- * figure is mono and tabular so the digits do not jitter as they tick.
+ * Stop and the friction chips live together and are reachable one-handed without navigating, because
+ * both are things you do mid-session while your attention is elsewhere.
+ *
+ * Not a `Card`: it becomes fixed furniture at the bottom of the viewport on a narrow screen, which is
+ * a layout role rather than a surface, so it owns its own stylesheet.
  */
 export function RunningSession({ session, onStop, stopping, capture }: RunningSessionProps) {
   const { t } = useTranslation("focus");
@@ -27,14 +30,16 @@ export function RunningSession({ session, onStop, stopping, capture }: RunningSe
     <section className="mf-running" aria-label={t("running.label")}>
       <div className="mf-running__head">
         <div>
-          {/* aria-live so the elapsed time is announced on request rather than every second —
-              `polite` on a value that changes each tick would talk over everything else. */}
-          <p className="mf-figure mf-running__elapsed" aria-live="off">
-            {formatElapsed(minutes, seconds)}
+          {/* aria-live off: `polite` on a value that changes every second would talk over
+              everything else on the page. */}
+          <p className="mf-running__elapsed" aria-live="off">
+            <Figure>{formatElapsed(minutes, seconds)}</Figure>
           </p>
-          <p className={session.intention ? "mf-running__intention" : "mf-hint"}>
-            {session.intention ?? t("running.noIntention")}
-          </p>
+          {session.intention ? (
+            <Text tone="muted">{session.intention}</Text>
+          ) : (
+            <Text tone="hint">{t("running.noIntention")}</Text>
+          )}
         </div>
 
         <Button variant="primary" onClick={onStop} disabled={stopping}>

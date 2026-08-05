@@ -1,9 +1,10 @@
 import { useId, type InputHTMLAttributes, type TextareaHTMLAttributes } from "react";
+import "./styles/field.css";
 
 interface Shared {
   readonly label: string;
   readonly hint?: string;
-  /** Already translated. Field-level copy is resolved from a code by the caller. */
+  /** Already translated. Field-level copy is resolved from a machine code by the caller. */
   readonly error?: string | undefined;
 }
 
@@ -13,76 +14,98 @@ type TextareaProps = Shared & Omit<TextareaHTMLAttributes<HTMLTextAreaElement>, 
 /**
  * A labelled control.
  *
- * `aria-describedby` points at the hint and the error together, and `aria-invalid`
- * marks the state — a red border alone communicates nothing to a screen reader, and
- * WCAG AA is a requirement rather than an aspiration here (REQUIREMENTS.md §7.6).
- * The error is a live region so it is announced when validation fails after submit
- * rather than only on focus.
+ * The accessibility here is the reason this is a component rather than a convention:
+ * `aria-describedby` points at the hint and the error together, `aria-invalid` marks the state, and
+ * the error is a live region so it is announced on a failed submit rather than only on focus. A red
+ * border alone says nothing to a screen reader, and WCAG AA is a requirement here rather than an
+ * aspiration (REQUIREMENTS.md §7.6).
  */
 export function Field({ label, hint, error, ...rest }: InputProps) {
-  const id = useId();
-  const hintId = `${id}-hint`;
-  const errorId = `${id}-error`;
+  const ids = useFieldIds();
 
   return (
     <div className="mf-field">
-      <label className="mf-label" htmlFor={id}>
+      <label className="mf-label" htmlFor={ids.control}>
         {label}
       </label>
       <input
-        id={id}
-        className="mf-input"
+        id={ids.control}
+        className="mf-field__control"
         aria-invalid={error ? true : undefined}
-        aria-describedby={describedBy(hint ? hintId : null, error ? errorId : null)}
+        aria-describedby={ids.describedBy(hint, error)}
         {...rest}
       />
-      {hint ? (
-        <span id={hintId} className="mf-hint">
-          {hint}
-        </span>
-      ) : null}
-      {error ? (
-        <span id={errorId} className="mf-error" role="alert">
-          {error}
-        </span>
-      ) : null}
+      <FieldMessages ids={ids} hint={hint} error={error} />
     </div>
   );
 }
 
 export function TextareaField({ label, hint, error, ...rest }: TextareaProps) {
-  const id = useId();
-  const hintId = `${id}-hint`;
-  const errorId = `${id}-error`;
+  const ids = useFieldIds();
 
   return (
     <div className="mf-field">
-      <label className="mf-label" htmlFor={id}>
+      <label className="mf-label" htmlFor={ids.control}>
         {label}
       </label>
       <textarea
-        id={id}
-        className="mf-textarea"
+        id={ids.control}
+        className="mf-field__control"
         aria-invalid={error ? true : undefined}
-        aria-describedby={describedBy(hint ? hintId : null, error ? errorId : null)}
+        aria-describedby={ids.describedBy(hint, error)}
         {...rest}
       />
-      {hint ? (
-        <span id={hintId} className="mf-hint">
-          {hint}
-        </span>
-      ) : null}
-      {error ? (
-        <span id={errorId} className="mf-error" role="alert">
-          {error}
-        </span>
-      ) : null}
+      <FieldMessages ids={ids} hint={hint} error={error} />
     </div>
   );
 }
 
-/** Undefined rather than an empty string: `aria-describedby=""` points at nothing. */
-function describedBy(...ids: (string | null)[]): string | undefined {
-  const present = ids.filter((id): id is string => id !== null);
-  return present.length > 0 ? present.join(" ") : undefined;
+interface FieldIds {
+  readonly control: string;
+  readonly hint: string;
+  readonly error: string;
+  readonly describedBy: (hint?: string, error?: string) => string | undefined;
+}
+
+function useFieldIds(): FieldIds {
+  const id = useId();
+  return {
+    control: id,
+    hint: `${id}-hint`,
+    error: `${id}-error`,
+    // Undefined rather than "": `aria-describedby=""` points at nothing and is worse than absent.
+    describedBy(hint, error) {
+      const ids = [hint ? `${id}-hint` : null, error ? `${id}-error` : null].filter(
+        (value): value is string => value !== null,
+      );
+      return ids.length > 0 ? ids.join(" ") : undefined;
+    },
+  };
+}
+
+function FieldMessages({
+  ids,
+  hint,
+  error,
+}: {
+  readonly ids: FieldIds;
+  // `| undefined` spelled out: exactOptionalPropertyTypes makes "absent" and "present but
+  // undefined" different types, and these are forwarded from an optional prop.
+  readonly hint?: string | undefined;
+  readonly error?: string | undefined;
+}) {
+  return (
+    <>
+      {hint ? (
+        <span id={ids.hint} className="mf-text" data-tone="hint">
+          {hint}
+        </span>
+      ) : null}
+      {error ? (
+        <span id={ids.error} className="mf-field__error" role="alert">
+          {error}
+        </span>
+      ) : null}
+    </>
+  );
 }

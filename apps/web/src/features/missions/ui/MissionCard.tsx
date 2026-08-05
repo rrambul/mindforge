@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next";
-import { Button } from "../../../shared/ui/Button.js";
+import { Button, Card, Heading, Row, Spread, StatusChip, Text } from "../../../shared/ui/index.js";
 import type { Mission } from "../api/use-missions.js";
 
 interface MissionCardProps {
@@ -9,8 +9,8 @@ interface MissionCardProps {
 }
 
 /**
- * Dumb by design (§2.2 rule 5): props in, markup out, no fetching. The route decides
- * what happens when you park something.
+ * Dumb by design (§2.2 rule 5): props in, markup out, no fetching. The route decides what happens
+ * when you park something.
  */
 export function MissionCard({ mission, onTogglePark, pending }: MissionCardProps) {
   const { t } = useTranslation("missions");
@@ -20,27 +20,28 @@ export function MissionCard({ mission, onTogglePark, pending }: MissionCardProps
   const canToggle = mission.status === "active" || parked;
 
   return (
-    <article className={parked ? "mf-card mf-card--parked" : "mf-card"}>
-      <div className="mf-spread">
-        <h2 className="mf-h2">{mission.topic}</h2>
+    // Dimmer, not hidden: parked knowledge is still knowledge (§5.3).
+    <Card as="article" variant={parked ? "muted" : "raised"}>
+      <Spread>
+        <Heading level={2}>{mission.topic}</Heading>
         {/* A key, translated at render — the column stores `parked` (§5.2). */}
-        <span className="mf-chip">{g(`missionStatus.${mission.status}`)}</span>
-      </div>
+        <StatusChip>{g(`missionStatus.${mission.status}`)}</StatusChip>
+      </Spread>
 
-      {/* The "why" is the thing every later feature reads, so it is shown rather than
-          hidden behind a detail view — and its absence is stated rather than left as
-          empty space, because a mission without one is worth noticing. */}
-      <p className={mission.why ? undefined : "mf-hint"}>{mission.why ?? t("card.noWhy")}</p>
+      {/* The "why" is what every later feature reads, so it is shown rather than hidden behind a
+          detail view — and its absence is stated rather than left as empty space, because a mission
+          without one is worth noticing. */}
+      {mission.why ? <Text>{mission.why}</Text> : <Text tone="hint">{t("card.noWhy")}</Text>}
 
       {canToggle ? (
-        <div className="mf-row">
+        <Row>
           <Button onClick={() => onTogglePark(mission)} disabled={pending}>
             {pending
               ? t(parked ? "card.unparking" : "card.parking")
               : t(parked ? "card.unpark" : "card.park")}
           </Button>
-        </div>
+        </Row>
       ) : null}
-    </article>
+    </Card>
   );
 }

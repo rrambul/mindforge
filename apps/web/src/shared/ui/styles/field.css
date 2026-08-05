@@ -1,0 +1,32 @@
+.mf-field {
+  display: grid;
+  gap: var(--mf-space-2);
+}
+
+.mf-field__control {
+  width: 100%;
+  min-height: var(--mf-touch-min);
+  padding: var(--mf-space-2) var(--mf-space-3);
+  border: 1px solid var(--mf-scale);
+  border-radius: var(--mf-r);
+  background: var(--mf-sunk);
+  color: var(--mf-text);
+  font-family: var(--mf-font-body);
+  font-size: var(--mf-step-0);
+  box-sizing: border-box;
+}
+
+textarea.mf-field__control {
+  min-height: calc(var(--mf-touch-min) * 2);
+  line-height: var(--mf-leading-body);
+  resize: vertical;
+}
+
+.mf-field__control[aria-invalid="true"] {
+  border-color: var(--mf-danger);
+}
+
+.mf-field__error {
+  font-size: var(--mf-step--1);
+  color: var(--mf-danger);
+}

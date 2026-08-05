@@ -2,8 +2,17 @@ import { MISSION_WIP_LIMIT, type CreateMissionInput } from "@mindforge/core";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ApiError, NetworkError, PROBLEM, isProblemOfType } from "../../../shared/api/problem.js";
-import { Button } from "../../../shared/ui/Button.js";
-import { Callout } from "../../../shared/ui/Callout.js";
+import {
+  Button,
+  Callout,
+  Figure,
+  Heading,
+  Label,
+  Row,
+  Spread,
+  Stack,
+  Text,
+} from "../../../shared/ui/index.js";
 import {
   useCreateMission,
   useMissions,
@@ -29,16 +38,16 @@ export function MissionsRoute() {
   const setParked = useSetMissionParked();
 
   if (missions.isPending) {
-    return <p className="mf-muted">{common("state.loading")}</p>;
+    return <Text tone="muted">{common("state.loading")}</Text>;
   }
 
   if (missions.isError) {
     return (
       <Callout tone="danger" live>
-        <p>{describe(missions.error, common)}</p>
-        <div className="mf-row">
+        <Text>{describe(missions.error, common)}</Text>
+        <Row>
           <Button onClick={() => void missions.refetch()}>{common("action.retry")}</Button>
-        </div>
+        </Row>
       </Callout>
     );
   }
@@ -52,30 +61,29 @@ export function MissionsRoute() {
   }
 
   return (
-    <div className="mf-stack">
-      <div className="mf-spread">
-        <h1 className="mf-h1">{t("heading")}</h1>
+    <Stack>
+      <Spread>
+        <Heading level={1}>{t("heading")}</Heading>
         {/* The WIP count is stated always, not only when it is reached. The limit is a
             product rule you are supposed to be aware of, and discovering it as a 409
             is the worse way to learn it. */}
-        <span className="mf-label mf-figure">
-          {t("wip.used", { used: activeCount, limit: MISSION_WIP_LIMIT })}
-        </span>
-      </div>
+        <Label>
+          <Figure>{t("wip.used", { used: activeCount, limit: MISSION_WIP_LIMIT })}</Figure>
+        </Label>
+      </Spread>
 
       {all.length === 0 ? (
-        <div className="mf-stack">
-          {/* Names one action and links to it — never an illustration and a shrug
-              (§5.3). */}
-          <p className="mf-muted">{t("empty.body")}</p>
+        <Stack>
+          {/* Names one action and links to it — never an illustration and a shrug (§5.3). */}
+          <Text tone="muted">{t("empty.body")}</Text>
           {!composing ? (
-            <div className="mf-row">
+            <Row>
               <Button variant="primary" onClick={() => setComposing(true)}>
                 {t("empty.action")}
               </Button>
-            </div>
+            </Row>
           ) : null}
-        </div>
+        </Stack>
       ) : null}
 
       {create.isError ? (
@@ -85,9 +93,9 @@ export function MissionsRoute() {
         >
           {/* `detail` is already in the user's language — that is the entire reason the
               server resolves it from the stored profile. */}
-          <p>{describe(create.error, common)}</p>
+          <Text>{describe(create.error, common)}</Text>
           {isProblemOfType(create.error, PROBLEM.wipLimitReached) ? (
-            <p>{t("wip.atLimitHint")}</p>
+            <Text>{t("wip.atLimitHint")}</Text>
           ) : null}
         </Callout>
       ) : null}
@@ -108,7 +116,7 @@ export function MissionsRoute() {
       ) : null}
 
       {!composing && all.length > 0 ? (
-        <div className="mf-row">
+        <Row>
           {/* "New mission", not "Create mission": this opens the form, and giving the
               trigger the submit button's label makes the two indistinguishable to a
               screen reader reading the page out. */}
@@ -117,12 +125,14 @@ export function MissionsRoute() {
           </Button>
           {/* Says why the button is off rather than leaving it inexplicably disabled. */}
           {atLimit ? (
-            <span className="mf-hint">{t("wip.full", { limit: MISSION_WIP_LIMIT })}</span>
+            <Text as="span" tone="hint">
+              {t("wip.full", { limit: MISSION_WIP_LIMIT })}
+            </Text>
           ) : null}
-        </div>
+        </Row>
       ) : null}
 
-      <div className="mf-stack">
+      <Stack>
         {all.map((mission) => (
           <MissionCard
             key={mission.id}
@@ -133,8 +143,8 @@ export function MissionsRoute() {
             }
           />
         ))}
-      </div>
-    </div>
+      </Stack>
+    </Stack>
   );
 }
 

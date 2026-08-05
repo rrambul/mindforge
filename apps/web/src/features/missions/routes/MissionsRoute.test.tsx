@@ -227,8 +227,11 @@ describe("parking", () => {
     listReturns([mission({ topic: "Set aside", status: "parked" })]);
     renderWithProviders(<MissionsRoute />);
 
+    // Asserted on the variant the component declares, not on a class name. A class assertion pins
+    // the stylesheet rather than the behaviour, and it broke the moment Card grew a variant API
+    // without anything about the rendering actually changing.
     const card = (await screen.findByText("Set aside")).closest("article");
-    expect(card).toHaveClass("mf-card--parked");
+    expect(card).toHaveAttribute("data-variant", "muted");
     expect(screen.getByText("Parked")).toBeVisible();
   });
 });

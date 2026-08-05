@@ -1,9 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { supabase } from "../../../shared/api/supabase.js";
-import { Button } from "../../../shared/ui/Button.js";
-import { Callout } from "../../../shared/ui/Callout.js";
-import { Field } from "../../../shared/ui/Field.js";
+import { Button, Callout, Field, Heading, Row, Stack } from "../../../shared/ui/index.js";
 
 type Mode = "signIn" | "signUp";
 
@@ -46,51 +44,53 @@ export function SignInForm() {
   const other: Mode = mode === "signIn" ? "signUp" : "signIn";
 
   return (
-    <form className="mf-stack" onSubmit={(event) => void submit(event)} noValidate>
-      <h1 className="mf-h1">{t(`${mode}.heading`)}</h1>
+    <form onSubmit={(event) => void submit(event)} noValidate>
+      <Stack>
+        <Heading level={1}>{t(`${mode}.heading`)}</Heading>
 
-      {failed ? (
-        <Callout tone="danger" live>
-          {t(`${mode}.failed`)}
-        </Callout>
-      ) : null}
+        {failed ? (
+          <Callout tone="danger" live>
+            {t(`${mode}.failed`)}
+          </Callout>
+        ) : null}
 
-      <Field
-        label={t("signIn.email")}
-        type="email"
-        name="email"
-        autoComplete="email"
-        required
-        value={email}
-        onChange={(event) => setEmail(event.target.value)}
-      />
+        <Field
+          label={t("signIn.email")}
+          type="email"
+          name="email"
+          autoComplete="email"
+          required
+          value={email}
+          onChange={(event) => setEmail(event.target.value)}
+        />
 
-      <Field
-        label={t("signIn.password")}
-        type="password"
-        name="password"
-        // Tells a password manager which of the two this is, so it offers to save on
-        // sign-up and to fill on sign-in.
-        autoComplete={mode === "signIn" ? "current-password" : "new-password"}
-        required
-        value={password}
-        onChange={(event) => setPassword(event.target.value)}
-      />
+        <Field
+          label={t("signIn.password")}
+          type="password"
+          name="password"
+          // Tells a password manager which of the two this is, so it offers to save on
+          // sign-up and to fill on sign-in.
+          autoComplete={mode === "signIn" ? "current-password" : "new-password"}
+          required
+          value={password}
+          onChange={(event) => setPassword(event.target.value)}
+        />
 
-      <div className="mf-row">
-        <Button variant="primary" type="submit" disabled={pending}>
-          {t(`${mode}.submit`)}
-        </Button>
-        <Button
-          variant="quiet"
-          onClick={() => {
-            setMode(other);
-            setFailed(false);
-          }}
-        >
-          {t(`${mode}.switchTo${other === "signUp" ? "SignUp" : "SignIn"}`)}
-        </Button>
-      </div>
+        <Row>
+          <Button variant="primary" type="submit" disabled={pending}>
+            {t(`${mode}.submit`)}
+          </Button>
+          <Button
+            variant="quiet"
+            onClick={() => {
+              setMode(other);
+              setFailed(false);
+            }}
+          >
+            {t(`${mode}.switchTo${other === "signUp" ? "SignUp" : "SignIn"}`)}
+          </Button>
+        </Row>
+      </Stack>
     </form>
   );
 }

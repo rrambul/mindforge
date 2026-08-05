@@ -1,0 +1,18 @@
+.mf-card {
+  display: grid;
+  gap: var(--mf-space-3);
+  padding: var(--mf-space-4);
+  border: 1px solid var(--mf-scale);
+  border-radius: var(--mf-r-lg);
+  background: var(--mf-surface);
+  box-shadow: var(--mf-elevation-1);
+}
+
+/* Something set aside. Dimmer, not hidden — parked knowledge is still knowledge. */
+.mf-card[data-variant="muted"] {
+  background: var(--mf-ground);
+  box-shadow: none;
+}
+.mf-card[data-variant="muted"] .mf-heading {
+  color: var(--mf-muted);
+}
