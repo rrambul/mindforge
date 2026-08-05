@@ -1,0 +1,343 @@
+// Mindforge schema — M1 slice (the capture loop).
+//
+// Scope here is TECH-DESIGN.md §3.1 and §3.3 only: missions, goals, skills,
+// resources, notes, tasks, focus sessions, friction events. Retention,
+// assessments, and the teach workspace tables land with their milestones.
+//
+// Two rules this file follows throughout:
+//   1. Enum-ish columns are stored as keys, never display text. The UI
+//      translates at render (§5.2), so `tooling` and `fluent` are stable
+//      contract, not copy.
+//   2. Every user-owned table carries userId and gets an RLS policy plus an
+//      RLS test in the same migration. See migrations/*/rls.sql.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/client"
+}
+
+// Prisma 7 moved connection URLs out of the schema: the migration datasource
+// lives in prisma.config.ts, and the runtime client is given the pooled URL
+// separately. That split is convenient here — migrations need the direct
+// connection, the app needs pgbouncer.
+datasource db {
+  provider = "postgresql"
+}
+
+/// Mirrors auth.users. Prisma cannot own that table, so this is a shadow row
+/// created by a trigger on signup — it exists to hang preferences off.
+model Profile {
+  id        String   @id @db.Uuid
+  /// IANA. Every "day", "week", and nightly job derives from this, never from
+  /// server-local time (§5.2).
+  timezone  String   @default("UTC")
+  /// UI locale: interface strings, dates, numbers.
+  locale    String   @default("en")
+  /// What the agent writes lessons in. Separate on purpose — a pt-BR interface
+  /// with English lessons is a legitimate and likely combination (FR-L3).
+  contentLanguage String @default("en") @map("content_language")
+  /// Seeded from locale, then user-owned: pt-BR convention is Sunday, and the
+  /// weekly plan grid depends on it (FR-L5). 0 = Sunday.
+  weekStartsOn Int    @default(1) @map("week_starts_on")
+  theme     String   @default("light")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  missions       Mission[]
+  goals          Goal[]
+  skills         Skill[]
+  resources      Resource[]
+  notes          Note[]
+  tasks          Task[]
+  focusSessions  FocusSession[]
+  frictionEvents FrictionEvent[]
+
+  @@map("profiles")
+}
+
+model Mission {
+  id               String    @id @default(uuid()) @db.Uuid
+  userId           String    @map("user_id") @db.Uuid
+  topic            String
+  why              String?
+  successLooksLike String?   @map("success_looks_like")
+  constraints      String?
+  currentLevel     String?   @map("current_level")
+  /// active | parked | completed | abandoned. Parked is not archived — skills
+  /// keep decaying, reviews suspend, goals freeze (FR-M4b).
+  status           String    @default("active")
+  /// Storage prefix. Set once: renaming a mission must not move files.
+  workspaceKey     String?   @unique @map("workspace_key")
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  profile   Profile    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  revisions MissionRevision[]
+  goals     Goal[]
+  resources ResourceLink[]
+  tasks     Task[]
+  sessions  FocusSession[]
+
+  @@index([userId, status])
+  @@map("missions")
+}
+
+/// Append-only. Mission drift is a signal, not noise (FR-M2).
+model MissionRevision {
+  id        String   @id @default(uuid()) @db.Uuid
+  missionId String   @map("mission_id") @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  changedAt DateTime @default(now()) @map("changed_at") @db.Timestamptz(6)
+  reason    String
+  snapshot  Json
+
+  mission Mission @relation(fields: [missionId], references: [id], onDelete: Cascade)
+
+  @@index([missionId, changedAt])
+  @@map("mission_revisions")
+}
+
+model Goal {
+  id               String    @id @default(uuid()) @db.Uuid
+  userId           String    @map("user_id") @db.Uuid
+  missionId        String?   @map("mission_id") @db.Uuid
+  title            String
+  definitionOfDone String?   @map("definition_of_done")
+  targetDate       DateTime? @map("target_date") @db.Date
+  /// active | met | missed | abandoned. Goals are allowed to fail — an
+  /// abandoned goal is data, not a blemish.
+  status           String    @default("active")
+  /// Required once status leaves 'active'.
+  outcomeNote      String?   @map("outcome_note")
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  profile Profile      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  mission Mission?     @relation(fields: [missionId], references: [id], onDelete: SetNull)
+  targets GoalTarget[]
+
+  @@index([userId, status])
+  @@map("goals")
+}
+
+/// Progress is DERIVED from these. There is no percentage column and no
+/// slider — that would be self-report wearing a number's clothes (§3.8).
+model GoalTarget {
+  id         String    @id @default(uuid()) @db.Uuid
+  userId     String    @map("user_id") @db.Uuid
+  goalId     String    @map("goal_id") @db.Uuid
+  /// resource_progress | skill_band | artifact | focus_hours |
+  /// review_accuracy | lessons_completed | manual
+  kind       String
+  resourceId String?   @map("resource_id") @db.Uuid
+  skillId    String?   @map("skill_id") @db.Uuid
+  missionId  String?   @map("mission_id") @db.Uuid
+  /// {"percent":100} | {"band":"fluent"} | {"hours":40} | {"accuracy":0.85}
+  target     Json
+  weight     Decimal   @default(1) @db.Decimal(4, 2)
+  metAt      DateTime? @map("met_at") @db.Timestamptz(6)
+
+  goal     Goal      @relation(fields: [goalId], references: [id], onDelete: Cascade)
+  resource Resource? @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+  skill    Skill?    @relation(fields: [skillId], references: [id], onDelete: Cascade)
+
+  @@index([userId, goalId])
+  @@map("goal_targets")
+}
+
+model Skill {
+  id             String    @id @default(uuid()) @db.Uuid
+  userId         String    @map("user_id") @db.Uuid
+  name           String
+  slug           String
+  description    String?
+  /// aware | assisted | working | fluent | teaching. A key, not display text.
+  band           String    @default("aware")
+  /// Self-rating, stored SEPARATELY from score and never trusted as evidence.
+  /// The gap between the two is the calibration metric (FR-S5).
+  perceivedLevel Decimal?  @map("perceived_level") @db.Decimal(5, 2)
+  /// Derived from evidence only. Null means unproven — never 0, which would
+  /// be a different and false claim.
+  score          Decimal?  @db.Decimal(5, 2)
+  scoreStdDev    Decimal?  @map("score_std_dev") @db.Decimal(5, 2)
+  halfLifeDays   Decimal   @default(90) @map("half_life_days") @db.Decimal(6, 2)
+  lastEvidenceAt DateTime? @map("last_evidence_at") @db.Timestamptz(6)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  profile      Profile        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  prereqOf     SkillEdge[]    @relation("skill")
+  requires     SkillEdge[]    @relation("prereq")
+  goalTargets  GoalTarget[]
+  resourceLinks ResourceLink[]
+  friction     FrictionEvent[]
+
+  @@unique([userId, slug])
+  @@map("skills")
+}
+
+/// Prerequisite DAG. Cycle prevention lives in the application layer — a DB
+/// constraint cannot express it, so the use case checks before writing.
+model SkillEdge {
+  userId   String @map("user_id") @db.Uuid
+  skillId  String @map("skill_id") @db.Uuid
+  prereqId String @map("prereq_id") @db.Uuid
+
+  skill  Skill @relation("skill", fields: [skillId], references: [id], onDelete: Cascade)
+  prereq Skill @relation("prereq", fields: [prereqId], references: [id], onDelete: Cascade)
+
+  @@id([skillId, prereqId])
+  @@map("skill_edges")
+}
+
+model Resource {
+  id             String    @id @default(uuid()) @db.Uuid
+  userId         String    @map("user_id") @db.Uuid
+  /// book | podcast | article | video | course | docs | paper
+  type           String
+  title          String
+  author         String?
+  url            String?
+  /// inbox | queued | active | finished | abandoned | reference
+  status         String    @default("inbox")
+  /// Abandoning is first-class and guilt-free — and the reason is prime
+  /// friction data (FR-R5).
+  abandonReason  String?   @map("abandon_reason")
+  /// Type-specific: {"unit":"page","current":137,"total":590}
+  progress       Json      @default("{}")
+  trust          String?
+  rejectedReason String?   @map("rejected_reason")
+  addedAt        DateTime  @default(now()) @map("added_at") @db.Timestamptz(6)
+  finishedAt     DateTime? @map("finished_at") @db.Timestamptz(6)
+
+  profile     Profile        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  links       ResourceLink[]
+  goalTargets GoalTarget[]
+  tasks       Task[]
+  sessions    FocusSession[]
+  friction    FrictionEvent[]
+
+  @@index([userId, status])
+  @@map("resources")
+}
+
+model ResourceLink {
+  id         String  @id @default(uuid()) @db.Uuid
+  userId     String  @map("user_id") @db.Uuid
+  resourceId String  @map("resource_id") @db.Uuid
+  missionId  String? @map("mission_id") @db.Uuid
+  skillId    String? @map("skill_id") @db.Uuid
+
+  resource Resource @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+  mission  Mission? @relation(fields: [missionId], references: [id], onDelete: Cascade)
+  skill    Skill?   @relation(fields: [skillId], references: [id], onDelete: Cascade)
+
+  @@index([userId, resourceId])
+  @@map("resource_links")
+}
+
+/// Notes attach to anything. A highlight is a note with a quote and a locator,
+/// so there is one table, not two (§3.7). Notes are inputs to the system, not
+/// an archive — no backlinks, no graph view, by design.
+model Note {
+  id          String   @id @default(uuid()) @db.Uuid
+  userId      String   @map("user_id") @db.Uuid
+  /// mission | goal | skill | resource | lesson | reference_doc |
+  /// learning_record | focus_session | assessment | artifact | standalone
+  subjectType String   @map("subject_type")
+  subjectId   String?  @map("subject_id") @db.Uuid
+  body        String
+  /// Present when this note responds to an excerpt — i.e. it's a highlight.
+  quote       String?
+  /// {"page":204} | {"seconds":1420} | {"selector":"#h3"}
+  locator     Json?
+  pinned      Boolean  @default(false)
+  /// Stemming follows the CONTENT's language, not the UI locale (FR-L4).
+  lang        String   @default("english")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  profile Profile @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, subjectType, subjectId, createdAt])
+  @@map("notes")
+}
+
+model Task {
+  id              String   @id @default(uuid()) @db.Uuid
+  userId          String   @map("user_id") @db.Uuid
+  title           String
+  missionId       String?  @map("mission_id") @db.Uuid
+  goalId          String?  @map("goal_id") @db.Uuid
+  resourceId      String?  @map("resource_id") @db.Uuid
+  /// todo | doing | done | dropped
+  status          String   @default("todo")
+  estimateMinutes Int?     @map("estimate_minutes")
+  /// Repeated rescheduling is avoidance you never explicitly logged (FR-C5).
+  rescheduleCount Int      @default(0) @map("reschedule_count")
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  profile  Profile        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  mission  Mission?       @relation(fields: [missionId], references: [id], onDelete: SetNull)
+  resource Resource?      @relation(fields: [resourceId], references: [id], onDelete: SetNull)
+  sessions FocusSession[]
+  friction FrictionEvent[]
+
+  @@index([userId, status])
+  @@map("tasks")
+}
+
+model FocusSession {
+  id             String    @id @default(uuid()) @db.Uuid
+  userId         String    @map("user_id") @db.Uuid
+  taskId         String?   @map("task_id") @db.Uuid
+  missionId      String?   @map("mission_id") @db.Uuid
+  resourceId     String?   @map("resource_id") @db.Uuid
+  /// "What does done look like for this block?" — one field, asked at start.
+  intention      String?
+  startedAt      DateTime  @map("started_at") @db.Timestamptz(6)
+  endedAt        DateTime? @map("ended_at") @db.Timestamptz(6)
+  plannedMinutes Int?      @map("planned_minutes")
+  /// Debrief, ≤30s: yes | partly | no
+  hitIntention   String?   @map("hit_intention")
+  focusQuality   Int?      @map("focus_quality")
+  energy         Int?
+  note           String?
+  /// timer | manual | backfilled. You WILL forget the timer, and backfilled
+  /// data must be distinguishable without being second-class (FR-F2).
+  entryMode      String    @default("timer") @map("entry_mode")
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  profile  Profile         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  task     Task?           @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  mission  Mission?        @relation(fields: [missionId], references: [id], onDelete: SetNull)
+  resource Resource?       @relation(fields: [resourceId], references: [id], onDelete: SetNull)
+  friction FrictionEvent[]
+
+  @@index([userId, startedAt])
+  @@index([userId, missionId, startedAt])
+  @@map("focus_sessions")
+}
+
+model FrictionEvent {
+  id         String   @id @default(uuid()) @db.Uuid
+  userId     String   @map("user_id") @db.Uuid
+  sessionId  String?  @map("session_id") @db.Uuid
+  taskId     String?  @map("task_id") @db.Uuid
+  skillId    String?  @map("skill_id") @db.Uuid
+  resourceId String?  @map("resource_id") @db.Uuid
+  /// One of the 11 types in packages/core. Whether an event is productive or
+  /// wasteful is COMPUTED from type + session outcome, never stored — see
+  /// classifyFriction. Storing it would let the two drift.
+  type       String
+  intensity  Int      @default(3)
+  note       String?
+  occurredAt DateTime @default(now()) @map("occurred_at") @db.Timestamptz(6)
+
+  profile  Profile       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  session  FocusSession? @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  task     Task?         @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  skill    Skill?        @relation(fields: [skillId], references: [id], onDelete: SetNull)
+  resource Resource?     @relation(fields: [resourceId], references: [id], onDelete: SetNull)
+
+  @@index([userId, occurredAt])
+  @@index([userId, type, occurredAt])
+  @@map("friction_events")
+}

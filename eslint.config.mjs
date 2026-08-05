@@ -71,6 +71,22 @@ export default ts.config([
     },
   },
 
+  // packages/db talks directly to Prisma's generated client, which Prisma 7
+  // builds at runtime via getPrismaClientClass(). eslint's type service cannot
+  // follow that construction and reports every call through the client as
+  // unsafe; `tsc --noEmit` resolves it correctly and still type-checks these
+  // files, so the safety net is intact. Scoped to this package only.
+  {
+    files: ["packages/db/**/*.ts"],
+    rules: {
+      "@typescript-eslint/no-unsafe-call": "off",
+      "@typescript-eslint/no-unsafe-member-access": "off",
+      "@typescript-eslint/no-unsafe-assignment": "off",
+      "@typescript-eslint/no-unsafe-return": "off",
+      "@typescript-eslint/no-unsafe-argument": "off",
+    },
+  },
+
   // Prisma is confined to infrastructure. Domain and application never see it.
   {
     files: ["apps/api/src/modules/*/{domain,application}/**"],
@@ -90,5 +106,14 @@ export default ts.config([
     },
   },
 
-  { ignores: ["**/dist/**", "**/build/**", "**/coverage/**", "**/*.config.*"] },
+  {
+    ignores: [
+      "**/dist/**",
+      "**/build/**",
+      "**/coverage/**",
+      "**/*.config.*",
+      // Machine-written: type-checked, never linted.
+      "**/generated/**",
+    ],
+  },
 ]);
