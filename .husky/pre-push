@@ -1,0 +1,2 @@
+# Slower, honest check: full unit + integration and the 80% coverage gate.
+pnpm typecheck && pnpm test:coverage

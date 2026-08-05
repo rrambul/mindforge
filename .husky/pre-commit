@@ -1,0 +1,4 @@
+# Fast on purpose (<20s). The full suite and the coverage gate live at
+# pre-push and CI — a gate everyone bypasses with --no-verify is worse than
+# no gate at all. See TECH-DESIGN.md §13.3.
+pnpm lint-staged

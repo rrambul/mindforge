@@ -1,0 +1,39 @@
+{
+  "name": "@mindforge/api",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "build": "nest build",
+    "dev": "nest start --watch",
+    "start": "node dist/main.js",
+    "lint": "eslint src",
+    "typecheck": "tsc --noEmit",
+    "test:unit": "vitest run --project unit",
+    "test:integration": "vitest run --project integration",
+    "test:coverage": "vitest run --coverage"
+  },
+  "dependencies": {
+    "@mindforge/core": "workspace:*",
+    "@mindforge/db": "workspace:*",
+    "@mindforge/llm": "workspace:*",
+    "@nestjs/bullmq": "^11.0.4",
+    "@nestjs/common": "^11.1.28",
+    "@nestjs/core": "^11.1.28",
+    "@nestjs/platform-fastify": "^11.1.28",
+    "bullmq": "^5.81.3",
+    "jose": "^6.2.8",
+    "nestjs-pino": "^4.6.1",
+    "pino": "^10.3.1",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.2",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@nestjs/cli": "^11.0.24",
+    "@nestjs/testing": "^11.1.28",
+    "@vitest/coverage-v8": "^4.1.10",
+    "testcontainers": "^12.1.0",
+    "unplugin-swc": "^1.5.10",
+    "vitest": "^4.1.10"
+  }
+}

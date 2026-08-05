@@ -1,0 +1,162 @@
+/* ============================================================================
+   Mindforge — design tokens
+   Direction 01, "Temper". Light is the default ground; dark is opt-in.
+
+   Moves to apps/web/src/styles/tokens.css at M0. Nothing else in the codebase
+   may declare a raw colour, radius, or type size — everything reads from here.
+   ========================================================================= */
+
+:root {
+  /* --- Ground: cooled steel. Cool blue-green cast. Never cream. ---------- */
+  --mf-ground:   #E9ECEE;   /* page */
+  --mf-surface:  #F7F9FA;   /* cards, panels */
+  --mf-sunk:     #DDE2E5;   /* wells, gauge tracks, inputs */
+  --mf-scale:    #C9D1D6;   /* borders — the oxide scale on worked steel */
+
+  --mf-text:     #161D22;
+  --mf-muted:    #5D6A72;
+  --mf-faint:    #8E9AA1;
+
+  /* --- Temper scale: skill bands, low → high -----------------------------
+     Taken from the oxide colours a smith reads to judge hardness. Sequential
+     and non-arbitrary — do not reorder, do not add intermediate steps. */
+  --mf-band-aware:    #C89A34;   /* pale straw   */
+  --mf-band-assisted: #B06A33;   /* bronze       */
+  --mf-band-working:  #7C4E66;   /* purple       */
+  --mf-band-fluent:   #455D8A;   /* dark blue    */
+  --mf-band-teaching: #5B87A6;   /* light blue   */
+
+  /* --- Friction pair -----------------------------------------------------
+     Semantic, and deliberately NOT green/red: productive friction feels bad
+     and is good for you, so a good/bad palette would moralise and mislead. */
+  --mf-ember: #C2582F;   /* productive friction — heat that shaped something */
+  --mf-slag:  #7A858B;   /* wasteful friction  — inert smelting byproduct    */
+
+  /* --- Interactive ------------------------------------------------------- */
+  --mf-accent:      #3F708F;
+  --mf-accent-text: var(--mf-ground);
+  --mf-focus-ring:  var(--mf-text);
+
+  /* --- Status. Separate from the accent, and never reused as decoration. -- */
+  --mf-danger:  #A33A2A;
+  --mf-warning: #9A6B1E;
+  --mf-ok:      #3E6B52;
+
+  /* --- Radius. Steel stock is cut square; edges get a hint of a break. ---- */
+  --mf-r:    2px;
+  --mf-r-lg: 3px;
+
+  /* --- Type -------------------------------------------------------------- */
+  --mf-font-display: "Martian Mono", ui-monospace, "SF Mono", "Cascadia Mono",
+                     "Roboto Mono", Menlo, Consolas, monospace;
+  --mf-font-body:    "Instrument Sans", -apple-system, BlinkMacSystemFont,
+                     "Segoe UI", system-ui, sans-serif;
+
+  --mf-step--1: 0.78rem;
+  --mf-step-0:  0.95rem;
+  --mf-step-1:  1.2rem;
+  --mf-step-2:  1.7rem;
+  --mf-step-3:  2.6rem;
+  --mf-step-4:  4.2rem;
+
+  --mf-leading-tight: 1.05;
+  --mf-leading-body:  1.55;
+  --mf-tracking-label: 0.14em;   /* uppercase labels only */
+
+  /* --- Space ------------------------------------------------------------- */
+  --mf-space-1: 0.25rem;
+  --mf-space-2: 0.5rem;
+  --mf-space-3: 0.75rem;
+  --mf-space-4: 1rem;
+  --mf-space-5: 1.5rem;
+  --mf-space-6: 2rem;
+  --mf-space-7: 3rem;
+  --mf-space-8: 5rem;
+
+  /* --- Touch. Capture controls must never fall below this. ---------------- */
+  --mf-touch-min: 44px;
+
+  /* --- Motion. One place only: gauges settling. Nothing else animates. ---- */
+  --mf-ease-settle: cubic-bezier(0.16, 0.84, 0.34, 1);
+  --mf-dur-settle:  700ms;
+  --mf-dur-ui:      140ms;
+
+  /* --- Gauge feathering: how uncertainty is drawn ------------------------- */
+  --mf-feather-crisp: 2px;    /* evidence < 7 days   */
+  --mf-feather-soft:  16px;   /* evidence < 60 days  */
+  --mf-feather-vague: 38px;   /* evidence older      */
+
+  --mf-elevation-1: 0 1px 2px rgb(22 29 34 / 0.06);
+}
+
+/* Dark is opt-in via the toggle, not OS preference — light is the default
+   ground by product decision. */
+:root[data-theme="dark"] {
+  --mf-ground:   #101417;
+  --mf-surface:  #171C20;
+  --mf-sunk:     #0B0E10;
+  --mf-scale:    #293037;
+
+  --mf-text:     #C9D2D8;
+  --mf-muted:    #7C888F;
+  --mf-faint:    #5C666D;
+
+  --mf-band-aware:    #E0B252;
+  --mf-band-assisted: #C0783E;
+  --mf-band-working:  #966882;
+  --mf-band-fluent:   #5B76A6;
+  --mf-band-teaching: #85AAC5;
+
+  --mf-ember: #D2673E;
+  --mf-slag:  #6C767C;
+
+  --mf-accent:      #85AAC5;
+  --mf-accent-text: #101417;
+
+  --mf-danger:  #D2705E;
+  --mf-warning: #D5A44E;
+  --mf-ok:      #6FA184;
+
+  --mf-elevation-1: 0 1px 2px rgb(0 0 0 / 0.4);
+}
+
+:root[data-theme="light"] {
+  --mf-ground:   #E9ECEE;
+  --mf-surface:  #F7F9FA;
+  --mf-sunk:     #DDE2E5;
+  --mf-scale:    #C9D1D6;
+
+  --mf-text:     #161D22;
+  --mf-muted:    #5D6A72;
+  --mf-faint:    #8E9AA1;
+
+  --mf-band-aware:    #C89A34;
+  --mf-band-assisted: #B06A33;
+  --mf-band-working:  #7C4E66;
+  --mf-band-fluent:   #455D8A;
+  --mf-band-teaching: #5B87A6;
+
+  --mf-ember: #C2582F;
+  --mf-slag:  #7A858B;
+
+  --mf-accent:      #3F708F;
+  --mf-accent-text: #E9ECEE;
+
+  --mf-danger:  #A33A2A;
+  --mf-warning: #9A6B1E;
+  --mf-ok:      #3E6B52;
+
+  --mf-elevation-1: 0 1px 2px rgb(22 29 34 / 0.06);
+}
+
+/* Numbers are the product's voice: always tabular, always mono. */
+.mf-figure {
+  font-family: var(--mf-font-display);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  letter-spacing: -0.04em;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root { --mf-dur-settle: 0ms; --mf-dur-ui: 0ms; }
+}

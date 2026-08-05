@@ -1,0 +1,29 @@
+node_modules/
+dist/
+build/
+.output/
+coverage/
+playwright-report/
+test-results/
+
+.turbo/
+*.tsbuildinfo
+
+# Secrets — never commit. See .env.example for the shape.
+.env
+.env.local
+.env.*.local
+
+# Supabase local stack
+supabase/.branches/
+supabase/.temp/
+
+.DS_Store
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json

@@ -1,0 +1,32 @@
+{
+  "name": "@mindforge/worker",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "build": "nest build",
+    "dev": "nest start --watch",
+    "start": "node dist/main.js",
+    "lint": "eslint src",
+    "typecheck": "tsc --noEmit",
+    "test:unit": "vitest run",
+    "test:coverage": "vitest run --coverage"
+  },
+  "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "^0.3.222",
+    "@mindforge/core": "workspace:*",
+    "@mindforge/db": "workspace:*",
+    "@mindforge/llm": "workspace:*",
+    "@nestjs/bullmq": "^11.0.4",
+    "@nestjs/common": "^11.1.28",
+    "@nestjs/core": "^11.1.28",
+    "bullmq": "^5.81.3",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.2"
+  },
+  "devDependencies": {
+    "@nestjs/cli": "^11.0.24",
+    "@nestjs/testing": "^11.1.28",
+    "@vitest/coverage-v8": "^4.1.10",
+    "vitest": "^4.1.10"
+  }
+}
