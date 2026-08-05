@@ -6,5 +6,6 @@ export * from "./schemas/common.js";
 export * from "./schemas/focus.js";
 export * from "./schemas/friction.js";
 export * from "./schemas/mission.js";
+export * from "./schemas/note.js";
 export * from "./scoring/bands.js";
 export * from "./scoring/decay.js";

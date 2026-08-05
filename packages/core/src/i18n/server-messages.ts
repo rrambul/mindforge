@@ -50,6 +50,8 @@ const EN = {
   "error.focus.already_running": "A focus session is already running. Stop it first.",
   "error.focus.not_running": "That session has already been stopped.",
   "error.focus.not_stopped": "Stop the session before writing its debrief.",
+
+  "error.note.not_found": "That note no longer exists.",
 } as const;
 
 export type ServerMessageKey = keyof typeof EN;
@@ -79,6 +81,8 @@ const PT_BR: Readonly<Record<ServerMessageKey, string>> = {
   "error.focus.already_running": "Já existe uma sessão de foco em andamento. Pare ela primeiro.",
   "error.focus.not_running": "Essa sessão já foi encerrada.",
   "error.focus.not_stopped": "Encerre a sessão antes de escrever o debrief.",
+
+  "error.note.not_found": "Essa nota não existe mais.",
 };
 
 const CATALOG: Readonly<Record<Locale, Readonly<Record<ServerMessageKey, string>>>> = {
