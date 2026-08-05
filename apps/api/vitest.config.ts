@@ -1,4 +1,8 @@
+import { fileURLToPath } from "node:url";
 import { defineConfig } from "vitest/config";
+
+const pkg = (name: string): string =>
+  fileURLToPath(new URL(`../../packages/${name}/src/index.ts`, import.meta.url));
 
 /**
  * Two projects, because the two levels have different costs and different
@@ -11,9 +15,21 @@ import { defineConfig } from "vitest/config";
  * coverage number honestly describes unit coverage only.
  */
 export default defineConfig({
+  // Workspace packages resolve to source, not to their built `dist`. Node uses
+  // dist (that is what makes the API runnable at all), but a test suite that
+  // reads dist passes against whatever was built last — so an edit to
+  // packages/core would appear to have no effect until someone rebuilt it.
+  resolve: {
+    alias: {
+      "@mindforge/core": pkg("core"),
+      "@mindforge/db": pkg("db"),
+      "@mindforge/llm": pkg("llm"),
+    },
+  },
   test: {
     projects: [
       {
+        extends: true,
         test: {
           name: "unit",
           include: ["src/**/*.test.ts"],
@@ -21,6 +37,7 @@ export default defineConfig({
         },
       },
       {
+        extends: true,
         test: {
           name: "integration",
           include: ["test/**/*.test.ts"],

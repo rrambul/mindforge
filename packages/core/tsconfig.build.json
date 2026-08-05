@@ -1,0 +1,13 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    // Inside dist on purpose. With the build info at the package root, an
+    // `rm -rf dist` leaves tsc believing everything is up to date, and the next
+    // build emits nothing while reporting success — which then fails at runtime
+    // as a missing module.
+    "tsBuildInfoFile": "./dist/.tsbuildinfo"
+  },
+  "include": ["src/**/*"],
+  "exclude": ["src/**/*.test.ts"]
+}

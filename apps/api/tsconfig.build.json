@@ -1,0 +1,9 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    // Inside dist on purpose — see packages/core/tsconfig.build.json. Nest's CLI
+    // picks this file up automatically for `nest build`.
+    "tsBuildInfoFile": "./dist/.tsbuildinfo"
+  },
+  "exclude": ["node_modules", "dist", "test", "**/*.test.ts"]
+}

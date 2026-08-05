@@ -2,9 +2,10 @@
   "name": "@mindforge/worker",
   "version": "0.0.0",
   "private": true,
+  "type": "module",
   "scripts": {
     "build": "nest build",
-    "dev": "nest start --watch",
+    "dev": "node --conditions=development --import @swc-node/register/esm-register --watch src/main.ts",
     "start": "node dist/main.js",
     "lint": "eslint src",
     "typecheck": "tsc --noEmit",
@@ -26,6 +27,8 @@
   "devDependencies": {
     "@nestjs/cli": "^11.0.24",
     "@nestjs/testing": "^11.1.28",
+    "@swc-node/register": "^1.12.1",
+    "@swc/core": "^1.15.47",
     "@vitest/coverage-v8": "^4.1.10",
     "vitest": "^4.1.10"
   }

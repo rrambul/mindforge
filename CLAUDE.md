@@ -14,11 +14,18 @@ Don't restate these docs here. When something changes, update the doc, not this 
 
 ## Status
 
-**M0 complete. M1 — the capture loop — is next** (`NORTHSTAR.md` §4).
+**M1 — the capture loop — in progress** (`NORTHSTAR.md` §4).
 
-Done: monorepo, `packages/core` (scoring, decay, bands, friction classification — 100% covered), Prisma schema for the whole M1 slice, RLS on every table with 8 isolation tests, CI, hooks, design tokens.
+Done in M0: monorepo, `packages/core` (scoring, decay, bands, friction classification — 100% covered), Prisma schema for the whole M1 slice, RLS on every table, CI, hooks, design tokens.
 
-Deferred deliberately: **Railway is not provisioned.** Deploying an empty skeleton costs money and shows a blank page; revisit at the end of M1. **No cloud Supabase project either** — the org is at its 2-project free limit, and local is sufficient until deploy.
+Done in M1 so far: the server message bundle (`packages/core/src/i18n`), and the API request foundation — auth guard, RFC 7807 errors, Zod validation, RLS-scoped database access. The API boots and serves; `apps/web` is still M0's single `<main>`.
+
+Two M0 claims turned out not to hold, both fixed:
+
+- **`withRls` isolated nothing.** It set `request.jwt.claims` but Prisma connects as `postgres`, which owns the tables — policies never applied, and every query returned every user's rows. Replaced by `runAsUser`, which also switches role. FR-A3 rested entirely on this.
+- **No Nest app could boot.** Workspace packages exported raw `.ts`, so Node choked on `export type`. Nobody found it because M0's finish line was a deployed URL and deployment was deferred.
+
+Deferred deliberately: **Railway is not provisioned.** Deploying an empty skeleton costs money and shows a blank page; revisit at the end of M1. **No cloud Supabase project either** — the org is at its 2-project free limit, and local is sufficient until deploy. **CI does not run integration or E2E tests yet** — there is no Postgres in the workflow, so `test:coverage` measures unit coverage only and says so in `apps/api/vitest.config.ts`.
 
 ## Getting started
 
@@ -26,6 +33,7 @@ Deferred deliberately: **Railway is not provisioned.** Deploying an empty skelet
 supabase start                                # local Postgres + Auth + Storage
 pnpm install                                  # postinstall runs prisma generate
 pnpm --filter @mindforge/db exec prisma migrate deploy
+pnpm dev                                      # api on :3000, web on :5173
 ```
 
 `.env.local` holds the local connection strings and is gitignored; `packages/db/.env` is a copy the Prisma CLI reads. `.env.example` documents the shape.
@@ -34,18 +42,28 @@ pnpm --filter @mindforge/db exec prisma migrate deploy
 
 ```sh
 pnpm dev             # all services (turbo)
-pnpm typecheck       # tsc across the workspace
+pnpm build           # packages to dist, then the apps
+pnpm typecheck       # tsc across the workspace — builds packages first
 pnpm lint            # eslint, including the boundary rules
 pnpm test:coverage   # unit + the coverage gate
 pnpm format          # prettier — run before committing
 
-pnpm --filter @mindforge/db exec vitest run   # RLS tests (needs supabase start)
-pnpm --filter @mindforge/db generate          # regenerate the Prisma client
+pnpm --filter @mindforge/api test:integration  # real Postgres + Auth (needs supabase start)
+pnpm --filter @mindforge/db exec vitest run    # RLS tests (needs supabase start)
+pnpm --filter @mindforge/db generate           # regenerate the Prisma client
 ```
 
 ## Environment facts that bite
 
 - **Runtimes are not uniform.** `apps/lessons` runs on Bun (pure I/O, no Prisma, no Nest, isolated by design); everything else is Node 22.
+
+- **Workspace packages are dual-entry.** `@mindforge/core|db|llm` export `src/*.ts` under the `development` condition and `dist/` otherwise. `dev` passes `--conditions=development`, so editing a package needs no rebuild; `build` and `typecheck` read `dist`, which is why `turbo` declares them `dependsOn: ["^build"]`. Running `tsc --noEmit` in one app directly, without building packages first, reports the packages as missing — use `pnpm typecheck`.
+
+- **Nest apps run through `@swc-node/register`, not `nest start`.** SWC is the only fast transpiler that emits `emitDecoratorMetadata`, which Nest's DI needs; esbuild and tsx silently do not, and every class-typed constructor parameter then fails to resolve. `pnpm build` + `pnpm start` runs plain compiled JS with no loader.
+
+- **`tsBuildInfoFile` lives inside `dist/`** in every `tsconfig.build.json`. With it at the package root, `rm -rf dist` leaves tsc believing everything is current: the next build prints nothing, exits 0, emits no JS, and the failure surfaces much later as a missing module at runtime.
+
+- **Every package is ESM** (`"type": "module"`). `apps/api` was CommonJS while the packages it imports were ESM, which made named imports across that boundary fail at runtime while type-checking fine.
 - **TypeScript is pinned to 6.0.3** because `typescript-eslint` caps at `<6.1.0`. Bumping to 7 silently loses the boundary rules.
 - **Prisma 7 has no `datasourceUrl`** — build clients through `createPrismaClient()` in `packages/db`, which uses a driver adapter. Connection URLs live in `prisma.config.ts`, not the schema.
 - **`prisma migrate reset` drops the `public` schema**, taking Supabase's role grants with it. The `20260805154500_supabase_grants` migration restores them; if you ever see `42P01 relation does not exist` as `authenticated`, that is the cause — not RLS.

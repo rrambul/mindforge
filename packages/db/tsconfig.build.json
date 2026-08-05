@@ -1,0 +1,13 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "outDir": "./dist",
+    // Inside dist on purpose — see packages/core/tsconfig.build.json.
+    "tsBuildInfoFile": "./dist/.tsbuildinfo"
+  },
+  // The generated Prisma client is a second source root, so tsc's inferred
+  // common root is the package directory and output lands under dist/src.
+  "include": ["src/**/*", "generated/**/*"],
+  "exclude": ["test/**/*", "src/**/*.test.ts"]
+}
