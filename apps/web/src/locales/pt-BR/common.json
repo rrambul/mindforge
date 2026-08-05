@@ -17,5 +17,9 @@
     "toggle": "Trocar tema",
     "light": "Claro",
     "dark": "Escuro"
+  },
+  "nav": {
+    "today": "Hoje",
+    "missions": "Missões"
   }
 }

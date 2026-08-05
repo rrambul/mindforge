@@ -1,0 +1,19 @@
+{
+  "logLabel": "Log friction",
+  "more": "More",
+  "less": "Less",
+  "allTypes": "All friction types",
+  "type": {
+    "interruption": "Interruption",
+    "self_interruption": "Self-interruption",
+    "too_hard": "Too hard",
+    "too_easy": "Too easy",
+    "unclear_material": "Unclear material",
+    "tooling": "Tooling",
+    "missing_prerequisite": "Missing prerequisite",
+    "decision_fatigue": "Decision fatigue",
+    "avoidance": "Avoidance",
+    "physical": "Physical",
+    "productive_struggle": "Productive struggle"
+  }
+}

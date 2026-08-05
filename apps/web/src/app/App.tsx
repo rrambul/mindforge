@@ -1,5 +1,5 @@
 import { QueryClientProvider } from "@tanstack/react-query";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useMe } from "../features/auth/api/use-me.js";
 import { useSupabaseSession } from "../features/auth/api/use-supabase-session.js";
@@ -10,6 +10,7 @@ import { guessLocaleFromBrowser } from "../shared/lib/i18n.js";
 import { useTheme } from "../shared/lib/theme.js";
 import { Button } from "../shared/ui/Button.js";
 import { createQueryClient, I18nProvider } from "./providers.js";
+import { TodayScreen } from "./TodayScreen.js";
 
 /**
  * The shell.
@@ -58,15 +59,38 @@ interface ShellProps {
   readonly sessionKnown: boolean;
 }
 
+type Screen = "today" | "missions";
+
 function Shell({ signedIn, sessionKnown }: ShellProps) {
   const { t } = useTranslation("common");
   const { t: auth } = useTranslation("auth");
   const { theme, toggle } = useTheme();
+  // Two screens, so two buttons — still not a router. When Today grows a "next" block that
+  // deep-links into a mission, and mission detail exists to link to, that is the moment the
+  // route tree earns its place and can be designed against real routes.
+  const [screen, setScreen] = useState<Screen>("today");
 
   return (
     <div className="mf-shell">
       <header className="mf-topbar">
-        <span className="mf-brand">{t("appName")}</span>
+        <div className="mf-row">
+          <span className="mf-brand">{t("appName")}</span>
+          {signedIn ? (
+            <nav className="mf-nav" aria-label={t("appName")}>
+              {(["today", "missions"] as const).map((item) => (
+                <button
+                  key={item}
+                  type="button"
+                  className="mf-nav__item"
+                  aria-current={screen === item ? "page" : undefined}
+                  onClick={() => setScreen(item)}
+                >
+                  {t(`nav.${item}`)}
+                </button>
+              ))}
+            </nav>
+          ) : null}
+        </div>
         <div className="mf-row">
           <Button variant="quiet" onClick={toggle} aria-label={t("theme.toggle")}>
             {t(theme === "dark" ? "theme.light" : "theme.dark")}
@@ -85,7 +109,11 @@ function Shell({ signedIn, sessionKnown }: ShellProps) {
         {!sessionKnown ? (
           <p className="mf-muted">{t("state.loading")}</p>
         ) : signedIn ? (
-          <MissionsRoute />
+          screen === "today" ? (
+            <TodayScreen />
+          ) : (
+            <MissionsRoute />
+          )
         ) : (
           <SignInForm />
         )}

@@ -17,5 +17,9 @@
     "toggle": "Switch theme",
     "light": "Light",
     "dark": "Dark"
+  },
+  "nav": {
+    "today": "Today",
+    "missions": "Missions"
   }
 }

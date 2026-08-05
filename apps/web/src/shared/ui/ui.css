@@ -272,3 +272,147 @@ body {
   white-space: nowrap;
   border: 0;
 }
+
+/* --- Capture: the running session and the friction chips -------------------
+   §5.1: on mobile the running-session block becomes a persistent bottom bar
+   carrying stop + the chips, reachable one-handed without navigating. That is
+   the most mobile interaction in the product — logged mid-session, one-handed,
+   usually while annoyed — so nothing here falls below the touch floor. */
+
+.mf-running {
+  display: grid;
+  gap: var(--mf-space-4);
+  padding: var(--mf-space-4);
+  border: 1px solid var(--mf-scale);
+  border-radius: var(--mf-r-lg);
+  background: var(--mf-surface);
+  box-shadow: var(--mf-elevation-1);
+}
+
+.mf-running__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--mf-space-4);
+}
+
+.mf-running__elapsed {
+  margin: 0;
+  /* The one big number on the screen. Tabular via .mf-figure so the digits do
+     not shift width as they tick. */
+  font-size: var(--mf-step-3);
+  line-height: var(--mf-leading-tight);
+}
+
+.mf-running__intention {
+  margin: var(--mf-space-1) 0 0;
+  color: var(--mf-muted);
+}
+
+.mf-chips {
+  display: grid;
+  gap: var(--mf-space-2);
+}
+
+.mf-chips__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--mf-space-2);
+  align-items: center;
+}
+
+.mf-chips__sheet {
+  padding-top: var(--mf-space-2);
+  border-top: 1px solid var(--mf-scale);
+}
+
+.mf-chip-button {
+  /* Never below this. §5.1 names the friction chips as the control most likely
+     to be drawn too small. */
+  min-height: var(--mf-touch-min);
+  padding: 0 var(--mf-space-3);
+  border: 1px solid var(--mf-scale);
+  border-radius: var(--mf-r);
+  background: var(--mf-sunk);
+  color: var(--mf-text);
+  font-family: var(--mf-font-body);
+  font-size: var(--mf-step--1);
+  cursor: pointer;
+  transition: background var(--mf-dur-ui) ease;
+}
+
+.mf-chip-button:hover {
+  background: var(--mf-scale);
+}
+
+/* Productive struggle. Ember, not green: productive friction feels bad and is
+   good for you, so a good/bad palette would moralise and mislead. */
+.mf-chip-button--ember {
+  border-color: var(--mf-ember);
+  color: var(--mf-ember);
+}
+
+.mf-chip-button--on {
+  background: var(--mf-accent);
+  border-color: var(--mf-accent);
+  color: var(--mf-accent-text);
+}
+
+.mf-fieldset {
+  margin: 0;
+  padding: 0;
+  border: none;
+  display: grid;
+  gap: var(--mf-space-2);
+}
+
+.mf-nav {
+  display: flex;
+  gap: var(--mf-space-1);
+}
+
+.mf-nav__item {
+  min-height: var(--mf-touch-min);
+  padding: 0 var(--mf-space-3);
+  border: 1px solid transparent;
+  border-radius: var(--mf-r);
+  background: none;
+  color: var(--mf-muted);
+  font-family: var(--mf-font-display);
+  font-size: var(--mf-step--1);
+  letter-spacing: var(--mf-tracking-label);
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.mf-nav__item[aria-current="page"] {
+  color: var(--mf-text);
+  border-color: var(--mf-scale);
+  background: var(--mf-sunk);
+}
+
+@media (max-width: 640px) {
+  /* The running session sits at the bottom, in the thumb zone, and the rest
+     scrolls beneath it (§5.1). dvh and the safe-area inset are both load
+     bearing: 100vh is wrong under iOS Safari's dynamic toolbar, and without the
+     inset the bar sits under the home indicator. */
+  .mf-running {
+    position: fixed;
+    inset: auto 0 0 0;
+    z-index: 10;
+    border-radius: 0;
+    border-left: none;
+    border-right: none;
+    border-bottom: none;
+    padding-bottom: max(var(--mf-space-4), env(safe-area-inset-bottom));
+  }
+
+  .mf-main {
+    /* Room for the bar, so the last element is never trapped behind it. */
+    padding-bottom: calc(var(--mf-space-8) * 2);
+  }
+
+  .mf-running__elapsed {
+    font-size: var(--mf-step-2);
+  }
+}

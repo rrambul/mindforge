@@ -18,11 +18,15 @@ Don't restate these docs here. When something changes, update the doc, not this 
 
 Done in M0: monorepo, `packages/core` (scoring, decay, bands, friction classification — 100% covered), Prisma schema for the whole M1 slice, RLS on every table, CI, hooks, design tokens.
 
-Done in M1 so far: the server message bundle (`packages/core/src/i18n`), the API request foundation (auth guard, RFC 7807 errors, Zod validation, RLS-scoped access), the **missions module** (create, edit with revision history, park/unpark, WIP limit of 3), `GET /v1/me`, and the **web app shell** — Supabase browser auth, TanStack Query, react-i18next with ICU in en + pt-BR, the shared/ui primitives on the Temper tokens, and a working missions screen.
+Done in M1 so far: the server message bundle (`packages/core/src/i18n`), the API request foundation (auth guard, RFC 7807 errors, Zod validation, RLS-scoped access), the **missions module** (create, edit with revision history, park/unpark, WIP limit of 3), `GET /v1/me`, the **web app shell** (Supabase browser auth, TanStack Query, react-i18next with ICU in en + pt-BR, shared/ui on the Temper tokens), and **the capture loop** — focus timer with intention, stop, ≤30s debrief, manual/retroactive entry, one-tap typed friction with the ranked-four chips, and the ember/slag split.
 
-`pnpm dev` gives you a sign-in screen, and after that a missions list you can create, park, and resume from.
+`pnpm dev` gives you a sign-in screen, then Today (start focus → chips → stop → debrief) and Missions.
 
-Next in M1: the capture loop proper — focus timer (start with an intention → run → stop → ≤30s debrief) and one-tap friction logging. Then the Today screen, then goals/skills/resources. There is deliberately **no router yet**: two states do not need a route tree, and it should be designed against the real routes once Today and mission detail exist.
+The loop is usable. **What M1 needs next is three weeks of you actually using it** (`NORTHSTAR.md` §4, sequencing rule 1) — not more features. If capture doesn't stick, nothing downstream fixes it.
+
+Then, in rough order: the offline queue (§5 — it wraps the capture mutations, which are already optimistic and idempotent, so it is additive), notes on anything (FR-N1..N3), resources with URL capture, goals with typed targets, and skills. There is deliberately **no router yet**: two screens do not need a route tree, and it should be designed against real routes once Today grows a "next" block and mission detail exists to link to.
+
+Two interim proxies in the friction maths are marked in the code and expire in M2/M5: `producedLearning` reads the session's own debrief because §9.3's definition needs learning records and reviews; and the ember/slag split weights each event as one minute, so it is currently a _count_ share.
 
 Three checks run outside the test suites, all wired into CI: `pnpm check:boundaries` (the architecture rules actually fire), `pnpm check:i18n` (FR-L7), and the per-package coverage gates.
 

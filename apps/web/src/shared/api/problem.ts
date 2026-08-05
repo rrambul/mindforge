@@ -33,6 +33,7 @@ export const PROBLEM = {
   unauthenticated: `${TYPE_BASE}/unauthenticated`,
   validationFailed: `${TYPE_BASE}/validation-failed`,
   wipLimitReached: `${TYPE_BASE}/wip-limit-reached`,
+  focusAlreadyRunning: `${TYPE_BASE}/focus-session-already-running`,
 } as const;
 
 /**

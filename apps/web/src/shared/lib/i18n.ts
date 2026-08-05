@@ -5,10 +5,14 @@ import { initReactI18next } from "react-i18next";
 
 import enAuth from "../../locales/en/auth.json";
 import enCommon from "../../locales/en/common.json";
+import enFocus from "../../locales/en/focus.json";
+import enFriction from "../../locales/en/friction.json";
 import enGlossary from "../../locales/en/glossary.json";
 import enMissions from "../../locales/en/missions.json";
 import ptAuth from "../../locales/pt-BR/auth.json";
 import ptCommon from "../../locales/pt-BR/common.json";
+import ptFocus from "../../locales/pt-BR/focus.json";
+import ptFriction from "../../locales/pt-BR/friction.json";
 import ptGlossary from "../../locales/pt-BR/glossary.json";
 import ptMissions from "../../locales/pt-BR/missions.json";
 
@@ -23,11 +27,25 @@ import ptMissions from "../../locales/pt-BR/missions.json";
  * flash of untranslated content on the first screen. Revisit when the bundle is big
  * enough to measure.
  */
-export const NAMESPACES = ["common", "glossary", "auth", "missions"] as const;
+export const NAMESPACES = ["common", "glossary", "auth", "missions", "focus", "friction"] as const;
 
 const resources = {
-  en: { common: enCommon, glossary: enGlossary, auth: enAuth, missions: enMissions },
-  "pt-BR": { common: ptCommon, glossary: ptGlossary, auth: ptAuth, missions: ptMissions },
+  en: {
+    common: enCommon,
+    glossary: enGlossary,
+    auth: enAuth,
+    missions: enMissions,
+    focus: enFocus,
+    friction: enFriction,
+  },
+  "pt-BR": {
+    common: ptCommon,
+    glossary: ptGlossary,
+    auth: ptAuth,
+    missions: ptMissions,
+    focus: ptFocus,
+    friction: ptFriction,
+  },
 } as const satisfies Record<Locale, Record<(typeof NAMESPACES)[number], unknown>>;
 
 export function createI18n(locale: Locale): I18n {

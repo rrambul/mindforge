@@ -35,12 +35,18 @@ export default defineConfig({
         "src/test/**",
         "src/shared/lib/env.ts",
         "src/shared/api/supabase.ts",
+        "src/shared/lib/clock.ts",
         // Playwright's job, not jsdom's (§13.2). These are the auth front door and the
         // shell that composes it: "sign up → sign in → sign out" is an E2E flow against
         // real Supabase, and a jsdom test of them would assert that a mocked SDK returned
         // what the mock was told to return. Excluded rather than left to drag the number
         // down, so the percentage describes code this level can actually cover.
-        "src/app/**",
+        //
+        // Note this is deliberately *not* all of src/app: TodayScreen lives there because
+        // features may not import each other (§2.2 rule 6) and the route is what joins
+        // focus to friction. It has real behaviour and is tested.
+        "src/app/App.tsx",
+        "src/app/providers.tsx",
         "src/features/auth/ui/**",
         "src/features/auth/api/use-supabase-session.ts",
       ],

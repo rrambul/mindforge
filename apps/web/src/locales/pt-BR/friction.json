@@ -1,0 +1,19 @@
+{
+  "logLabel": "Registrar fricção",
+  "more": "Mais",
+  "less": "Menos",
+  "allTypes": "Todos os tipos de fricção",
+  "type": {
+    "interruption": "Interrupção",
+    "self_interruption": "Auto-interrupção",
+    "too_hard": "Difícil demais",
+    "too_easy": "Fácil demais",
+    "unclear_material": "Material confuso",
+    "tooling": "Ferramentas",
+    "missing_prerequisite": "Pré-requisito faltando",
+    "decision_fatigue": "Fadiga de decisão",
+    "avoidance": "Evitação",
+    "physical": "Físico",
+    "productive_struggle": "Esforço produtivo"
+  }
+}

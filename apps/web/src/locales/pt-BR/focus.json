@@ -1,0 +1,30 @@
+{
+  "start": {
+    "heading": "Começar foco",
+    "intention": "Como é \"pronto\" para este bloco?",
+    "intentionHint": "Opcional, e uma linha basta.",
+    "submit": "Começar foco",
+    "starting": "Começando"
+  },
+  "running": {
+    "label": "Sessão de foco em andamento",
+    "noIntention": "Nenhuma intenção definida para este bloco.",
+    "stop": "Parar",
+    "stopping": "Parando"
+  },
+  "debrief": {
+    "label": "Debrief da sessão",
+    "heading": "Como foi?",
+    "hitIntention": "Você conseguiu?",
+    "outcome": {
+      "yes": "Sim",
+      "partly": "Em parte",
+      "no": "Não"
+    },
+    "focusQuality": "Qualidade do foco",
+    "energy": "Energia",
+    "save": "Salvar",
+    "saving": "Salvando",
+    "skip": "Pular"
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "start": {
+    "heading": "Start focus",
+    "intention": "What does done look like for this block?",
+    "intentionHint": "Optional, and one line is plenty.",
+    "submit": "Start focus",
+    "starting": "Starting"
+  },
+  "running": {
+    "label": "Running focus session",
+    "noIntention": "No intention set for this block.",
+    "stop": "Stop",
+    "stopping": "Stopping"
+  },
+  "debrief": {
+    "label": "Session debrief",
+    "heading": "How did that go?",
+    "hitIntention": "Did you hit it?",
+    "outcome": {
+      "yes": "Yes",
+      "partly": "Partly",
+      "no": "No"
+    },
+    "focusQuality": "Focus quality",
+    "energy": "Energy",
+    "save": "Save",
+    "saving": "Saving",
+    "skip": "Skip"
+  }
+}
