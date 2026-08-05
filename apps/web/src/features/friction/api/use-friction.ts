@@ -7,8 +7,9 @@ import {
   type UseQueryResult,
 } from "@tanstack/react-query";
 import { api } from "../../../shared/api/http.js";
-import type { ApiError } from "../../../shared/api/problem.js";
+import { NetworkError, type RequestError } from "../../../shared/api/problem.js";
 import { now } from "../../../shared/lib/clock.js";
+import { useOfflineQueue } from "../../../shared/lib/queue-context.js";
 
 export interface FrictionEvent {
   readonly id: string;
@@ -75,25 +76,41 @@ export function useFrictionSummary(enabled: boolean): UseQueryResult<SummaryResp
  * has already been acknowledged, and the honest recovery is the offline queue replaying it, not
  * an error asking the user to tap an annoyance again.
  */
-export function useLogFriction(): UseMutationResult<
-  FrictionEvent,
-  ApiError,
-  { type: FrictionType; sessionId: string | null }
-> {
+/**
+ * Builds the body a tap sends.
+ *
+ * Separate from the hook so the mutation's *variables* are the exact body — which is what lets
+ * `onError` queue precisely what failed. Deriving it again on retry would mint a new id and throw
+ * away the idempotency the whole queue depends on.
+ */
+export function frictionBody(type: FrictionType, sessionId: string | null): LogFrictionInput {
+  return {
+    // Client-minted, so a replay is the same event rather than a second one (§6.1).
+    id: crypto.randomUUID(),
+    type,
+    // Stamped here rather than server-side, so a tap logged offline records when the friction
+    // happened instead of when it uploaded — an afternoon on the subway would otherwise arrive as
+    // a burst at reconnect.
+    occurredAt: now(),
+    // Intensity is never asked inline (§5.3); 3 is the documented default.
+    intensity: 3,
+    ...(sessionId === null ? {} : { sessionId }),
+  };
+}
+
+export function useLogFriction(): UseMutationResult<FrictionEvent, RequestError, LogFrictionInput> {
   const queryClient = useQueryClient();
+  const offline = useOfflineQueue();
 
   return useMutation({
-    mutationFn: ({ type, sessionId }) => {
-      const body: LogFrictionInput = {
-        id: crypto.randomUUID(),
-        type,
-        // Sent explicitly rather than defaulted server-side, so the timestamp survives a queue.
-        occurredAt: now(),
-        // Intensity is never asked inline (§5.3) — the server defaults it to 3.
-        intensity: 3,
-        ...(sessionId === null ? {} : { sessionId }),
-      };
-      return api.post<FrictionEvent>("/friction", body);
+    mutationFn: (body) => api.post<FrictionEvent>("/friction", body),
+    onError: (error, body) => {
+      // This is the case the whole queue exists for: §5 calls the subway the realistic one, and
+      // losing a friction tap does not merely lose a row — it kills trust in the number, which is
+      // worse than having no number, because you would still act on it.
+      if (error instanceof NetworkError && offline && body.id) {
+        void offline.queue.enqueue(`friction:${body.id}`, "/friction", body);
+      }
     },
     // Only the summary and the ranking change, and neither is on screen at the moment of the
     // tap. Invalidating on settle keeps the tap itself free of any refetch.

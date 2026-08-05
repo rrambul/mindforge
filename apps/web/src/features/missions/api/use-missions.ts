@@ -7,7 +7,7 @@ import {
   type UseQueryResult,
 } from "@tanstack/react-query";
 import { api } from "../../../shared/api/http.js";
-import type { ApiError } from "../../../shared/api/problem.js";
+import type { RequestError } from "../../../shared/api/problem.js";
 
 /** Mirrors the API's MissionView. */
 export interface Mission {
@@ -54,7 +54,7 @@ export function useMissions(status?: MissionStatus): UseQueryResult<MissionsResp
  * client only has a cached view of). Showing the mission and then removing it would
  * be worse than waiting.
  */
-export function useCreateMission(): UseMutationResult<Mission, ApiError, CreateMissionInput> {
+export function useCreateMission(): UseMutationResult<Mission, RequestError, CreateMissionInput> {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (input) => api.post<Mission>("/missions", input),
@@ -69,7 +69,7 @@ export function useCreateMission(): UseMutationResult<Mission, ApiError, CreateM
  */
 export function useSetMissionParked(): UseMutationResult<
   Mission,
-  ApiError,
+  RequestError,
   { id: string; parked: boolean }
 > {
   const queryClient = useQueryClient();

@@ -24,7 +24,9 @@ Done in M1 so far: the server message bundle (`packages/core/src/i18n`), the API
 
 The loop is usable. **What M1 needs next is three weeks of you actually using it** (`NORTHSTAR.md` §4, sequencing rule 1) — not more features. If capture doesn't stick, nothing downstream fixes it.
 
-Then, in rough order: the offline queue (§5 — it wraps the capture mutations, which are already optimistic and idempotent, so it is additive), notes on anything (FR-N1..N3), resources with URL capture, goals with typed targets, and skills. There is deliberately **no router yet**: two screens do not need a route tree, and it should be designed against real routes once Today grows a "next" block and mission detail exists to link to.
+The **offline queue** is in: the capture paths survive a dropped connection, and the shell says how many captures are waiting rather than pretending all is well. A failure the server _refused_ is shown; one that merely did not arrive is queued and silent, because a red alert beside a running timer would contradict itself.
+
+Then, in rough order: a UI for manual/retroactive session entry (the API exists — FR-F2 warns the data dies in two weeks if backfilling is painful), notes on anything (FR-N1..N3), resources with URL capture, goals with typed targets, and skills. There is deliberately **no router yet**: two screens do not need a route tree, and it should be designed against real routes once Today grows a "next" block and mission detail exists to link to.
 
 Two interim proxies in the friction maths are marked in the code and expire in M2/M5: `producedLearning` reads the session's own debrief because §9.3's definition needs learning records and reviews; and the ember/slag split weights each event as one minute, so it is currently a _count_ share.
 

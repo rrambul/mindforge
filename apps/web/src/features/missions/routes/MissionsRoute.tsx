@@ -1,7 +1,7 @@
 import { MISSION_WIP_LIMIT, type CreateMissionInput } from "@mindforge/core";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ApiError, NetworkError, PROBLEM } from "../../../shared/api/problem.js";
+import { ApiError, NetworkError, PROBLEM, isProblemOfType } from "../../../shared/api/problem.js";
 import { Button } from "../../../shared/ui/Button.js";
 import { Callout } from "../../../shared/ui/Callout.js";
 import {
@@ -79,11 +79,16 @@ export function MissionsRoute() {
       ) : null}
 
       {create.isError ? (
-        <Callout tone={create.error.is(PROBLEM.wipLimitReached) ? "warning" : "danger"} live>
+        <Callout
+          tone={isProblemOfType(create.error, PROBLEM.wipLimitReached) ? "warning" : "danger"}
+          live
+        >
           {/* `detail` is already in the user's language — that is the entire reason the
               server resolves it from the stored profile. */}
           <p>{describe(create.error, common)}</p>
-          {create.error.is(PROBLEM.wipLimitReached) ? <p>{t("wip.atLimitHint")}</p> : null}
+          {isProblemOfType(create.error, PROBLEM.wipLimitReached) ? (
+            <p>{t("wip.atLimitHint")}</p>
+          ) : null}
         </Callout>
       ) : null}
 

@@ -10,9 +10,13 @@ import {
 import { Debrief } from "../features/focus/ui/Debrief.js";
 import { RunningSession } from "../features/focus/ui/RunningSession.js";
 import { StartFocus } from "../features/focus/ui/StartFocus.js";
-import { useFrictionChips, useLogFriction } from "../features/friction/api/use-friction.js";
+import {
+  frictionBody,
+  useFrictionChips,
+  useLogFriction,
+} from "../features/friction/api/use-friction.js";
 import { FrictionChips } from "../features/friction/ui/FrictionChips.js";
-import { ApiError, NetworkError, PROBLEM } from "../shared/api/problem.js";
+import { ApiError, NetworkError, PROBLEM, isProblemOfType } from "../shared/api/problem.js";
 import { Callout } from "../shared/ui/Callout.js";
 
 /**
@@ -69,7 +73,7 @@ export function TodayScreen() {
   }
 
   function onLogFriction(type: FrictionType): void {
-    logFriction.mutate({ type, sessionId: session?.id ?? null });
+    logFriction.mutate(frictionBody(type, session?.id ?? null));
   }
 
   if (running.isPending) {
@@ -78,14 +82,20 @@ export function TodayScreen() {
 
   return (
     <div className="mf-stack">
-      {/* Errors first, because a failed capture is the thing you most need to know about. */}
-      {start.isError ? (
-        <Callout tone={start.error.is(PROBLEM.focusAlreadyRunning) ? "warning" : "danger"} live>
+      {/* Only failures the server actually *refused*. A capture that merely did not arrive has
+          been queued and will land, so a red "didn't reach the server" alert beside a running
+          timer would contradict itself — the pending-captures count in the shell is what reports
+          that, and it is the honest version because it says "waiting" rather than "failed". */}
+      {refused(start.error) ? (
+        <Callout
+          tone={isProblemOfType(start.error, PROBLEM.focusAlreadyRunning) ? "warning" : "danger"}
+          live
+        >
           {describe(start.error, common)}
         </Callout>
       ) : null}
 
-      {stop.isError ? (
+      {refused(stop.error) ? (
         <Callout tone="danger" live>
           {describe(stop.error, common)}
         </Callout>
@@ -125,6 +135,16 @@ export function TodayScreen() {
       )}
     </div>
   );
+}
+
+/**
+ * A failure the server sent back, as opposed to one that never reached it.
+ *
+ * The distinction is the same one the mutations branch on: refused means it will never land and
+ * has to be shown; unreachable means it is queued and showing it would be wrong.
+ */
+function refused(error: unknown): boolean {
+  return error instanceof ApiError;
 }
 
 function describe(error: unknown, common: (key: string) => string): string {

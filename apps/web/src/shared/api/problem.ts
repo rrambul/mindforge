@@ -80,6 +80,26 @@ export class NetworkError extends Error {
   }
 }
 
+/**
+ * What a request can actually fail with.
+ *
+ * Declaring a mutation's error as `ApiError` alone was a lie that crashed the app: a dropped
+ * connection produces a `NetworkError`, which has no `.is()`, so branching on the problem type
+ * threw `start.error.is is not a function` and React unmounted the screen. The union makes the
+ * compiler refuse the unguarded call.
+ */
+export type RequestError = ApiError | NetworkError;
+
+/**
+ * Safe on any error, including one with no problem body.
+ *
+ * Use this rather than `error.is(...)`: a network failure has no `type` to compare, and the honest
+ * answer for it is "no, this is not that problem" rather than an exception.
+ */
+export function isProblemOfType(error: unknown, type: string): boolean {
+  return error instanceof ApiError && error.problem?.type === type;
+}
+
 export function isProblem(value: unknown): value is Problem {
   if (typeof value !== "object" || value === null) return false;
   const candidate = value as Partial<Problem>;

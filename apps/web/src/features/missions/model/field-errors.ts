@@ -1,5 +1,5 @@
 import type { TFunction } from "i18next";
-import type { ApiError, FieldViolation } from "../../../shared/api/problem.js";
+import { ApiError, type FieldViolation, type RequestError } from "../../../shared/api/problem.js";
 
 /**
  * Turns the API's field violations into copy in the user's language.
@@ -14,10 +14,12 @@ import type { ApiError, FieldViolation } from "../../../shared/api/problem.js";
  * and English.
  */
 export function fieldErrorsFrom(
-  error: ApiError | null,
+  error: RequestError | null,
   t: TFunction<"missions">,
 ): ReadonlyMap<string, string> {
-  if (!error?.problem) return new Map();
+  // A NetworkError has no problem body and therefore no field errors — the form shows the
+  // offline sentence instead, from the bundle.
+  if (!(error instanceof ApiError) || !error.problem) return new Map();
 
   return new Map(
     error.problem.errors.map((violation) => [violation.field, translate(violation, error, t)]),

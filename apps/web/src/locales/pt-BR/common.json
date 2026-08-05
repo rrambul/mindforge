@@ -21,5 +21,8 @@
   "nav": {
     "today": "Hoje",
     "missions": "Missões"
+  },
+  "offline": {
+    "pending": "{count, plural, one {# captura pendente} other {# capturas pendentes}}"
   }
 }

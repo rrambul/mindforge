@@ -12,8 +12,9 @@ import {
   type UseQueryResult,
 } from "@tanstack/react-query";
 import { api } from "../../../shared/api/http.js";
-import type { ApiError } from "../../../shared/api/problem.js";
+import { NetworkError, type RequestError } from "../../../shared/api/problem.js";
 import { nowIso } from "../../../shared/lib/clock.js";
+import { useOfflineQueue } from "../../../shared/lib/queue-context.js";
 
 /** Mirrors the API's FocusSessionView. */
 export interface FocusSession {
@@ -77,10 +78,11 @@ export function useRecentSessions(enabled: boolean): UseQueryResult<{ sessions: 
  */
 export function useStartSession(): UseMutationResult<
   FocusSession,
-  ApiError,
+  RequestError,
   StartFocusSessionInput
 > {
   const queryClient = useQueryClient();
+  const offline = useOfflineQueue();
 
   return useMutation({
     mutationFn: (input) => api.post<FocusSession>("/focus/sessions/start", input),
@@ -110,18 +112,29 @@ export function useStartSession(): UseMutationResult<
 
       return { previous };
     },
-    onError: (_error, _input, context) => {
-      // Rolled back rather than left hopeful. A timer that appears and then silently is not
-      // running is worse than one that never appeared: you would trust it and lose the block.
+    onError: (error, input, context) => {
+      // The distinction that makes offline work: a request that never *arrived* will land later,
+      // so the timer stays and the start is queued. A request the server *refused* will never
+      // land, so the timer is rolled back — one that appears and then silently is not running is
+      // worse than one that never appeared, because you would trust it and lose the block.
+      if (error instanceof NetworkError && offline && input.id) {
+        void offline.queue.enqueue(`focus:start:${input.id}`, "/focus/sessions/start", input);
+        return;
+      }
       queryClient.setQueryData(focusKeys.running, context?.previous);
     },
-    onSettled: () => queryClient.invalidateQueries({ queryKey: focusKeys.all }),
+    // onSuccess, not onSettled. A queued start must NOT trigger a refetch: the server does not
+    // know about the session yet, so `running` would come back null and erase the very optimistic
+    // state the queue is there to honour. Intermittent connectivity makes this real rather than
+    // theoretical — the GET succeeds while the POST does not.
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: focusKeys.all }),
   });
 }
 
 /** Stopping is one tap with no body, and optimistic for the same reason as starting. */
-export function useStopSession(): UseMutationResult<FocusSession, ApiError, { id: string }> {
+export function useStopSession(): UseMutationResult<FocusSession, RequestError, { id: string }> {
   const queryClient = useQueryClient();
+  const offline = useOfflineQueue();
 
   return useMutation({
     mutationFn: ({ id }) => api.post<FocusSession>(`/focus/sessions/${id}/stop`),
@@ -131,10 +144,22 @@ export function useStopSession(): UseMutationResult<FocusSession, ApiError, { id
       queryClient.setQueryData<RunningResponse>(focusKeys.running, { session: null });
       return { previous };
     },
-    onError: (_error, _input, context) => {
+    onError: (error, input, context) => {
+      // Queued rather than rolled back: the block did end, and putting the timer back would tell
+      // you it is still running. The stop replays after its start, because the queue is FIFO.
+      if (error instanceof NetworkError && offline) {
+        void offline.queue.enqueue(
+          `focus:stop:${input.id}`,
+          `/focus/sessions/${input.id}/stop`,
+          {},
+        );
+        return;
+      }
       queryClient.setQueryData(focusKeys.running, context?.previous);
     },
-    onSettled: () => queryClient.invalidateQueries({ queryKey: focusKeys.all }),
+    // See the note on start: a refetch after a queued stop would report the session as still
+    // running and put the timer back.
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: focusKeys.all }),
   });
 }
 
@@ -145,7 +170,7 @@ export function useStopSession(): UseMutationResult<FocusSession, ApiError, { id
  */
 export function useDebriefSession(): UseMutationResult<
   FocusSession,
-  ApiError,
+  RequestError,
   { id: string; debrief: DebriefFocusSessionInput }
 > {
   const queryClient = useQueryClient();

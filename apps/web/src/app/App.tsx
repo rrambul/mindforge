@@ -7,6 +7,7 @@ import { SignInForm } from "../features/auth/ui/SignInForm.js";
 import { MissionsRoute } from "../features/missions/routes/MissionsRoute.js";
 import { supabase } from "../shared/api/supabase.js";
 import { guessLocaleFromBrowser } from "../shared/lib/i18n.js";
+import { OfflineQueueProvider, useOfflineQueue } from "../shared/lib/queue-context.js";
 import { useTheme } from "../shared/lib/theme.js";
 import { Button } from "../shared/ui/Button.js";
 import { createQueryClient, I18nProvider } from "./providers.js";
@@ -28,7 +29,11 @@ export function App(): React.JSX.Element {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <LocalisedApp />
+      {/* Inside Query because the queue sends through the http client; outside the screens
+          because every capture path enqueues into the same one. */}
+      <OfflineQueueProvider>
+        <LocalisedApp />
+      </OfflineQueueProvider>
     </QueryClientProvider>
   );
 }
@@ -95,6 +100,7 @@ function Shell({ signedIn, sessionKnown }: ShellProps) {
           <Button variant="quiet" onClick={toggle} aria-label={t("theme.toggle")}>
             {t(theme === "dark" ? "theme.light" : "theme.dark")}
           </Button>
+          {signedIn ? <PendingCaptures /> : null}
           {signedIn ? (
             <Button variant="quiet" onClick={() => void supabase.auth.signOut()}>
               {auth("signOut")}
@@ -119,5 +125,28 @@ function Shell({ signedIn, sessionKnown }: ShellProps) {
         )}
       </main>
     </div>
+  );
+}
+
+/**
+ * Says how many captures are waiting to reach the server.
+ *
+ * Present because the alternative is dishonest: the capture paths are optimistic, so a tap looks
+ * identical whether it saved or is sitting in IndexedDB. Silence would mean the app told you
+ * everything was fine while holding data it had not sent — and this product's one job is telling
+ * you the truth about your own data.
+ *
+ * Absent when the queue is empty. A permanent "0 pending" is noise.
+ */
+function PendingCaptures() {
+  const { t } = useTranslation("common");
+  const offline = useOfflineQueue();
+
+  if (!offline || offline.pending === 0) return null;
+
+  return (
+    <span className="mf-chip" role="status">
+      {t("offline.pending", { count: offline.pending })}
+    </span>
   );
 }
