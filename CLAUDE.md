@@ -65,6 +65,10 @@ pnpm --filter @mindforge/db generate           # regenerate the Prisma client
 
 - **`tsBuildInfoFile` lives inside `dist/`** in every `tsconfig.build.json`. With it at the package root, `rm -rf dist` leaves tsc believing everything is current: the next build prints nothing, exits 0, emits no JS, and the failure surfaces much later as a missing module at runtime.
 
+- **The architectural boundary rules need `boundaries/root-path` and a TypeScript import resolver, or they silently enforce nothing.** Lint runs per package, so patterns are matched relative to the package dir unless root-path is anchored; and TS's ESM convention (`./foo.js` for `foo.ts`) is unresolvable to the default node resolver, which classifies every internal import as unknown and leaves the rule with nothing to check. `pnpm check:boundaries` asserts violations are still reported — run it after touching `eslint.config.mjs`.
+
+- **`*.module.ts` is exempt from the boundary rule.** A Nest module's job is binding abstractions to implementations, which cannot be written without naming the implementation (TECH-DESIGN.md §2.1's own example does it). The exemption is scoped to that filename; a controller importing a repository is still an error.
+
 - **Every package is ESM** (`"type": "module"`). `apps/api` was CommonJS while the packages it imports were ESM, which made named imports across that boundary fail at runtime while type-checking fine.
 - **TypeScript is pinned to 6.0.3** because `typescript-eslint` caps at `<6.1.0`. Bumping to 7 silently loses the boundary rules.
 - **Prisma 7 has no `datasourceUrl`** — build clients through `createPrismaClient()` in `packages/db`, which uses a driver adapter. Connection URLs live in `prisma.config.ts`, not the schema.

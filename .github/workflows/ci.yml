@@ -40,6 +40,11 @@ jobs:
       - name: Lint
         run: pnpm lint
 
+      # The boundary rules once loaded cleanly and enforced nothing, so their
+      # absence of errors proves nothing on its own. This asserts they still fire.
+      - name: Verify architectural boundaries
+        run: pnpm check:boundaries
+
       - name: Typecheck
         run: pnpm typecheck
 
