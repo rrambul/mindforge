@@ -45,6 +45,11 @@ const EN = {
     "Park one before starting another.",
   "error.mission.not_active": "Only an active mission can be parked.",
   "error.mission.not_parked": "Only a parked mission can be resumed.",
+
+  "error.focus.not_found": "That focus session no longer exists.",
+  "error.focus.already_running": "A focus session is already running. Stop it first.",
+  "error.focus.not_running": "That session has already been stopped.",
+  "error.focus.not_stopped": "Stop the session before writing its debrief.",
 } as const;
 
 export type ServerMessageKey = keyof typeof EN;
@@ -69,6 +74,11 @@ const PT_BR: Readonly<Record<ServerMessageKey, string>> = {
     "Pause uma antes de começar outra.",
   "error.mission.not_active": "Só uma missão ativa pode ser pausada.",
   "error.mission.not_parked": "Só uma missão pausada pode ser retomada.",
+
+  "error.focus.not_found": "Essa sessão de foco não existe mais.",
+  "error.focus.already_running": "Já existe uma sessão de foco em andamento. Pare ela primeiro.",
+  "error.focus.not_running": "Essa sessão já foi encerrada.",
+  "error.focus.not_stopped": "Encerre a sessão antes de escrever o debrief.",
 };
 
 const CATALOG: Readonly<Record<Locale, Readonly<Record<ServerMessageKey, string>>>> = {
