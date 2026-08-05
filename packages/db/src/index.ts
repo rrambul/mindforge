@@ -4,4 +4,4 @@
  * See TECH-DESIGN.md §2.1, §3.6.
  */
 export { PrismaClient, createPrismaClient } from "./client.js";
-export { withRls, type PrismaLike, type RlsClaims } from "./rls.js";
+export { claimsFor, runAsUser, type RlsClaims, type RlsTransaction } from "./rls.js";

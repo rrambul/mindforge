@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createPrismaClient } from "../src/client.js";
+import { claimsFor, runAsUser } from "../src/rls.js";
 
 /**
  * RLS isolation.
@@ -155,6 +156,55 @@ describe("row-level security", () => {
         )
     `);
     expect(gaps).toEqual([]);
+  });
+
+  it("isolates through runAsUser, which is what the API actually calls", async () => {
+    // Every test above drives Postgres by hand. This one drives the helper the
+    // application uses, because the hand-written SQL being correct says nothing
+    // about the helper being correct — and it was not. See src/rls.ts.
+    const alice = await runAsUser(admin, claimsFor(ALICE), (tx) =>
+      tx.mission.findMany({ select: { topic: true } }),
+    );
+    expect(alice.map((r) => r.topic)).toEqual(["Alice private mission"]);
+  });
+
+  it("does not isolate on claims alone, which is why the role switch exists", async () => {
+    // A regression test for a bug that failed silently and OPEN: the first
+    // version of withRls set request.jwt.claims and stopped there. Prisma
+    // connects as `postgres`, which owns the tables and is a superuser, so no
+    // policy applied and every query returned every user's rows while looking
+    // completely correct.
+    //
+    // Pinned rather than deleted with the bug: the day someone "simplifies"
+    // runAsUser by dropping `set local role`, this test is the one that
+    // explains what they have just switched off.
+    const leaked = await admin.$transaction(async (tx: TxClient) => {
+      await tx.$executeRawUnsafe(
+        `select set_config('request.jwt.claims', $1, true)`,
+        JSON.stringify(claimsFor(ALICE)),
+      );
+      return tx.mission.findMany({ select: { topic: true } });
+    });
+    expect(leaked.length).toBeGreaterThan(1);
+  });
+
+  it("rolls the whole unit of work back when part of it fails", async () => {
+    // runAsUser is also the transaction boundary: a repository that writes a
+    // mission and its revision must not be able to leave one without the other
+    // (FR-M2 depends on the history being complete, not best-effort).
+    const before = await runAsUser(admin, claimsFor(ALICE), (tx) => tx.mission.count());
+
+    await expect(
+      runAsUser(admin, claimsFor(ALICE), async (tx) => {
+        await tx.mission.create({
+          data: { userId: ALICE, topic: "should not survive" },
+        });
+        throw new Error("boom");
+      }),
+    ).rejects.toThrow("boom");
+
+    const after = await runAsUser(admin, claimsFor(ALICE), (tx) => tx.mission.count());
+    expect(after).toBe(before);
   });
 
   it("removes every owned row when the auth user is deleted", async () => {
