@@ -14,11 +14,17 @@ import { MISSION_REPOSITORY, type MissionRepository } from "../domain/mission.re
  * has would need a repository, and a domain object that queries the database is
  * no longer a domain object.
  *
- * Checked-then-written without a lock, deliberately. A user racing themselves to
- * a fourth simultaneous mission is not a threat model for a single-user product,
- * and the honest fix — a partial unique index or a serialisable transaction —
- * would cost more than the scatter it prevents. If this ever matters, the count
- * and the insert are already inside one transaction via UserScopedDb.
+ * Checked-then-written without a lock, deliberately. `UserScopedDb.run` opens a
+ * transaction per repository call, so the count and the insert are two separate
+ * transactions and two concurrent creates can both see two active missions and both
+ * commit. A user racing themselves to a fourth simultaneous mission is not a threat
+ * model for a single-user product, and the honest fix costs more than the scatter it
+ * prevents.
+ *
+ * If it ever does matter, the fix is not a comment about transactions: it is either a
+ * partial unique index (`where status = 'active'` over a generated slot number) or a
+ * single repository method that counts and inserts inside one `run`. Both are real
+ * work — do not assume the atomicity is already there.
  */
 @Injectable()
 export class CreateMission {

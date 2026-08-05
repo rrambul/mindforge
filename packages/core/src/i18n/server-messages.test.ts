@@ -51,6 +51,16 @@ describe("catalog completeness", () => {
 });
 
 describe("formatServerMessage", () => {
+  it("keeps the 4xx fallback free of self-blame", () => {
+    // error.internal says "Nothing you did caused this", which is false on a 413.
+    // This key exists so the HTTP layer has something true to say about a 4xx.
+    for (const locale of SUPPORTED_LOCALES) {
+      const detail = formatServerMessage(locale, "error.bad_request");
+      const internal = formatServerMessage(locale, "error.internal");
+      expect(detail).not.toBe(internal);
+    }
+  });
+
   it("renders a message with no variables", () => {
     expect(formatServerMessage("en", "error.unauthenticated")).toBe("Sign in to continue.");
     expect(formatServerMessage("pt-BR", "error.unauthenticated")).toBe("Entre para continuar.");

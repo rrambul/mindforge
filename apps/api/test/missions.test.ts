@@ -415,6 +415,47 @@ describe("parking (FR-M4b)", () => {
   });
 });
 
+describe("list ordering", () => {
+  it("puts active missions above parked ones", async () => {
+    const toPark = await createMission(alice, "Set aside");
+    await post(`/v1/missions/${toPark.id}/park`, alice);
+    await createMission(alice, "Working on this");
+
+    const response = await get("/v1/missions", alice);
+    const { missions } = JSON.parse(response.body) as { missions: MissionResponse[] };
+    expect(missions.map((m) => m.status)).toEqual(["active", "parked"]);
+  });
+
+  it("puts a completed mission last, not first", async () => {
+    // The regression this pins: `status` is a text column, so ordering it in SQL is
+    // alphabetical — abandoned, active, completed, parked — which put finished work
+    // above the mission you are actually on. It read as correct only while
+    // `completed` and `abandoned` were unreachable, so the seam is exercised here by
+    // writing the status directly.
+    const done = await createMission(alice, "Already finished");
+    await db.$executeRawUnsafe(
+      `update missions set status = 'abandoned' where id = $1::uuid`,
+      done.id,
+    );
+    await createMission(alice, "Working on this");
+
+    const response = await get("/v1/missions", alice);
+    const { missions } = JSON.parse(response.body) as { missions: MissionResponse[] };
+    expect(missions.map((m) => m.topic)).toEqual(["Working on this", "Already finished"]);
+  });
+
+  it("orders by recency within a status", async () => {
+    const first = await createMission(alice, "Older");
+    await createMission(alice, "Newer");
+    // Touching the older one moves it to the front of its status group.
+    await patch(`/v1/missions/${first.id}`, alice, { topic: "Older, just edited" });
+
+    const response = await get("/v1/missions", alice);
+    const { missions } = JSON.parse(response.body) as { missions: MissionResponse[] };
+    expect(missions[0]?.topic).toBe("Older, just edited");
+  });
+});
+
 describe("translated error detail (§5.2, §6.1)", () => {
   it("uses the user's stored locale, not the request's Accept-Language", async () => {
     // The chain this proves: the guard reads the profile, the context carries the

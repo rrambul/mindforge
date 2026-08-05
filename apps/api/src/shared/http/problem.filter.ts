@@ -76,7 +76,14 @@ export class ProblemExceptionFilter implements ExceptionFilter {
       // They arrive with a status but no catalogued message, so the status picks
       // one — never the exception's text, which is English framework copy.
       const status = exception.getStatus();
-      this.logger.warn(`${exception.name}: ${exception.message} (${instance})`);
+      // A 5xx from the framework is as much a bug as an unhandled throw, so it gets
+      // the same treatment: error level, with the stack. Logging it at `warn` with no
+      // stack is how a genuine fault goes unnoticed among validation failures.
+      if (status >= 500) {
+        this.logger.error(`${exception.name}: ${exception.message} (${instance})`, exception.stack);
+      } else {
+        this.logger.warn(`${exception.name}: ${exception.message} (${instance})`);
+      }
       return {
         type: `https://mindforge.app/errors/http-${status}`,
         title: exception.name,
@@ -95,11 +102,20 @@ export class ProblemExceptionFilter implements ExceptionFilter {
   }
 }
 
+/**
+ * The 4xx fallback is the point of this function.
+ *
+ * `error.internal` reads "Something went wrong on our end. Nothing you did caused
+ * this." On a 413, 405, or 415 that is simply false — the request *was* the problem —
+ * and non-negotiable #10 is that the app does not state things that aren't true.
+ * Anything 4xx without more specific copy gets the neutral message instead.
+ */
 function detailKeyForStatus(status: number): ServerMessageKey {
   if (status === 401) return "error.unauthenticated";
   if (status === 403) return "error.forbidden";
   if (status === 404) return "error.not_found";
   if (status === 422 || status === 400) return "error.validation_failed";
+  if (status >= 400 && status < 500) return "error.bad_request";
   return "error.internal";
 }
 

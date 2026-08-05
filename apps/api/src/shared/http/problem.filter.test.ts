@@ -173,14 +173,43 @@ describe("ProblemExceptionFilter", () => {
       expect(sent.body.detail).not.toContain("Cannot GET");
     });
 
-    it("falls back to the internal message for a status with no catalogued copy", () => {
+    it("does not blame itself for a 4xx it has no specific copy for", () => {
+      // The bug this pins: `error.internal` says "Nothing you did caused this",
+      // which on a 413 is false — the request was the problem. Non-negotiable #10
+      // is that the app does not state things that aren't true.
       const { host, sent } = hostFor({ url: "/v1/missions", headers: {} });
       filter.catch(new HttpException("Payload too large", 413), host);
 
       expect(sent.status).toBe(413);
+      expect(sent.body.detail).toBe("That request couldn't be processed.");
+      expect(sent.body.detail).not.toContain("our end");
+      expect(sent.body.detail).not.toContain("Nothing you did");
+    });
+
+    it.each([405, 409, 413, 415, 429])("uses the neutral message for %s", (status) => {
+      const { host, sent } = hostFor({ url: "/v1/x", headers: {} });
+      filter.catch(new HttpException("framework copy", status), host);
+      expect(sent.body.detail).toBe("That request couldn't be processed.");
+    });
+
+    it("still blames itself for a 5xx, because there it is true", () => {
+      const { host, sent } = hostFor({ url: "/v1/x", headers: {} });
+      filter.catch(new HttpException("upstream exploded", 503), host);
+
+      expect(sent.status).toBe(503);
       expect(sent.body.detail).toBe(
         "Something went wrong on our end. Nothing you did caused this.",
       );
+    });
+
+    it("logs a framework 5xx at error with its stack, like any other fault", () => {
+      // A genuine fault logged at warn with no stack goes unnoticed among the
+      // validation failures.
+      const { host } = hostFor({ url: "/v1/x", headers: {} });
+      filter.catch(new HttpException("upstream exploded", 503), host);
+
+      expect(logged.error).toHaveBeenCalled();
+      expect(logged.warn).not.toHaveBeenCalled();
     });
 
     it.each([

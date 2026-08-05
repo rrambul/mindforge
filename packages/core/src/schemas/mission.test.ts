@@ -3,9 +3,11 @@ import {
   CreateMissionSchema,
   ListMissionsQuerySchema,
   MISSION_CONTENT_FIELDS,
+  MISSION_STATUS_ORDER,
   MISSION_STATUSES,
   MISSION_WIP_LIMIT,
   MissionFieldsSchema,
+  missionStatusRank,
   MissionStatusSchema,
   UpdateMissionSchema,
 } from "./mission.js";
@@ -15,6 +17,37 @@ describe("MISSION_WIP_LIMIT", () => {
     // Lives here rather than in the API so the SPA can disable "new mission" before
     // a submit fails, instead of surfacing a 409 the user could have been spared.
     expect(MISSION_WIP_LIMIT).toBe(3);
+  });
+});
+
+describe("MISSION_STATUS_ORDER", () => {
+  it("puts what you are working on first and what is over last", () => {
+    expect([...MISSION_STATUS_ORDER]).toEqual(["active", "parked", "completed", "abandoned"]);
+  });
+
+  it("is not alphabetical, which is the bug it exists to prevent", () => {
+    // `status` is a text column, so ordering it in SQL gives abandoned, active,
+    // completed, parked — putting abandoned missions above active ones on the screen
+    // whose whole job is getting you into a focus session.
+    expect([...MISSION_STATUS_ORDER]).not.toEqual([...MISSION_STATUS_ORDER].sort());
+  });
+
+  it("ranks every status, so a sort comparator can never return NaN", () => {
+    for (const status of MISSION_STATUSES) {
+      expect(missionStatusRank(status)).toBeGreaterThanOrEqual(0);
+    }
+  });
+
+  it("ranks active above parked above completed above abandoned", () => {
+    expect(missionStatusRank("active")).toBeLessThan(missionStatusRank("parked"));
+    expect(missionStatusRank("parked")).toBeLessThan(missionStatusRank("completed"));
+    expect(missionStatusRank("completed")).toBeLessThan(missionStatusRank("abandoned"));
+  });
+
+  it("covers every status the schema allows", () => {
+    // A status added to MISSION_STATUSES without a rank would sort as -1 and jump to
+    // the top of the list.
+    expect([...MISSION_STATUS_ORDER].sort()).toEqual([...MISSION_STATUSES].sort());
   });
 });
 

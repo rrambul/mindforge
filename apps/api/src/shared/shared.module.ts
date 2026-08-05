@@ -1,5 +1,5 @@
-import { createPrismaClient } from "@mindforge/db";
-import { Global, Module, type Provider } from "@nestjs/common";
+import { createPrismaClient, type PrismaClient } from "@mindforge/db";
+import { Global, Inject, Module, type OnModuleDestroy, type Provider } from "@nestjs/common";
 import { APP_FILTER, APP_GUARD } from "@nestjs/core";
 import { PROFILE_READER, PrismaProfileReader } from "./auth/profile-reader.js";
 import { SupabaseAuthGuard } from "./auth/supabase-auth.guard.js";
@@ -43,4 +43,18 @@ const providers: Provider[] = [
   providers,
   exports: [ENV, PRISMA, CLOCK, ID_GENERATOR, USER_SCOPED_DB, TOKEN_VERIFIER, PROFILE_READER],
 })
-export class SharedModule {}
+export class SharedModule implements OnModuleDestroy {
+  constructor(@Inject(PRISMA) private readonly prisma: PrismaClient) {}
+
+  /**
+   * The connection pool is opened by a factory, so nothing else would ever close it.
+   *
+   * Two consequences of leaving it open, both real: a SIGTERM drops in-flight
+   * queries instead of draining them, and an integration suite that calls
+   * `app.close()` still holds sockets, so Vitest reports the run as complete and then
+   * refuses to exit.
+   */
+  async onModuleDestroy(): Promise<void> {
+    await this.prisma.$disconnect();
+  }
+}

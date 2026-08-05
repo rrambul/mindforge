@@ -20,6 +20,30 @@ export type MissionStatus = (typeof MISSION_STATUSES)[number];
 export const MissionStatusSchema = z.enum(MISSION_STATUSES);
 
 /**
+ * Presentation order: what you are working on, then what you set aside, then what
+ * is over.
+ *
+ * Explicit because `status` is a text column and sorting it in SQL gives
+ * *alphabetical* order — `abandoned, active, completed, parked` — which puts
+ * abandoned missions above active ones on the screen whose entire job is to get you
+ * into a focus session. That reads as correct today only because `completed` and
+ * `abandoned` are not yet reachable.
+ *
+ * Shared with the SPA so an optimistic insert lands in the same place the server
+ * would have put it.
+ */
+export const MISSION_STATUS_ORDER: readonly MissionStatus[] = [
+  "active",
+  "parked",
+  "completed",
+  "abandoned",
+];
+
+export function missionStatusRank(status: MissionStatus): number {
+  return MISSION_STATUS_ORDER.indexOf(status);
+}
+
+/**
  * FR-M4. Scatter is the main failure mode of ambitious learners, so this is a
  * product rule rather than a preference — and it lives here so the SPA can
  * disable "new mission" *before* a submit fails, rather than surfacing a 409.

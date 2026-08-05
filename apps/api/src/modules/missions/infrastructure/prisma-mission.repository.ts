@@ -1,4 +1,4 @@
-import type { MissionStatus } from "@mindforge/core";
+import { missionStatusRank, type MissionStatus } from "@mindforge/core";
 import type { RlsTransaction } from "@mindforge/db";
 import { Inject, Injectable } from "@nestjs/common";
 import { USER_SCOPED_DB, type UserScopedDb } from "../../../shared/persistence/user-scoped-db.js";
@@ -59,12 +59,24 @@ export class PrismaMissionRepository implements MissionRepository {
     return this.db.run(userId, async (tx) => {
       const rows = await tx.mission.findMany({
         ...(filter.status ? { where: { status: filter.status } } : {}),
-        // Active first, then most recently touched. The Today screen wants the
-        // mission you are actually on at the top, not the one you created first.
-        orderBy: [{ status: "asc" }, { updatedAt: "desc" }],
+        // Recency in SQL; status precedence in memory, below.
+        orderBy: { updatedAt: "desc" },
         select: MISSION_COLUMNS,
       });
-      return rows.map(toMission);
+
+      // `status` is a text column, so ordering it in SQL is *alphabetical*:
+      // abandoned, active, completed, parked. That would put abandoned missions
+      // above active ones on the Today screen, and it reads as correct today only
+      // because `completed` and `abandoned` are not yet reachable. Sorted here
+      // instead, by the explicit rank — Array#sort is stable, so `updatedAt desc`
+      // survives within each status.
+      //
+      // In memory rather than as a raw CASE because this list is bounded by
+      // product rule (FR-M4) and deliberately unpaginated; a few dozen rows at
+      // the very most.
+      return rows
+        .map(toMission)
+        .sort((a, b) => missionStatusRank(a.status) - missionStatusRank(b.status));
     });
   }
 

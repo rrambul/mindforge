@@ -20,6 +20,11 @@ export async function createApp(): Promise<NestFastifyApplication> {
   const env = app.get<Env>(ENV);
   app.enableCors({ origin: env.APP_ORIGIN, credentials: true });
 
+  // Without this, `onModuleDestroy` never runs on SIGTERM — which is how Railway
+  // stops a container — and the Postgres pool is dropped mid-query rather than
+  // drained.
+  app.enableShutdownHooks();
+
   return app;
 }
 
