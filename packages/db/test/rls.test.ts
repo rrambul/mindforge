@@ -35,7 +35,7 @@ function asUser<T>(userId: string, sql: string, ...params: unknown[]): Promise<T
       `select set_config('request.jwt.claims', $1, true)`,
       JSON.stringify({ sub: userId, role: "authenticated" }),
     );
-    return (await tx.$queryRawUnsafe(sql, ...params));
+    return await tx.$queryRawUnsafe(sql, ...params);
   });
 }
 
