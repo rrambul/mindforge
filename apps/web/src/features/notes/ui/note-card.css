@@ -1,0 +1,8 @@
+/* A quote is set apart rather than merely indented: it is someone else's words, and the
+   visual break is what stops it reading as yours. */
+.mf-note-quote {
+  margin: 0;
+  padding-left: var(--mf-space-3);
+  border-left: 2px solid var(--mf-scale);
+  font-style: italic;
+}

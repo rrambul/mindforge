@@ -18,5 +18,18 @@
     "parked": "Parked",
     "completed": "Completed",
     "abandoned": "Abandoned"
+  },
+  "noteSubject": {
+    "mission": "Mission",
+    "goal": "Goal",
+    "skill": "Skill",
+    "resource": "Resource",
+    "lesson": "Lesson",
+    "reference_doc": "Reference",
+    "learning_record": "Learning record",
+    "focus_session": "Focus session",
+    "assessment": "Assessment",
+    "artifact": "Artifact",
+    "standalone": "Unfiled"
   }
 }

@@ -9,12 +9,14 @@ import enFocus from "../../locales/en/focus.json";
 import enFriction from "../../locales/en/friction.json";
 import enGlossary from "../../locales/en/glossary.json";
 import enMissions from "../../locales/en/missions.json";
+import enNotes from "../../locales/en/notes.json";
 import ptAuth from "../../locales/pt-BR/auth.json";
 import ptCommon from "../../locales/pt-BR/common.json";
 import ptFocus from "../../locales/pt-BR/focus.json";
 import ptFriction from "../../locales/pt-BR/friction.json";
 import ptGlossary from "../../locales/pt-BR/glossary.json";
 import ptMissions from "../../locales/pt-BR/missions.json";
+import ptNotes from "../../locales/pt-BR/notes.json";
 
 /**
  * react-i18next with ICU MessageFormat, the same syntax the server-side bundle uses
@@ -27,7 +29,15 @@ import ptMissions from "../../locales/pt-BR/missions.json";
  * flash of untranslated content on the first screen. Revisit when the bundle is big
  * enough to measure.
  */
-export const NAMESPACES = ["common", "glossary", "auth", "missions", "focus", "friction"] as const;
+export const NAMESPACES = [
+  "common",
+  "glossary",
+  "auth",
+  "missions",
+  "focus",
+  "friction",
+  "notes",
+] as const;
 
 const resources = {
   en: {
@@ -37,6 +47,7 @@ const resources = {
     missions: enMissions,
     focus: enFocus,
     friction: enFriction,
+    notes: enNotes,
   },
   "pt-BR": {
     common: ptCommon,
@@ -45,6 +56,7 @@ const resources = {
     missions: ptMissions,
     focus: ptFocus,
     friction: ptFriction,
+    notes: ptNotes,
   },
 } as const satisfies Record<Locale, Record<(typeof NAMESPACES)[number], unknown>>;
 

@@ -1,0 +1,16 @@
+{
+  "heading": "Notas",
+  "label": "Nota",
+  "open": "Adicionar uma nota",
+  "save": "Salvar nota",
+  "close": "Fechar",
+  "search": "Buscar notas",
+  "pin": "Fixar",
+  "unpin": "Desfixar",
+  "pinned": "Fixada",
+  "delete": "Excluir",
+  "empty": {
+    "body": "Nada ainda. Uma nota é um pensamento que você teve trabalhando — ela alimenta o que você aprende depois.",
+    "noMatch": "Nenhuma nota corresponde a isso."
+  }
+}

@@ -20,7 +20,8 @@
   },
   "nav": {
     "today": "Today",
-    "missions": "Missions"
+    "missions": "Missions",
+    "notes": "Notes"
   },
   "offline": {
     "pending": "{count, plural, one {# capture waiting} other {# captures waiting}}"

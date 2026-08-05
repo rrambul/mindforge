@@ -18,5 +18,18 @@
     "parked": "Pausada",
     "completed": "Concluída",
     "abandoned": "Abandonada"
+  },
+  "noteSubject": {
+    "mission": "Missão",
+    "goal": "Meta",
+    "skill": "Habilidade",
+    "resource": "Recurso",
+    "lesson": "Lição",
+    "reference_doc": "Referência",
+    "learning_record": "Registro de aprendizado",
+    "focus_session": "Sessão de foco",
+    "assessment": "Avaliação",
+    "artifact": "Artefato",
+    "standalone": "Sem pasta"
   }
 }

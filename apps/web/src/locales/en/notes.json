@@ -1,0 +1,16 @@
+{
+  "heading": "Notes",
+  "label": "Note",
+  "open": "Add a note",
+  "save": "Save note",
+  "close": "Close",
+  "search": "Search notes",
+  "pin": "Pin",
+  "unpin": "Unpin",
+  "pinned": "Pinned",
+  "delete": "Delete",
+  "empty": {
+    "body": "Nothing yet. A note is a thought you had while working — it feeds what you get taught next.",
+    "noMatch": "No notes match that."
+  }
+}

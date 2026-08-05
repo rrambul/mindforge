@@ -5,6 +5,7 @@ import { useMe } from "../features/auth/api/use-me.js";
 import { useSupabaseSession } from "../features/auth/api/use-supabase-session.js";
 import { SignInForm } from "../features/auth/ui/SignInForm.js";
 import { MissionsRoute } from "../features/missions/routes/MissionsRoute.js";
+import { NotesRoute } from "../features/notes/routes/NotesRoute.js";
 import { supabase } from "../shared/api/supabase.js";
 import { guessLocaleFromBrowser } from "../shared/lib/i18n.js";
 import { OfflineQueueProvider, useOfflineQueue } from "../shared/lib/queue-context.js";
@@ -65,7 +66,7 @@ interface ShellProps {
   readonly sessionKnown: boolean;
 }
 
-type Screen = "today" | "missions";
+type Screen = "today" | "missions" | "notes";
 
 function Shell({ signedIn, sessionKnown }: ShellProps) {
   const { t } = useTranslation("common");
@@ -79,6 +80,7 @@ function Shell({ signedIn, sessionKnown }: ShellProps) {
   const items: NavItem<Screen>[] = [
     { id: "today", label: t("nav.today") },
     { id: "missions", label: t("nav.missions") },
+    { id: "notes", label: t("nav.notes") },
   ];
 
   return (
@@ -112,8 +114,10 @@ function Shell({ signedIn, sessionKnown }: ShellProps) {
       ) : signedIn ? (
         screen === "today" ? (
           <TodayScreen />
-        ) : (
+        ) : screen === "missions" ? (
           <MissionsRoute />
+        ) : (
+          <NotesRoute />
         )
       ) : (
         <SignInForm />

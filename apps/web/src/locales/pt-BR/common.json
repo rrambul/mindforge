@@ -20,7 +20,8 @@
   },
   "nav": {
     "today": "Hoje",
-    "missions": "Missões"
+    "missions": "Missões",
+    "notes": "Notas"
   },
   "offline": {
     "pending": "{count, plural, one {# captura pendente} other {# capturas pendentes}}"

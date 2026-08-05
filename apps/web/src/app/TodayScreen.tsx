@@ -18,6 +18,8 @@ import {
   useLogFriction,
 } from "../features/friction/api/use-friction.js";
 import { FrictionChips } from "../features/friction/ui/FrictionChips.js";
+import { noteBody, useWriteNote } from "../features/notes/api/use-notes.js";
+import { NoteComposer } from "../features/notes/ui/NoteComposer.js";
 import { ApiError, NetworkError, PROBLEM, isProblemOfType } from "../shared/api/problem.js";
 import { Button, Callout, Heading, Row, Stack, Text } from "../shared/ui/index.js";
 
@@ -45,6 +47,7 @@ export function TodayScreen() {
   const debrief = useDebriefSession();
   const record = useRecordSession();
   const logFriction = useLogFriction();
+  const writeNote = useWriteNote();
 
   /**
    * The session just stopped, awaiting its debrief. Local state rather than derived, because
@@ -111,11 +114,24 @@ export function TodayScreen() {
           onStop={onStop}
           stopping={stop.isPending}
           capture={
-            <FrictionChips
-              inline={chips.data?.inline ?? []}
-              overflow={chips.data?.overflow ?? []}
-              onLog={onLogFriction}
-            />
+            <Stack gap="tight">
+              <FrictionChips
+                inline={chips.data?.inline ?? []}
+                overflow={chips.data?.overflow ?? []}
+                onLog={onLogFriction}
+              />
+              {/* FR-N3: one tap, and the subject comes from here rather than a picker — the note
+                  attaches to the session and, through it, to the task and mission. */}
+              <NoteComposer
+                compact
+                pending={writeNote.isPending}
+                onWrite={(body) =>
+                  writeNote.mutate(
+                    noteBody({ body, subjectType: "focus_session", subjectId: session.id }),
+                  )
+                }
+              />
+            </Stack>
           }
         />
       ) : awaitingDebrief ? (
