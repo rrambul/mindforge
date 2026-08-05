@@ -35,7 +35,7 @@ function asUser<T>(userId: string, sql: string, ...params: unknown[]): Promise<T
       `select set_config('request.jwt.claims', $1, true)`,
       JSON.stringify({ sub: userId, role: "authenticated" }),
     );
-    return (await tx.$queryRawUnsafe(sql, ...params)) as T;
+    return (await tx.$queryRawUnsafe(sql, ...params));
   });
 }
 
@@ -180,15 +180,15 @@ describe("row-level security", () => {
 
     await admin.$executeRawUnsafe(`delete from auth.users where id = $1::uuid`, doomed);
 
-    const [{ count: profiles }] = await admin.$queryRawUnsafe<{ count: bigint }[]>(
+    const profiles = await admin.$queryRawUnsafe<{ count: bigint }[]>(
       `select count(*) from profiles where id = $1::uuid`,
       doomed,
     );
-    const [{ count: missions }] = await admin.$queryRawUnsafe<{ count: bigint }[]>(
+    const missions = await admin.$queryRawUnsafe<{ count: bigint }[]>(
       `select count(*) from missions where user_id = $1::uuid`,
       doomed,
     );
-    expect(Number(profiles)).toBe(0);
-    expect(Number(missions)).toBe(0);
+    expect(Number(profiles[0]?.count ?? -1)).toBe(0);
+    expect(Number(missions[0]?.count ?? -1)).toBe(0);
   });
 });
