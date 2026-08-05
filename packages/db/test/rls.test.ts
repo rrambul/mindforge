@@ -29,7 +29,7 @@ type TxClient = Omit<
 
 /** Runs a query as `authenticated` with the given user's claims. */
 function asUser<T>(userId: string, sql: string, ...params: unknown[]): Promise<T> {
-  return admin.$transaction(async (tx: TxClient) => {
+  return admin.$transaction<T>(async (tx: TxClient) => {
     await tx.$executeRawUnsafe(`set local role authenticated`);
     await tx.$executeRawUnsafe(
       `select set_config('request.jwt.claims', $1, true)`,
