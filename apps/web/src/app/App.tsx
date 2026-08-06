@@ -9,11 +9,13 @@ import { NotesRoute } from "../features/notes/routes/NotesRoute.js";
 import { ResourcesRoute } from "../features/resources/routes/ResourcesRoute.js";
 import { SkillsRoute } from "../features/skills/routes/SkillsRoute.js";
 import { supabase } from "../shared/api/supabase.js";
+import { useActions } from "../shared/lib/action-registry.js";
 import { guessLocaleFromBrowser } from "../shared/lib/i18n.js";
 import { OfflineQueueProvider, useOfflineQueue } from "../shared/lib/queue-context.js";
 import { useTheme } from "../shared/lib/theme.js";
 import { Button, Row, StatusChip, Text } from "../shared/ui/index.js";
 import { AppShell, Brand, Nav, type NavItem } from "./AppShell.js";
+import { CommandActions } from "./CommandActions.js";
 import { GoalsScreen } from "./GoalsScreen.js";
 import { createQueryClient, I18nProvider } from "./providers.js";
 import { TodayScreen } from "./TodayScreen.js";
@@ -106,42 +108,67 @@ function Shell({ signedIn, sessionKnown }: ShellProps) {
   ];
 
   return (
-    <AppShell
-      bar={
-        <>
-          <Row>
-            <Brand>{t("appName")}</Brand>
-            {signedIn ? (
-              <Nav label={t("appName")} items={items} current={screen} onSelect={setScreen} />
-            ) : null}
-          </Row>
-          <Row>
-            <Button variant="quiet" onClick={toggle} aria-label={t("theme.toggle")}>
-              {t(theme === "dark" ? "theme.light" : "theme.dark")}
-            </Button>
-            {signedIn ? <PendingCaptures /> : null}
-            {signedIn ? (
-              <Button variant="quiet" onClick={() => void supabase.auth.signOut()}>
-                {auth("signOut")}
+    <CommandActions onNavigate={setScreen}>
+      <AppShell
+        bar={
+          <>
+            <Row>
+              <Brand>{t("appName")}</Brand>
+              {signedIn ? (
+                <Nav label={t("appName")} items={items} current={screen} onSelect={setScreen} />
+              ) : null}
+            </Row>
+            <Row>
+              {/* A visible trigger as well as the keystroke. ⌘K is the fast path for someone who knows
+                  it exists, and on a phone there is no keyboard at all — §5.1 asks for a single
+                  persistent button opening the same actions. */}
+              {signedIn ? <OpenCommands /> : null}
+              <Button variant="quiet" onClick={toggle} aria-label={t("theme.toggle")}>
+                {t(theme === "dark" ? "theme.light" : "theme.dark")}
               </Button>
-            ) : null}
-          </Row>
-        </>
-      }
-    >
-      {/* Undetermined is not signed out: rendering the sign-in form while the stored session is
-          still being read would flash it on every reload. */}
-      {!sessionKnown ? (
-        <Text tone="muted">{t("state.loading")}</Text>
-      ) : signedIn ? (
-        (() => {
-          const Screen = SCREENS[screen];
-          return <Screen />;
-        })()
-      ) : (
-        <SignInForm />
-      )}
-    </AppShell>
+              {signedIn ? <PendingCaptures /> : null}
+              {signedIn ? (
+                <Button variant="quiet" onClick={() => void supabase.auth.signOut()}>
+                  {auth("signOut")}
+                </Button>
+              ) : null}
+            </Row>
+          </>
+        }
+      >
+        {/* Undetermined is not signed out: rendering the sign-in form while the stored session is
+            still being read would flash it on every reload. */}
+        {!sessionKnown ? (
+          <Text tone="muted">{t("state.loading")}</Text>
+        ) : signedIn ? (
+          (() => {
+            const Screen = SCREENS[screen];
+            return <Screen />;
+          })()
+        ) : (
+          <SignInForm />
+        )}
+      </AppShell>
+    </CommandActions>
+  );
+}
+
+/**
+ * Opens the command surface.
+ *
+ * Shows the shortcut beside the label rather than only in a tooltip: a keystroke nobody is told about
+ * is a keystroke nobody uses, and this is the app's primary desktop surface (§5.1).
+ */
+function OpenCommands() {
+  const { t } = useTranslation("command");
+  const registry = useActions();
+
+  if (!registry) return null;
+
+  return (
+    <Button variant="quiet" onClick={registry.open}>
+      {`${t("open")} ${t("openHint")}`}
+    </Button>
   );
 }
 

@@ -4,7 +4,9 @@ import ICU from "i18next-icu";
 import { initReactI18next } from "react-i18next";
 
 import enAuth from "../../locales/en/auth.json";
+import enCommand from "../../locales/en/command.json";
 import enCommon from "../../locales/en/common.json";
+import enFirstRun from "../../locales/en/firstRun.json";
 import enFocus from "../../locales/en/focus.json";
 import enFriction from "../../locales/en/friction.json";
 import enGlossary from "../../locales/en/glossary.json";
@@ -14,7 +16,9 @@ import enNotes from "../../locales/en/notes.json";
 import enResources from "../../locales/en/resources.json";
 import enSkills from "../../locales/en/skills.json";
 import ptAuth from "../../locales/pt-BR/auth.json";
+import ptCommand from "../../locales/pt-BR/command.json";
 import ptCommon from "../../locales/pt-BR/common.json";
+import ptFirstRun from "../../locales/pt-BR/firstRun.json";
 import ptFocus from "../../locales/pt-BR/focus.json";
 import ptFriction from "../../locales/pt-BR/friction.json";
 import ptGlossary from "../../locales/pt-BR/glossary.json";
@@ -43,6 +47,8 @@ export const NAMESPACES = [
   "focus",
   "friction",
   "goals",
+  "command",
+  "firstRun",
   "notes",
   "skills",
   "resources",
@@ -57,6 +63,8 @@ const resources = {
     focus: enFocus,
     friction: enFriction,
     goals: enGoals,
+    command: enCommand,
+    firstRun: enFirstRun,
     notes: enNotes,
     skills: enSkills,
     resources: enResources,
@@ -69,6 +77,8 @@ const resources = {
     focus: ptFocus,
     friction: ptFriction,
     goals: ptGoals,
+    command: ptCommand,
+    firstRun: ptFirstRun,
     notes: ptNotes,
     skills: ptSkills,
     resources: ptResources,

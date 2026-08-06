@@ -22,6 +22,7 @@ import { noteBody, useWriteNote } from "../features/notes/api/use-notes.js";
 import { NoteComposer } from "../features/notes/ui/NoteComposer.js";
 import { ApiError, NetworkError, PROBLEM, isProblemOfType } from "../shared/api/problem.js";
 import { Button, Callout, Heading, Row, Stack, Text } from "../shared/ui/index.js";
+import { FirstRun } from "./FirstRun.js";
 
 /**
  * Today (§5.3). One job: get you into a focus session in one tap, or tell you why you shouldn't.
@@ -89,6 +90,11 @@ export function TodayScreen() {
 
   return (
     <Stack>
+      {/* First. An empty account with the focus form at the top and nothing to focus on is where most
+          personal tools lose people (§5.3), and the banner is what stops that being the whole screen.
+          It renders nothing at all once there is a mission, so it costs a settled user no pixels. */}
+      <FirstRun />
+
       {/* Only failures the server actually *refused*. A capture that merely did not arrive has
           been queued and will land, so a red "didn't reach the server" alert beside a running
           timer would contradict itself — the pending-captures count in the shell is what reports

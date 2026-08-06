@@ -1,0 +1,20 @@
+{
+  "title": "Commands",
+  "search": "What do you want to do?",
+  "empty": "Nothing matches that.",
+  "open": "Commands",
+  "openHint": "⌘K",
+  "group": {
+    "capture": "Capture",
+    "go": "Go to"
+  },
+  "action": {
+    "stopFocus": "Stop focus",
+    "logFriction": "Log friction: {type}",
+    "captureUrl": "Capture the link on your clipboard",
+    "goTo": "{screen}"
+  },
+  "unavailable": {
+    "noSession": "Nothing running"
+  }
+}

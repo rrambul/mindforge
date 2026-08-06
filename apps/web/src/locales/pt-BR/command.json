@@ -1,0 +1,20 @@
+{
+  "title": "Comandos",
+  "search": "O que você quer fazer?",
+  "empty": "Nada corresponde a isso.",
+  "open": "Comandos",
+  "openHint": "⌘K",
+  "group": {
+    "capture": "Capturar",
+    "go": "Ir para"
+  },
+  "action": {
+    "stopFocus": "Parar o foco",
+    "logFriction": "Registrar atrito: {type}",
+    "captureUrl": "Capturar o link da área de transferência",
+    "goTo": "{screen}"
+  },
+  "unavailable": {
+    "noSession": "Nada em andamento"
+  }
+}

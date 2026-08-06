@@ -1,0 +1,49 @@
+{
+  "banner": {
+    "start": "Set up your first mission — four steps, and you can stop at any point.",
+    "resume": "You were setting up your first mission. Pick up at step {step} of 4?",
+    "action": "Start",
+    "resumeAction": "Continue",
+    "dismiss": "Not now"
+  },
+  "heading": "Your first mission",
+  "progress": "Step {step} of 4",
+  "skip": "Skip this",
+  "back": "Back",
+  "next": "Next",
+  "step": {
+    "mission": {
+      "title": "What do you want to get better at, and why?",
+      "why": "The why is not decoration. Everything the app does later reads it — what to suggest, what to review, what to drop when you are short of time.",
+      "topic": "What are you working on?",
+      "reason": "Why this, now?"
+    },
+    "goal": {
+      "title": "What would it look like to have got there?",
+      "why": "Goals here are measured, not declared — so this asks for something the app can check rather than a feeling.",
+      "goalTitle": "What do you want to be true?",
+      "hours": "How many focused hours would it take?"
+    },
+    "resource": {
+      "title": "What are you learning from right now?",
+      "why": "Paste a link and the title, author, and type are filled in for you.",
+      "url": "A link",
+      "manual": "It's a book or something without a link",
+      "name": "What is it called?"
+    },
+    "focus": {
+      "title": "Do 15 minutes on it now.",
+      "why": "The habit is the product. Everything above is setup; this is the thing itself.",
+      "intention": "What does done look like for these 15 minutes?",
+      "start": "Start 15 minutes"
+    }
+  },
+  "done": {
+    "title": "That's the loop.",
+    "body": "You have a mission, a goal with a real target, something to learn from, and a session running. Nothing here was demo data — it is all yours to edit or delete.",
+    "close": "Done"
+  },
+  "error": {
+    "retry": "Try again"
+  }
+}

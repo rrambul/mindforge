@@ -1,0 +1,49 @@
+{
+  "banner": {
+    "start": "Configure sua primeira missão — quatro passos, e você pode parar quando quiser.",
+    "resume": "Você estava configurando sua primeira missão. Continuar no passo {step} de 4?",
+    "action": "Começar",
+    "resumeAction": "Continuar",
+    "dismiss": "Agora não"
+  },
+  "heading": "Sua primeira missão",
+  "progress": "Passo {step} de 4",
+  "skip": "Pular",
+  "back": "Voltar",
+  "next": "Avançar",
+  "step": {
+    "mission": {
+      "title": "O que você quer melhorar, e por quê?",
+      "why": "O porquê não é enfeite. Tudo que o app faz depois lê isso — o que sugerir, o que revisar, o que abandonar quando o tempo é curto.",
+      "topic": "No que você está trabalhando?",
+      "reason": "Por que isso, agora?"
+    },
+    "goal": {
+      "title": "Como seria ter chegado lá?",
+      "why": "Metas aqui são medidas, não declaradas — então isto pede algo que o app possa verificar, não uma sensação.",
+      "goalTitle": "O que você quer que seja verdade?",
+      "hours": "Quantas horas de foco isso levaria?"
+    },
+    "resource": {
+      "title": "De onde você está aprendendo agora?",
+      "why": "Cole um link e o título, o autor e o tipo são preenchidos para você.",
+      "url": "Um link",
+      "manual": "É um livro ou algo sem link",
+      "name": "Como se chama?"
+    },
+    "focus": {
+      "title": "Faça 15 minutos agora.",
+      "why": "O hábito é o produto. Tudo acima é preparação; isto é a coisa em si.",
+      "intention": "Como é 'pronto' para estes 15 minutos?",
+      "start": "Começar 15 minutos"
+    }
+  },
+  "done": {
+    "title": "Esse é o ciclo.",
+    "body": "Você tem uma missão, uma meta com alvo real, algo para aprender e uma sessão em andamento. Nada aqui era dado de demonstração — é tudo seu para editar ou excluir.",
+    "close": "Pronto"
+  },
+  "error": {
+    "retry": "Tentar de novo"
+  }
+}
