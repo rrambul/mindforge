@@ -115,6 +115,11 @@ jobs:
             echo "DIRECT_URL=$DB_URL"
             echo "APP_ORIGIN=http://localhost:5173"
             echo "API_ORIGIN=http://localhost:3000"
+            # Only `VITE_*` reaches the browser bundle, which is the guardrail keeping the
+            # service-role key out of it — so the web app needs its own copies under those names.
+            echo "VITE_API_ORIGIN=http://localhost:3000"
+            echo "VITE_SUPABASE_URL=$API_URL"
+            echo "VITE_SUPABASE_ANON_KEY=$ANON_KEY"
           } >> "$GITHUB_ENV"
 
       - name: Generate Prisma client
@@ -136,3 +141,25 @@ jobs:
       # at the other.
       - name: API integration suite, with its coverage gate
         run: pnpm --filter @mindforge/api test:integration:coverage
+
+      # Chromium only. A second engine doubles the slowest gate in the pipeline to catch rendering
+      # differences this suite does not assert on — see playwright.config.ts.
+      - name: Install Chromium
+        run: pnpm --filter @mindforge/web exec playwright install --with-deps chromium
+
+      # The E2E level (§13.2). It ran nowhere for the whole of M1 — no config, no specs — while the web
+      # coverage config excluded the auth front door on the grounds that this covered it.
+      #
+      # Playwright starts the API and web dev servers itself; `reuseExistingServer` is off under CI, so a
+      # stale process cannot silently serve the previous commit.
+      - name: End-to-end suite
+        run: pnpm --filter @mindforge/web test:e2e
+
+      # Only on failure, and only the trace — a green run uploads nothing.
+      - name: Upload Playwright traces
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-traces
+          path: apps/web/test-results/
+          retention-days: 7

@@ -3,8 +3,18 @@
   "compilerOptions": {
     "lib": ["ES2023", "DOM", "DOM.Iterable"],
     "jsx": "react-jsx",
-    "types": ["vite/client"],
+    // `node` is here for `playwright.config.ts`, which needs `process.env.CI`.
+    //
+    // The cost is real and worth naming: a component can now write `process.env.FOO` and typecheck,
+    // then be undefined in the browser. What actually keeps secrets out of the bundle is unchanged —
+    // Vite only exposes `VITE_*`, and `shared/lib/env.ts` validates `import.meta.env` at module load,
+    // so the service-role key is unreachable either way. This removes a compile-time nudge, not the
+    // guardrail.
+    "types": ["vite/client", "node"],
     "noEmit": true
   },
-  "include": ["src/**/*", "test/**/*"]
+  // `e2e` is in the project so the Playwright specs are type-checked and lintable like
+  // everything else — `pnpm lint` runs `eslint .`, and a file outside the project cannot be
+  // type-aware linted at all.
+  "include": ["src/**/*", "test/**/*", "e2e/**/*", "playwright.config.ts"]
 }

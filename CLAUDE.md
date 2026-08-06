@@ -75,10 +75,23 @@ shows a blank page; revisit before M2. **No cloud Supabase project** either, sin
 exist** (an M0 bullet); they matter when insights need designing against six months of history, which
 is M2.
 
-Four gates run outside the test suites, all wired into CI: `pnpm check:boundaries` (the architecture
-rules actually fire), `pnpm check:i18n` (FR-L7), the per-package coverage gates, and — new — a second
-CI job that boots the local Supabase stack so the **integration and RLS suites gate too**. Until that
-job existed, CI's green covered unit tests only.
+**E2E exists now, and is the level most likely to be believed before it is written.** `@playwright/test`
+was installed for the whole of M1 with no config and no specs — `pnpm test:e2e` crashed, nothing ran it,
+and `apps/web/vitest.config.ts` excluded 378 lines (`App.tsx`, `providers.tsx`, `SignInForm`,
+`use-supabase-session`) on the stated grounds that Playwright covered them. Sign up → sign in → sign out
+was untested at every level. `apps/web/e2e/` now covers that flow and CI runs it; the other seven flows
+§13.2 names are listed in `apps/web/e2e/README.md` so the gap stays a list rather than a surprise.
+
+One blind spot is written down there rather than claimed: the suite proves a session survives a reload,
+but **not** that the sign-in form does not flash while the stored session is read — `toBeVisible` retries
+until things settle. Verified by breaking the `sessionKnown` guard and watching the suite stay green. It
+does discriminate on what it claims: breaking `signOut()` fails three of five.
+
+Five gates run outside the test suites, all wired into CI: `pnpm check:boundaries` (the architecture
+rules actually fire), `pnpm check:i18n` (FR-L7), the per-package coverage gates, a second
+CI job that boots the local Supabase stack so the **integration and RLS suites gate too** (with the
+integration coverage thresholds actually enforced — CI ran the variant without `--coverage`, so two
+configs each pointed at the other and nothing measured either), and the **E2E suite**.
 
 Three M0/M1 claims turned out not to hold, all fixed:
 

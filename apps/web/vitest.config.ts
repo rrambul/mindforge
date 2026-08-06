@@ -20,6 +20,11 @@ export default defineConfig({
     },
   },
   test: {
+    // Only the unit tests under `src`. Vitest's default glob also matches `.spec.` files, which swept
+    // up the Playwright spec the moment it existed and tried to run it — `test.describe` there is
+    // Playwright's, not Vitest's. Naming the include keeps the two levels from colliding rather than
+    // relying on a file-naming convention nobody wrote down.
+    include: ["src/**/*.test.{ts,tsx}"],
     environment: "jsdom",
     globals: false,
     setupFiles: ["./src/test/setup.ts"],
