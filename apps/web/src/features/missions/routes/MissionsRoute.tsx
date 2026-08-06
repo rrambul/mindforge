@@ -1,5 +1,5 @@
 import { MISSION_WIP_LIMIT, type CreateMissionInput } from "@mindforge/core";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { ApiError, NetworkError, PROBLEM, isProblemOfType } from "../../../shared/api/problem.js";
 import {
@@ -28,7 +28,17 @@ import { NewMissionForm } from "../ui/NewMissionForm.js";
  * owns the one piece of local state that is genuinely local — whether the create form
  * is open.
  */
-export function MissionsRoute() {
+export interface MissionsRouteProps {
+  /**
+   * Builds the note composer for one card, supplied by the app layer.
+   *
+   * A render prop because the composer needs the notes feature and this one may not import it (§2.2
+   * rule 6). Optional, so the route renders without it.
+   */
+  readonly renderNote?: (subjectId: string) => ReactNode;
+}
+
+export function MissionsRoute({ renderNote }: MissionsRouteProps) {
   const { t } = useTranslation("missions");
   const { t: common } = useTranslation("common");
   const [composing, setComposing] = useState(false);
@@ -138,6 +148,7 @@ export function MissionsRoute() {
             key={mission.id}
             mission={mission}
             pending={setParked.isPending && setParked.variables?.id === mission.id}
+            note={renderNote?.(mission.id)}
             onTogglePark={(target: Mission) =>
               setParked.mutate({ id: target.id, parked: target.status === "active" })
             }

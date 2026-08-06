@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Button, Card, Row, Spread, StatusChip, Text } from "../../../shared/ui/index.js";
 import type { Skill } from "../api/use-skills.js";
@@ -15,6 +16,13 @@ interface SkillCardProps {
   readonly onRemovePrerequisite: (skill: Skill, prereqId: string) => void;
   readonly onDelete: (skill: Skill) => void;
   readonly pending: boolean;
+  /**
+   * A note composer for this card, supplied by the app layer (M1's "notes on anything").
+   *
+   * A slot rather than an import: §2.2 rule 6 stops this feature reaching into notes, so the screen
+   * that composes both hands it in. Optional, so the card still renders in a test that does not care.
+   */
+  readonly note?: ReactNode;
 }
 
 /** Dumb by design: props in, markup out. */
@@ -26,6 +34,7 @@ export function SkillCard({
   onRemovePrerequisite,
   onDelete,
   pending,
+  note,
 }: SkillCardProps) {
   const { t } = useTranslation("skills");
   const { t: g } = useTranslation("glossary");
@@ -54,6 +63,8 @@ export function SkillCard({
         onAdd={(prereqId) => onAddPrerequisite(skill, prereqId)}
         onRemove={(prereqId) => onRemovePrerequisite(skill, prereqId)}
       />
+
+      {note}
 
       <Row>
         <Button variant="quiet" onClick={() => onDelete(skill)} disabled={pending}>

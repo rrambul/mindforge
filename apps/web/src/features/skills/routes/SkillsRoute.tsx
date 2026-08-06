@@ -1,5 +1,5 @@
 import { BANDS, type Band } from "@mindforge/core";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { ApiError, NetworkError } from "../../../shared/api/problem.js";
 import {
@@ -37,7 +37,17 @@ type Filter = "all" | "overconfident" | Band;
  * In M1 that list is empty for everyone, because scores need evidence and evidence lands in M2. The
  * empty state says so in as many words rather than looking broken.
  */
-export function SkillsRoute() {
+export interface SkillsRouteProps {
+  /**
+   * Builds the note composer for one card, supplied by the app layer.
+   *
+   * A render prop because the composer needs the notes feature and this one may not import it (§2.2
+   * rule 6). Optional, so the route renders without it.
+   */
+  readonly renderNote?: (subjectId: string) => ReactNode;
+}
+
+export function SkillsRoute({ renderNote }: SkillsRouteProps) {
   const { t } = useTranslation("skills");
   const { t: g } = useTranslation("glossary");
   const { t: common } = useTranslation("common");
@@ -201,6 +211,7 @@ export function SkillsRoute() {
               skill={skill}
               allSkills={everySkill.data?.skills ?? skills.data.skills}
               pending={pendingId === skill.id}
+              note={renderNote?.(skill.id)}
               onRate={(target: Skill, perceivedLevel: number) =>
                 rate.mutate({ id: target.id, body: { perceivedLevel } })
               }

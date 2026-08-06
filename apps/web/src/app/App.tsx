@@ -4,10 +4,7 @@ import { useTranslation } from "react-i18next";
 import { useMe } from "../features/auth/api/use-me.js";
 import { useSupabaseSession } from "../features/auth/api/use-supabase-session.js";
 import { SignInForm } from "../features/auth/ui/SignInForm.js";
-import { MissionsRoute } from "../features/missions/routes/MissionsRoute.js";
 import { NotesRoute } from "../features/notes/routes/NotesRoute.js";
-import { ResourcesRoute } from "../features/resources/routes/ResourcesRoute.js";
-import { SkillsRoute } from "../features/skills/routes/SkillsRoute.js";
 import { supabase } from "../shared/api/supabase.js";
 import { useActions } from "../shared/lib/action-registry.js";
 import { guessLocaleFromBrowser } from "../shared/lib/i18n.js";
@@ -17,7 +14,10 @@ import { Button, Row, StatusChip, Text } from "../shared/ui/index.js";
 import { AppShell, Brand, Nav, type NavItem } from "./AppShell.js";
 import { CommandActions } from "./CommandActions.js";
 import { GoalsScreen } from "./GoalsScreen.js";
+import { MissionsScreen } from "./MissionsScreen.js";
 import { createQueryClient, I18nProvider } from "./providers.js";
+import { ResourcesScreen } from "./ResourcesScreen.js";
+import { SkillsScreen } from "./SkillsScreen.js";
 import { TodayScreen } from "./TodayScreen.js";
 
 /**
@@ -81,11 +81,11 @@ type Screen = "today" | "missions" | "goals" | "skills" | "notes" | "resources";
  */
 const SCREENS: Readonly<Record<Screen, () => ReactElement>> = {
   today: TodayScreen,
-  missions: MissionsRoute,
+  missions: MissionsScreen,
   goals: GoalsScreen,
-  skills: SkillsRoute,
+  skills: SkillsScreen,
   notes: NotesRoute,
-  resources: ResourcesRoute,
+  resources: ResourcesScreen,
 };
 
 function Shell({ signedIn, sessionKnown }: ShellProps) {

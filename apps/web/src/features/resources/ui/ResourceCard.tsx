@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import {
   Button,
@@ -19,6 +20,13 @@ interface ResourceCardProps {
   readonly onAbandon: (resource: Resource) => void;
   readonly onQueue: (resource: Resource) => void;
   readonly pending: boolean;
+  /**
+   * A note composer for this card, supplied by the app layer (M1's "notes on anything").
+   *
+   * A slot rather than an import: §2.2 rule 6 stops this feature reaching into notes, so the screen
+   * that composes both hands it in. Optional, so the card still renders in a test that does not care.
+   */
+  readonly note?: ReactNode;
 }
 
 /** Dumb by design: props in, markup out. */
@@ -29,6 +37,7 @@ export function ResourceCard({
   onAbandon,
   onQueue,
   pending,
+  note,
 }: ResourceCardProps) {
   const { t } = useTranslation("resources");
   const { t: g } = useTranslation("glossary");
@@ -92,6 +101,8 @@ export function ResourceCard({
           pending={pending}
         />
       )}
+
+      {note}
 
       <Row>
         {resource.url ? (

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { ApiError, NetworkError } from "../../../shared/api/problem.js";
 import {
@@ -37,7 +37,17 @@ type Filter = (typeof FILTERS)[number];
  * links constantly and triage occasionally. The list is already sorted by the server so that what you
  * are reading is first and what is over is last.
  */
-export function ResourcesRoute() {
+export interface ResourcesRouteProps {
+  /**
+   * Builds the note composer for one card, supplied by the app layer.
+   *
+   * A render prop because the composer needs the notes feature and this one may not import it (§2.2
+   * rule 6). Optional, so the route renders without it.
+   */
+  readonly renderNote?: (subjectId: string) => ReactNode;
+}
+
+export function ResourcesRoute({ renderNote }: ResourcesRouteProps) {
   const { t } = useTranslation("resources");
   const { t: g } = useTranslation("glossary");
   const { t: common } = useTranslation("common");
@@ -141,6 +151,7 @@ export function ResourcesRoute() {
               key={resource.id}
               resource={resource}
               pending={pendingId === resource.id}
+              note={renderNote?.(resource.id)}
               onMarkProgress={(target: Resource, current: number, total: number | null) =>
                 progress.mutate({
                   id: target.id,

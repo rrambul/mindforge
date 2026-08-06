@@ -17,6 +17,13 @@ Don't restate these docs here. When something changes, update the doc, not this 
 **M1 — the capture loop — feature-complete** (`NORTHSTAR.md` §4). Every bullet on M1's list is
 built, tested, and behind the gates.
 
+One bullet was reported done before it was, which is worth recording because the mistake is easy to
+repeat: **"notes on anything"** (line 125) reads "one tap from a running session, **or from any
+resource, skill, or mission**". The session half shipped, the API and schema accepted all eleven
+subject types, the integration tests exercised them — and there was no way to reach any of them from
+the UI. The schema being ready looked like the feature being done. FR-N1 calls `standalone` the escape
+hatch for the genuinely unfiled thought, and it had become the only path the UI offered.
+
 **What M1 needs now is three weeks of you actually using it** (`NORTHSTAR.md` §4, sequencing rule 1).
 Its finish line is "you've logged 10 real focus sessions without opening the code", and that is not a
 coding task. If capture doesn't stick, nothing downstream fixes it.
@@ -28,9 +35,23 @@ What shipped, in the order it was built: the server message bundle, the API requ
 guard, RFC 7807 errors, Zod validation, RLS-scoped access), **missions** (WIP limit of 3, revision
 history, park), the **capture loop** (focus timer with intention → stop → ≤30s debrief, manual and
 retroactive entry, one-tap typed friction with the ranked four, the ember/slag split), the **offline
-queue**, **notes on anything** with Postgres full-text search, **resources** with URL capture,
-**goals** with typed targets, **skills** with a prerequisite DAG and the calibration gap, the
-**command palette**, and the **guided first mission**.
+queue**, **notes on anything** with Postgres full-text search — one tap from a running session and
+from any resource, skill, or mission card — **resources** with URL capture, **goals** with typed
+targets, **skills** with a prerequisite DAG and the calibration gap, the **command palette**, and the
+**guided first mission**.
+
+**Cross-feature composition lives in `app/`, and there are now five wrappers doing it**:
+`TodayScreen`, `GoalsScreen`, `MissionsScreen`, `SkillsScreen`, `ResourcesScreen`, plus `SubjectNote`
+and `CommandActions`. §2.2 rule 6 forbids a feature importing another, so a resource card cannot reach
+for the notes composer — the screen that composes both hands it in through a `renderNote` prop. That is
+the rule working as intended rather than ceremony: the alternative is `features/resources` importing
+`features/notes`, which is the first step toward the 40-file refactor the boundary exists to prevent.
+
+Which links exist, and at which layer, is worth knowing before promising one:
+`resource_links.skill_id` and `friction_events.skill_id`/`resource_id` are **columns with no
+milestone** — the M0 schema was written for the whole product, so a column existing is not evidence
+that anything plans to write it. §3.7 also draws a hard line: notes are hub-and-spoke, and
+**no backlinks, no wikilinks, no graph view** is a decision, not an omission.
 
 Three ideas run through all of it, and they are the ones to preserve when changing anything:
 
