@@ -16,6 +16,7 @@ import {
 const SAMPLE_VARS: Partial<Record<ServerMessageKey, Record<string, string | number>>> = {
   "error.mission.wip_limit": { limit: 3 },
   "error.resource.progress_out_of_range": { total: 590, unit: "page" },
+  "error.goal.subject_missing": { subject: "resource" },
 };
 
 describe("catalog completeness", () => {
@@ -70,6 +71,26 @@ describe("error.resource.progress_out_of_range", () => {
     });
     expect(message).not.toContain("0");
     expect(message).toBe("That position isn't valid.");
+  });
+});
+
+describe("error.goal.subject_missing", () => {
+  it("names which kind of thing is missing", () => {
+    // One message rather than three keys, because the sentence is identical and only the noun differs
+    // — and a translator seeing three near-copies will eventually let them drift.
+    expect(formatServerMessage("en", "error.goal.subject_missing", { subject: "skill" })).toBe(
+      "That skill no longer exists.",
+    );
+    expect(formatServerMessage("pt-BR", "error.goal.subject_missing", { subject: "mission" })).toBe(
+      "Essa missão não existe mais.",
+    );
+  });
+
+  it("still says something sensible for a subject it does not know", () => {
+    // The `other` branch. A future target kind pointing at something new must not render a blank.
+    expect(formatServerMessage("en", "error.goal.subject_missing", { subject: "artifact" })).toBe(
+      "That no longer exists.",
+    );
   });
 });
 

@@ -55,6 +55,14 @@ const EN = {
 
   "error.resource.not_found": "That resource no longer exists.",
   "error.resource.no_progress": "This kind of resource isn't measured in units.",
+  "error.goal.not_found": "That goal no longer exists.",
+  "error.goal.target_not_found": "That target no longer exists.",
+  "error.goal.already_closed": "That goal is already closed. Reopen it first.",
+  "error.goal.not_closed": "That goal is still active.",
+  "error.goal.target_not_manual":
+    "This target is worked out from your evidence, so it can't be set by hand.",
+  "error.goal.subject_missing":
+    "{subject, select, resource {That resource} skill {That skill} mission {That mission} other {That}} no longer exists.",
   "error.resource.progress_out_of_range":
     "{total, plural, =0 {That position isn't valid.} other {This has # {unit}, so that position isn't valid.}}",
 } as const;
@@ -91,6 +99,14 @@ const PT_BR: Readonly<Record<ServerMessageKey, string>> = {
 
   "error.resource.not_found": "Esse recurso não existe mais.",
   "error.resource.no_progress": "Esse tipo de recurso não é medido em unidades.",
+  "error.goal.not_found": "Essa meta não existe mais.",
+  "error.goal.target_not_found": "Esse alvo não existe mais.",
+  "error.goal.already_closed": "Essa meta já está encerrada. Reabra antes.",
+  "error.goal.not_closed": "Essa meta ainda está ativa.",
+  "error.goal.target_not_manual":
+    "Este alvo é calculado a partir das suas evidências, então não pode ser definido à mão.",
+  "error.goal.subject_missing":
+    "{subject, select, resource {Esse recurso} skill {Essa habilidade} mission {Essa missão} other {Isso}} não existe mais.",
   "error.resource.progress_out_of_range":
     "{total, plural, =0 {Essa posição não é válida.} other {Isto tem # {unit}, então essa posição não é válida.}}",
 };

@@ -133,7 +133,12 @@ model GoalTarget {
   /// {"percent":100} | {"band":"fluent"} | {"hours":40} | {"accuracy":0.85}
   target     Json
   weight     Decimal   @default(1) @db.Decimal(4, 2)
+  /// A `manual` target is met exactly when this is set — there is no separate
+  /// "satisfied" flag, because two columns encoding one fact eventually disagree.
   metAt      DateTime? @map("met_at") @db.Timestamptz(6)
+  /// `skill_band` only: the band when the target was set. Captured at creation
+  /// because §3.8 measures distance from there and it is unrecoverable later.
+  bandAtStart String?  @map("band_at_start")
 
   goal     Goal      @relation(fields: [goalId], references: [id], onDelete: Cascade)
   resource Resource? @relation(fields: [resourceId], references: [id], onDelete: Cascade)
