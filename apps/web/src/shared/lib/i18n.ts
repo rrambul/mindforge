@@ -8,6 +8,7 @@ import enCommon from "../../locales/en/common.json";
 import enFocus from "../../locales/en/focus.json";
 import enFriction from "../../locales/en/friction.json";
 import enGlossary from "../../locales/en/glossary.json";
+import enGoals from "../../locales/en/goals.json";
 import enMissions from "../../locales/en/missions.json";
 import enNotes from "../../locales/en/notes.json";
 import enResources from "../../locales/en/resources.json";
@@ -16,6 +17,7 @@ import ptCommon from "../../locales/pt-BR/common.json";
 import ptFocus from "../../locales/pt-BR/focus.json";
 import ptFriction from "../../locales/pt-BR/friction.json";
 import ptGlossary from "../../locales/pt-BR/glossary.json";
+import ptGoals from "../../locales/pt-BR/goals.json";
 import ptMissions from "../../locales/pt-BR/missions.json";
 import ptNotes from "../../locales/pt-BR/notes.json";
 import ptResources from "../../locales/pt-BR/resources.json";
@@ -38,6 +40,7 @@ export const NAMESPACES = [
   "missions",
   "focus",
   "friction",
+  "goals",
   "notes",
   "resources",
 ] as const;
@@ -50,6 +53,7 @@ const resources = {
     missions: enMissions,
     focus: enFocus,
     friction: enFriction,
+    goals: enGoals,
     notes: enNotes,
     resources: enResources,
   },
@@ -60,6 +64,7 @@ const resources = {
     missions: ptMissions,
     focus: ptFocus,
     friction: ptFriction,
+    goals: ptGoals,
     notes: ptNotes,
     resources: ptResources,
   },

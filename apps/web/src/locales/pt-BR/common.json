@@ -22,7 +22,8 @@
     "today": "Hoje",
     "missions": "Missões",
     "notes": "Notas",
-    "resources": "Biblioteca"
+    "resources": "Biblioteca",
+    "goals": "Metas"
   },
   "offline": {
     "pending": "{count, plural, one {# captura pendente} other {# capturas pendentes}}"

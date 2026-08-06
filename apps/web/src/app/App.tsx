@@ -13,6 +13,7 @@ import { OfflineQueueProvider, useOfflineQueue } from "../shared/lib/queue-conte
 import { useTheme } from "../shared/lib/theme.js";
 import { Button, Row, StatusChip, Text } from "../shared/ui/index.js";
 import { AppShell, Brand, Nav, type NavItem } from "./AppShell.js";
+import { GoalsScreen } from "./GoalsScreen.js";
 import { createQueryClient, I18nProvider } from "./providers.js";
 import { TodayScreen } from "./TodayScreen.js";
 
@@ -67,7 +68,7 @@ interface ShellProps {
   readonly sessionKnown: boolean;
 }
 
-type Screen = "today" | "missions" | "notes" | "resources";
+type Screen = "today" | "missions" | "goals" | "notes" | "resources";
 
 /**
  * A lookup rather than a chain of ternaries, which stopped being readable at the third screen.
@@ -78,6 +79,7 @@ type Screen = "today" | "missions" | "notes" | "resources";
 const SCREENS: Readonly<Record<Screen, () => ReactElement>> = {
   today: TodayScreen,
   missions: MissionsRoute,
+  goals: GoalsScreen,
   notes: NotesRoute,
   resources: ResourcesRoute,
 };
@@ -95,6 +97,7 @@ function Shell({ signedIn, sessionKnown }: ShellProps) {
   const items: NavItem<Screen>[] = [
     { id: "today", label: t("nav.today") },
     { id: "missions", label: t("nav.missions") },
+    { id: "goals", label: t("nav.goals") },
     { id: "notes", label: t("nav.notes") },
     { id: "resources", label: t("nav.resources") },
   ];

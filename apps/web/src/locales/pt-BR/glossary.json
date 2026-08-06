@@ -48,5 +48,20 @@
     "finished": "Concluído",
     "abandoned": "Parado",
     "reference": "Referência"
+  },
+  "goalStatus": {
+    "active": "Ativa",
+    "met": "Atingida",
+    "missed": "Não atingida",
+    "abandoned": "Abandonada"
+  },
+  "targetKind": {
+    "resource_progress": "Progresso no recurso",
+    "skill_band": "Faixa da habilidade",
+    "artifact": "Artefato",
+    "focus_hours": "Horas de foco",
+    "review_accuracy": "Precisão nas revisões",
+    "lessons_completed": "Lições concluídas",
+    "manual": "Você decide"
   }
 }

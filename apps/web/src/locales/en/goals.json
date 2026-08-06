@@ -1,0 +1,71 @@
+{
+  "heading": "Goals",
+  "create": {
+    "title": "What do you want to be true?",
+    "definitionOfDone": "How will you know it is done?",
+    "targetDate": "By when",
+    "action": "Add goal",
+    "toggle": "Write down a goal",
+    "close": "Cancel"
+  },
+  "filter": {
+    "label": "Show",
+    "all": "Everything"
+  },
+  "progress": {
+    "none": "No targets yet — progress can't be measured. Add one and it will be.",
+    "unmeasured": "Nothing here can be measured yet.",
+    "partial": "Measuring {measured} of {total} targets.",
+    "percent": "{percent}%",
+    "allMet": "Every target is met.",
+    "closePrompt": "Close it?"
+  },
+  "target": {
+    "heading": "Targets",
+    "add": "Add a target",
+    "kind": "Measure by",
+    "weight": "Weight",
+    "remove": "Remove",
+    "percent": "Percent",
+    "hours": "Hours",
+    "count": "How many",
+    "band": "Band",
+    "accuracy": "Accuracy",
+    "windowDays": "Over how many days",
+    "resource": "Resource",
+    "skill": "Skill",
+    "mission": "Mission",
+    "met": "Met",
+    "metOn": "Met {date}",
+    "manualDone": "Done",
+    "manualNotDone": "Not done yet",
+    "noData": "Nothing to measure this against yet.",
+    "notYetImplemented": "This can't be measured until that part of the app exists.",
+    "describe": {
+      "resource_progress": "Read to {percent}%",
+      "skill_band": "Reach the {band} band",
+      "artifact": "Ship an artifact",
+      "focus_hours": "Spend {hours}h focused",
+      "review_accuracy": "Hold {accuracy}% accuracy over {windowDays} days",
+      "lessons_completed": "Complete {count} lessons",
+      "manual": "You decide"
+    },
+    "confirm": "Add target"
+  },
+  "close": {
+    "action": "Close goal",
+    "cancel": "Cancel",
+    "status": "How did it end?",
+    "met": "Met it",
+    "missed": "Missed it",
+    "abandoned": "Dropped it",
+    "note": "What happened?",
+    "noteRequired": "A missed or dropped goal needs a note. It is the part worth reading later.",
+    "confirm": "Close it",
+    "reopen": "Reopen"
+  },
+  "empty": {
+    "all": "No goals yet. A goal is something you want to be true, measured by targets rather than by a feeling.",
+    "filtered": "Nothing in this list."
+  }
+}

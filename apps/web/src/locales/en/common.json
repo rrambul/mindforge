@@ -22,7 +22,8 @@
     "today": "Today",
     "missions": "Missions",
     "notes": "Notes",
-    "resources": "Library"
+    "resources": "Library",
+    "goals": "Goals"
   },
   "offline": {
     "pending": "{count, plural, one {# capture waiting} other {# captures waiting}}"

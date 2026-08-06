@@ -48,5 +48,20 @@
     "finished": "Finished",
     "abandoned": "Stopped",
     "reference": "Reference"
+  },
+  "goalStatus": {
+    "active": "Active",
+    "met": "Met",
+    "missed": "Missed",
+    "abandoned": "Dropped"
+  },
+  "targetKind": {
+    "resource_progress": "Resource progress",
+    "skill_band": "Skill band",
+    "artifact": "Artifact",
+    "focus_hours": "Focus hours",
+    "review_accuracy": "Review accuracy",
+    "lessons_completed": "Lessons completed",
+    "manual": "You decide"
   }
 }
