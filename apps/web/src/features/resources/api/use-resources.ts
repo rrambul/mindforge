@@ -5,6 +5,7 @@ import type {
   ResourceProgress,
   ResourceStatus,
   ResourceType,
+  SetResourceLinksInput,
   UpdateProgressInput,
   UpdateResourceInput,
 } from "@mindforge/core";
@@ -32,6 +33,9 @@ export interface Resource {
   /** Null, never 0, when it cannot be computed — the two are different claims. */
   readonly fraction: number | null;
   readonly isMeasurable: boolean;
+  /** What this resource is connected to (FR-R3). Empty rather than null: "none" is a set. */
+  readonly missionIds: readonly string[];
+  readonly skillIds: readonly string[];
   readonly addedAt: string;
   readonly finishedAt: string | null;
 }
@@ -172,6 +176,26 @@ export function useAbandonResource(): UseMutationResult<
   return useMutation({
     mutationFn: ({ id, reason }) =>
       api.post<Resource>(`/resources/${id}/abandon`, reason ? { reason } : {}),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: resourceKeys.all }),
+  });
+}
+
+/**
+ * Replaces what a resource is connected to (FR-R3).
+ *
+ * Not a capture path — connecting an article to a mission is a considered act, so a failure is shown
+ * rather than queued. And a replayed link write could land after the set had changed underneath it,
+ * which is exactly when the server's existence check needs to run against what is actually stored.
+ */
+export function useSetResourceLinks(): UseMutationResult<
+  Resource,
+  RequestError,
+  { id: string; links: SetResourceLinksInput }
+> {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ id, links }) => api.put<Resource>(`/resources/${id}/links`, links),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: resourceKeys.all }),
   });
 }

@@ -58,3 +58,24 @@ export class ProgressOutOfRange extends DomainError {
     this.violations = [{ field: "current", code: "out_of_range", message: this.message }];
   }
 }
+
+/**
+ * A resource linked to something that is not there.
+ *
+ * Same reasoning as the goals module's `TargetSubjectMissing`: checked so the client gets a 422 naming
+ * the field rather than a 500 from a foreign-key violation, and reachable simply by having a stale list
+ * open in another tab.
+ */
+export class LinkTargetMissing extends DomainError {
+  readonly kind: DomainErrorKind = "invalid";
+  readonly slug = "link-target-missing";
+  readonly detailKey: ServerMessageKey = "error.resource.link_target_missing";
+  override readonly detailVars: { readonly kind: string };
+  override readonly violations: readonly FieldViolation[];
+
+  constructor(kind: "mission" | "skill", id: string) {
+    super(`No ${kind} ${id}`);
+    this.detailVars = { kind };
+    this.violations = [{ field: `${kind}Ids`, code: "not_found", message: this.message }];
+  }
+}

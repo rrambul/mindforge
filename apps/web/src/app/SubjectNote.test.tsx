@@ -54,6 +54,8 @@ function seedScreens() {
             progress: { unit: "page", current: 0, total: null },
             fraction: null,
             isMeasurable: true,
+            missionIds: [],
+            skillIds: [],
             addedAt: "2026-08-06T12:00:00.000Z",
             finishedAt: null,
           },

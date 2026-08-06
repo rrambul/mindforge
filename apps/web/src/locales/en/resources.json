@@ -41,5 +41,15 @@
     "all": "Nothing here yet. Paste a link to anything you want to read, watch, or listen to — it lands in the inbox and you can sort it out later.",
     "filtered": "Nothing in this list."
   },
-  "notMeasured": "Read or unread — there is nothing to measure here."
+  "notMeasured": "Read or unread — there is nothing to measure here.",
+  "links": {
+    "heading": "For",
+    "none": "Not connected to anything yet — a resource you never tie to a mission or skill is just reading.",
+    "addMission": "Link a mission",
+    "addSkill": "Link a skill",
+    "pickMission": "Which mission?",
+    "pickSkill": "Which skill?",
+    "confirm": "Link",
+    "remove": "Unlink"
+  }
 }

@@ -4,15 +4,21 @@ import {
   type CaptureResourceInput,
   type CreateResourceInput,
   type ListResourcesQuery,
+  type SetResourceLinksInput,
   type UpdateProgressInput,
   type UpdateResourceInput,
 } from "@mindforge/core";
 import { Inject, Injectable } from "@nestjs/common";
 import { ID_GENERATOR, type IdGenerator } from "../../../shared/ids/id-generator.js";
 import { CLOCK, type Clock } from "../../../shared/time/clock.js";
-import { ResourceNotFound } from "../domain/errors.js";
+import { LinkTargetMissing, ResourceNotFound } from "../domain/errors.js";
 import { Resource } from "../domain/resource.js";
-import { RESOURCE_REPOSITORY, type ResourceRepository } from "../domain/resource.repository.js";
+import {
+  RESOURCE_REPOSITORY,
+  type ResourceLinks,
+  type ResourceRepository,
+} from "../domain/resource.repository.js";
+import { LINK_TARGETS, type LinkTargetReader } from "./link-targets.port.js";
 import { URL_METADATA, type UrlMetadata, type UrlMetadataReader } from "./url-metadata.port.js";
 
 const NO_METADATA: UrlMetadata = { title: null, author: null };
@@ -216,5 +222,68 @@ export class ListResources {
 
   execute(userId: string, query: ListResourcesQuery): Promise<Resource[]> {
     return this.resources.list(userId, { ...query, limit: DEFAULT_LIMIT });
+  }
+}
+
+/**
+ * Replaces what a resource is connected to (`resource_links`).
+ *
+ * FR-R3's reasoning is the point of the feature: an article you never tie to a goal or a skill is
+ * entertainment, and the link is what makes it something else. Until this existed the column was
+ * written only by the guided first mission, so every resource captured afterwards was unattached.
+ *
+ * Every target is verified **before** anything is written, and the whole set is replaced in one
+ * transaction — so a bad id cannot leave half the links applied, which is the trap `CreateSkill` fell
+ * into by validating after its save.
+ */
+@Injectable()
+export class SetResourceLinks {
+  constructor(
+    @Inject(RESOURCE_REPOSITORY) private readonly resources: ResourceRepository,
+    @Inject(LINK_TARGETS) private readonly targets: LinkTargetReader,
+  ) {}
+
+  async execute(
+    userId: string,
+    resourceId: string,
+    input: SetResourceLinksInput,
+  ): Promise<Resource> {
+    const resource = await this.resources.findById(userId, resourceId);
+    if (!resource) throw new ResourceNotFound(resourceId);
+
+    // Deduplicated: the same mission named twice is one link, and the table's own uniqueness would
+    // silently collapse it anyway — better to agree with it than to rely on it.
+    const missionIds = [...new Set(input.missionIds)];
+    const skillIds = [...new Set(input.skillIds)];
+
+    for (const id of missionIds) {
+      if (!(await this.targets.exists(userId, "mission", id))) {
+        throw new LinkTargetMissing("mission", id);
+      }
+    }
+    for (const id of skillIds) {
+      if (!(await this.targets.exists(userId, "skill", id))) {
+        throw new LinkTargetMissing("skill", id);
+      }
+    }
+
+    await this.resources.setLinks(userId, resourceId, { missionIds, skillIds });
+    return resource;
+  }
+}
+
+/** Links for a batch of resources, so the library can render them without a query per card. */
+@Injectable()
+export class ReadResourceLinks {
+  constructor(@Inject(RESOURCE_REPOSITORY) private readonly resources: ResourceRepository) {}
+
+  read(
+    userId: string,
+    resources: readonly Resource[],
+  ): Promise<Readonly<Record<string, ResourceLinks>>> {
+    return this.resources.linksFor(
+      userId,
+      resources.map((resource) => resource.id),
+    );
   }
 }

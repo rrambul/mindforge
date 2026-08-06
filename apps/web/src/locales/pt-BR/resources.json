@@ -41,5 +41,15 @@
     "all": "Nada aqui ainda. Cole um link de qualquer coisa que você queira ler, assistir ou ouvir — vai para a entrada e você organiza depois.",
     "filtered": "Nada nesta lista."
   },
-  "notMeasured": "Lido ou não lido — não há nada para medir aqui."
+  "notMeasured": "Lido ou não lido — não há nada para medir aqui.",
+  "links": {
+    "heading": "Para",
+    "none": "Ainda não está ligado a nada — um recurso que você não liga a uma missão ou habilidade é só leitura.",
+    "addMission": "Ligar a uma missão",
+    "addSkill": "Ligar a uma habilidade",
+    "pickMission": "Qual missão?",
+    "pickSkill": "Qual habilidade?",
+    "confirm": "Ligar",
+    "remove": "Desligar"
+  }
 }

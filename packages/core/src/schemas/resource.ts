@@ -105,6 +105,24 @@ export const CreateResourceSchema = z.object({
 });
 export type CreateResourceInput = z.infer<typeof CreateResourceSchema>;
 
+/**
+ * What a resource is connected to (`resource_links`).
+ *
+ * A *replacement* of the whole set rather than add/remove endpoints: the operation is then idempotent,
+ * a retry cannot double-link, and the client sends the state it wants rather than a diff it computed
+ * from a list that may have moved. Both arrays default to empty, so sending `{}` unlinks everything —
+ * which is the honest reading of "these are the links".
+ *
+ * Bounded because a resource connected to twenty missions is not connected to anything: FR-R3's point
+ * is that an article you never tie to a goal is entertainment, and a link to everything says as little
+ * as a link to nothing.
+ */
+export const SetResourceLinksSchema = z.object({
+  missionIds: z.array(UuidSchema).max(20).default([]),
+  skillIds: z.array(UuidSchema).max(20).default([]),
+});
+export type SetResourceLinksInput = z.infer<typeof SetResourceLinksSchema>;
+
 export const UpdateResourceSchema = z
   .object({
     title: title.optional(),

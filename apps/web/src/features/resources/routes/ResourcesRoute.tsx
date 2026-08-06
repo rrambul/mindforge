@@ -45,9 +45,16 @@ export interface ResourcesRouteProps {
    * rule 6). Optional, so the route renders without it.
    */
   readonly renderNote?: (subjectId: string) => ReactNode;
+  /**
+   * Builds the link editor for one resource (FR-R3).
+   *
+   * A render prop for the same reason as the note: the pickers need mission and skill names, and this
+   * feature may not import those features (§2.2 rule 6).
+   */
+  readonly renderLinks?: (resource: Resource) => ReactNode;
 }
 
-export function ResourcesRoute({ renderNote }: ResourcesRouteProps) {
+export function ResourcesRoute({ renderNote, renderLinks }: ResourcesRouteProps) {
   const { t } = useTranslation("resources");
   const { t: g } = useTranslation("glossary");
   const { t: common } = useTranslation("common");
@@ -152,6 +159,7 @@ export function ResourcesRoute({ renderNote }: ResourcesRouteProps) {
               resource={resource}
               pending={pendingId === resource.id}
               note={renderNote?.(resource.id)}
+              links={renderLinks?.(resource)}
               onMarkProgress={(target: Resource, current: number, total: number | null) =>
                 progress.mutate({
                   id: target.id,

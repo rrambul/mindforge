@@ -11,7 +11,7 @@ import { currentAccessToken } from "./supabase.js";
  */
 
 interface RequestOptions {
-  readonly method?: "GET" | "POST" | "PATCH" | "DELETE";
+  readonly method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
   readonly body?: unknown;
   readonly signal?: AbortSignal;
 }
@@ -76,6 +76,9 @@ export const api = {
     request<T>(path, signal ? { signal } : {}),
   post: <T>(path: string, body?: unknown): Promise<T> =>
     request<T>(path, body === undefined ? { method: "POST" } : { method: "POST", body }),
+  // PUT for the endpoints that *replace* a set rather than merge into one — resource links, where
+  // sending it twice has to leave the same state.
+  put: <T>(path: string, body: unknown): Promise<T> => request<T>(path, { method: "PUT", body }),
   patch: <T>(path: string, body: unknown): Promise<T> =>
     request<T>(path, { method: "PATCH", body }),
   delete: <T>(path: string): Promise<T> => request<T>(path, { method: "DELETE" }),

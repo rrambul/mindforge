@@ -11,10 +11,14 @@ import {
   RESOURCE_TYPES,
   ResourceProgressSchema,
   resourceStatusRank,
+  SetResourceLinksSchema,
   UNIT_FOR_TYPE,
   UpdateProgressSchema,
   UpdateResourceSchema,
 } from "./resource.js";
+
+const UUID = "11111111-1111-4111-8111-111111111111";
+const UUID_B = "22222222-2222-4222-8222-222222222222";
 
 describe("CaptureResourceSchema", () => {
   it("needs only a URL — the make-or-break path (FR-R2)", () => {
@@ -136,6 +140,29 @@ describe("AbandonResourceSchema", () => {
 
   it("keeps a reason when given, because it is prime friction data", () => {
     expect(AbandonResourceSchema.parse({ reason: "  too shallow  " }).reason).toBe("too shallow");
+  });
+});
+
+describe("SetResourceLinksSchema", () => {
+  it("takes both kinds of link", () => {
+    const parsed = SetResourceLinksSchema.parse({ missionIds: [UUID], skillIds: [UUID_B] });
+    expect(parsed.missionIds).toEqual([UUID]);
+    expect(parsed.skillIds).toEqual([UUID_B]);
+  });
+
+  it("treats an empty body as unlinking everything", () => {
+    // A replacement, not a diff — so "these are the links" with nothing named means there are none.
+    expect(SetResourceLinksSchema.parse({})).toEqual({ missionIds: [], skillIds: [] });
+  });
+
+  it("bounds the set, because a link to everything says as little as no link", () => {
+    // FR-R3's point is that an article you never tie to a goal is entertainment.
+    const many = Array.from({ length: 21 }, () => UUID);
+    expect(SetResourceLinksSchema.safeParse({ missionIds: many }).success).toBe(false);
+  });
+
+  it("rejects an id that is not a uuid", () => {
+    expect(SetResourceLinksSchema.safeParse({ skillIds: ["rust"] }).success).toBe(false);
   });
 });
 

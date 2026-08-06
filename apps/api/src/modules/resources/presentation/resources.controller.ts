@@ -3,6 +3,7 @@ import {
   CaptureResourceSchema,
   CreateResourceSchema,
   ListResourcesQuerySchema,
+  SetResourceLinksSchema,
   UpdateProgressSchema,
   UpdateResourceSchema,
   UuidSchema,
@@ -15,10 +16,11 @@ import {
   type ResourceProgress,
   type ResourceStatus,
   type ResourceType,
+  type SetResourceLinksInput,
   type UpdateProgressInput,
   type UpdateResourceInput,
 } from "@mindforge/core";
-import { Body, Controller, Get, Param, Patch, Post, Query } from "@nestjs/common";
+import { Body, Controller, Get, Param, Patch, Post, Put, Query } from "@nestjs/common";
 import { CurrentUser } from "../../../shared/auth/current-user.decorator.js";
 import type { RequestContext } from "../../../shared/auth/request-context.js";
 import { zodPipe } from "../../../shared/validation/zod-validation.pipe.js";
@@ -30,8 +32,11 @@ import {
   FinishResource,
   ListResources,
   MarkProgress,
+  ReadResourceLinks,
+  SetResourceLinks,
 } from "../application/resource.use-cases.js";
 import type { Resource } from "../domain/resource.js";
+import type { ResourceLinks } from "../domain/resource.repository.js";
 
 export interface ResourceView {
   readonly id: string;
@@ -46,11 +51,17 @@ export interface ResourceView {
   readonly fraction: number | null;
   /** Whether this kind of thing is measured at all, so the client renders the right control. */
   readonly isMeasurable: boolean;
+  /** What this resource is connected to (FR-R3). Empty rather than null: "none" is a set. */
+  readonly missionIds: readonly string[];
+  readonly skillIds: readonly string[];
   readonly addedAt: string;
   readonly finishedAt: string | null;
 }
 
-export function toResourceView(resource: Resource): ResourceView {
+export function toResourceView(
+  resource: Resource,
+  links: ResourceLinks = { missionIds: [], skillIds: [] },
+): ResourceView {
   const r = resource.toSnapshot();
   return {
     id: r.id,
@@ -63,6 +74,8 @@ export function toResourceView(resource: Resource): ResourceView {
     progress: r.progress,
     fraction: progressFraction(r.progress),
     isMeasurable: resource.isMeasurable,
+    missionIds: links.missionIds,
+    skillIds: links.skillIds,
     addedAt: r.addedAt.toISOString(),
     finishedAt: r.finishedAt?.toISOString() ?? null,
   };
@@ -84,7 +97,15 @@ export class ResourcesController {
     private readonly finish: FinishResource,
     private readonly abandon: AbandonResource,
     private readonly list: ListResources,
+    private readonly setLinks: SetResourceLinks,
+    private readonly readLinks: ReadResourceLinks,
   ) {}
+
+  /** Reads one resource's links, so every single-resource response carries them too. */
+  private async viewOf(userId: string, resource: Resource): Promise<ResourceView> {
+    const links = await this.readLinks.read(userId, [resource]);
+    return toResourceView(resource, links[resource.id]);
+  }
 
   @Get()
   async listResources(
@@ -98,7 +119,9 @@ export class ResourcesController {
     const ordered = [...resources].sort(
       (a, b) => resourceStatusRank(a.status) - resourceStatusRank(b.status),
     );
-    return { resources: ordered.map(toResourceView) };
+    // One batched read for every card on the screen rather than one per resource.
+    const links = await this.readLinks.read(user.userId, ordered);
+    return { resources: ordered.map((resource) => toResourceView(resource, links[resource.id])) };
   }
 
   /** FR-R2. Paste a URL; the server does the rest. */
@@ -107,7 +130,7 @@ export class ResourcesController {
     @CurrentUser() user: RequestContext,
     @Body(zodPipe(CaptureResourceSchema)) body: CaptureResourceInput,
   ): Promise<ResourceView> {
-    return toResourceView(await this.capture.execute(user.userId, body));
+    return this.viewOf(user.userId, await this.capture.execute(user.userId, body));
   }
 
   @Post()
@@ -115,7 +138,7 @@ export class ResourcesController {
     @CurrentUser() user: RequestContext,
     @Body(zodPipe(CreateResourceSchema)) body: CreateResourceInput,
   ): Promise<ResourceView> {
-    return toResourceView(await this.add.execute(user.userId, body));
+    return this.viewOf(user.userId, await this.add.execute(user.userId, body));
   }
 
   @Patch(":id")
@@ -124,7 +147,7 @@ export class ResourcesController {
     @Param("id", zodPipe(UuidSchema)) id: string,
     @Body(zodPipe(UpdateResourceSchema)) body: UpdateResourceInput,
   ): Promise<ResourceView> {
-    return toResourceView(await this.edit.execute(user.userId, id, body));
+    return this.viewOf(user.userId, await this.edit.execute(user.userId, id, body));
   }
 
   @Patch(":id/progress")
@@ -133,7 +156,7 @@ export class ResourcesController {
     @Param("id", zodPipe(UuidSchema)) id: string,
     @Body(zodPipe(UpdateProgressSchema)) body: UpdateProgressInput,
   ): Promise<ResourceView> {
-    return toResourceView(await this.progress.execute(user.userId, id, body));
+    return this.viewOf(user.userId, await this.progress.execute(user.userId, id, body));
   }
 
   @Post(":id/finish")
@@ -141,7 +164,22 @@ export class ResourcesController {
     @CurrentUser() user: RequestContext,
     @Param("id", zodPipe(UuidSchema)) id: string,
   ): Promise<ResourceView> {
-    return toResourceView(await this.finish.execute(user.userId, id));
+    return this.viewOf(user.userId, await this.finish.execute(user.userId, id));
+  }
+
+  /**
+   * FR-R3 — what this resource is for.
+   *
+   * `PUT` rather than `POST`, because it replaces the whole set: sending it twice leaves the same
+   * links, and a client that lost track of what was attached cannot half-apply a diff.
+   */
+  @Put(":id/links")
+  async setResourceLinks(
+    @CurrentUser() user: RequestContext,
+    @Param("id", zodPipe(UuidSchema)) id: string,
+    @Body(zodPipe(SetResourceLinksSchema)) body: SetResourceLinksInput,
+  ): Promise<ResourceView> {
+    return this.viewOf(user.userId, await this.setLinks.execute(user.userId, id, body));
   }
 
   /** FR-R5 — guilt-free, and the reason is optional. */
@@ -151,6 +189,6 @@ export class ResourcesController {
     @Param("id", zodPipe(UuidSchema)) id: string,
     @Body(zodPipe(AbandonResourceSchema)) body: AbandonResourceInput,
   ): Promise<ResourceView> {
-    return toResourceView(await this.abandon.execute(user.userId, id, body));
+    return this.viewOf(user.userId, await this.abandon.execute(user.userId, id, body));
   }
 }

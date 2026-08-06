@@ -54,6 +54,8 @@ const EN = {
   "error.note.not_found": "That note no longer exists.",
 
   "error.resource.not_found": "That resource no longer exists.",
+  "error.resource.link_target_missing":
+    "{kind, select, mission {That mission} skill {That skill} other {That}} no longer exists.",
   "error.resource.no_progress": "This kind of resource isn't measured in units.",
   "error.focus.in_future": "That time is in the future — check the date, or your device's clock.",
   "error.skill.not_found": "That skill no longer exists.",
@@ -104,6 +106,8 @@ const PT_BR: Readonly<Record<ServerMessageKey, string>> = {
   "error.note.not_found": "Essa nota não existe mais.",
 
   "error.resource.not_found": "Esse recurso não existe mais.",
+  "error.resource.link_target_missing":
+    "{kind, select, mission {Essa missão} skill {Essa habilidade} other {Isso}} não existe mais.",
   "error.resource.no_progress": "Esse tipo de recurso não é medido em unidades.",
   "error.focus.in_future":
     "Esse horário está no futuro — confira a data, ou o relógio do seu dispositivo.",

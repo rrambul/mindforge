@@ -1,9 +1,14 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { SequentialIdGenerator } from "../../../shared/ids/id-generator.js";
 import { FixedClock } from "../../../shared/time/clock.js";
-import { ResourceNotFound } from "../domain/errors.js";
+import { LinkTargetMissing, ResourceNotFound } from "../domain/errors.js";
 import type { Resource } from "../domain/resource.js";
-import type { ResourceFilter, ResourceRepository } from "../domain/resource.repository.js";
+import type {
+  ResourceFilter,
+  ResourceLinks,
+  ResourceRepository,
+} from "../domain/resource.repository.js";
+import type { LinkTargetReader } from "./link-targets.port.js";
 import {
   AbandonResource,
   AddResource,
@@ -12,12 +17,16 @@ import {
   FinishResource,
   ListResources,
   MarkProgress,
+  ReadResourceLinks,
+  SetResourceLinks,
 } from "./resource.use-cases.js";
 import type { UrlMetadata, UrlMetadataReader } from "./url-metadata.port.js";
 
 const ALICE = "11111111-1111-4111-8111-111111111111";
 const BOB = "22222222-2222-4222-8222-222222222222";
 const MISSION = "33333333-3333-4333-8333-333333333333";
+const SKILL = "44444444-4444-4444-8444-444444444444";
+const MISSING = "99999999-9999-4999-8999-999999999999";
 const NOW = new Date("2026-08-05T12:00:00Z");
 const LATER = new Date("2026-08-06T09:00:00Z");
 
@@ -54,7 +63,37 @@ class InMemoryResources implements ResourceRepository {
     this.saveCount += 1;
     this.missionLinks.push(missionId);
     this.own(userId).set(resource.id, resource);
+    if (missionId) {
+      this.links.set(resource.id, { missionIds: [missionId], skillIds: [] });
+    }
     return Promise.resolve();
+  }
+
+  readonly links = new Map<string, ResourceLinks>();
+
+  linksFor(
+    _userId: string,
+    resourceIds: readonly string[],
+  ): Promise<Readonly<Record<string, ResourceLinks>>> {
+    const out: Record<string, ResourceLinks> = {};
+    for (const id of resourceIds) {
+      out[id] = this.links.get(id) ?? { missionIds: [], skillIds: [] };
+    }
+    return Promise.resolve(out);
+  }
+
+  setLinks(_userId: string, resourceId: string, links: ResourceLinks): Promise<void> {
+    this.links.set(resourceId, links);
+    return Promise.resolve();
+  }
+}
+
+/** Everything exists unless a test says otherwise. */
+class StubLinkTargets implements LinkTargetReader {
+  readonly missing = new Set<string>();
+
+  exists(_userId: string, _kind: "mission" | "skill", id: string): Promise<boolean> {
+    return Promise.resolve(!this.missing.has(id));
   }
 }
 
@@ -418,6 +457,159 @@ describe("EditResource", () => {
     const captured = await add.execute(ALICE, { type: "article", title: "x", status: "inbox" });
     await expect(edit.execute(BOB, captured.id, { title: "hijacked" })).rejects.toBeInstanceOf(
       ResourceNotFound,
+    );
+  });
+});
+
+describe("SetResourceLinks (FR-R3)", () => {
+  let resources: InMemoryResources;
+  let add: AddResource;
+  let targets: StubLinkTargets;
+
+  beforeEach(() => {
+    resources = new InMemoryResources();
+    add = new AddResource(resources, new FixedClock(NOW), new SequentialIdGenerator());
+    targets = new StubLinkTargets();
+  });
+
+  function setLinks(): SetResourceLinks {
+    return new SetResourceLinks(resources, targets);
+  }
+
+  async function aBook(): Promise<string> {
+    const resource = await add.execute(ALICE, {
+      type: "book",
+      title: "Programming Rust",
+      status: "active",
+    });
+    return resource.id;
+  }
+
+  it("links a resource to a mission and a skill", async () => {
+    // FR-R3's reasoning: an article you never tie to a goal or a skill is entertainment.
+    const id = await aBook();
+    await setLinks().execute(ALICE, id, { missionIds: [MISSION], skillIds: [SKILL] });
+
+    await expect(resources.linksFor(ALICE, [id])).resolves.toEqual({
+      [id]: { missionIds: [MISSION], skillIds: [SKILL] },
+    });
+  });
+
+  it("replaces the set rather than adding to it", async () => {
+    // The whole reason it is a PUT: sending it twice leaves the same links, and a client that lost
+    // track of what was attached cannot half-apply a diff.
+    const id = await aBook();
+    await setLinks().execute(ALICE, id, { missionIds: [MISSION], skillIds: [SKILL] });
+    await setLinks().execute(ALICE, id, { missionIds: [], skillIds: [SKILL] });
+
+    await expect(resources.linksFor(ALICE, [id])).resolves.toEqual({
+      [id]: { missionIds: [], skillIds: [SKILL] },
+    });
+  });
+
+  it("unlinks everything on an empty set", async () => {
+    const id = await aBook();
+    await setLinks().execute(ALICE, id, { missionIds: [MISSION], skillIds: [] });
+    await setLinks().execute(ALICE, id, { missionIds: [], skillIds: [] });
+
+    await expect(resources.linksFor(ALICE, [id])).resolves.toEqual({
+      [id]: { missionIds: [], skillIds: [] },
+    });
+  });
+
+  it("is idempotent", async () => {
+    const id = await aBook();
+    await setLinks().execute(ALICE, id, { missionIds: [MISSION], skillIds: [] });
+    await setLinks().execute(ALICE, id, { missionIds: [MISSION], skillIds: [] });
+
+    await expect(resources.linksFor(ALICE, [id])).resolves.toEqual({
+      [id]: { missionIds: [MISSION], skillIds: [] },
+    });
+  });
+
+  it("collapses a duplicate id rather than writing it twice", async () => {
+    const id = await aBook();
+    await setLinks().execute(ALICE, id, { missionIds: [MISSION, MISSION], skillIds: [] });
+
+    await expect(resources.linksFor(ALICE, [id])).resolves.toEqual({
+      [id]: { missionIds: [MISSION], skillIds: [] },
+    });
+  });
+
+  it("refuses a mission that does not exist rather than dying on the foreign key", async () => {
+    // A constraint violation arrives from the driver as a 500; "that mission no longer exists" is an
+    // ordinary thing to tell a client, and this is reachable just by having two tabs open.
+    const id = await aBook();
+    targets.missing.add(MISSING);
+
+    await expect(
+      setLinks().execute(ALICE, id, { missionIds: [MISSING], skillIds: [] }),
+    ).rejects.toBeInstanceOf(LinkTargetMissing);
+  });
+
+  it("refuses a missing skill too", async () => {
+    const id = await aBook();
+    targets.missing.add(MISSING);
+
+    await expect(
+      setLinks().execute(ALICE, id, { missionIds: [], skillIds: [MISSING] }),
+    ).rejects.toBeInstanceOf(LinkTargetMissing);
+  });
+
+  it("writes nothing when one target is invalid", async () => {
+    // Validated before the write, so a bad id cannot leave half the links applied — the trap
+    // `CreateSkill` fell into by validating after its save.
+    const id = await aBook();
+    await setLinks().execute(ALICE, id, { missionIds: [MISSION], skillIds: [] });
+    targets.missing.add(MISSING);
+
+    await expect(
+      setLinks().execute(ALICE, id, { missionIds: [MISSION], skillIds: [MISSING] }),
+    ).rejects.toThrow();
+
+    // The previous set survives untouched.
+    await expect(resources.linksFor(ALICE, [id])).resolves.toEqual({
+      [id]: { missionIds: [MISSION], skillIds: [] },
+    });
+  });
+
+  it("reports another user's resource as not found", async () => {
+    const id = await aBook();
+    await expect(
+      setLinks().execute(BOB, id, { missionIds: [MISSION], skillIds: [] }),
+    ).rejects.toBeInstanceOf(ResourceNotFound);
+  });
+
+  it("keeps the mission link the guided first mission wrote", async () => {
+    // Capture-with-a-mission writes a link in the same transaction as the resource. Reading it back
+    // through the same port is what proves the two paths agree.
+    const captured = await add.execute(ALICE, {
+      type: "article",
+      title: "x",
+      status: "inbox",
+      missionId: MISSION,
+    });
+
+    await expect(resources.linksFor(ALICE, [captured.id])).resolves.toEqual({
+      [captured.id]: { missionIds: [MISSION], skillIds: [] },
+    });
+  });
+});
+
+describe("ReadResourceLinks", () => {
+  it("returns an empty set for a resource with no links, not an absence", async () => {
+    const resources = new InMemoryResources();
+    const add = new AddResource(resources, new FixedClock(NOW), new SequentialIdGenerator());
+    const resource = await add.execute(ALICE, { type: "book", title: "x", status: "inbox" });
+
+    await expect(new ReadResourceLinks(resources).read(ALICE, [resource])).resolves.toEqual({
+      [resource.id]: { missionIds: [], skillIds: [] },
+    });
+  });
+
+  it("reads nothing for no resources", async () => {
+    await expect(new ReadResourceLinks(new InMemoryResources()).read(ALICE, [])).resolves.toEqual(
+      {},
     );
   });
 });

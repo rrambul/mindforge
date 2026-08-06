@@ -27,6 +27,8 @@ interface ResourceCardProps {
    * that composes both hands it in. Optional, so the card still renders in a test that does not care.
    */
   readonly note?: ReactNode;
+  /** What this resource is for (FR-R3), supplied by the screen that has the mission and skill names. */
+  readonly links?: ReactNode;
 }
 
 /** Dumb by design: props in, markup out. */
@@ -38,6 +40,7 @@ export function ResourceCard({
   onQueue,
   pending,
   note,
+  links,
 }: ResourceCardProps) {
   const { t } = useTranslation("resources");
   const { t: g } = useTranslation("glossary");
@@ -101,6 +104,8 @@ export function ResourceCard({
           pending={pending}
         />
       )}
+
+      {links}
 
       {note}
 

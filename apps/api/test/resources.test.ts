@@ -30,6 +30,8 @@ interface ResourceResponse {
   progress: { unit: string; current: number; total: number | null } | null;
   fraction: number | null;
   isMeasurable: boolean;
+  missionIds: string[];
+  skillIds: string[];
   finishedAt: string | null;
 }
 
@@ -42,6 +44,10 @@ function post(url: string, user: TestUser | null, payload?: object) {
 
 function patch(url: string, user: TestUser, payload: object) {
   return app.inject({ method: "PATCH", url, headers: bearer(user), payload });
+}
+
+function put(url: string, user: TestUser, payload: object) {
+  return app.inject({ method: "PUT", url, headers: bearer(user), payload });
 }
 
 function get(url: string, user: TestUser | null) {
@@ -58,6 +64,13 @@ async function add(user: TestUser, payload: object): Promise<ResourceResponse> {
   const response = await post("/v1/resources", user, payload);
   expect(response.statusCode, response.body).toBe(201);
   return JSON.parse(response.body) as ResourceResponse;
+}
+
+/** A mission to link against. */
+async function aMission(user: TestUser): Promise<string> {
+  const response = await post("/v1/missions", user, { topic: `Mission ${crypto.randomUUID()}` });
+  expect(response.statusCode, response.body).toBe(201);
+  return (JSON.parse(response.body) as { id: string }).id;
 }
 
 function listOf(response: { body: string }): ResourceResponse[] {
@@ -126,10 +139,11 @@ beforeEach(async () => {
   // rather than silently depending on one set up by an earlier test.
   servedHtml = null;
   installFetchStub();
-  await db.$executeRawUnsafe(`delete from resources where user_id = any($1::uuid[])`, [
-    alice.id,
-    bob.id,
-  ]);
+  const ids = [alice.id, bob.id];
+  await db.$executeRawUnsafe(`delete from resources where user_id = any($1::uuid[])`, ids);
+  // Links cascade from both, so these have to go too or a later test sees a stale one.
+  await db.$executeRawUnsafe(`delete from missions where user_id = any($1::uuid[])`, ids);
+  await db.$executeRawUnsafe(`delete from skills where user_id = any($1::uuid[])`, ids);
 });
 
 afterEach(() => {
@@ -222,6 +236,128 @@ describe("capture (FR-R2)", () => {
 
   it("refuses something that is not a URL", async () => {
     expect((await post("/v1/resources/capture", alice, { url: "nonsense" })).statusCode).toBe(422);
+  });
+});
+
+describe("links (FR-R3)", () => {
+  /** A skill, written directly: `id` has no database default, since Prisma generates it client-side. */
+  async function aSkill(user: TestUser, name: string): Promise<string> {
+    const rows = await db.$queryRawUnsafe<{ id: string }[]>(
+      `insert into skills (id, user_id, name, slug)
+       values (gen_random_uuid(), $1::uuid, $2, $2 || '-' || gen_random_uuid())
+       returning id`,
+      user.id,
+      name,
+    );
+    return rows[0]!.id;
+  }
+
+  it("links a resource to a mission and a skill, and reports both", async () => {
+    const missionId = await aMission(alice);
+    const skillId = await aSkill(alice, "Rust ownership");
+    const resource = await add(alice, { type: "book", title: "Programming Rust" });
+
+    const linked = JSON.parse(
+      (
+        await put(`/v1/resources/${resource.id}/links`, alice, {
+          missionIds: [missionId],
+          skillIds: [skillId],
+        })
+      ).body,
+    ) as ResourceResponse;
+
+    expect(linked.missionIds).toEqual([missionId]);
+    expect(linked.skillIds).toEqual([skillId]);
+  });
+
+  it("reports the links on the list too, without a query per card", async () => {
+    const missionId = await aMission(alice);
+    const resource = await add(alice, { type: "book", title: "Programming Rust" });
+    await put(`/v1/resources/${resource.id}/links`, alice, { missionIds: [missionId] });
+
+    const listed = listOf(await get("/v1/resources", alice));
+    expect(listed[0]?.missionIds).toEqual([missionId]);
+  });
+
+  it("replaces the set rather than adding to it", async () => {
+    const first = await aMission(alice);
+    const second = await aMission(alice);
+    const resource = await add(alice, { type: "book", title: "x" });
+
+    await put(`/v1/resources/${resource.id}/links`, alice, { missionIds: [first] });
+    const after = JSON.parse(
+      (await put(`/v1/resources/${resource.id}/links`, alice, { missionIds: [second] })).body,
+    ) as ResourceResponse;
+
+    expect(after.missionIds).toEqual([second]);
+  });
+
+  it("unlinks everything on an empty body", async () => {
+    const missionId = await aMission(alice);
+    const resource = await add(alice, { type: "book", title: "x" });
+    await put(`/v1/resources/${resource.id}/links`, alice, { missionIds: [missionId] });
+
+    const after = JSON.parse(
+      (await put(`/v1/resources/${resource.id}/links`, alice, {})).body,
+    ) as ResourceResponse;
+    expect(after.missionIds).toEqual([]);
+
+    const rows = await db.$queryRawUnsafe<{ count: bigint }[]>(
+      `select count(*) from resource_links where resource_id = $1::uuid`,
+      resource.id,
+    );
+    expect(Number(rows[0]?.count)).toBe(0);
+  });
+
+  it("refuses a mission that does not exist with a 422 naming the field", async () => {
+    const resource = await add(alice, { type: "book", title: "x" });
+    const response = await put(`/v1/resources/${resource.id}/links`, alice, {
+      missionIds: ["99999999-9999-4999-8999-999999999999"],
+    });
+
+    expect(response.statusCode).toBe(422);
+    const problem = JSON.parse(response.body) as { errors: { field: string }[]; detail: string };
+    expect(problem.errors[0]?.field).toBe("missionIds");
+    expect(problem.detail).toContain("mission");
+  });
+
+  it("refuses another user's mission — RLS makes it the same answer as missing", async () => {
+    const bobsMission = await aMission(bob);
+    const resource = await add(alice, { type: "book", title: "x" });
+
+    expect(
+      (await put(`/v1/resources/${resource.id}/links`, alice, { missionIds: [bobsMission] }))
+        .statusCode,
+    ).toBe(422);
+  });
+
+  it("cannot link another user's resource", async () => {
+    const bobs = await add(bob, { type: "book", title: "bob's" });
+    const missionId = await aMission(alice);
+
+    expect(
+      (await put(`/v1/resources/${bobs.id}/links`, alice, { missionIds: [missionId] })).statusCode,
+    ).toBe(404);
+  });
+
+  it("drops the link when the mission is deleted, rather than leaving one pointing nowhere", async () => {
+    // `on delete cascade` from missions. A link to a deleted mission would render as a raw uuid.
+    const missionId = await aMission(alice);
+    const resource = await add(alice, { type: "book", title: "x" });
+    await put(`/v1/resources/${resource.id}/links`, alice, { missionIds: [missionId] });
+
+    await db.$executeRawUnsafe(`delete from missions where id = $1::uuid`, missionId);
+
+    const listed = listOf(await get("/v1/resources", alice));
+    expect(listed[0]?.missionIds).toEqual([]);
+  });
+
+  it("carries the link the guided first mission wrote at capture time", async () => {
+    // Capture writes it in the same transaction as the resource; this proves the read path agrees.
+    const missionId = await aMission(alice);
+    const resource = await capture(alice, { url: "https://example.test/a", missionId });
+
+    expect(resource.missionIds).toEqual([missionId]);
   });
 });
 

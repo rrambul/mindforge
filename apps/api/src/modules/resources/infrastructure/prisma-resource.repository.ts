@@ -7,7 +7,11 @@ import {
 import { Inject, Injectable } from "@nestjs/common";
 import { USER_SCOPED_DB, type UserScopedDb } from "../../../shared/persistence/user-scoped-db.js";
 import { Resource, type ResourceSnapshot } from "../domain/resource.js";
-import type { ResourceFilter, ResourceRepository } from "../domain/resource.repository.js";
+import type {
+  ResourceFilter,
+  ResourceLinks,
+  ResourceRepository,
+} from "../domain/resource.repository.js";
 
 interface ResourceRow {
   id: string;
@@ -118,6 +122,48 @@ export class PrismaResourceRepository implements ResourceRepository {
           skipDuplicates: true,
         });
       }
+    });
+  }
+
+  linksFor(
+    userId: string,
+    resourceIds: readonly string[],
+  ): Promise<Readonly<Record<string, ResourceLinks>>> {
+    if (resourceIds.length === 0) return Promise.resolve({});
+
+    return this.db.run(userId, async (tx) => {
+      const rows = await tx.resourceLink.findMany({
+        where: { resourceId: { in: [...resourceIds] } },
+        select: { resourceId: true, missionId: true, skillId: true },
+      });
+
+      const byResource: Record<string, { missionIds: string[]; skillIds: string[] }> = {};
+      for (const id of resourceIds) byResource[id] = { missionIds: [], skillIds: [] };
+
+      for (const row of rows) {
+        const entry = byResource[row.resourceId];
+        if (!entry) continue;
+        // A row carries at most one of each, and may carry neither — the table allows a link that
+        // points nowhere, which is nothing to report rather than something to crash on.
+        if (row.missionId !== null) entry.missionIds.push(row.missionId);
+        if (row.skillId !== null) entry.skillIds.push(row.skillId);
+      }
+
+      return byResource;
+    });
+  }
+
+  setLinks(userId: string, resourceId: string, links: ResourceLinks): Promise<void> {
+    return this.db.run(userId, async (tx) => {
+      // Delete-then-insert inside one transaction. A diff would need to know what was there, and the
+      // caller is replacing the set precisely because it does not.
+      await tx.resourceLink.deleteMany({ where: { resourceId } });
+
+      const rows = [
+        ...links.missionIds.map((missionId) => ({ userId, resourceId, missionId })),
+        ...links.skillIds.map((skillId) => ({ userId, resourceId, skillId })),
+      ];
+      if (rows.length > 0) await tx.resourceLink.createMany({ data: rows, skipDuplicates: true });
     });
   }
 }
