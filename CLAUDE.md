@@ -14,30 +14,60 @@ Don't restate these docs here. When something changes, update the doc, not this 
 
 ## Status
 
-**M1 — the capture loop — in progress** (`NORTHSTAR.md` §4).
+**M1 — the capture loop — feature-complete** (`NORTHSTAR.md` §4). Every bullet on M1's list is
+built, tested, and behind the gates.
 
-Done in M0: monorepo, `packages/core` (scoring, decay, bands, friction classification — 100% covered), Prisma schema for the whole M1 slice, RLS on every table, CI, hooks, design tokens.
+**What M1 needs now is three weeks of you actually using it** (`NORTHSTAR.md` §4, sequencing rule 1).
+Its finish line is "you've logged 10 real focus sessions without opening the code", and that is not a
+coding task. If capture doesn't stick, nothing downstream fixes it.
 
-Done in M1 so far: the server message bundle (`packages/core/src/i18n`), the API request foundation (auth guard, RFC 7807 errors, Zod validation, RLS-scoped access), the **missions module** (create, edit with revision history, park/unpark, WIP limit of 3), `GET /v1/me`, the **web app shell** (Supabase browser auth, TanStack Query, react-i18next with ICU in en + pt-BR, shared/ui on the Temper tokens), and **the capture loop** — focus timer with intention, stop, ≤30s debrief, manual/retroactive entry, one-tap typed friction with the ranked-four chips, and the ember/slag split.
+`pnpm dev` gives you a sign-in screen, then six screens: Today, Missions, Goals, Skills, Notes, and
+Library. ⌘K opens the command palette anywhere.
 
-`pnpm dev` gives you a sign-in screen, then Today (start focus → chips → stop → debrief) and Missions.
+What shipped, in the order it was built: the server message bundle, the API request foundation (auth
+guard, RFC 7807 errors, Zod validation, RLS-scoped access), **missions** (WIP limit of 3, revision
+history, park), the **capture loop** (focus timer with intention → stop → ≤30s debrief, manual and
+retroactive entry, one-tap typed friction with the ranked four, the ember/slag split), the **offline
+queue**, **notes on anything** with Postgres full-text search, **resources** with URL capture,
+**goals** with typed targets, **skills** with a prerequisite DAG and the calibration gap, the
+**command palette**, and the **guided first mission**.
 
-The loop is usable. **What M1 needs next is three weeks of you actually using it** (`NORTHSTAR.md` §4, sequencing rule 1) — not more features. If capture doesn't stick, nothing downstream fixes it.
+Three ideas run through all of it, and they are the ones to preserve when changing anything:
 
-The **offline queue** is in: the capture paths survive a dropped connection, and the shell says how many captures are waiting rather than pretending all is well. A failure the server _refused_ is shown; one that merely did not arrive is queued and silent, because a red alert beside a running timer would contradict itself.
+1. **"Unknown" is never rendered as zero.** A book of unknown length, a skill with no evidence, a goal
+   whose targets cannot be measured yet — each returns null with a reason, and the UI says which. A 0%
+   bar is a claim that something was measured.
+2. **Derived numbers are computed on read, never stored.** Goal progress, skill bands, faded scores. A
+   stored copy is a value that was true once, and `packages/core` exists so the API and the SPA cannot
+   disagree about it.
+3. **Self-report and evidence never touch.** `perceived_level` has its own column, its own endpoint,
+   and no path to `score`. The gap between them is FR-S5, and it only means something while that
+   holds.
 
-Then, in rough order: a UI for manual/retroactive session entry (the API exists — FR-F2 warns the data dies in two weeks if backfilling is painful), notes on anything (FR-N1..N3), resources with URL capture, goals with typed targets, and skills. There is deliberately **no router yet**: two screens do not need a route tree, and it should be designed against real routes once Today grows a "next" block and mission detail exists to link to.
+Two interim proxies in the friction maths are marked in the code and expire in M2/M5:
+`producedLearning` reads the session's own debrief because §9.3's definition needs learning records and
+reviews; and the ember/slag split weights each event as one minute, so it is currently a _count_ share.
 
-Two interim proxies in the friction maths are marked in the code and expire in M2/M5: `producedLearning` reads the session's own debrief because §9.3's definition needs learning records and reviews; and the ember/slag split weights each event as one minute, so it is currently a _count_ share.
+Deferred deliberately: **Railway is not provisioned** — deploying an empty skeleton costs money and
+shows a blank page; revisit before M2. **No cloud Supabase project** either, since the org is at its
+2-project free limit and local is sufficient until deploy. **`seed:minimal` and `seed:rich` do not
+exist** (an M0 bullet); they matter when insights need designing against six months of history, which
+is M2.
 
-Three checks run outside the test suites, all wired into CI: `pnpm check:boundaries` (the architecture rules actually fire), `pnpm check:i18n` (FR-L7), and the per-package coverage gates.
+Four gates run outside the test suites, all wired into CI: `pnpm check:boundaries` (the architecture
+rules actually fire), `pnpm check:i18n` (FR-L7), the per-package coverage gates, and — new — a second
+CI job that boots the local Supabase stack so the **integration and RLS suites gate too**. Until that
+job existed, CI's green covered unit tests only.
 
-Two M0 claims turned out not to hold, both fixed:
+Three M0/M1 claims turned out not to hold, all fixed:
 
-- **`withRls` isolated nothing.** It set `request.jwt.claims` but Prisma connects as `postgres`, which owns the tables — policies never applied, and every query returned every user's rows. Replaced by `runAsUser`, which also switches role. FR-A3 rested entirely on this.
-- **No Nest app could boot.** Workspace packages exported raw `.ts`, so Node choked on `export type`. Nobody found it because M0's finish line was a deployed URL and deployment was deferred.
-
-Deferred deliberately: **Railway is not provisioned.** Deploying an empty skeleton costs money and shows a blank page; revisit at the end of M1. **No cloud Supabase project either** — the org is at its 2-project free limit, and local is sufficient until deploy. **CI does not run integration or E2E tests yet** — there is no Postgres in the workflow, so `test:coverage` measures unit coverage only and says so in `apps/api/vitest.config.ts`.
+- **`withRls` isolated nothing.** It set `request.jwt.claims` but Prisma connects as `postgres`, which
+  owns the tables — policies never applied, and every query returned every user's rows. Replaced by
+  `runAsUser`, which also switches role. FR-A3 rested entirely on this.
+- **No Nest app could boot.** Workspace packages exported raw `.ts`, so Node choked on `export type`.
+  Nobody found it because M0's finish line was a deployed URL and deployment was deferred.
+- **`pnpm lint` only linted `src`.** Every package's script was `eslint src`, so test directories —
+  including 2,000-odd lines of integration tests — were checked by the commit hook and never by CI.
 
 ## Getting started
 
@@ -78,6 +108,11 @@ pnpm --filter @mindforge/db generate           # regenerate the Prisma client
 - **The architectural boundary rules need `boundaries/root-path` and a TypeScript import resolver, or they silently enforce nothing.** Lint runs per package, so patterns are matched relative to the package dir unless root-path is anchored; and TS's ESM convention (`./foo.js` for `foo.ts`) is unresolvable to the default node resolver, which classifies every internal import as unknown and leaves the rule with nothing to check. `pnpm check:boundaries` asserts violations are still reported — run it after touching `eslint.config.mjs`.
 
 - **`*.module.ts` is exempt from the boundary rule.** A Nest module's job is binding abstractions to implementations, which cannot be written without naming the implementation (TECH-DESIGN.md §2.1's own example does it). The exemption is scoped to that filename; a controller importing a repository is still an error.
+
+- **`pnpm lint` runs `eslint .`, not `eslint src`.** Test directories are lint-checked too, which is
+  where the `new Date()` ban actually matters most — an integration test that reaches for the wall clock
+  is a test that fails at midnight. It was `eslint src` for the whole of M1, so nothing under
+  `apps/api/test/` was ever checked by CI.
 
 - **The web dev server uses `strictPort`.** Vite's default is to increment to the next free port, and the port is load-bearing: the API's CORS allow-list is exactly `APP_ORIGIN`, so a silent move to 5174 turns every request into a preflight failure whose message names the _origin_ rather than the port. `Port 5173 is in use` is a diagnosis; a wall of CORS errors is a puzzle.
 

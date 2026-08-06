@@ -57,3 +57,77 @@ jobs:
       # slow becomes a gate everyone bypasses. See TECH-DESIGN.md §13.3.
       - name: Test with coverage gate
         run: pnpm test:coverage
+
+  # Integration and RLS, against the real stack.
+  #
+  # A separate job because it needs Docker and takes minutes, and because a lint failure
+  # should not wait for a database to boot to report itself.
+  #
+  # This has to be the **whole local Supabase stack**, not just Postgres. The suite signs
+  # users up through GoTrue so the tokens it uses are real ES256 tokens verified against
+  # Supabase's published JWKS — a hand-minted JWT would prove nothing about the guard, which
+  # is the single thing standing between a request and another user's rows. And the RLS
+  # tests need the `authenticated` role and its grants, which come from the same stack.
+  integration:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - run: pnpm install --frozen-lockfile
+
+      # `--exclude` trims the containers this suite never touches — Realtime, Storage, the Studio
+      # UI, Edge Functions, and the log pipeline are several minutes of image pulls for nothing.
+      #
+      # `db` and `kong` are not excludable here: Postgres is the point, and GoTrue sits behind the
+      # Kong gateway that `API_URL` addresses. The names come from `supabase start --help`, which is
+      # the only authority on them — an invalid one is a hard failure rather than a silent no-op.
+      - name: Start Supabase
+        run: |
+          supabase start \
+            --exclude realtime,storage,imgproxy,studio,edge-runtime,functions,vector,analytics,inbucket
+
+      # `supabase status -o env` emits the local keys and URLs under the CLI's own names; the apps
+      # read different ones. Mapped explicitly rather than sourced wholesale, so a rename in the CLI
+      # fails here instead of leaving a variable empty and surfacing as an auth error thirty lines on.
+      #
+      # The grep is load-bearing: that command also prints "Stopped services: [...]" and a
+      # version-update notice, and `eval`ing either is a shell syntax error.
+      - name: Export connection settings
+        run: |
+          eval "$(supabase status -o env | grep -E '^[A-Z0-9_]+=' | sed 's/^/export /')"
+          test -n "$API_URL" && test -n "$ANON_KEY" && test -n "$DB_URL"
+          {
+            echo "SUPABASE_URL=$API_URL"
+            echo "SUPABASE_ANON_KEY=$ANON_KEY"
+            echo "SUPABASE_SERVICE_ROLE_KEY=$SERVICE_ROLE_KEY"
+            echo "DATABASE_URL=$DB_URL"
+            echo "DIRECT_URL=$DB_URL"
+            echo "APP_ORIGIN=http://localhost:5173"
+            echo "API_ORIGIN=http://localhost:3000"
+          } >> "$GITHUB_ENV"
+
+      - name: Generate Prisma client
+        run: pnpm --filter @mindforge/db generate
+
+      # `migrate deploy`, not `db push`: the migrations carry the RLS policies and the
+      # Supabase role grants, and a schema pushed from `schema.prisma` would have neither —
+      # so every RLS test would pass for the wrong reason.
+      - name: Apply migrations
+        run: pnpm --filter @mindforge/db exec prisma migrate deploy
+
+      - name: RLS suite
+        run: pnpm --filter @mindforge/db exec vitest run
+
+      - name: API integration suite
+        run: pnpm --filter @mindforge/api test:integration

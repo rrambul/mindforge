@@ -29,8 +29,9 @@ const workspaceAliases = {
  * which §13.1 puts at 80/70 precisely because they are only meaningfully covered
  * against a real database.
  *
- * Not yet part of CI: the workflow has no Postgres. Until it does, `pnpm test:coverage`
- * measures unit coverage only and this runs locally.
+ * Runs in CI in its own job, which boots the local Supabase stack (see .github/workflows/ci.yml).
+ * `pnpm test:coverage` still measures unit coverage only — these two levels answer for different
+ * code, and merging their numbers would make both meaningless.
  */
 export default defineConfig({
   resolve: { alias: workspaceAliases },
