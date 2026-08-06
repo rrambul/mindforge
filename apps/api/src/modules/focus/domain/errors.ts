@@ -1,4 +1,9 @@
-import { DomainError, type DomainErrorKind, type ServerMessageKey } from "@mindforge/core";
+import {
+  DomainError,
+  type DomainErrorKind,
+  type FieldViolation,
+  type ServerMessageKey,
+} from "@mindforge/core";
 
 export class FocusSessionNotFound extends DomainError {
   readonly kind: DomainErrorKind = "not_found";
@@ -47,5 +52,26 @@ export class FocusSessionNotStopped extends DomainError {
 
   constructor(id: string) {
     super(`Focus session ${id} is still running`);
+  }
+}
+
+/**
+ * A session dated in the future.
+ *
+ * A device with a skewed clock — or a hand-typed date — otherwise produces a block that sorts to the
+ * top of every "recent" list permanently and counts toward `focus_hours` goals for work that has not
+ * happened. The friction path already clamps for exactly this reason; a session is rejected rather
+ * than clamped because both of its boundaries are the user's own claim, and silently moving them
+ * would record a duration they did not enter.
+ */
+export class SessionInFuture extends DomainError {
+  readonly kind: DomainErrorKind = "invalid";
+  readonly slug = "session-in-future";
+  readonly detailKey: ServerMessageKey = "error.focus.in_future";
+  override readonly violations: readonly FieldViolation[];
+
+  constructor(field: "startedAt" | "endedAt") {
+    super(`${field} is in the future`);
+    this.violations = [{ field, code: "in_future", message: this.message }];
   }
 }

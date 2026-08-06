@@ -231,4 +231,45 @@ describe("the timer offline", () => {
       "focus:stop",
     ]);
   });
+
+  it("still offers the debrief after a stop that only got queued (FR-F3)", async () => {
+    // The debrief was offered on success only, so every session stopped offline lost it — and with no
+    // other way back to that session, permanently.
+    //
+    // The consequence reaches past the missing prompt: a null `hitIntention` makes `producedLearning`
+    // false, which classifies every `too_hard` in that block as wasteful friction. The subway sessions
+    // the queue exists to protect were the ones skewing the ember/slag split.
+    const storage = memoryStorage();
+    server.use(
+      http.get(`${API}/focus/sessions/running`, () => HttpResponse.json({ session: null })),
+      http.post(`${API}/focus/sessions/start`, () => offline()),
+      http.post(`${API}/focus/sessions/:id/stop`, () => offline()),
+    );
+
+    renderToday(storage);
+    await userEvent.click(await screen.findByRole("button", { name: "Start focus" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Stop" }));
+
+    expect(await screen.findByText("How did that go?")).toBeVisible();
+  });
+
+  it("does not offer the debrief when the server refused the stop", async () => {
+    // A 404 means there is no session to debrief, which is a different thing from one that has not
+    // arrived yet.
+    const storage = memoryStorage();
+    server.use(
+      http.get(`${API}/focus/sessions/running`, () => HttpResponse.json({ session: null })),
+      http.post(`${API}/focus/sessions/start`, () => offline()),
+      http.post(`${API}/focus/sessions/:id/stop`, () =>
+        problemResponse(404, "focus-session-not-found", "That session no longer exists."),
+      ),
+    );
+
+    renderToday(storage);
+    await userEvent.click(await screen.findByRole("button", { name: "Start focus" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Stop" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("no longer exists");
+    expect(screen.queryByText("How did that go?")).not.toBeInTheDocument();
+  });
 });

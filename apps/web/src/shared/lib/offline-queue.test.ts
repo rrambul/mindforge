@@ -3,6 +3,7 @@ import { ApiError, NetworkError } from "../api/problem.js";
 import {
   OfflineQueue,
   isRetryable,
+  startAutoFlush,
   type QueueStorage,
   type QueuedRequest,
 } from "./offline-queue.js";
@@ -111,6 +112,123 @@ describe("enqueue", () => {
     await queue.enqueue("b", "/friction", {});
 
     expect(onChange).toHaveBeenLastCalledWith(2);
+  });
+});
+
+describe("a capture queued while a flush is in flight", () => {
+  it("is not discarded when the flush finishes", async () => {
+    // The normal case on a bad connection, not an exotic race: a flush starts, you tap a friction chip
+    // two seconds later, the flush completes. Writing back its own stale snapshot silently dropped the
+    // new event — and `clear()` on a fully-drained snapshot wiped it outright, with `onDropped` never
+    // firing. Invisible data loss in the one class whose job is not losing data.
+    const storage = memoryStorage();
+    const queue = new OfflineQueue({
+      storage,
+      send: async (path) => {
+        // Enqueued mid-flight, exactly as a chip tap would.
+        if (path === "/friction") {
+          await queue.enqueue("focus:stop:s1", "/focus/sessions/s1/stop", {});
+        }
+        return Promise.resolve();
+      },
+    });
+
+    await queue.enqueue("friction:a", "/friction", { type: "tooling" });
+    const result = await queue.flush();
+
+    expect(result.sent).toBe(1);
+    // The stop survived, and is still there to be sent by the next flush.
+    expect(storage.entries.map((entry) => entry.key)).toEqual(["focus:stop:s1"]);
+    expect(await queue.pending()).toBe(1);
+  });
+
+  it("sends it on the next flush", async () => {
+    const sent: string[] = [];
+    const storage = memoryStorage();
+    const queue = new OfflineQueue({
+      storage,
+      send: async (path) => {
+        sent.push(path);
+        if (path === "/friction" && sent.length === 1) {
+          await queue.enqueue("friction:b", "/friction", { type: "too_hard" });
+        }
+        return Promise.resolve();
+      },
+    });
+
+    await queue.enqueue("friction:a", "/friction", { type: "tooling" });
+    await queue.flush();
+    await queue.flush();
+
+    expect(sent).toHaveLength(2);
+    expect(await queue.pending()).toBe(0);
+  });
+
+  it("keeps a re-enqueued entry under a key the flush had already sent", async () => {
+    // Identity is key + queuedAt, not key alone. A stop re-recorded during the flush is a new entry,
+    // and removing it because the old one succeeded would lose it.
+    const storage = memoryStorage();
+    const queue = new OfflineQueue({
+      storage,
+      send: async (path) => {
+        if (path === "/focus/sessions/s1/stop" && storage.entries.length === 1) {
+          await queue.enqueue("focus:stop:s1", "/focus/sessions/s1/stop", { again: true });
+        }
+        return Promise.resolve();
+      },
+    });
+
+    await queue.enqueue("focus:stop:s1", "/focus/sessions/s1/stop", {});
+    await queue.flush();
+
+    expect(storage.entries).toHaveLength(1);
+    expect(storage.entries[0]?.body).toEqual({ again: true });
+  });
+});
+
+describe("startAutoFlush", () => {
+  it("removes every listener it added", () => {
+    // The disposer is a `useEffect` cleanup, so a listener left behind multiplies the flushes fired on
+    // every tab wake — once per remount, forever.
+    const flushes: number[] = [];
+    const queue = new OfflineQueue({
+      storage: memoryStorage(),
+      send: () => Promise.resolve(),
+    });
+    const spy = vi.spyOn(queue, "flush").mockImplementation(() => {
+      flushes.push(1);
+      return Promise.resolve({ sent: 0, dropped: 0, remaining: 0 });
+    });
+
+    const stop = startAutoFlush(queue);
+    // One from the load-time flush.
+    expect(flushes).toHaveLength(1);
+
+    stop();
+    window.dispatchEvent(new Event("online"));
+    document.dispatchEvent(new Event("visibilitychange"));
+
+    expect(flushes).toHaveLength(1);
+    spy.mockRestore();
+  });
+
+  it("flushes when the tab becomes visible again", () => {
+    // The behaviour the listener exists for, asserted so removing it in the disposer cannot be
+    // mistaken for never adding it.
+    const queue = new OfflineQueue({
+      storage: memoryStorage(),
+      send: () => Promise.resolve(),
+    });
+    const spy = vi.spyOn(queue, "flush").mockResolvedValue({ sent: 0, dropped: 0, remaining: 0 });
+
+    const stop = startAutoFlush(queue);
+    spy.mockClear();
+
+    document.dispatchEvent(new Event("visibilitychange"));
+    expect(spy).toHaveBeenCalledTimes(1);
+
+    stop();
+    spy.mockRestore();
   });
 });
 

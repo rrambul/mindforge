@@ -83,7 +83,10 @@ const BandTarget = z.object({ band: z.enum(BANDS) });
 const HoursTarget = z.object({ hours: z.coerce.number().positive().max(10_000) });
 const CountTarget = z.object({ count: z.coerce.number().int().positive().max(10_000) });
 const AccuracyTarget = z.object({
-  accuracy: z.coerce.number().min(0).max(1),
+  // Strictly above zero, like hours and counts. An accuracy target of 0 is met by every possible
+  // performance including none, and the derivation divides by it — which produced the contradiction of
+  // a met target beside an empty bar.
+  accuracy: z.coerce.number().gt(0).max(1),
   // A rolling accuracy with no window is not a measurement — "85% accurate" over all time says
   // nothing about whether you know it now.
   windowDays: z.coerce.number().int().min(1).max(365).default(30),

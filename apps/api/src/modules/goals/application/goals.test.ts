@@ -8,10 +8,9 @@ import {
   TargetNotManual,
   TargetSubjectMissing,
 } from "../domain/errors.js";
-import type { GoalTarget } from "../domain/goal-target.js";
 import type { Goal } from "../domain/goal.js";
 import type { GoalFilter, GoalRepository } from "../domain/goal.repository.js";
-import type { GoalEvidenceReader } from "./evidence.port.js";
+import type { EvidenceRequest, GoalEvidenceReader } from "./evidence.port.js";
 import {
   AddGoalTarget,
   CloseGoal,
@@ -96,13 +95,16 @@ class StubEvidence implements GoalEvidenceReader {
   byTarget: Record<string, TargetEvidence> = {};
   calls = 0;
   lastBatchSize = 0;
+  /** Recorded so a test can assert the window the caller asked for (§3.8). */
+  lastWindows: Date[] = [];
 
   read(
     _userId: string,
-    targets: readonly GoalTarget[],
+    requests: readonly EvidenceRequest[],
   ): Promise<Readonly<Record<string, TargetEvidence>>> {
     this.calls += 1;
-    this.lastBatchSize = targets.length;
+    this.lastBatchSize = requests.length;
+    this.lastWindows = requests.map((request) => request.countFrom);
     return Promise.resolve(this.byTarget);
   }
 }

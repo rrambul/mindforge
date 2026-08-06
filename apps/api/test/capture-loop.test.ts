@@ -328,6 +328,34 @@ describe("manual entry (FR-F2)", () => {
     });
     expect(response.statusCode).toBe(422);
   });
+
+  it("refuses a session dated in the future, and says which field", async () => {
+    // A skewed device clock or a mistyped year. Either way the block would sort to the top of every
+    // recent list permanently and count toward a `focus_hours` goal for work that has not happened.
+    const nextYear = new Date(Date.now() + 365 * 86_400_000);
+    const response = await post("/v1/focus/sessions", alice, {
+      startedAt: nextYear.toISOString(),
+      endedAt: new Date(nextYear.getTime() + 3_600_000).toISOString(),
+    });
+
+    expect(response.statusCode).toBe(422);
+    const problem = JSON.parse(response.body) as { errors: { field: string }[]; detail: string };
+    expect(problem.errors[0]?.field).toBe("startedAt");
+    // A message about the clock rather than "nothing you did caused this".
+    expect(problem.detail).toMatch(/future/i);
+  });
+
+  it("refuses a session that started in the past and ends in the future", async () => {
+    const response = await post("/v1/focus/sessions", alice, {
+      startedAt: new Date(Date.now() - 3_600_000).toISOString(),
+      endedAt: new Date(Date.now() + 86_400_000).toISOString(),
+    });
+
+    expect(response.statusCode).toBe(422);
+    expect((JSON.parse(response.body) as { errors: { field: string }[] }).errors[0]?.field).toBe(
+      "endedAt",
+    );
+  });
 });
 
 describe("isolation (FR-A3)", () => {

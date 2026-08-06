@@ -67,13 +67,30 @@ export class CreateSkill {
       if (existing) return existing;
     }
 
+    const skillId = input.id ?? this.ids.next();
     const slug = skillSlug(input.name);
     // Checked rather than left to the unique constraint: "Rust" twice is almost always a mistake, and a
     // constraint violation would arrive from the driver as a 500 instead of something the form can show.
     if (await this.skills.findBySlug(userId, slug)) throw new SkillNameTaken(input.name);
 
+    // Every prerequisite is checked to exist **before** anything is written.
+    //
+    // It used to be validated after the save, and not for existence at all — so an id pointing at a
+    // nonexistent or another user's skill reached `addEdge` and died on the foreign key as an opaque
+    // 500, which is the exact failure the check in `AddPrerequisite` exists to avoid. Worse, a
+    // rejection partway through the loop left the skill and the earlier edges committed while the
+    // caller saw an error, so a retry hit a duplicate-name conflict on a skill it did not know it had.
+    //
+    // RLS makes another user's skill invisible, so "does not exist" and "not yours" are the same
+    // answer — and it is the right one either way.
+    const prerequisiteIds = [...new Set(input.prerequisiteIds)];
+    for (const prereqId of prerequisiteIds) {
+      if (prereqId === skillId) throw new SelfPrerequisite(skillId);
+      if (!(await this.skills.findById(userId, prereqId))) throw new SkillNotFound(prereqId);
+    }
+
     const skill = Skill.create({
-      id: input.id ?? this.ids.next(),
+      id: skillId,
       userId,
       name: input.name,
       slug,
@@ -84,9 +101,9 @@ export class CreateSkill {
 
     await this.skills.save(userId, skill);
 
-    // Prerequisites declared at creation. Each is checked in turn, because two of them can be fine
-    // individually and form a cycle together once both are in.
-    for (const prereqId of input.prerequisiteIds) {
+    // No cycle is possible here — the id is new, so nothing in the stored graph can reach it — but the
+    // check runs anyway rather than resting on that reasoning holding after some future edit.
+    for (const prereqId of prerequisiteIds) {
       await assertAcyclic(this.skills, userId, skill.id, prereqId);
       await this.skills.addEdge(userId, { skillId: skill.id, prereqId });
     }

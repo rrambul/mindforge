@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { HtmlUrlMetadataReader } from "./html-url-metadata.reader.js";
+import { HtmlUrlMetadataReader, isPubliclyRoutable } from "./html-url-metadata.reader.js";
 
 /**
  * Every test here is about one property: **this must never throw**, because a thrown error on this
@@ -231,5 +231,154 @@ describe("bounded reading", () => {
 
     await expect(pending).resolves.toEqual({ title: null, author: null });
     vi.useRealTimers();
+  });
+});
+
+describe("not reaching the internal network (SSRF)", () => {
+  // `CaptureResourceSchema` validates that the input is *a* URL and nothing more, so without this the
+  // endpoint made the API fetch whatever it was handed on behalf of whoever asked. The body never comes
+  // back, but reachability, timing, and any <title> do — enough to map an internal network.
+
+  it.each([
+    "http://169.254.169.254/latest/meta-data/",
+    "http://localhost:54322/",
+    "http://127.0.0.1/",
+    "http://[::1]/",
+    "http://10.0.0.1/",
+    "http://172.16.0.1/",
+    "http://192.168.1.1/",
+    "http://100.64.0.1/",
+    "http://0.0.0.0/",
+    "http://db/",
+    "http://redis.internal/",
+    "http://printer.local/",
+    "http://[fd00::1]/",
+    "http://[fe80::1]/",
+    // Loopback wearing an IPv6 hat. `new URL()` normalises this to `::ffff:7f00:1`, so a
+    // dotted-quad check alone never sees it.
+    "http://[::ffff:127.0.0.1]/",
+    "http://[::ffff:10.0.0.1]/",
+    "http://[::ffff:169.254.169.254]/",
+    "file:///etc/passwd",
+    "gopher://example.test/",
+  ])("refuses %s", (url) => {
+    expect(isPubliclyRoutable(url)).toBe(false);
+  });
+
+  it.each([
+    "https://example.com/a",
+    "http://doc.rust-lang.org/ch04",
+    "https://8.8.8.8/",
+    "https://172.32.0.1/",
+    "https://192.169.1.1/",
+    // A genuinely public address, mapped. The check has to decode rather than refuse the whole form.
+    "https://[::ffff:8.8.8.8]/",
+  ])("allows %s", (url) => {
+    expect(isPubliclyRoutable(url)).toBe(true);
+  });
+
+  it("does not fetch a refused URL at all", async () => {
+    // Not "fetches and discards": the request itself is the leak.
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(reader.read("http://169.254.169.254/latest/meta-data/")).resolves.toEqual({
+      title: null,
+      author: null,
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("keeps the capture, treating a refused URL exactly like a timeout", async () => {
+    // The URL is still the thing worth saving; only its title is not fetched.
+    vi.stubGlobal("fetch", vi.fn());
+    await expect(reader.read("http://localhost/")).resolves.toEqual({ title: null, author: null });
+  });
+
+  it("re-checks each redirect hop, so a public host cannot forward it inward", async () => {
+    // The case a hostname check alone misses entirely: `fetch` following redirects would arrive at
+    // 127.0.0.1 having only ever validated the public URL.
+    const targets: string[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: string) => {
+        targets.push(input);
+        if (input === "https://example.test/redirect") {
+          return Promise.resolve(
+            new Response(null, { status: 302, headers: { location: "http://127.0.0.1/secret" } }),
+          );
+        }
+        return Promise.resolve(
+          new Response("<head><title>Nope</title></head>", {
+            headers: { "content-type": "text/html" },
+          }),
+        );
+      }),
+    );
+
+    await expect(reader.read("https://example.test/redirect")).resolves.toEqual({
+      title: null,
+      author: null,
+    });
+    // The redirect was read and refused; the internal address was never requested.
+    expect(targets).toEqual(["https://example.test/redirect"]);
+  });
+
+  it("follows a redirect that stays public", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: string) =>
+        Promise.resolve(
+          input === "https://example.test/a"
+            ? new Response(null, { status: 301, headers: { location: "https://example.test/b" } })
+            : new Response("<head><title>Moved Here</title></head>", {
+                headers: { "content-type": "text/html" },
+              }),
+        ),
+      ),
+    );
+
+    await expect(reader.read("https://example.test/a")).resolves.toMatchObject({
+      title: "Moved Here",
+    });
+  });
+
+  it("resolves a relative Location against the current URL", async () => {
+    // `Location` is allowed to be relative, and treating it as absolute would simply fail to follow.
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: string) =>
+        Promise.resolve(
+          input === "https://example.test/one/two"
+            ? new Response(null, { status: 302, headers: { location: "../three" } })
+            : new Response("<head><title>Relative</title></head>", {
+                headers: { "content-type": "text/html" },
+              }),
+        ),
+      ),
+    );
+
+    await expect(reader.read("https://example.test/one/two")).resolves.toMatchObject({
+      title: "Relative",
+    });
+  });
+
+  it("gives up on a redirect loop rather than following it forever", async () => {
+    let hops = 0;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() => {
+        hops += 1;
+        return Promise.resolve(
+          new Response(null, { status: 302, headers: { location: "https://example.test/loop" } }),
+        );
+      }),
+    );
+
+    await expect(reader.read("https://example.test/loop")).resolves.toEqual({
+      title: null,
+      author: null,
+    });
+    expect(hops).toBeLessThan(10);
   });
 });

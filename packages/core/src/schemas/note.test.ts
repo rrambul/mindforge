@@ -18,9 +18,16 @@ describe("CreateNoteSchema", () => {
     expect(CreateNoteSchema.parse({ body: "the borrow checker finally clicked" })).toEqual({
       body: "the borrow checker finally clicked",
       subjectType: "standalone",
-      lang: "english",
       pinned: false,
     });
+  });
+
+  it("leaves the language absent rather than defaulting it", () => {
+    // Absence means "derive it from my profile" (FR-L4). A default of "english" made that
+    // indistinguishable from a client deliberately saying English, so an English note written by
+    // someone whose content language is pt-BR was indexed with the Portuguese stemmer.
+    expect(CreateNoteSchema.parse({ body: "x" }).lang).toBeUndefined();
+    expect(CreateNoteSchema.parse({ body: "x", lang: "english" }).lang).toBe("english");
   });
 
   it("defaults to standalone, the escape hatch for the unfiled thought", () => {

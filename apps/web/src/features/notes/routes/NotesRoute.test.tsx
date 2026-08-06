@@ -64,6 +64,9 @@ describe("writing", () => {
     const body = sent.mock.calls[0]?.[0] as Record<string, unknown>;
     expect(body.body).toBe("a thought");
     expect(body.subjectType).toBe("standalone");
+    // Absent, not "english": absence is what asks the server to derive it from the profile's content
+    // language (FR-L4), and naming a language would override that.
+    expect(body.lang).toBeUndefined();
     // Client-minted, so a replay is the same note rather than a second one (§6.1).
     expect(body.id).toMatch(/^[0-9a-f-]{36}$/);
   });

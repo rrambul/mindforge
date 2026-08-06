@@ -74,10 +74,13 @@ export function noteBody(input: {
     body: input.body,
     subjectType: input.subjectType ?? "standalone",
     ...(input.subjectId == null ? {} : { subjectId: input.subjectId }),
-    // The server derives the stemming language from the profile's content language (FR-L4). The
-    // client deliberately does not guess: it would be guessing from the *interface* language, which
-    // is a different axis.
-    lang: "english",
+    // `lang` is deliberately **absent**, which is what asks the server to derive it from the profile's
+    // content language (FR-L4). The client does not guess: it would be guessing from the *interface*
+    // language, which is a different axis.
+    //
+    // It used to send `"english"` with that same intent, which was the schema's default and so read as
+    // "unset" — until the default was removed, and then it meant English. Sending nothing says what
+    // was always meant.
     pinned: false,
   };
 }

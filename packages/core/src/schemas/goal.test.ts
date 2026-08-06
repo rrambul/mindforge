@@ -153,6 +153,18 @@ describe("TargetDefinitionSchema", () => {
       expect(parsed.kind === "review_accuracy" && parsed.target.windowDays).toBe(30);
     });
 
+    it("refuses an accuracy of zero, which every performance meets", () => {
+      // It also divides by zero in the derivation, which reported the target as met beside an empty
+      // bar — a contradiction rendered on one row.
+      expect(
+        TargetDefinitionSchema.safeParse({
+          kind: "review_accuracy",
+          skillId: UUID,
+          target: { accuracy: 0 },
+        }).success,
+      ).toBe(false);
+    });
+
     it("keeps accuracy a fraction rather than a percentage", () => {
       expect(
         TargetDefinitionSchema.safeParse({

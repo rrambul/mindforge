@@ -179,6 +179,44 @@ describe("search (FR-N6)", () => {
     }
   });
 
+  it("filters by subject inside the search, not after it", async () => {
+    // The limit used to be applied before the subject filter, so the top 100 ranked matches were
+    // chosen across every note and only then narrowed. A subject whose matches all sat outside that
+    // window returned nothing while matches plainly existed.
+    const mission = "77777777-7777-4777-8777-777777777777";
+
+    // 120 unfiled notes that match *better* — `ts_rank` weighs term frequency, so repeating the word
+    // ranks them above the single mention below. That is what makes this deterministic: with equal
+    // ranks the top-100 window is decided by whatever order Postgres happens to scan in, and the test
+    // would pass or fail by luck.
+    for (let i = 0; i < 120; i += 1) {
+      await writeNote(alice, { body: `borrow borrow borrow borrow borrow checker ${i}` });
+    }
+    await writeNote(alice, {
+      body: "borrow checker on the mission",
+      subjectType: "mission",
+      subjectId: mission,
+    });
+
+    const listed = await get(`/v1/notes?q=borrow&subjectType=mission&subjectId=${mission}`, alice);
+    expect(bodiesOf(listed)).toEqual(["borrow checker on the mission"]);
+  });
+
+  it("filters to pinned inside the search too", async () => {
+    const pinned = await writeNote(alice, { body: "borrow checker, worth keeping" });
+    await writeNote(alice, { body: "borrow checker, ordinary" });
+    await app.inject({
+      method: "PATCH",
+      url: `/v1/notes/${pinned.id}`,
+      headers: bearer(alice),
+      payload: { pinned: true },
+    });
+
+    expect(bodiesOf(await get("/v1/notes?q=borrow&pinned=true", alice))).toEqual([
+      "borrow checker, worth keeping",
+    ]);
+  });
+
   it("honours a quoted phrase", async () => {
     await writeNote(alice, { body: "the borrow checker finally clicked" });
     await writeNote(alice, { body: "checker patterns for the borrow of a lifetime" });

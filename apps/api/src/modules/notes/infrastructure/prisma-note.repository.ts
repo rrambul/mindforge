@@ -123,18 +123,33 @@ export class PrismaNoteRepository implements NoteRepository {
  * The query is stemmed with each note's *own* configuration, matching how the column was built.
  */
 async function searchIds(tx: RlsTransaction, filter: NoteFilter): Promise<string[]> {
+  // The subject and pinned filters are applied *here*, in the same statement as the limit.
+  //
+  // They used to be applied afterwards, by the `findMany` that fetched these ids — which meant the
+  // limit picked the 100 best-ranked matches across *all* notes and only then narrowed to the mission
+  // you asked about. With 150 matches for "graphql" and none of the top 100 belonging to that mission,
+  // the search returned nothing while matches plainly existed.
+  //
+  // `$3::text is null` rather than building the SQL conditionally: one statement Postgres can plan once,
+  // and no string concatenation anywhere near a query.
   const rows = await tx.$queryRawUnsafe<{ id: string }[]>(
     `select id
        from notes
       where search @@ websearch_to_tsquery(
               case lang when 'portuguese' then 'portuguese'::regconfig else 'english'::regconfig end,
               $1)
+        and ($3::text is null or subject_type = $3::text)
+        and ($4::uuid is null or subject_id = $4::uuid)
+        and ($5::boolean is null or pinned = $5::boolean)
       order by ts_rank(search, websearch_to_tsquery(
               case lang when 'portuguese' then 'portuguese'::regconfig else 'english'::regconfig end,
               $1)) desc
       limit $2`,
     filter.q,
     filter.limit ?? 100,
+    filter.subjectType ?? null,
+    filter.subjectId ?? null,
+    filter.pinned ?? null,
   );
   return rows.map((row) => row.id);
 }

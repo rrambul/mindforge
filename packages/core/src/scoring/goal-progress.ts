@@ -149,9 +149,15 @@ export function targetProgress(
     case "review_accuracy": {
       const accuracy = evidence.reviewAccuracy ?? null;
       if (accuracy === null) return absent(target.kind);
+
+      // The schema refuses a target of 0, but a hand-edited row can hold one and it would divide by
+      // zero — reporting `met` beside a fraction of 0, a contradiction on screen.
+      const wanted = target.target.accuracy;
+      if (!(wanted > 0)) return absent(target.kind);
+
       return {
-        fraction: clamp01(accuracy / target.target.accuracy),
-        met: accuracy >= target.target.accuracy,
+        fraction: clamp01(accuracy / wanted),
+        met: accuracy >= wanted,
         unmeasurable: null,
       };
     }

@@ -175,6 +175,62 @@ describe("CreateSkill", () => {
     ]);
   });
 
+  describe("prerequisites declared at creation", () => {
+    it("refuses one that does not exist, rather than dying on the foreign key", async () => {
+      // A 500 from the driver is a worse way to be told than a 404, and this is reachable just by
+      // having a stale list open in another tab.
+      await expect(
+        create().execute(ALICE, { name: "Lifetimes", prerequisiteIds: [MISSING] }),
+      ).rejects.toBeInstanceOf(SkillNotFound);
+    });
+
+    it("refuses another user's skill", async () => {
+      const bobs = await seed("Bob's skill", BOB);
+      await expect(
+        create().execute(ALICE, { name: "Lifetimes", prerequisiteIds: [bobs] }),
+      ).rejects.toBeInstanceOf(SkillNotFound);
+    });
+
+    it("writes nothing at all when one is invalid", async () => {
+      // The validation used to run after the save, so a rejection left the skill committed — and the
+      // retry then hit a duplicate-name conflict on a skill the caller did not know it had.
+      await expect(
+        create().execute(ALICE, { name: "Lifetimes", prerequisiteIds: [MISSING] }),
+      ).rejects.toThrow();
+
+      expect(skills.saveCount).toBe(0);
+      await expect(skills.findBySlug(ALICE, "lifetimes")).resolves.toBeNull();
+      await expect(skills.edges(ALICE)).resolves.toEqual([]);
+    });
+
+    it("leaves no partial graph when the second of two is invalid", async () => {
+      const borrowing = await seed("Borrowing");
+      const before = skills.saveCount;
+
+      await expect(
+        create().execute(ALICE, {
+          name: "Lifetimes",
+          prerequisiteIds: [borrowing, MISSING],
+        }),
+      ).rejects.toBeInstanceOf(SkillNotFound);
+
+      expect(skills.saveCount).toBe(before);
+      await expect(skills.edges(ALICE)).resolves.toEqual([]);
+    });
+
+    it("ignores a duplicate id rather than writing the same edge twice", async () => {
+      const borrowing = await seed("Borrowing");
+      const skill = await create().execute(ALICE, {
+        name: "Lifetimes",
+        prerequisiteIds: [borrowing, borrowing],
+      });
+
+      await expect(skills.edges(ALICE)).resolves.toEqual([
+        { skillId: skill.id, prereqId: borrowing },
+      ]);
+    });
+  });
+
   it("is idempotent on a replayed id", async () => {
     const id = "33333333-3333-4333-8333-333333333333";
     await create().execute(ALICE, { id, name: "first", prerequisiteIds: [] });

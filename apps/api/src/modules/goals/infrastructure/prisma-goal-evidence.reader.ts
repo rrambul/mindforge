@@ -7,7 +7,7 @@ import {
 import { Inject, Injectable } from "@nestjs/common";
 import { USER_SCOPED_DB, type UserScopedDb } from "../../../shared/persistence/user-scoped-db.js";
 import { CLOCK, type Clock } from "../../../shared/time/clock.js";
-import type { GoalEvidenceReader } from "../application/evidence.port.js";
+import type { EvidenceRequest, GoalEvidenceReader } from "../application/evidence.port.js";
 import type { GoalTarget } from "../domain/goal-target.js";
 
 /**
@@ -30,13 +30,23 @@ export class PrismaGoalEvidenceReader implements GoalEvidenceReader {
 
   async read(
     userId: string,
-    targets: readonly GoalTarget[],
+    requests: readonly EvidenceRequest[],
   ): Promise<Readonly<Record<string, TargetEvidence>>> {
-    if (targets.length === 0) return {};
+    if (requests.length === 0) return {};
 
+    const targets = requests.map((request) => request.target);
     const resourceTargets = targets.filter((t) => t.kind === "resource_progress");
-    const focusTargets = targets.filter((t) => t.kind === "focus_hours");
+    const focusRequests = requests.filter((r) => r.target.kind === "focus_hours");
+    const focusTargets = focusRequests.map((r) => r.target);
     const skillTargets = targets.filter((t) => t.kind === "skill_band");
+
+    // The earliest window any focus target cares about, so the scan is bounded rather than reading a
+    // mission's whole history to then discard most of it.
+    const earliest = focusRequests.reduce<Date | null>(
+      (oldest, request) =>
+        oldest === null || request.countFrom < oldest ? request.countFrom : oldest,
+      null,
+    );
 
     const [fractions, minutes, scores] = await this.db.run(userId, async (tx) => {
       const resourceIds = ids(resourceTargets);
@@ -57,20 +67,27 @@ export class PrismaGoalEvidenceReader implements GoalEvidenceReader {
       // up to a minute per session from the figure shown beside each session on the Today screen, and
       // two places disagreeing about the same hours is what non-negotiable 3 forbids.
       //
+      // Returned per session rather than pre-summed, because each target has its own window and two
+      // goals on one mission will have different ones. The sum happens below, per target.
+      //
       // Only finished sessions. A running one has no duration yet, and counting its elapsed time
       // would make the goal advance on its own while the user sits still.
+      //
+      // Filtered on `started_at`, not `ended_at`: a block you *began* before writing the goal down was
+      // not work toward it, even if it happened to finish afterwards.
       const sessions =
-        missionIds.length === 0
+        missionIds.length === 0 || earliest === null
           ? []
-          : await tx.$queryRawUnsafe<{ missionId: string; minutes: number }[]>(
+          : await tx.$queryRawUnsafe<{ missionId: string; startedAt: Date; minutes: number }[]>(
               `select mission_id as "missionId",
-                      coalesce(sum(floor(extract(epoch from (ended_at - started_at)) / 60)), 0)::float8
-                        as minutes
+                      started_at as "startedAt",
+                      floor(extract(epoch from (ended_at - started_at)) / 60)::float8 as minutes
                  from focus_sessions
                 where mission_id = any($1::uuid[])
                   and ended_at is not null
-                group by mission_id`,
+                  and started_at >= $2`,
               missionIds,
+              earliest,
             );
 
       // `halfLifeDays` and `lastEvidenceAt` come too, because the figure a target compares against is
@@ -97,9 +114,7 @@ export class PrismaGoalEvidenceReader implements GoalEvidenceReader {
     const fractionById = new Map(
       fractions.map((row) => [row.id, fractionOf(row.progress)] as const),
     );
-    const minutesByMission = new Map(
-      minutes.map((row) => [row.missionId, Math.max(0, Number(row.minutes))] as const),
-    );
+
     const now = this.clock.now();
     const scoreById = new Map(
       scores.map(
@@ -128,12 +143,18 @@ export class PrismaGoalEvidenceReader implements GoalEvidenceReader {
       evidence[target.id] = { resourceFraction: fractionById.get(subject.id) ?? null };
     }
 
-    for (const target of focusTargets) {
-      const subject = target.subjectId;
+    for (const request of focusRequests) {
+      const subject = request.target.subjectId;
       if (!subject) continue;
-      // Zero is real here, unlike a missing fraction: no sessions logged means no hours spent, which
-      // is a fact rather than an absence.
-      evidence[target.id] = { focusMinutes: minutesByMission.get(subject.id) ?? 0 };
+
+      // Summed per target against its own window (§3.8). Zero is real here, unlike a missing fraction:
+      // no sessions logged since the goal started means no hours spent toward it, which is a fact
+      // rather than an absence.
+      const total = minutes
+        .filter((row) => row.missionId === subject.id && row.startedAt >= request.countFrom)
+        .reduce((sum, row) => sum + Math.max(0, Number(row.minutes)), 0);
+
+      evidence[request.target.id] = { focusMinutes: total };
     }
 
     for (const target of skillTargets) {

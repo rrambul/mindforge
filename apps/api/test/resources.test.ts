@@ -210,6 +210,16 @@ describe("capture (FR-R2)", () => {
     expect(links[0]?.mission_id).toBe(mission.id);
   });
 
+  it("keeps the capture but never fetches an internal address", async () => {
+    // The schema validates that the input is *a* URL and nothing more, so without the host check this
+    // endpoint made the API probe its own network on request. The URL is still worth saving — only its
+    // title is not fetched, exactly as for a timeout.
+    const resource = await capture(alice, { url: "http://169.254.169.254/latest/meta-data/" });
+
+    expect(resource.url).toBe("http://169.254.169.254/latest/meta-data/");
+    expect(resource.title).toBe("http://169.254.169.254/latest/meta-data/");
+  });
+
   it("refuses something that is not a URL", async () => {
     expect((await post("/v1/resources/capture", alice, { url: "nonsense" })).statusCode).toBe(422);
   });

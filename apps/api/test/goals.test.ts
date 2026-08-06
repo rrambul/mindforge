@@ -81,9 +81,18 @@ async function aBook(user: TestUser, current: number, total: number | null): Pro
   return id;
 }
 
-/** A finished session of a given length, so `focus_hours` has something real to sum. */
-async function aFinishedSession(user: TestUser, missionId: string, minutes: number): Promise<void> {
-  const endedAt = new Date("2026-08-06T12:00:00Z");
+/**
+ * A finished session of a given length, so `focus_hours` has something real to sum.
+ *
+ * `endedAt` defaults to a fixed moment; pass one to place a session before a goal was created.
+ */
+async function aFinishedSession(
+  user: TestUser,
+  missionId: string,
+  minutes: number,
+  endedAtOverride?: Date,
+): Promise<void> {
+  const endedAt = endedAtOverride ?? new Date("2026-08-06T12:00:00Z");
   const startedAt = new Date(endedAt.getTime() - minutes * 60_000);
 
   const response = await post("/v1/focus/sessions", user, {
@@ -93,6 +102,21 @@ async function aFinishedSession(user: TestUser, missionId: string, minutes: numb
     entryMode: "manual",
   });
   expect(response.statusCode, response.body).toBe(201);
+}
+
+/**
+ * Ages a goal, so sessions can be logged after it was created.
+ *
+ * The realistic shape: you write a goal down and then do the work. A test that creates both in the
+ * same millisecond cannot express "since the goal started" at all, and backdating the goal is the
+ * honest way round rather than dating sessions in the future.
+ */
+async function backdateGoal(id: string, days: number): Promise<void> {
+  await db.$executeRawUnsafe(
+    `update goals set created_at = created_at - make_interval(days => $2) where id = $1::uuid`,
+    id,
+    days,
+  );
 }
 
 beforeAll(async () => {
@@ -231,16 +255,57 @@ describe("progress from real evidence (§3.8)", () => {
     // The raw SQL has to agree with `elapsedMinutes` in packages/core, or the hours on this screen and
     // the hours beside each session would differ — two places disagreeing about one number.
     const missionId = await aMission(alice);
-    await aFinishedSession(alice, missionId, 90);
-    await aFinishedSession(alice, missionId, 30);
+    const goal = await createGoal(alice, {
+      title: "Put the time in",
+      targets: [{ kind: "focus_hours", missionId, target: { hours: 4 }, weight: 1 }],
+    });
+    await backdateGoal(goal.id, 1);
+
+    // Logged after the goal exists, because only those count (§3.8).
+    const now = new Date(Date.now());
+    await aFinishedSession(alice, missionId, 90, now);
+    await aFinishedSession(alice, missionId, 30, now);
+
+    const after = JSON.parse(
+      (await post(`/v1/goals/${goal.id}/recompute`, alice)).body,
+    ) as GoalResponse;
+    // Two hours of four.
+    expect(after.fraction).toBeCloseTo(0.5);
+  });
+
+  it("counts only the hours logged since the goal was created (§3.8)", async () => {
+    // §3.8 is explicit: `sum(focus minutes since goal start) / target`. Counting the whole history
+    // means a mission you have already spent forty hours on produces a goal that is met the instant
+    // you write it down — a number that looks better than the underlying thing, which is exactly what
+    // non-negotiable 10 forbids.
+    const missionId = await aMission(alice);
+    const lastYear = new Date(Date.UTC(2025, 7, 6, 12, 0, 0));
+    await aFinishedSession(alice, missionId, 40 * 60, lastYear);
 
     const goal = await createGoal(alice, {
       title: "Put the time in",
       targets: [{ kind: "focus_hours", missionId, target: { hours: 4 }, weight: 1 }],
     });
 
-    // Two hours of four.
-    expect(goal.fraction).toBeCloseTo(0.5);
+    expect(goal.fraction).toBe(0);
+    expect(goal.targets[0]?.met).toBe(false);
+  });
+
+  it("counts a session logged after the goal was created", async () => {
+    const missionId = await aMission(alice);
+    const goal = await createGoal(alice, {
+      title: "Put the time in",
+      targets: [{ kind: "focus_hours", missionId, target: { hours: 4 }, weight: 1 }],
+    });
+    await backdateGoal(goal.id, 1);
+
+    // Two hours, now — after the goal exists.
+    await aFinishedSession(alice, missionId, 120, new Date(Date.now()));
+
+    const after = JSON.parse(
+      (await post(`/v1/goals/${goal.id}/recompute`, alice)).body,
+    ) as GoalResponse;
+    expect(after.fraction).toBeCloseTo(0.5);
   });
 
   it("does not count a running session, which would make the goal advance on its own", async () => {
@@ -292,8 +357,6 @@ describe("progress from real evidence (§3.8)", () => {
   it("reports how much of the weight the number covers", async () => {
     // So the client can say "measuring 1 of 2 targets" rather than implying it covers everything.
     const missionId = await aMission(alice);
-    await aFinishedSession(alice, missionId, 60);
-
     const goal = await createGoal(alice, {
       title: "Mixed",
       targets: [
@@ -301,17 +364,20 @@ describe("progress from real evidence (§3.8)", () => {
         { kind: "artifact", target: {}, weight: 1 },
       ],
     });
+    await backdateGoal(goal.id, 1);
+    await aFinishedSession(alice, missionId, 60, new Date(Date.now()));
 
-    expect(goal.measuredWeight).toBe(1);
-    expect(goal.totalWeight).toBe(2);
-    expect(goal.fraction).toBeCloseTo(0.5);
+    const after = JSON.parse(
+      (await post(`/v1/goals/${goal.id}/recompute`, alice)).body,
+    ) as GoalResponse;
+    expect(after.measuredWeight).toBe(1);
+    expect(after.totalWeight).toBe(2);
+    expect(after.fraction).toBeCloseTo(0.5);
   });
 
   it("is never met while it holds a target it cannot measure", async () => {
     // Otherwise a goal completes itself by containing something the app cannot check.
     const missionId = await aMission(alice);
-    await aFinishedSession(alice, missionId, 120);
-
     const goal = await createGoal(alice, {
       title: "Mixed",
       targets: [
@@ -319,9 +385,14 @@ describe("progress from real evidence (§3.8)", () => {
         { kind: "artifact", target: {}, weight: 1 },
       ],
     });
+    await backdateGoal(goal.id, 1);
+    await aFinishedSession(alice, missionId, 120, new Date(Date.now()));
 
-    expect(goal.targets.find((t) => t.kind === "focus_hours")?.met).toBe(true);
-    expect(goal.allTargetsMet).toBe(false);
+    const after = JSON.parse(
+      (await post(`/v1/goals/${goal.id}/recompute`, alice)).body,
+    ) as GoalResponse;
+    expect(after.targets.find((t) => t.kind === "focus_hours")?.met).toBe(true);
+    expect(after.allTargetsMet).toBe(false);
   });
 
   it("stamps met_at on creation when a target is already met", async () => {

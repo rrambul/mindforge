@@ -55,6 +55,7 @@ const EN = {
 
   "error.resource.not_found": "That resource no longer exists.",
   "error.resource.no_progress": "This kind of resource isn't measured in units.",
+  "error.focus.in_future": "That time is in the future — check the date, or your device's clock.",
   "error.skill.not_found": "That skill no longer exists.",
   "error.skill.prerequisite_cycle":
     "That would make the two skills depend on each other, so neither could ever come first.",
@@ -104,6 +105,8 @@ const PT_BR: Readonly<Record<ServerMessageKey, string>> = {
 
   "error.resource.not_found": "Esse recurso não existe mais.",
   "error.resource.no_progress": "Esse tipo de recurso não é medido em unidades.",
+  "error.focus.in_future":
+    "Esse horário está no futuro — confira a data, ou o relógio do seu dispositivo.",
   "error.skill.not_found": "Essa habilidade não existe mais.",
   "error.skill.prerequisite_cycle":
     "Isso faria as duas habilidades dependerem uma da outra, então nenhuma poderia vir primeiro.",

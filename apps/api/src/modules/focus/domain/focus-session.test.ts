@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { FocusSessionNotRunning, FocusSessionNotStopped } from "./errors.js";
+import { FocusSessionNotRunning, FocusSessionNotStopped, SessionInFuture } from "./errors.js";
 import { FocusSession, type FocusSessionSnapshot } from "./focus-session.js";
 
 const USER = "11111111-1111-4111-8111-111111111111";
@@ -199,6 +199,60 @@ describe("record", () => {
     });
 
     expect(session.entryMode).toBe("backfilled");
+  });
+
+  describe("a session dated in the future", () => {
+    // A device with a skewed clock, or a hand-typed date. Either produces a block that sorts to the top
+    // of every recent list forever and counts toward a `focus_hours` goal for work that has not
+    // happened. The friction path clamps for the same reason; a session is refused instead, because
+    // both of its boundaries are the user's own claim and moving one would record a duration they did
+    // not enter.
+    it("is refused when it starts in the future", () => {
+      expect(() =>
+        FocusSession.record({
+          id: ID,
+          userId: USER,
+          intention: null,
+          startedAt: new Date("2026-09-01T10:00:00Z"),
+          endedAt: new Date("2026-09-01T10:40:00Z"),
+          debrief: NO_DEBRIEF,
+          attachments: NO_ATTACHMENTS,
+          now: LATER,
+        }),
+      ).toThrow(SessionInFuture);
+    });
+
+    it("is refused when it ends in the future, even having started in the past", () => {
+      expect(() =>
+        FocusSession.record({
+          id: ID,
+          userId: USER,
+          intention: null,
+          startedAt: START,
+          endedAt: new Date("2026-09-01T10:00:00Z"),
+          debrief: NO_DEBRIEF,
+          attachments: NO_ATTACHMENTS,
+          now: LATER,
+        }),
+      ).toThrow(SessionInFuture);
+    });
+
+    it("accepts a session that ends exactly now", () => {
+      // The ordinary case for a manual entry made the moment a block finished — a strict comparison
+      // would reject it.
+      expect(() =>
+        FocusSession.record({
+          id: ID,
+          userId: USER,
+          intention: null,
+          startedAt: START,
+          endedAt: LATER,
+          debrief: NO_DEBRIEF,
+          attachments: NO_ATTACHMENTS,
+          now: LATER,
+        }),
+      ).not.toThrow();
+    });
   });
 
   it("carries a debrief straight in, since you already know how it went", () => {

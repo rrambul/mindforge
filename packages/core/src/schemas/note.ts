@@ -78,7 +78,14 @@ export const CreateNoteSchema = z
     subjectId: UuidSchema.nullable().optional(),
     quote: z.string().trim().max(4_000).nullable().optional(),
     locator: NoteLocatorSchema.nullable().optional(),
-    lang: NoteLanguageSchema.default("english"),
+    /**
+     * Left optional rather than defaulted.
+     *
+     * A default made "omitted" and "deliberately English" the same value, and the server treats the
+     * first as "derive it from my profile" — so an English note written by someone whose content
+     * language is pt-BR was stored and indexed as Portuguese, which is FR-L4 inverted.
+     */
+    lang: NoteLanguageSchema.optional(),
     pinned: z.boolean().default(false),
   })
   .refine((note) => note.subjectType === "standalone" || note.subjectId != null, {

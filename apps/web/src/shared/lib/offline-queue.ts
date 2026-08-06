@@ -169,25 +169,50 @@ export class OfflineQueue {
       let dropped = 0;
       let index = 0;
 
+      // What this pass finished with, identified by key *and* `queuedAt`. Recorded rather than
+      // reconstructed from an index, because the stored queue is re-read below — see the note there.
+      const settled = new Set<string>();
+      let retried: QueuedRequest | null = null;
+
       for (; index < queue.length; index += 1) {
         const request = queue[index]!;
         const disposition = await this.attempt(request);
 
         if (disposition === "sent") {
           sent += 1;
+          settled.add(identify(request));
           continue;
         }
         if (disposition === "dropped") {
           dropped += 1;
+          settled.add(identify(request));
           continue;
         }
 
         // Retryable: keep this one and everything behind it, with the attempt counted.
-        queue[index] = { ...request, attempts: request.attempts + 1 };
+        retried = { ...request, attempts: request.attempts + 1 };
         break;
       }
 
-      const remaining = queue.slice(index);
+      /**
+       * Re-read rather than writing back the snapshot this pass started from.
+       *
+       * Every `attempt` above awaits the network, and `enqueue` runs during that — you tap a friction
+       * chip while a flush is in flight, which on a bad connection is the *normal* case rather than a
+       * race worth ignoring. Writing back the old array silently discarded that event, and
+       * `storage.clear()` on a fully-drained snapshot wiped it outright. `onDropped` never fired, so it
+       * was invisible data loss in the one class whose entire job is not losing data.
+       *
+       * Identity is key + `queuedAt`, not key alone: a capture re-enqueued under the same key during
+       * the flush is a *new* entry, and removing it because the old one was sent would lose it too.
+       */
+      const current = await this.storage.read();
+      const remaining = current
+        .filter((request) => !settled.has(identify(request)))
+        .map((request) =>
+          retried !== null && identify(request) === identify(retried) ? retried : request,
+        );
+
       if (remaining.length === 0) await this.storage.clear();
       else await this.storage.write(remaining);
 
@@ -226,15 +251,43 @@ export function startAutoFlush(queue: OfflineQueue): () => void {
     void queue.flush();
   };
 
-  window.addEventListener("online", flush);
-  // A tab restored from the background has often been offline in between.
-  document.addEventListener("visibilitychange", () => {
+  // Named, not inline. An anonymous listener cannot be removed, and this disposer is a `useEffect`
+  // cleanup — so every remount (React's StrictMode double-invoke in development, or a changed storage
+  // prop) left one behind and multiplied the flushes fired on every tab wake.
+  const onVisible = (): void => {
+    // A tab restored from the background has often been offline in between.
     if (document.visibilityState === "visible") flush();
-  });
+  };
+
+  window.addEventListener("online", flush);
+  document.addEventListener("visibilitychange", onVisible);
 
   flush();
 
   return () => {
     window.removeEventListener("online", flush);
+    document.removeEventListener("visibilitychange", onVisible);
   };
+}
+
+/**
+ * Identity of a *stored entry*, as opposed to `key`, which identifies the operation.
+ *
+ * Two entries can share a key across time — `enqueue` replaces in place, so a capture re-recorded
+ * while a flush is in flight reuses it — and telling them apart is what lets a flush remove only what
+ * it actually settled.
+ *
+ * The payload is part of the identity, not just the timestamp: `queuedAt` has millisecond precision, so
+ * two enqueues in the same millisecond are indistinguishable by it, and dropping the second would be
+ * the very loss this guards against. When key, path, body, and method all match it genuinely *is* the
+ * same capture, and re-sending one is harmless anyway — every capture endpoint is an idempotent upsert.
+ */
+function identify(request: QueuedRequest): string {
+  return JSON.stringify([
+    request.key,
+    request.path,
+    request.method ?? "POST",
+    request.queuedAt,
+    request.body,
+  ]);
 }

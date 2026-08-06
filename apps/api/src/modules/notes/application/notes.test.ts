@@ -119,20 +119,31 @@ describe("WriteNote", () => {
   });
 
   describe("stemming language (FR-L4)", () => {
-    it("follows the profile's content language, not the UI locale", async () => {
+    it("follows the profile's content language when the client does not say", async () => {
       // A pt-BR interface with English notes is a likely combination for this user, and the reverse
       // is too — so the stemmer follows the writing.
       const note = await write.execute(
         ALICE,
+        { body: "a fronteira do que eu sei", subjectType: "standalone", pinned: false },
+        "pt-BR",
+      );
+      expect(note.lang).toBe("portuguese");
+    });
+
+    it("honours an explicit English against a Portuguese profile", async () => {
+      // The case a default broke: `lang: "english"` was indistinguishable from omitting it, so this
+      // note was stored and indexed as Portuguese — FR-L4 inverted.
+      const note = await write.execute(
+        ALICE,
         {
-          body: "a fronteira do que eu sei",
+          body: "the borrow checker finally clicked",
           subjectType: "standalone",
           lang: "english",
           pinned: false,
         },
         "pt-BR",
       );
-      expect(note.lang).toBe("portuguese");
+      expect(note.lang).toBe("english");
     });
 
     it("honours an explicit language over the profile's", async () => {

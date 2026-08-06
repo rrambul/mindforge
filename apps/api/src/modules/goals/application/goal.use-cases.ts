@@ -17,7 +17,7 @@ import { GoalNotFound, GoalTargetNotFound, TargetSubjectMissing } from "../domai
 import { GoalTarget } from "../domain/goal-target.js";
 import { Goal, type GoalEvidence } from "../domain/goal.js";
 import { GOAL_REPOSITORY, type GoalRepository } from "../domain/goal.repository.js";
-import { GOAL_EVIDENCE, type GoalEvidenceReader } from "./evidence.port.js";
+import { GOAL_EVIDENCE, type EvidenceRequest, type GoalEvidenceReader } from "./evidence.port.js";
 import { SUBJECT_EXISTENCE, type SubjectExistenceReader } from "./subject-existence.port.js";
 
 /** A goal with its progress worked out — what every read returns. */
@@ -268,10 +268,7 @@ export class ListGoals {
 
     // One evidence read for every target on the screen rather than one per goal. Progress is derived
     // on every read (§3.8), so this is the hot path of the goals screen.
-    const evidence = await this.evidence.read(
-      userId,
-      goals.flatMap((goal) => [...goal.targets]),
-    );
+    const evidence = await this.evidence.read(userId, goals.flatMap(requestsFor));
 
     return goals.map((goal) => ({ goal, progress: goal.progress(evidence), evidence }));
   }
@@ -286,7 +283,7 @@ export class GetGoal {
 
   async execute(userId: string, id: string): Promise<GoalWithProgress> {
     const goal = await load(this.goals, userId, id);
-    const evidence = await this.evidence.read(userId, goal.targets);
+    const evidence = await this.evidence.read(userId, requestsFor(goal));
     return { goal, progress: goal.progress(evidence), evidence };
   }
 }
@@ -308,7 +305,7 @@ export class RecomputeGoal {
 
   async execute(userId: string, goalId: string): Promise<GoalWithProgress> {
     const goal = await load(this.goals, userId, goalId);
-    const evidence = await this.evidence.read(userId, goal.targets);
+    const evidence = await this.evidence.read(userId, requestsFor(goal));
 
     if (goal.observe(evidence, this.clock.now())) {
       for (const target of goal.targets) {
@@ -318,4 +315,16 @@ export class RecomputeGoal {
 
     return { goal, progress: goal.progress(evidence), evidence };
   }
+}
+
+/**
+ * A goal's targets paired with the window their progress is measured over.
+ *
+ * The goal's own `createdAt` is that window (§3.8: "sum of focus minutes since goal start"). Built
+ * here rather than stored per target, because it is a fact about the goal and a second copy would be a
+ * second thing to keep in step.
+ */
+function requestsFor(goal: Goal): EvidenceRequest[] {
+  const countFrom = goal.createdAt;
+  return goal.targets.map((target) => ({ target, countFrom }));
 }

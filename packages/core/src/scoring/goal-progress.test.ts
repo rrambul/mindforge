@@ -239,6 +239,20 @@ describe("the kinds whose sources land later", () => {
     expect(targetProgress(target, { lessonsCompleted: 12 }).fraction).toBe(1);
   });
 
+  it("does not report a zero-accuracy target as met", () => {
+    // Unreachable through the schema, reachable through a hand-edited row: `x / 0` clamps to 0 while
+    // `x >= 0` is true, so the row rendered a met tick beside an empty bar.
+    const target: TargetDefinition = {
+      kind: "review_accuracy",
+      skillId: SKILL,
+      target: { accuracy: 0, windowDays: 30 },
+    };
+    const progress = targetProgress(target, { reviewAccuracy: 0.9 });
+
+    expect(progress.met).toBe(false);
+    expect(progress.fraction).toBeNull();
+  });
+
   it("treats a shipped artifact as done and an unshipped one as not", () => {
     expect(targetProgress(SAMPLE["artifact"]!, { satisfied: false }).met).toBe(false);
     expect(targetProgress(SAMPLE["artifact"]!, { satisfied: true }).met).toBe(true);

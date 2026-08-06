@@ -69,7 +69,26 @@ export function TodayScreen() {
   function onStop(): void {
     if (!session) return;
     const stopped = session.id;
-    stop.mutate({ id: stopped }, { onSuccess: () => setAwaitingDebrief(stopped) });
+
+    stop.mutate(
+      { id: stopped },
+      {
+        onSuccess: () => setAwaitingDebrief(stopped),
+        // A stop that never reached the server has been *queued*, and the block did end — so the
+        // debrief has to be offered anyway. It was only offered on success, which meant every session
+        // stopped offline lost its ≤30s debrief (FR-F3) with no other way back to it.
+        //
+        // That is not only a missing prompt: with `hitIntention` left null, `producedLearning` is
+        // false, so every `too_hard` and `missing_prerequisite` event in that block is classified as
+        // wasteful friction. The subway sessions the queue exists to protect were the ones skewing the
+        // ember/slag split.
+        //
+        // A refusal is different and still hides the form: a 404 means there is no session to debrief.
+        onError: (error) => {
+          if (error instanceof NetworkError) setAwaitingDebrief(stopped);
+        },
+      },
+    );
   }
 
   function onDebrief(answers: DebriefFocusSessionInput): void {

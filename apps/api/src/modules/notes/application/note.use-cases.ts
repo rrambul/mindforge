@@ -50,9 +50,11 @@ export class WriteNote {
       quote: input.quote ?? null,
       locator: input.locator ?? null,
       pinned: input.pinned,
-      // Derived rather than asked. The writer should not have to declare a language, and the
-      // profile's content language is the best available guess.
-      lang: input.lang === "english" ? noteLanguageFor(contentLanguage) : input.lang,
+      // Derived when the client did not say, honoured when it did. The writer should not have to
+      // declare a language, and the profile's content language is the best available guess — but a
+      // share-target or an importer knows the language of what it is carrying better than the profile
+      // does, and saying "english" has to mean English.
+      lang: input.lang ?? noteLanguageFor(contentLanguage),
       now: this.clock.now(),
     });
 

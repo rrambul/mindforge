@@ -4,7 +4,7 @@ import {
   type EntryMode,
   type IntentionOutcome,
 } from "@mindforge/core";
-import { FocusSessionNotRunning, FocusSessionNotStopped } from "./errors.js";
+import { FocusSessionNotRunning, FocusSessionNotStopped, SessionInFuture } from "./errors.js";
 
 export interface FocusSessionAttachments {
   readonly missionId: string | null;
@@ -103,6 +103,12 @@ export class FocusSession {
     attachments: FocusSessionAttachments;
     now: Date;
   }): FocusSession {
+    // Rejected rather than clamped: both boundaries are the user's own claim, and moving one silently
+    // would record a duration they did not enter. A block dated tomorrow otherwise sits at the top of
+    // every recent list forever and counts toward a `focus_hours` goal for work that has not happened.
+    if (input.startedAt > input.now) throw new SessionInFuture("startedAt");
+    if (input.endedAt > input.now) throw new SessionInFuture("endedAt");
+
     return new FocusSession(
       input.id,
       input.userId,
