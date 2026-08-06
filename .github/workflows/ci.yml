@@ -129,5 +129,10 @@ jobs:
       - name: RLS suite
         run: pnpm --filter @mindforge/db exec vitest run
 
-      - name: API integration suite
-        run: pnpm --filter @mindforge/api test:integration
+      # `test:integration:coverage`, not `test:integration`. The thresholds this suite declares for
+      # `infrastructure/` and `presentation/` — the layers the unit config deliberately excludes, on
+      # the grounds that they are gated here — were not enforced by anything: CI ran the variant
+      # without `--coverage`, so both layers were ungated in practice while two configs each pointed
+      # at the other.
+      - name: API integration suite, with its coverage gate
+        run: pnpm --filter @mindforge/api test:integration:coverage

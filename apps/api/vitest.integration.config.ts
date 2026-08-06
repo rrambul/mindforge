@@ -52,7 +52,15 @@ export default defineConfig({
       // the domain as under-covered here and over-covered there, and neither number
       // would mean anything.
       include: ["src/modules/*/infrastructure/**/*.ts", "src/modules/*/presentation/**/*.ts"],
-      exclude: ["**/*.module.ts", "**/*.d.ts"],
+      exclude: [
+        "**/*.module.ts",
+        "**/*.d.ts",
+        // Test files, which `include` above otherwise sweeps up: a unit test living beside the class it
+        // covers — `html-url-metadata.reader.test.ts` — is in `infrastructure/`, so its 380 lines were
+        // counted as uncovered *production* code. That alone reported this suite at 72% when it is
+        // really 89%, which is the sort of number that gets a threshold quietly lowered.
+        "**/*.test.ts",
+      ],
       thresholds: { lines: 80, branches: 70, functions: 80, statements: 80 },
     },
   },
