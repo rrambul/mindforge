@@ -23,7 +23,8 @@
     "missions": "Missões",
     "notes": "Notas",
     "resources": "Biblioteca",
-    "goals": "Metas"
+    "goals": "Metas",
+    "skills": "Habilidades"
   },
   "offline": {
     "pending": "{count, plural, one {# captura pendente} other {# capturas pendentes}}"

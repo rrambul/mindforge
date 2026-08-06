@@ -56,7 +56,16 @@ export interface SkillView {
    */
   readonly score: number | null;
   readonly scoreStdDev: number | null;
+  /** The band of the decayed score. Null when unproven. */
   readonly band: Band | null;
+  /**
+   * The band the *self-rating* falls in.
+   *
+   * On the wire rather than derived client-side: the thresholds are core's, and a client recomputing
+   * them is a second implementation of a domain rule that would eventually disagree — the exact thing
+   * non-negotiable 3 forbids. The server already has it from `Calibration`.
+   */
+  readonly perceivedBand: Band | null;
   /** Uncertainty as feathered edges rather than a ± footnote (§9.1). */
   readonly feather: Feather;
   readonly halfLifeDays: number;
@@ -106,6 +115,7 @@ export class SkillsController {
       score: derived.skill.currentScore(now),
       scoreStdDev: snapshot.scoreStdDev,
       band: derived.skill.currentBand(now),
+      perceivedBand: derived.calibration.perceivedBand,
       feather: derived.skill.feather(now),
       halfLifeDays: snapshot.halfLifeDays,
       lastEvidenceAt: snapshot.lastEvidenceAt?.toISOString() ?? null,

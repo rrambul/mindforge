@@ -1,0 +1,54 @@
+/* A skill card's own layout. The gauge and the calibration row exist for one screen. */
+
+.mf-gauge {
+  height: 8px;
+  border-radius: var(--mf-r);
+  background: var(--mf-scale);
+  overflow: hidden;
+}
+
+.mf-gauge__fill {
+  height: 100%;
+  background: var(--mf-ember);
+}
+
+/* Uncertainty as feathered edges rather than a ± footnote (§9.1). Stale evidence blurs the end of
+   the bar, so a vague score cannot be read as a precise one at a glance. */
+.mf-gauge__fill[data-feather="soft"] {
+  mask-image: linear-gradient(to right, black 80%, transparent 100%);
+}
+.mf-gauge__fill[data-feather="vague"] {
+  mask-image: linear-gradient(to right, black 45%, transparent 100%);
+}
+
+/* No bar at all for an unproven skill — an empty track reads as zero, which is a claim. */
+.mf-gauge[data-unproven="true"] {
+  background: none;
+  border: 1px dashed var(--mf-scale);
+}
+
+/* The self-rating, drawn as a mark on the same scale rather than a second bar: the point is the
+   distance between the two, and two bars invite reading them as two quantities. */
+.mf-gauge__rating {
+  position: relative;
+  height: 8px;
+}
+
+.mf-gauge__mark {
+  position: absolute;
+  top: 0;
+  width: 2px;
+  height: 100%;
+  background: var(--mf-fg);
+  transform: translateX(-1px);
+}
+
+.mf-prereq-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--mf-space-2);
+  align-items: center;
+}

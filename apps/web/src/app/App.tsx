@@ -7,6 +7,7 @@ import { SignInForm } from "../features/auth/ui/SignInForm.js";
 import { MissionsRoute } from "../features/missions/routes/MissionsRoute.js";
 import { NotesRoute } from "../features/notes/routes/NotesRoute.js";
 import { ResourcesRoute } from "../features/resources/routes/ResourcesRoute.js";
+import { SkillsRoute } from "../features/skills/routes/SkillsRoute.js";
 import { supabase } from "../shared/api/supabase.js";
 import { guessLocaleFromBrowser } from "../shared/lib/i18n.js";
 import { OfflineQueueProvider, useOfflineQueue } from "../shared/lib/queue-context.js";
@@ -68,7 +69,7 @@ interface ShellProps {
   readonly sessionKnown: boolean;
 }
 
-type Screen = "today" | "missions" | "goals" | "notes" | "resources";
+type Screen = "today" | "missions" | "goals" | "skills" | "notes" | "resources";
 
 /**
  * A lookup rather than a chain of ternaries, which stopped being readable at the third screen.
@@ -80,6 +81,7 @@ const SCREENS: Readonly<Record<Screen, () => ReactElement>> = {
   today: TodayScreen,
   missions: MissionsRoute,
   goals: GoalsScreen,
+  skills: SkillsRoute,
   notes: NotesRoute,
   resources: ResourcesRoute,
 };
@@ -98,6 +100,7 @@ function Shell({ signedIn, sessionKnown }: ShellProps) {
     { id: "today", label: t("nav.today") },
     { id: "missions", label: t("nav.missions") },
     { id: "goals", label: t("nav.goals") },
+    { id: "skills", label: t("nav.skills") },
     { id: "notes", label: t("nav.notes") },
     { id: "resources", label: t("nav.resources") },
   ];

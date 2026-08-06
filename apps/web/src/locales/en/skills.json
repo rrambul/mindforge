@@ -1,0 +1,56 @@
+{
+  "heading": "Skills",
+  "create": {
+    "toggle": "Add a skill",
+    "close": "Cancel",
+    "name": "What skill?",
+    "description": "What does it cover?",
+    "rating": "Where would you put yourself?",
+    "ratingHint": "A guess, not a claim. It is never used as evidence — it is compared against it.",
+    "action": "Add skill"
+  },
+  "filter": {
+    "label": "Show",
+    "all": "Everything",
+    "overconfident": "Where I'm overconfident"
+  },
+  "score": {
+    "label": "Evidence",
+    "unproven": "No evidence yet",
+    "unprovenHint": "Not a score of zero — nothing has been measured. Assessments and reviews arrive later.",
+    "faded": "Faded — last evidence {days} days ago",
+    "value": "{score}",
+    "plusMinus": "± {stdDev}"
+  },
+  "rating": {
+    "label": "Your rating",
+    "none": "You have not rated this",
+    "action": "Rate",
+    "save": "Save rating"
+  },
+  "calibration": {
+    "heading": "Calibration",
+    "overconfident": "You rate this {gap} points above the evidence.",
+    "underconfident": "You rate this {gap} points below the evidence.",
+    "calibrated": "Your rating matches the evidence.",
+    "bands": "You say {perceived}; the evidence says {demonstrated}.",
+    "needsScore": "Rated, but never demonstrated. There is nothing to compare it against yet.",
+    "needsRating": "Rate yourself and this will show whether you were right.",
+    "needsBoth": "Rate yourself, and the gap will appear once there is evidence."
+  },
+  "prerequisites": {
+    "heading": "Comes after",
+    "add": "Add a prerequisite",
+    "confirm": "Add",
+    "pick": "Which skill comes first?",
+    "remove": "Remove",
+    "none": "Nothing yet",
+    "cycleWarning": "Not shown: skills that depend on this one, since that would make neither able to come first."
+  },
+  "delete": "Delete",
+  "empty": {
+    "all": "No skills yet. Add what you are trying to get good at — the app tracks what you have shown, not what you have read.",
+    "filtered": "Nothing in this list.",
+    "noOverconfidence": "Nothing here yet. This fills in once there is evidence to compare your ratings against."
+  }
+}
