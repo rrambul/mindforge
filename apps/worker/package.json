@@ -7,7 +7,7 @@
     "build": "nest build",
     "dev": "node --conditions=development --import @swc-node/register/esm-register --watch src/main.ts",
     "start": "node dist/main.js",
-    "lint": "eslint src",
+    "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test:unit": "vitest run",
     "test:coverage": "vitest run --coverage"

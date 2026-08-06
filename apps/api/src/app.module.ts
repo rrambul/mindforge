@@ -7,6 +7,7 @@ import { GoalsModule } from "./modules/goals/presentation/goals.module.js";
 import { MissionsModule } from "./modules/missions/presentation/missions.module.js";
 import { NotesModule } from "./modules/notes/presentation/notes.module.js";
 import { ResourcesModule } from "./modules/resources/presentation/resources.module.js";
+import { SkillsModule } from "./modules/skills/presentation/skills.module.js";
 import { SharedModule } from "./shared/shared.module.js";
 
 @Module({
@@ -19,6 +20,7 @@ import { SharedModule } from "./shared/shared.module.js";
     NotesModule,
     ResourcesModule,
     GoalsModule,
+    SkillsModule,
   ],
   controllers: [HealthController],
 })

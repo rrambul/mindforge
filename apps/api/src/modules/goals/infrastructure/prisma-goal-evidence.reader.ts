@@ -1,6 +1,12 @@
-import { progressFraction, ResourceProgressSchema, type TargetEvidence } from "@mindforge/core";
+import {
+  fadedScore,
+  progressFraction,
+  ResourceProgressSchema,
+  type TargetEvidence,
+} from "@mindforge/core";
 import { Inject, Injectable } from "@nestjs/common";
 import { USER_SCOPED_DB, type UserScopedDb } from "../../../shared/persistence/user-scoped-db.js";
+import { CLOCK, type Clock } from "../../../shared/time/clock.js";
 import type { GoalEvidenceReader } from "../application/evidence.port.js";
 import type { GoalTarget } from "../domain/goal-target.js";
 
@@ -17,7 +23,10 @@ import type { GoalTarget } from "../domain/goal-target.js";
  */
 @Injectable()
 export class PrismaGoalEvidenceReader implements GoalEvidenceReader {
-  constructor(@Inject(USER_SCOPED_DB) private readonly db: UserScopedDb) {}
+  constructor(
+    @Inject(USER_SCOPED_DB) private readonly db: UserScopedDb,
+    @Inject(CLOCK) private readonly clock: Clock,
+  ) {}
 
   async read(
     userId: string,
@@ -64,12 +73,22 @@ export class PrismaGoalEvidenceReader implements GoalEvidenceReader {
               missionIds,
             );
 
+      // `halfLifeDays` and `lastEvidenceAt` come too, because the figure a target compares against is
+      // the *faded* score (FR-S4) — the same one the skills endpoint reports. Reading the raw column
+      // here made a `skill_band` target hold as met while the skills screen showed the skill had faded
+      // out of that band, which is the two-places-disagree failure non-negotiable 3 forbids, and it
+      // silently disabled FR-M3b's whole point.
       const skills =
         skillIds.length === 0
           ? []
           : await tx.skill.findMany({
               where: { id: { in: skillIds } },
-              select: { id: true, score: true },
+              select: {
+                id: true,
+                score: true,
+                halfLifeDays: true,
+                lastEvidenceAt: true,
+              },
             });
 
       return [resources, sessions, skills] as const;
@@ -81,8 +100,20 @@ export class PrismaGoalEvidenceReader implements GoalEvidenceReader {
     const minutesByMission = new Map(
       minutes.map((row) => [row.missionId, Math.max(0, Number(row.minutes))] as const),
     );
+    const now = this.clock.now();
     const scoreById = new Map(
-      scores.map((row) => [row.id, row.score === null ? null : Number(row.score)] as const),
+      scores.map(
+        (row) =>
+          [
+            row.id,
+            fadedScore(
+              row.score === null ? null : Number(row.score),
+              row.lastEvidenceAt,
+              now,
+              Number(row.halfLifeDays),
+            ),
+          ] as const,
+      ),
     );
 
     const evidence: Record<string, TargetEvidence> = {};
@@ -110,6 +141,7 @@ export class PrismaGoalEvidenceReader implements GoalEvidenceReader {
       if (!subject || !scoreById.has(subject.id)) continue;
       // Null throughout M1 — scores come from assessments and reviews, which land in M2. Passed
       // through rather than defaulted, so the target reports unmeasurable rather than band `aware`.
+      // Already faded above, so this is the same number the skills endpoint shows.
       evidence[target.id] = { skillScore: scoreById.get(subject.id) ?? null };
     }
 

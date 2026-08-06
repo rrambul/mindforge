@@ -55,6 +55,11 @@ const EN = {
 
   "error.resource.not_found": "That resource no longer exists.",
   "error.resource.no_progress": "This kind of resource isn't measured in units.",
+  "error.skill.not_found": "That skill no longer exists.",
+  "error.skill.prerequisite_cycle":
+    "That would make the two skills depend on each other, so neither could ever come first.",
+  "error.skill.self_prerequisite": "A skill can't be its own prerequisite.",
+  "error.skill.name_taken": "You already have a skill with that name.",
   "error.goal.not_found": "That goal no longer exists.",
   "error.goal.target_not_found": "That target no longer exists.",
   "error.goal.already_closed": "That goal is already closed. Reopen it first.",
@@ -99,6 +104,11 @@ const PT_BR: Readonly<Record<ServerMessageKey, string>> = {
 
   "error.resource.not_found": "Esse recurso não existe mais.",
   "error.resource.no_progress": "Esse tipo de recurso não é medido em unidades.",
+  "error.skill.not_found": "Essa habilidade não existe mais.",
+  "error.skill.prerequisite_cycle":
+    "Isso faria as duas habilidades dependerem uma da outra, então nenhuma poderia vir primeiro.",
+  "error.skill.self_prerequisite": "Uma habilidade não pode ser pré-requisito de si mesma.",
+  "error.skill.name_taken": "Você já tem uma habilidade com esse nome.",
   "error.goal.not_found": "Essa meta não existe mais.",
   "error.goal.target_not_found": "Esse alvo não existe mais.",
   "error.goal.already_closed": "Essa meta já está encerrada. Reabra antes.",

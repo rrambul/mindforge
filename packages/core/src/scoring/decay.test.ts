@@ -5,6 +5,7 @@ import {
   daysBetween,
   decayFactor,
   decayedScore,
+  fadedScore,
   type Evidence,
   type EvidenceKind,
 } from "./decay.js";
@@ -157,5 +158,61 @@ describe("daysBetween", () => {
 
   it("is negative for a future date", () => {
     expect(daysBetween(NOW, daysAgo(2))).toBeCloseTo(-2, 10);
+  });
+});
+
+describe("fadedScore (FR-S4)", () => {
+  const earned = new Date("2026-01-01T00:00:00Z");
+
+  it("returns the score unchanged the moment it was earned", () => {
+    expect(fadedScore(80, earned, earned, 90)).toBe(80);
+  });
+
+  it("halves it after one half-life", () => {
+    // "A skill you haven't touched in 6 months should visibly fade" — this is that sentence.
+    const later = new Date(earned.getTime() + 90 * 86_400_000);
+    expect(fadedScore(80, earned, later, 90)).toBeCloseTo(40, 1);
+  });
+
+  it("quarters it after two", () => {
+    const later = new Date(earned.getTime() + 180 * 86_400_000);
+    expect(fadedScore(80, earned, later, 90)).toBeCloseTo(20, 1);
+  });
+
+  it("fades faster with a shorter half-life", () => {
+    const later = new Date(earned.getTime() + 30 * 86_400_000);
+    const quick = fadedScore(80, earned, later, 30)!;
+    const slow = fadedScore(80, earned, later, 365)!;
+    expect(quick).toBeLessThan(slow);
+  });
+
+  it("becomes unproven rather than a tiny number", () => {
+    // A decaying exponential never reaches zero, so without a floor a skill from five years ago would
+    // read as "0.03" — precise enough to look measured, small enough to mean nothing.
+    const muchLater = new Date(earned.getTime() + 5 * 365 * 86_400_000);
+    expect(fadedScore(80, earned, muchLater, 90)).toBeNull();
+  });
+
+  it("stays null for an unproven skill", () => {
+    // Never 0: "no evidence" and "evidence of zero" are different claims.
+    expect(fadedScore(null, earned, earned, 90)).toBeNull();
+  });
+
+  it("does not fade a score with no date to measure from", () => {
+    // A row from before the column existed, not a score earned just now — guessing an age would be
+    // inventing the very thing the fade is supposed to measure.
+    expect(fadedScore(80, null, earned, 90)).toBe(80);
+  });
+
+  it("does not amplify a score dated in the future", () => {
+    // Clock skew and backfilled entries both produce this, and growing a score for it would be the
+    // one direction decay must never go.
+    const before = new Date(earned.getTime() - 30 * 86_400_000);
+    expect(fadedScore(80, earned, before, 90)).toBe(80);
+  });
+
+  it("agrees with decayFactor, which is the shared mechanism", () => {
+    const later = new Date(earned.getTime() + 45 * 86_400_000);
+    expect(fadedScore(60, earned, later, 90)).toBeCloseTo(60 * decayFactor(45, 90), 1);
   });
 });

@@ -139,3 +139,49 @@ function clampScore(raw: number): number {
 function round2(n: number): number {
   return Math.round(n * 100) / 100;
 }
+
+/**
+ * A stored score, faded for the time since it was last earned (FR-S4).
+ *
+ * This is the second half of decay, and it is not the same thing as `decayedScore` — the two compose:
+ *
+ * - `decayedScore` weights **evidence** by age, so a recent observation counts for more than an old
+ *   one. It does *not* make the result fall as everything ages uniformly: the weights appear in both
+ *   the numerator and the denominator of a weighted mean, so they cancel. Five-year-old evidence of a
+ *   90 still averages to 90.
+ * - `fadedScore` makes the **score itself** fall as it goes unretrieved, which is what FR-S4 asks for
+ *   in as many words: "a skill you haven't touched in 6 months should visibly fade."
+ *
+ * Applied at read time rather than written back, so it is impossible for a stored value to disagree
+ * with what the gauge shows, and so retrieval genuinely restores it rather than needing a repair job.
+ *
+ * The floor matters. A score fading asymptotically to 0 would eventually claim positive evidence that
+ * you cannot do something, which is not what a gap in practice means — so it fades toward `null`
+ * (unproven) by way of a floor, and `bandFor` treats the two the same.
+ */
+export function fadedScore(
+  storedScore: number | null,
+  lastEvidenceAt: Date | null,
+  now: Date,
+  halfLifeDays: number,
+): number | null {
+  if (storedScore === null) return null;
+  // No date to measure from: report it unfaded rather than guessing an age. A stored score without a
+  // timestamp is a row from before this column existed, not a score earned just now.
+  if (lastEvidenceAt === null) return storedScore;
+
+  const ageDays = daysBetween(lastEvidenceAt, now);
+  if (ageDays <= 0) return storedScore;
+
+  const faded = storedScore * decayFactor(ageDays, halfLifeDays);
+  // Below this, "faded to nothing" is the honest reading and a number would imply a measurement.
+  return faded < FADED_FLOOR ? null : round2(faded);
+}
+
+/**
+ * Where a faded score stops being a number.
+ *
+ * Not zero: a decaying exponential never reaches it, so without a floor a skill from five years ago
+ * would read as "0.03" — a figure precise enough to look measured and small enough to be meaningless.
+ */
+export const FADED_FLOOR = 1;

@@ -19,13 +19,23 @@ const BAND_FLOOR: ReadonlyArray<readonly [Band, number]> = [
   ["aware", 0],
 ];
 
-/** Null score means unproven — which is not the same as the lowest band. */
-export function bandFor(score: number | null): Band | null {
-  if (score === null) return null;
+/**
+ * The band of a score that is known.
+ *
+ * Total, unlike `bandFor`: every number lands in a band. Separated so a caller that has already
+ * established it has a number does not have to re-narrow a `Band | null` — the compiler cannot follow
+ * "this is non-null because the score was", and an assertion there would be a claim nothing checks.
+ */
+export function bandForScore(score: number): Band {
   for (const [band, floor] of BAND_FLOOR) {
     if (score >= floor) return band;
   }
   return "aware";
+}
+
+/** Null score means unproven — which is not the same as the lowest band. */
+export function bandFor(score: number | null): Band | null {
+  return score === null ? null : bandForScore(score);
 }
 
 export function bandIndex(band: Band): number {
