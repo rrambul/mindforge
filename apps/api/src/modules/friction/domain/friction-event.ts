@@ -35,13 +35,43 @@ export class FrictionEvent {
     readonly note: string | null,
     readonly occurredAt: Date,
     readonly sessionId: string | null,
-    readonly skillId: string | null,
-    readonly resourceId: string | null,
+    /**
+     * What the friction was *about*, set later rather than at capture.
+     *
+     * Private with getters, unlike the fields above, because these two are the only ones a person
+     * revises: §5.3 puts friction detail in the session debrief, "where you have the time", precisely
+     * so the chip tap stays one tap. Asking mid-session which skill it was would break the budget the
+     * whole feature is built around.
+     */
+    private skillIdValue: string | null,
+    private resourceIdValue: string | null,
     readonly taskId: string | null,
   ) {
     if (!Number.isInteger(intensity) || intensity < 1 || intensity > 5) {
       throw new RangeError(`intensity must be an integer from 1 to 5, received ${intensity}`);
     }
+  }
+
+  get skillId(): string | null {
+    return this.skillIdValue;
+  }
+
+  get resourceId(): string | null {
+    return this.resourceIdValue;
+  }
+
+  /**
+   * Attributes the friction to a skill, a resource, both, or neither (§5.3).
+   *
+   * Both are replaced rather than merged, so clearing one is expressible — "actually this was not about
+   * that skill" has to be sayable, and a merge would make an attribution permanent once made.
+   *
+   * Nothing else about the event can be revised. The type and the moment are what you tapped; changing
+   * them afterwards would make the friction record a story rather than a log.
+   */
+  attributeTo(attribution: { skillId?: string | null; resourceId?: string | null }): void {
+    if (attribution.skillId !== undefined) this.skillIdValue = attribution.skillId;
+    if (attribution.resourceId !== undefined) this.resourceIdValue = attribution.resourceId;
   }
 
   static log(input: {

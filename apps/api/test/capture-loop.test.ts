@@ -74,6 +74,9 @@ beforeEach(async () => {
   await db.$executeRawUnsafe(`delete from friction_events where user_id = any($1::uuid[])`, ids);
   await db.$executeRawUnsafe(`delete from focus_sessions where user_id = any($1::uuid[])`, ids);
   await db.$executeRawUnsafe(`delete from missions where user_id = any($1::uuid[])`, ids);
+  // Attribution targets. Friction cascades from both, so a leftover would surface in a later test.
+  await db.$executeRawUnsafe(`delete from skills where user_id = any($1::uuid[])`, ids);
+  await db.$executeRawUnsafe(`delete from resources where user_id = any($1::uuid[])`, ids);
 });
 
 describe("the loop", () => {
@@ -355,6 +358,139 @@ describe("manual entry (FR-F2)", () => {
     expect((JSON.parse(response.body) as { errors: { field: string }[] }).errors[0]?.field).toBe(
       "endedAt",
     );
+  });
+});
+
+describe("friction attribution (§5.3)", () => {
+  /** A skill, written directly: `id` has no database default — Prisma generates it client-side. */
+  async function aSkill(user: TestUser): Promise<string> {
+    const rows = await db.$queryRawUnsafe<{ id: string }[]>(
+      `insert into skills (id, user_id, name, slug)
+       values (gen_random_uuid(), $1::uuid, 'Rust', 'rust-' || gen_random_uuid())
+       returning id`,
+      user.id,
+    );
+    return rows[0]!.id;
+  }
+
+  async function aResource(user: TestUser): Promise<string> {
+    const response = await post("/v1/resources", user, { type: "book", title: "Programming Rust" });
+    return (JSON.parse(response.body) as { id: string }).id;
+  }
+
+  it("lists a session's own friction, for the debrief", async () => {
+    const session = await startSession(alice);
+    await post("/v1/friction", alice, { type: "tooling", sessionId: session.id });
+    await post("/v1/friction", alice, { type: "too_hard", sessionId: session.id });
+    // Unattached, so it must not appear.
+    await post("/v1/friction", alice, { type: "avoidance" });
+
+    const response = await get(`/v1/friction/sessions/${session.id}`, alice);
+    expect(response.statusCode, response.body).toBe(200);
+
+    const { events } = JSON.parse(response.body) as { events: { type: string }[] };
+    expect(events.map((event) => event.type).sort()).toEqual(["too_hard", "tooling"]);
+  });
+
+  it("attributes an event to a skill and a resource", async () => {
+    // The columns have existed since M0 and nothing wrote them, so "your top friction source is
+    // tooling" was the most specific thing M2's review screen could have said.
+    const session = await startSession(alice);
+    const logged = JSON.parse(
+      (await post("/v1/friction", alice, { type: "tooling", sessionId: session.id })).body,
+    ) as { id: string };
+
+    const skillId = await aSkill(alice);
+    const resourceId = await aResource(alice);
+
+    const response = await app.inject({
+      method: "PATCH",
+      url: `/v1/friction/${logged.id}`,
+      headers: bearer(alice),
+      payload: { skillId, resourceId },
+    });
+    expect(response.statusCode, response.body).toBe(200);
+
+    const rows = await db.$queryRawUnsafe<{ skill_id: string; resource_id: string }[]>(
+      `select skill_id, resource_id from friction_events where id = $1::uuid`,
+      logged.id,
+    );
+    expect(rows[0]?.skill_id).toBe(skillId);
+    expect(rows[0]?.resource_id).toBe(resourceId);
+  });
+
+  it("retracts an attribution", async () => {
+    const logged = JSON.parse((await post("/v1/friction", alice, { type: "tooling" })).body) as {
+      id: string;
+    };
+    const skillId = await aSkill(alice);
+
+    await app.inject({
+      method: "PATCH",
+      url: `/v1/friction/${logged.id}`,
+      headers: bearer(alice),
+      payload: { skillId },
+    });
+    const cleared = await app.inject({
+      method: "PATCH",
+      url: `/v1/friction/${logged.id}`,
+      headers: bearer(alice),
+      payload: { skillId: null },
+    });
+
+    expect(cleared.statusCode).toBe(200);
+    const rows = await db.$queryRawUnsafe<{ skill_id: string | null }[]>(
+      `select skill_id from friction_events where id = $1::uuid`,
+      logged.id,
+    );
+    expect(rows[0]?.skill_id).toBeNull();
+  });
+
+  it("refuses another user's skill — RLS makes it the same answer as missing", async () => {
+    const logged = JSON.parse((await post("/v1/friction", alice, { type: "tooling" })).body) as {
+      id: string;
+    };
+    const bobsSkill = await aSkill(bob);
+
+    const response = await app.inject({
+      method: "PATCH",
+      url: `/v1/friction/${logged.id}`,
+      headers: bearer(alice),
+      payload: { skillId: bobsSkill },
+    });
+
+    expect(response.statusCode).toBe(422);
+    const problem = JSON.parse(response.body) as { errors: { field: string }[] };
+    expect(problem.errors[0]?.field).toBe("skillId");
+  });
+
+  it("cannot attribute another user's event", async () => {
+    const bobs = JSON.parse((await post("/v1/friction", bob, { type: "tooling" })).body) as {
+      id: string;
+    };
+    const skillId = await aSkill(alice);
+
+    const response = await app.inject({
+      method: "PATCH",
+      url: `/v1/friction/${bobs.id}`,
+      headers: bearer(alice),
+      payload: { skillId },
+    });
+    expect(response.statusCode).toBe(404);
+  });
+
+  it("refuses a body that names nothing", async () => {
+    const logged = JSON.parse((await post("/v1/friction", alice, { type: "tooling" })).body) as {
+      id: string;
+    };
+
+    const response = await app.inject({
+      method: "PATCH",
+      url: `/v1/friction/${logged.id}`,
+      headers: bearer(alice),
+      payload: {},
+    });
+    expect(response.statusCode).toBe(422);
   });
 });
 

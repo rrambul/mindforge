@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { FRICTION_TYPES, type FrictionType } from "../friction/classify.js";
 import {
+  AttributeFrictionSchema,
   COLD_START_CHIPS,
   DEFAULT_FRICTION_INTENSITY,
   INLINE_CHIP_COUNT,
@@ -147,5 +148,54 @@ describe("frictionChips", () => {
     const chips = frictionChips({ physical: 3 });
     const all = [...chips.inline, ...chips.overflow].sort();
     expect(all).toEqual([...FRICTION_TYPES].sort());
+  });
+});
+
+describe("AttributeFrictionSchema (§5.3)", () => {
+  const UUID = "11111111-1111-4111-8111-111111111111";
+
+  it("takes a skill, a resource, or both", () => {
+    expect(AttributeFrictionSchema.parse({ skillId: UUID }).skillId).toBe(UUID);
+    expect(AttributeFrictionSchema.parse({ resourceId: UUID }).resourceId).toBe(UUID);
+
+    const both = AttributeFrictionSchema.parse({ skillId: UUID, resourceId: UUID });
+    expect(both.skillId).toBe(UUID);
+    expect(both.resourceId).toBe(UUID);
+  });
+
+  it("accepts null, so an attribution can be retracted", () => {
+    // "Actually this was not about that skill" has to be sayable, or a wrong guess is permanent.
+    expect(AttributeFrictionSchema.parse({ skillId: null }).skillId).toBeNull();
+  });
+
+  it("distinguishes absent from null", () => {
+    // Absent means unchanged, which is what lets the two pickers be set independently — sending one
+    // must not clear the other.
+    const parsed = AttributeFrictionSchema.parse({ skillId: UUID });
+    expect(parsed.resourceId).toBeUndefined();
+  });
+
+  it("rejects a body that names nothing", () => {
+    // An empty patch is a mistake rather than an instruction; there is nothing it could mean.
+    expect(AttributeFrictionSchema.safeParse({}).success).toBe(false);
+  });
+
+  it("rejects an id that is not a uuid", () => {
+    expect(AttributeFrictionSchema.safeParse({ skillId: "rust" }).success).toBe(false);
+  });
+
+  it("has no field for the type or the moment", () => {
+    // The type and the moment are what you tapped. Revising them afterwards would make the friction
+    // record a story rather than a log.
+    const parsed = AttributeFrictionSchema.parse({
+      skillId: UUID,
+      type: "avoidance",
+      occurredAt: "2026-08-06T12:00:00.000Z",
+      intensity: 5,
+    });
+
+    expect(parsed).not.toHaveProperty("type");
+    expect(parsed).not.toHaveProperty("occurredAt");
+    expect(parsed).not.toHaveProperty("intensity");
   });
 });

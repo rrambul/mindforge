@@ -117,3 +117,49 @@ export function useLogFriction(): UseMutationResult<FrictionEvent, RequestError,
     onSettled: () => queryClient.invalidateQueries({ queryKey: frictionKeys.all }),
   });
 }
+
+/** Mirrors the API's FrictionEventView. */
+export interface FrictionEventRow {
+  readonly id: string;
+  readonly type: FrictionType;
+  readonly intensity: number;
+  readonly occurredAt: string;
+  readonly skillId: string | null;
+  readonly resourceId: string | null;
+}
+
+export const sessionFrictionKey = (sessionId: string) =>
+  ["friction", "session", sessionId] as const;
+
+/** A session's own friction, for the debrief (§5.3). */
+export function useSessionFriction(
+  sessionId: string | null,
+): UseQueryResult<{ events: FrictionEventRow[] }> {
+  return useQuery({
+    queryKey: sessionFrictionKey(sessionId ?? ""),
+    queryFn: ({ signal }) =>
+      api.get<{ events: FrictionEventRow[] }>(`/friction/sessions/${sessionId!}`, signal),
+    enabled: sessionId !== null,
+  });
+}
+
+/**
+ * What the friction was about (§5.3).
+ *
+ * Not queued offline, unlike the tap that created the event. Attribution is a considered answer given
+ * in the debrief, so a failure has to be visible — and a replay could land after the skill it names had
+ * been deleted, which is exactly when the server's existence check needs to run against what is stored.
+ */
+export function useAttributeFriction(): UseMutationResult<
+  FrictionEventRow,
+  RequestError,
+  { id: string; attribution: { skillId?: string | null; resourceId?: string | null } }
+> {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ id, attribution }) =>
+      api.patch<FrictionEventRow>(`/friction/${id}`, attribution),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["friction"] }),
+  });
+}

@@ -37,4 +37,12 @@ export interface FrictionEventRepository {
 
   /** The rows the ember/slag split is computed from. */
   listClassifiable(userId: string, filter: FrictionFilter): Promise<ClassifiableFrictionEvent[]>;
+
+  /**
+   * A session's own events, oldest first.
+   *
+   * For the debrief, which is where §5.3 puts friction detail. Oldest first because you are recalling
+   * the block in the order it happened, not in the order a database felt like returning it.
+   */
+  listForSession(userId: string, sessionId: string): Promise<FrictionEvent[]>;
 }

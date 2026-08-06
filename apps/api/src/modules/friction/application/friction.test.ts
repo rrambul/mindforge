@@ -2,17 +2,34 @@ import { COLD_START_CHIPS, PINNED_FRICTION_TYPE, type FrictionType } from "@mind
 import { beforeEach, describe, expect, it } from "vitest";
 import { SequentialIdGenerator } from "../../../shared/ids/id-generator.js";
 import { FixedClock } from "../../../shared/time/clock.js";
+import { AttributionTargetMissing, FrictionEventNotFound } from "../domain/errors.js";
 import type { FrictionEvent } from "../domain/friction-event.js";
 import type {
   ClassifiableFrictionEvent,
   FrictionEventRepository,
   FrictionFilter,
 } from "../domain/friction-event.repository.js";
-import { GetFrictionChips, GetFrictionSummary, LogFriction } from "./friction.use-cases.js";
+import type { AttributionTargetReader } from "./attribution-targets.port.js";
+import {
+  AttributeFriction,
+  GetFrictionChips,
+  GetFrictionSummary,
+  ListSessionFriction,
+  LogFriction,
+} from "./friction.use-cases.js";
 
 const ALICE = "11111111-1111-4111-8111-111111111111";
 const BOB = "22222222-2222-4222-8222-222222222222";
 const NOW = new Date("2026-08-05T12:00:00Z");
+
+/** Everything exists unless a test says otherwise. */
+class StubAttributionTargets implements AttributionTargetReader {
+  readonly missing = new Set<string>();
+
+  exists(_userId: string, _kind: "skill" | "resource", id: string): Promise<boolean> {
+    return Promise.resolve(!this.missing.has(id));
+  }
+}
 
 class InMemoryFriction implements FrictionEventRepository {
   private readonly byUser = new Map<string, Map<string, FrictionEvent>>();
@@ -49,6 +66,14 @@ class InMemoryFriction implements FrictionEventRepository {
 
   // Both parameters are ignored on purpose: the filtering they drive is Postgres' job and is
   // covered by the integration suite. These tests are about the classification rule.
+  listForSession(userId: string, sessionId: string): Promise<FrictionEvent[]> {
+    return Promise.resolve(
+      [...this.own(userId).values()]
+        .filter((event) => event.sessionId === sessionId)
+        .sort((a, b) => a.occurredAt.getTime() - b.occurredAt.getTime()),
+    );
+  }
+
   listClassifiable(userId: string, filter: FrictionFilter): Promise<ClassifiableFrictionEvent[]> {
     void userId;
     void filter;
@@ -224,5 +249,175 @@ describe("GetFrictionSummary", () => {
     const result = await summary.execute(ALICE, {});
     expect(result.byType).toEqual({ tooling: 2, interruption: 1 });
     expect(result.eventCount).toBe(3);
+  });
+});
+
+describe("AttributeFriction (§5.3)", () => {
+  const SKILL = "55555555-5555-4555-8555-555555555555";
+  const RESOURCE = "66666666-6666-4666-8666-666666666666";
+  const MISSING = "99999999-9999-4999-8999-999999999999";
+
+  let events: InMemoryFriction;
+  let targets: StubAttributionTargets;
+
+  beforeEach(() => {
+    events = new InMemoryFriction();
+    targets = new StubAttributionTargets();
+  });
+
+  function attribute(): AttributeFriction {
+    return new AttributeFriction(events, targets);
+  }
+
+  async function anEvent(sessionId: string | null = null): Promise<string> {
+    const logged = await new LogFriction(
+      events,
+      new FixedClock(NOW),
+      new SequentialIdGenerator(),
+    ).execute(ALICE, {
+      type: "tooling",
+      intensity: 3,
+      ...(sessionId === null ? {} : { sessionId }),
+    });
+    return logged.id;
+  }
+
+  it("attributes friction to a skill and a resource", async () => {
+    // Until this existed the columns were never written, so "your top friction source is tooling" was
+    // the most specific thing M2's review screen could have said.
+    const id = await anEvent();
+    const after = await attribute().execute(ALICE, id, { skillId: SKILL, resourceId: RESOURCE });
+
+    expect(after.skillId).toBe(SKILL);
+    expect(after.resourceId).toBe(RESOURCE);
+  });
+
+  it("leaves the other one alone when only one is named", async () => {
+    // Absent means unchanged, which is what makes two separate pickers possible.
+    const id = await anEvent();
+    await attribute().execute(ALICE, id, { skillId: SKILL });
+    const after = await attribute().execute(ALICE, id, { resourceId: RESOURCE });
+
+    expect(after.skillId).toBe(SKILL);
+    expect(after.resourceId).toBe(RESOURCE);
+  });
+
+  it("retracts an attribution when given null", async () => {
+    // "Actually this was not about that skill" has to be sayable, or a wrong guess is permanent.
+    const id = await anEvent();
+    await attribute().execute(ALICE, id, { skillId: SKILL });
+    const after = await attribute().execute(ALICE, id, { skillId: null });
+
+    expect(after.skillId).toBeNull();
+  });
+
+  it("changes nothing else about the event", async () => {
+    // The type and the moment are what you tapped. Revising those would make the log a story.
+    const id = await anEvent();
+    const before = (await events.findById(ALICE, id))!.toSnapshot();
+    const after = await attribute().execute(ALICE, id, { skillId: SKILL });
+
+    expect(after.type).toBe(before.type);
+    expect(after.intensity).toBe(before.intensity);
+    expect(after.occurredAt).toEqual(before.occurredAt);
+  });
+
+  it("refuses a skill that does not exist rather than dying on the foreign key", async () => {
+    const id = await anEvent();
+    targets.missing.add(MISSING);
+
+    await expect(attribute().execute(ALICE, id, { skillId: MISSING })).rejects.toBeInstanceOf(
+      AttributionTargetMissing,
+    );
+  });
+
+  it("refuses a missing resource too", async () => {
+    const id = await anEvent();
+    targets.missing.add(MISSING);
+
+    await expect(attribute().execute(ALICE, id, { resourceId: MISSING })).rejects.toBeInstanceOf(
+      AttributionTargetMissing,
+    );
+  });
+
+  it("writes nothing when one of two targets is invalid", async () => {
+    // Verified before the write, so a bad id cannot leave half the attribution applied.
+    const id = await anEvent();
+    targets.missing.add(MISSING);
+
+    await expect(
+      attribute().execute(ALICE, id, { skillId: SKILL, resourceId: MISSING }),
+    ).rejects.toThrow();
+
+    expect((await events.findById(ALICE, id))!.skillId).toBeNull();
+  });
+
+  it("does not look up a null, because a retraction has nothing to check", async () => {
+    const id = await anEvent();
+    targets.missing.add(MISSING);
+    // Clearing both must work even while ids are unresolvable.
+    await expect(
+      attribute().execute(ALICE, id, { skillId: null, resourceId: null }),
+    ).resolves.toBeDefined();
+  });
+
+  it("rejects an unknown event", async () => {
+    await expect(attribute().execute(ALICE, MISSING, { skillId: SKILL })).rejects.toBeInstanceOf(
+      FrictionEventNotFound,
+    );
+  });
+
+  it("reports another user's event as not found", async () => {
+    const id = await anEvent();
+    await expect(attribute().execute(BOB, id, { skillId: SKILL })).rejects.toBeInstanceOf(
+      FrictionEventNotFound,
+    );
+  });
+});
+
+describe("ListSessionFriction", () => {
+  const SESSION = "77777777-7777-4777-8777-777777777777";
+
+  it("returns a session's own events, oldest first", async () => {
+    // You are recalling the block in the order it happened, not in the order a database returned it.
+    const events = new InMemoryFriction();
+    const log = new LogFriction(events, new FixedClock(NOW), new SequentialIdGenerator());
+
+    // Backwards on purpose, and dated in the *past*: a future `occurredAt` is clamped to now, so two
+    // events an hour apart would both land on `NOW` and the order would prove nothing.
+    await log.execute(ALICE, {
+      type: "tooling",
+      intensity: 3,
+      sessionId: SESSION,
+      occurredAt: NOW,
+    });
+    await log.execute(ALICE, {
+      type: "too_hard",
+      intensity: 3,
+      sessionId: SESSION,
+      occurredAt: new Date(NOW.getTime() - 60_000),
+    });
+
+    const listed = await new ListSessionFriction(events).execute(ALICE, SESSION);
+    expect(listed.map((event) => event.type)).toEqual(["too_hard", "tooling"]);
+  });
+
+  it("excludes events from other sessions and unattached ones", async () => {
+    const events = new InMemoryFriction();
+    const log = new LogFriction(events, new FixedClock(NOW), new SequentialIdGenerator());
+
+    await log.execute(ALICE, { type: "tooling", intensity: 3, sessionId: SESSION });
+    await log.execute(ALICE, { type: "avoidance", intensity: 3 });
+
+    const listed = await new ListSessionFriction(events).execute(ALICE, SESSION);
+    expect(listed).toHaveLength(1);
+  });
+
+  it("never returns another user's events", async () => {
+    const events = new InMemoryFriction();
+    const log = new LogFriction(events, new FixedClock(NOW), new SequentialIdGenerator());
+    await log.execute(ALICE, { type: "tooling", intensity: 3, sessionId: SESSION });
+
+    await expect(new ListSessionFriction(events).execute(BOB, SESSION)).resolves.toEqual([]);
   });
 });

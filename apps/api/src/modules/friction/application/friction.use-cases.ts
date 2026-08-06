@@ -2,6 +2,7 @@ import {
   CHIP_WINDOW_DAYS,
   frictionChips,
   frictionSplit,
+  type AttributeFrictionInput,
   type FrictionChips,
   type FrictionSplit,
   type FrictionSummaryQuery,
@@ -10,11 +11,13 @@ import {
 import { Inject, Injectable } from "@nestjs/common";
 import { ID_GENERATOR, type IdGenerator } from "../../../shared/ids/id-generator.js";
 import { CLOCK, type Clock } from "../../../shared/time/clock.js";
+import { AttributionTargetMissing, FrictionEventNotFound } from "../domain/errors.js";
 import { FrictionEvent } from "../domain/friction-event.js";
 import {
   FRICTION_EVENT_REPOSITORY,
   type FrictionEventRepository,
 } from "../domain/friction-event.repository.js";
+import { ATTRIBUTION_TARGETS, type AttributionTargetReader } from "./attribution-targets.port.js";
 
 /**
  * FR-C1, FR-C2 — one tap, typed, no modal.
@@ -125,5 +128,62 @@ export class GetFrictionSummary {
     );
 
     return { ...split, eventCount: rows.length, byType };
+  }
+}
+
+/**
+ * What the friction was about (§5.3).
+ *
+ * `friction_events.skill_id` and `resource_id` have existed since M0 and nothing ever wrote them, so
+ * every event was typed but unattributed — which makes "your top friction source is tooling" the most
+ * specific thing M2's review screen could have said. Attribution is what turns that into "tooling, on
+ * the Rust mission, while reading the async book".
+ *
+ * Set from the debrief rather than the chip tap, deliberately. The chip is a one-tap capture and asking
+ * "which skill?" mid-annoyance would break the budget the whole feature is built around; §5.3 puts the
+ * detail in the debrief, "where you have the time".
+ */
+@Injectable()
+export class AttributeFriction {
+  constructor(
+    @Inject(FRICTION_EVENT_REPOSITORY) private readonly events: FrictionEventRepository,
+    @Inject(ATTRIBUTION_TARGETS) private readonly targets: AttributionTargetReader,
+  ) {}
+
+  async execute(userId: string, id: string, input: AttributeFrictionInput): Promise<FrictionEvent> {
+    const event = await this.events.findById(userId, id);
+    if (!event) throw new FrictionEventNotFound(id);
+
+    // Verified before the write, so a bad id cannot leave one half of the attribution applied. Only a
+    // *named* target is checked: null is a retraction, and there is nothing to look up.
+    if (input.skillId != null && !(await this.targets.exists(userId, "skill", input.skillId))) {
+      throw new AttributionTargetMissing("skill", input.skillId);
+    }
+    if (
+      input.resourceId != null &&
+      !(await this.targets.exists(userId, "resource", input.resourceId))
+    ) {
+      throw new AttributionTargetMissing("resource", input.resourceId);
+    }
+
+    event.attributeTo({
+      ...(input.skillId === undefined ? {} : { skillId: input.skillId }),
+      ...(input.resourceId === undefined ? {} : { resourceId: input.resourceId }),
+    });
+
+    await this.events.save(userId, event);
+    return event;
+  }
+}
+
+/** A session's own friction, for the debrief. */
+@Injectable()
+export class ListSessionFriction {
+  constructor(
+    @Inject(FRICTION_EVENT_REPOSITORY) private readonly events: FrictionEventRepository,
+  ) {}
+
+  execute(userId: string, sessionId: string): Promise<FrictionEvent[]> {
+    return this.events.listForSession(userId, sessionId);
   }
 }

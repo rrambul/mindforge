@@ -18,6 +18,7 @@ const SAMPLE_VARS: Partial<Record<ServerMessageKey, Record<string, string | numb
   "error.resource.progress_out_of_range": { total: 590, unit: "page" },
   "error.goal.subject_missing": { subject: "resource" },
   "error.resource.link_target_missing": { kind: "mission" },
+  "error.friction.target_missing": { kind: "skill" },
 };
 
 describe("catalog completeness", () => {

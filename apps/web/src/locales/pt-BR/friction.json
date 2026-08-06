@@ -15,5 +15,11 @@
     "avoidance": "Evitação",
     "physical": "Físico",
     "productive_struggle": "Esforço produtivo"
+  },
+  "attribution": {
+    "heading": "Sobre o que foi esse atrito? Opcional.",
+    "skill": "Habilidade",
+    "resource": "Recurso",
+    "none": "Não sei"
   }
 }

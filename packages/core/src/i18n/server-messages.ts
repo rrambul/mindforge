@@ -57,6 +57,9 @@ const EN = {
   "error.resource.link_target_missing":
     "{kind, select, mission {That mission} skill {That skill} other {That}} no longer exists.",
   "error.resource.no_progress": "This kind of resource isn't measured in units.",
+  "error.friction.not_found": "That friction event no longer exists.",
+  "error.friction.target_missing":
+    "{kind, select, skill {That skill} resource {That resource} other {That}} no longer exists.",
   "error.focus.in_future": "That time is in the future — check the date, or your device's clock.",
   "error.skill.not_found": "That skill no longer exists.",
   "error.skill.prerequisite_cycle":
@@ -109,6 +112,9 @@ const PT_BR: Readonly<Record<ServerMessageKey, string>> = {
   "error.resource.link_target_missing":
     "{kind, select, mission {Essa missão} skill {Essa habilidade} other {Isso}} não existe mais.",
   "error.resource.no_progress": "Esse tipo de recurso não é medido em unidades.",
+  "error.friction.not_found": "Esse registro de atrito não existe mais.",
+  "error.friction.target_missing":
+    "{kind, select, skill {Essa habilidade} resource {Esse recurso} other {Isso}} não existe mais.",
   "error.focus.in_future":
     "Esse horário está no futuro — confira a data, ou o relógio do seu dispositivo.",
   "error.skill.not_found": "Essa habilidade não existe mais.",

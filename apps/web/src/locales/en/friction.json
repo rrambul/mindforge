@@ -15,5 +15,11 @@
     "avoidance": "Avoidance",
     "physical": "Physical",
     "productive_struggle": "Productive struggle"
+  },
+  "attribution": {
+    "heading": "What was that friction about? Optional.",
+    "skill": "Skill",
+    "resource": "Resource",
+    "none": "Not sure"
   }
 }

@@ -94,6 +94,17 @@ export class PrismaFrictionEventRepository implements FrictionEventRepository {
     });
   }
 
+  listForSession(userId: string, sessionId: string): Promise<FrictionEvent[]> {
+    return this.db.run(userId, async (tx) => {
+      const rows = await tx.frictionEvent.findMany({
+        where: { sessionId },
+        orderBy: { occurredAt: "asc" },
+        select: COLUMNS,
+      });
+      return rows.map(toEvent);
+    });
+  }
+
   listClassifiable(userId: string, filter: FrictionFilter): Promise<ClassifiableFrictionEvent[]> {
     return this.db.run(userId, async (tx) => {
       const rows = await tx.frictionEvent.findMany({

@@ -140,3 +140,25 @@ export function frictionChips(
     overflow: ranked.slice(INLINE_CHIP_COUNT - 1),
   };
 }
+
+/**
+ * What a friction event was about (§5.3).
+ *
+ * Set from the session debrief, never at the chip tap: the chip is the one-tap capture the whole
+ * feature is built around, and asking "which skill?" mid-annoyance would break it. §5.3 puts friction
+ * detail in the debrief "where you have the time".
+ *
+ * Both fields are nullable so an attribution can be *retracted* — "actually this was not about that
+ * skill" has to be sayable, or a wrong guess becomes permanent. Absent means unchanged, which is
+ * different from present-and-null.
+ */
+export const AttributeFrictionSchema = z
+  .object({
+    skillId: UuidSchema.nullable().optional(),
+    resourceId: UuidSchema.nullable().optional(),
+  })
+  .refine((patch) => patch.skillId !== undefined || patch.resourceId !== undefined, {
+    error: "Name a skill or a resource, or clear one",
+    path: ["skillId"],
+  });
+export type AttributeFrictionInput = z.infer<typeof AttributeFrictionSchema>;

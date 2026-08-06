@@ -14,12 +14,17 @@ import { RunningSession } from "../features/focus/ui/RunningSession.js";
 import { StartFocus } from "../features/focus/ui/StartFocus.js";
 import {
   frictionBody,
+  useAttributeFriction,
   useFrictionChips,
   useLogFriction,
+  useSessionFriction,
 } from "../features/friction/api/use-friction.js";
+import { FrictionAttribution } from "../features/friction/ui/FrictionAttribution.js";
 import { FrictionChips } from "../features/friction/ui/FrictionChips.js";
 import { noteBody, useWriteNote } from "../features/notes/api/use-notes.js";
 import { NoteComposer } from "../features/notes/ui/NoteComposer.js";
+import { useResources } from "../features/resources/api/use-resources.js";
+import { useSkills } from "../features/skills/api/use-skills.js";
 import { ApiError, NetworkError, PROBLEM, isProblemOfType } from "../shared/api/problem.js";
 import { Button, Callout, Heading, Row, Stack, Text } from "../shared/ui/index.js";
 import { FirstRun } from "./FirstRun.js";
@@ -56,6 +61,13 @@ export function TodayScreen() {
    * session stopped yesterday must not reopen its debrief when you come back.
    */
   const [awaitingDebrief, setAwaitingDebrief] = useState<string | null>(null);
+
+  // Only fetched once a debrief is open, and only the things attribution can point at. Composed here
+  // because §2.2 rule 6 keeps `focus` and `friction` from importing skills and resources themselves.
+  const sessionFriction = useSessionFriction(awaitingDebrief);
+  const skills = useSkills({});
+  const resources = useResources({});
+  const attribute = useAttributeFriction();
   const [loggingPast, setLoggingPast] = useState(false);
 
   const session = running.data?.session ?? null;
@@ -170,6 +182,26 @@ export function TodayScreen() {
             onSubmit={onDebrief}
             onSkip={() => setAwaitingDebrief(null)}
             pending={debrief.isPending}
+            // §5.3 puts friction detail here, "where you have the time" — the chip tap stays one tap.
+            // Below the three questions and never required, so the ≤30s budget is unaffected.
+            attribution={
+              <FrictionAttribution
+                events={sessionFriction.data?.events ?? []}
+                skills={(skills.data?.skills ?? []).map((skill) => ({
+                  id: skill.id,
+                  name: skill.name,
+                }))}
+                resources={(resources.data?.resources ?? []).map((resource) => ({
+                  id: resource.id,
+                  name: resource.title,
+                }))}
+                pending={attribute.isPending}
+                error={attribute.error === null ? null : describe(attribute.error, common)}
+                onAttribute={(eventId, attribution) =>
+                  attribute.mutate({ id: eventId, attribution })
+                }
+              />
+            }
           />
         </>
       ) : (
