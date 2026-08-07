@@ -1,7 +1,9 @@
-// Mindforge schema — M1 slice (the capture loop).
+// Mindforge schema — the capture loop (M1) and the weekly rhythm (M2).
 //
-// Scope here is TECH-DESIGN.md §3.1 and §3.3 only: missions, goals, skills,
-// resources, notes, tasks, focus sessions, friction events. Retention,
+// Scope here is TECH-DESIGN.md §3.1 and §3.3, plus the two operational tables
+// from §3.5 that M2 can honestly fill: missions, goals, skills, resources,
+// notes, tasks, focus sessions, friction events, weekly plans and their
+// allocations, weekly reviews, the daily rollup, and notifications. Retention,
 // assessments, and the teach workspace tables land with their milestones.
 //
 // Two rules this file follows throughout:
@@ -9,7 +11,11 @@
 //      translates at render (§5.2), so `tooling` and `fluent` are stable
 //      contract, not copy.
 //   2. Every user-owned table carries userId and gets an RLS policy plus an
-//      RLS test in the same migration. See migrations/*/rls.sql.
+//      RLS test in the same migration. Prisma cannot express policies, so they
+//      are hand-appended to the bottom of that migration's `migration.sql` —
+//      a sibling `rls.sql` would be silently ignored and the table would ship
+//      with RLS off. Nor can Prisma express check constraints or partial
+//      unique indexes, which live in the same place for the same reason.
 
 generator client {
   provider = "prisma-client"
@@ -27,55 +33,66 @@ datasource db {
 /// Mirrors auth.users. Prisma cannot own that table, so this is a shadow row
 /// created by a trigger on signup — it exists to hang preferences off.
 model Profile {
-  id        String   @id @db.Uuid
+  id                   String   @id @db.Uuid
   /// IANA. Every "day", "week", and nightly job derives from this, never from
   /// server-local time (§5.2).
-  timezone  String   @default("UTC")
+  timezone             String   @default("UTC")
   /// UI locale: interface strings, dates, numbers.
-  locale    String   @default("en")
+  locale               String   @default("en")
   /// What the agent writes lessons in. Separate on purpose — a pt-BR interface
   /// with English lessons is a legitimate and likely combination (FR-L3).
-  contentLanguage String @default("en") @map("content_language")
+  contentLanguage      String   @default("en") @map("content_language")
   /// Seeded from locale, then user-owned: pt-BR convention is Sunday, and the
   /// weekly plan grid depends on it (FR-L5). 0 = Sunday.
-  weekStartsOn Int    @default(1) @map("week_starts_on")
-  theme     String   @default("light")
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  weekStartsOn         Int      @default(1) @map("week_starts_on")
+  theme                String   @default("light")
+  /// The release whose changelog you last opened. Drives the unseen-entries dot
+  /// on Settings and nothing else — null means you have never opened it, which
+  /// is why it is nullable rather than defaulted to the current version (§14.1).
+  changelogSeenVersion String?  @map("changelog_seen_version")
+  createdAt            DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
-  missions       Mission[]
-  goals          Goal[]
-  skills         Skill[]
-  resources      Resource[]
-  notes          Note[]
-  tasks          Task[]
-  focusSessions  FocusSession[]
-  frictionEvents FrictionEvent[]
+  missions          Mission[]
+  goals             Goal[]
+  skills            Skill[]
+  resources         Resource[]
+  notes             Note[]
+  tasks             Task[]
+  focusSessions     FocusSession[]
+  frictionEvents    FrictionEvent[]
+  weeklyPlans       WeeklyPlan[]
+  allocations       WeeklyAllocation[]
+  weeklyReviews     WeeklyReview[]
+  dailyActivity     DailyActivity[]
+  notifications     Notification[]
+  notificationPrefs NotificationPref[]
 
   @@map("profiles")
 }
 
 model Mission {
-  id               String    @id @default(uuid()) @db.Uuid
-  userId           String    @map("user_id") @db.Uuid
+  id               String   @id @default(uuid()) @db.Uuid
+  userId           String   @map("user_id") @db.Uuid
   topic            String
   why              String?
-  successLooksLike String?   @map("success_looks_like")
+  successLooksLike String?  @map("success_looks_like")
   constraints      String?
-  currentLevel     String?   @map("current_level")
+  currentLevel     String?  @map("current_level")
   /// active | parked | completed | abandoned. Parked is not archived — skills
   /// keep decaying, reviews suspend, goals freeze (FR-M4b).
-  status           String    @default("active")
+  status           String   @default("active")
   /// Storage prefix. Set once: renaming a mission must not move files.
-  workspaceKey     String?   @unique @map("workspace_key")
-  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt        DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  workspaceKey     String?  @unique @map("workspace_key")
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  profile   Profile    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  revisions MissionRevision[]
-  goals     Goal[]
-  resources ResourceLink[]
-  tasks     Task[]
-  sessions  FocusSession[]
+  profile     Profile            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  revisions   MissionRevision[]
+  goals       Goal[]
+  resources   ResourceLink[]
+  tasks       Task[]
+  sessions    FocusSession[]
+  allocations WeeklyAllocation[]
 
   @@index([userId, status])
   @@map("missions")
@@ -121,24 +138,24 @@ model Goal {
 /// Progress is DERIVED from these. There is no percentage column and no
 /// slider — that would be self-report wearing a number's clothes (§3.8).
 model GoalTarget {
-  id         String    @id @default(uuid()) @db.Uuid
-  userId     String    @map("user_id") @db.Uuid
-  goalId     String    @map("goal_id") @db.Uuid
+  id          String    @id @default(uuid()) @db.Uuid
+  userId      String    @map("user_id") @db.Uuid
+  goalId      String    @map("goal_id") @db.Uuid
   /// resource_progress | skill_band | artifact | focus_hours |
   /// review_accuracy | lessons_completed | manual
-  kind       String
-  resourceId String?   @map("resource_id") @db.Uuid
-  skillId    String?   @map("skill_id") @db.Uuid
-  missionId  String?   @map("mission_id") @db.Uuid
+  kind        String
+  resourceId  String?   @map("resource_id") @db.Uuid
+  skillId     String?   @map("skill_id") @db.Uuid
+  missionId   String?   @map("mission_id") @db.Uuid
   /// {"percent":100} | {"band":"fluent"} | {"hours":40} | {"accuracy":0.85}
-  target     Json
-  weight     Decimal   @default(1) @db.Decimal(4, 2)
+  target      Json
+  weight      Decimal   @default(1) @db.Decimal(4, 2)
   /// A `manual` target is met exactly when this is set — there is no separate
   /// "satisfied" flag, because two columns encoding one fact eventually disagree.
-  metAt      DateTime? @map("met_at") @db.Timestamptz(6)
+  metAt       DateTime? @map("met_at") @db.Timestamptz(6)
   /// `skill_band` only: the band when the target was set. Captured at creation
   /// because §3.8 measures distance from there and it is unrecoverable later.
-  bandAtStart String?  @map("band_at_start")
+  bandAtStart String?   @map("band_at_start")
 
   goal     Goal      @relation(fields: [goalId], references: [id], onDelete: Cascade)
   resource Resource? @relation(fields: [resourceId], references: [id], onDelete: Cascade)
@@ -167,12 +184,14 @@ model Skill {
   lastEvidenceAt DateTime? @map("last_evidence_at") @db.Timestamptz(6)
   createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
 
-  profile      Profile        @relation(fields: [userId], references: [id], onDelete: Cascade)
-  prereqOf     SkillEdge[]    @relation("skill")
-  requires     SkillEdge[]    @relation("prereq")
-  goalTargets  GoalTarget[]
+  profile       Profile            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  prereqOf      SkillEdge[]        @relation("skill")
+  requires      SkillEdge[]        @relation("prereq")
+  goalTargets   GoalTarget[]
   resourceLinks ResourceLink[]
-  friction     FrictionEvent[]
+  friction      FrictionEvent[]
+  sessions      FocusSession[]
+  allocations   WeeklyAllocation[]
 
   @@unique([userId, slug])
   @@map("skills")
@@ -212,7 +231,7 @@ model Resource {
   addedAt        DateTime  @default(now()) @map("added_at") @db.Timestamptz(6)
   finishedAt     DateTime? @map("finished_at") @db.Timestamptz(6)
 
-  profile     Profile        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  profile     Profile         @relation(fields: [userId], references: [id], onDelete: Cascade)
   links       ResourceLink[]
   goalTargets GoalTarget[]
   tasks       Task[]
@@ -279,9 +298,9 @@ model Task {
   rescheduleCount Int      @default(0) @map("reschedule_count")
   createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
-  profile  Profile        @relation(fields: [userId], references: [id], onDelete: Cascade)
-  mission  Mission?       @relation(fields: [missionId], references: [id], onDelete: SetNull)
-  resource Resource?      @relation(fields: [resourceId], references: [id], onDelete: SetNull)
+  profile  Profile         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  mission  Mission?        @relation(fields: [missionId], references: [id], onDelete: SetNull)
+  resource Resource?       @relation(fields: [resourceId], references: [id], onDelete: SetNull)
   sessions FocusSession[]
   friction FrictionEvent[]
 
@@ -295,6 +314,19 @@ model FocusSession {
   taskId         String?   @map("task_id") @db.Uuid
   missionId      String?   @map("mission_id") @db.Uuid
   resourceId     String?   @map("resource_id") @db.Uuid
+  /// Not in TECH-DESIGN.md §3.3, and added deliberately in M2.
+  ///
+  /// FR-F5 allocates weekly minutes per mission OR skill, and plan-vs-actual is
+  /// the point of the feature. Without this column a skill allocation has a
+  /// planned number and no actual to compare it to — the schema would look
+  /// ready while the feature could never be finished. `friction_events` already
+  /// carries skill_id, so the asymmetry read as an oversight rather than a rule.
+  ///
+  /// Optional at start, and never asked for twice: the picker that already sets
+  /// mission and resource sets this too, so the ≤5s capture budget is unchanged
+  /// (§7.1). In M4 lessons make session→skill derivable and this becomes the
+  /// fallback rather than the only source.
+  skillId        String?   @map("skill_id") @db.Uuid
   /// "What does done look like for this block?" — one field, asked at start.
   intention      String?
   startedAt      DateTime  @map("started_at") @db.Timestamptz(6)
@@ -314,10 +346,12 @@ model FocusSession {
   task     Task?           @relation(fields: [taskId], references: [id], onDelete: SetNull)
   mission  Mission?        @relation(fields: [missionId], references: [id], onDelete: SetNull)
   resource Resource?       @relation(fields: [resourceId], references: [id], onDelete: SetNull)
+  skill    Skill?          @relation(fields: [skillId], references: [id], onDelete: SetNull)
   friction FrictionEvent[]
 
   @@index([userId, startedAt])
   @@index([userId, missionId, startedAt])
+  @@index([userId, skillId, startedAt])
   @@map("focus_sessions")
 }
 
@@ -345,4 +379,164 @@ model FrictionEvent {
   @@index([userId, occurredAt])
   @@index([userId, type, occurredAt])
   @@map("friction_events")
+}
+
+// ============================================================================
+// The weekly rhythm (M2) — TECH-DESIGN.md §3.3, §3.5
+// ============================================================================
+
+/// One week's intent. The row exists as soon as you allocate anything to the
+/// week; a week you never planned simply has no row, which is different from a
+/// week you planned as empty and is worth being able to tell apart.
+model WeeklyPlan {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  /// The week's first day IN THE USER'S TIMEZONE, respecting profiles.week_starts_on
+  /// — Monday for en, Sunday for pt-BR (FR-L5). A date, not a timestamp: a week
+  /// boundary is a calendar fact, and storing it as an instant would make the
+  /// same week land on different days for a traveller.
+  weekStart DateTime @map("week_start") @db.Date
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  profile     Profile            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  allocations WeeklyAllocation[]
+
+  @@unique([userId, weekStart])
+  @@map("weekly_plans")
+}
+
+/// Target minutes against one mission or one skill (FR-F5).
+///
+/// §3.3 gives this `primary key (plan_id, mission_id, skill_id)`, which Postgres
+/// rejects: a primary key column cannot be null, and both of those are. The row
+/// gets its own id instead, and the invariant the composite key was reaching for
+/// — exactly one subject, at most one allocation per subject per week — is
+/// enforced by a check constraint and two partial unique indexes in the
+/// migration. Prisma can express neither, which is why they are hand-written
+/// alongside the RLS policies.
+model WeeklyAllocation {
+  id             String  @id @default(uuid()) @db.Uuid
+  userId         String  @map("user_id") @db.Uuid
+  planId         String  @map("plan_id") @db.Uuid
+  missionId      String? @map("mission_id") @db.Uuid
+  skillId        String? @map("skill_id") @db.Uuid
+  plannedMinutes Int     @map("planned_minutes")
+
+  profile Profile    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plan    WeeklyPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+  mission Mission?   @relation(fields: [missionId], references: [id], onDelete: Cascade)
+  skill   Skill?     @relation(fields: [skillId], references: [id], onDelete: Cascade)
+
+  @@index([userId, planId])
+  @@map("weekly_allocations")
+}
+
+/// The ritual happened (FR-F6). Keyed on the week rather than on a plan,
+/// because reviewing a week you never planned is a legitimate and common thing
+/// to do — the actuals are there either way.
+model WeeklyReview {
+  id              String   @id @default(uuid()) @db.Uuid
+  userId          String   @map("user_id") @db.Uuid
+  weekStart       DateTime @map("week_start") @db.Date
+  completedAt     DateTime @default(now()) @map("completed_at") @db.Timestamptz(6)
+  /// M2's finish line is "three weekly reviews and changed one thing because of
+  /// one" (NORTHSTAR.md §4). That makes the one thing a column rather than a
+  /// sentence buried in a note — it is the only way the finish line is
+  /// observable rather than remembered.
+  changedOneThing String?  @map("changed_one_thing")
+  note            String?
+
+  profile Profile @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, weekStart])
+  @@map("weekly_reviews")
+}
+
+/// The nightly rollup (§3.5, §3.9). Every dashboard reads this and never raw
+/// sessions — 365 rows a year makes the activity grid one indexed query.
+///
+/// Four of §3.5's columns are deliberately absent: reviews_done,
+/// reviews_correct, lessons_completed and artifacts_logged have no source table
+/// until M4–M6, so they could only ever read zero. A zero is a claim that
+/// something was measured, and the grid's layer switcher would offer four
+/// layers that are flat by construction. They arrive with their tables.
+model DailyActivity {
+  userId String   @map("user_id") @db.Uuid
+  /// In the user's timezone, not UTC. A "day" that rolls over at 4pm local is
+  /// a bug, not a rounding difference (§10).
+  day    DateTime @db.Date
+
+  focusMinutes     Int @default(0) @map("focus_minutes")
+  sessionCount     Int @default(0) @map("session_count")
+  /// Intensity-weighted minutes of the sessions that hit friction. These do not
+  /// sum to focusMinutes: a session with no friction contributes to focus and to
+  /// neither of these, which is the honest answer rather than calling it ember.
+  emberMinutes     Int @default(0) @map("ember_minutes")
+  slagMinutes      Int @default(0) @map("slag_minutes")
+  notesCaptured    Int @default(0) @map("notes_captured")
+  /// Distinct resources you held a focus session on. Resources keep a progress
+  /// snapshot rather than a progress log, so "touched" can only mean this until
+  /// there is something dated to count.
+  resourcesTouched Int @default(0) @map("resources_touched")
+
+  /// When the rollup last wrote this row. A stale grid and an empty grid look
+  /// identical without it, and the nightly job is the thing most likely to fail
+  /// silently.
+  rebuiltAt DateTime @default(now()) @map("rebuilt_at") @db.Timestamptz(6)
+
+  profile Profile @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, day])
+  @@map("daily_activity")
+}
+
+/// Which nudges to generate. Keyed by kind so M3's agent runs and M5's decay
+/// warnings need no migration — `config` carries the per-kind knobs, in the
+/// same spirit as resources.progress and goal_targets.target.
+model NotificationPref {
+  userId  String  @map("user_id") @db.Uuid
+  /// weekly_review | stall
+  kind    String
+  enabled Boolean @default(true)
+  /// {"weekday":0,"hour":18} | {"afterDays":12}
+  config  Json    @default("{}")
+
+  profile Profile @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, kind])
+  @@map("notification_prefs")
+}
+
+/// A nudge that has been generated and not yet dismissed.
+///
+/// "Quiet by default" (FR-N4) is a delivery decision, not an off switch: these
+/// surface as a marker and a line inside the app, never as a modal, a push, or
+/// a sound. An app that interrupts your focus session to talk about itself has
+/// failed its own thesis (§14.1 makes the same argument about the changelog).
+model Notification {
+  id          String  @id @default(uuid()) @db.Uuid
+  userId      String  @map("user_id") @db.Uuid
+  /// weekly_review | stall
+  kind        String
+  /// Stable per occurrence — "stall:<missionId>:<weekStart>". The nightly job
+  /// runs every night and would otherwise re-raise the same stall each time.
+  dedupeKey   String  @map("dedupe_key")
+  /// ICU arguments, never text. The message key is `kind`, and the SPA
+  /// translates at render like every other string in the product (§5.2).
+  payload     Json    @default("{}")
+  /// What tapping it should open. Null for nudges that are about the week
+  /// rather than about a thing.
+  subjectType String? @map("subject_type")
+  subjectId   String? @map("subject_id") @db.Uuid
+
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  seenAt      DateTime? @map("seen_at") @db.Timestamptz(6)
+  dismissedAt DateTime? @map("dismissed_at") @db.Timestamptz(6)
+
+  profile Profile @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, dedupeKey])
+  @@index([userId, dismissedAt, createdAt])
+  @@map("notifications")
 }
