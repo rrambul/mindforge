@@ -5,6 +5,8 @@
   "frontier": "Frontier",
   "mission": "Mission",
   "mission_plural": "Missions",
+  "skill": "Skill",
+  "skill_plural": "Skills",
   "focusSession": "Focus session",
   "band": {
     "aware": "Aware",

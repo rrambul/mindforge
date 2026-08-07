@@ -1,4 +1,9 @@
-import { useId, type InputHTMLAttributes, type TextareaHTMLAttributes } from "react";
+import {
+  useId,
+  type InputHTMLAttributes,
+  type ReactNode,
+  type TextareaHTMLAttributes,
+} from "react";
 import "./styles/field.css";
 
 interface Shared {
@@ -8,7 +13,23 @@ interface Shared {
   readonly error?: string | undefined;
 }
 
-type InputProps = Shared & Omit<InputHTMLAttributes<HTMLInputElement>, "className" | "id">;
+type InputProps = Shared &
+  Omit<InputHTMLAttributes<HTMLInputElement>, "className" | "id"> & {
+    /**
+     * The button that submits this one value, drawn on the control's line.
+     *
+     * A slot rather than a sibling in a `Row`, because the alternative put the hint in the flex line
+     * too: a field grid is as wide as its widest row, so one long sentence — "a guess, not a claim…"
+     * under the skill rating — stretched a two-digit box to 500px and pushed its Save button off past
+     * the end of it. Here the hint stays under the pair where it belongs.
+     */
+    readonly action?: ReactNode;
+    /**
+     * `short` caps the box at a few characters. A 0–100 rating or a page number in a full-width
+     * input reads as a field expecting a sentence.
+     */
+    readonly width?: "short";
+  };
 type TextareaProps = Shared & Omit<TextareaHTMLAttributes<HTMLTextAreaElement>, "className" | "id">;
 
 /**
@@ -20,21 +41,32 @@ type TextareaProps = Shared & Omit<TextareaHTMLAttributes<HTMLTextAreaElement>, 
  * border alone says nothing to a screen reader, and WCAG AA is a requirement here rather than an
  * aspiration (REQUIREMENTS.md §7.6).
  */
-export function Field({ label, hint, error, ...rest }: InputProps) {
+export function Field({ label, hint, error, action, width, ...rest }: InputProps) {
   const ids = useFieldIds();
 
+  const control = (
+    <input
+      id={ids.control}
+      className="mf-field__control"
+      aria-invalid={error ? true : undefined}
+      aria-describedby={ids.describedBy(hint, error)}
+      {...rest}
+    />
+  );
+
   return (
-    <div className="mf-field">
+    <div className="mf-field" {...(width === undefined ? {} : { "data-width": width })}>
       <label className="mf-label" htmlFor={ids.control}>
         {label}
       </label>
-      <input
-        id={ids.control}
-        className="mf-field__control"
-        aria-invalid={error ? true : undefined}
-        aria-describedby={ids.describedBy(hint, error)}
-        {...rest}
-      />
+      {action === undefined ? (
+        control
+      ) : (
+        <div className="mf-field__line">
+          {control}
+          {action}
+        </div>
+      )}
       <FieldMessages ids={ids} hint={hint} error={error} />
     </div>
   );

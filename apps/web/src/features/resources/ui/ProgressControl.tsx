@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Button, Field, Row, Text } from "../../../shared/ui/index.js";
+import { Button, CardSection, Field, Row, Text } from "../../../shared/ui/index.js";
 import type { Resource } from "../api/use-resources.js";
 
 interface ProgressControlProps {
@@ -42,42 +42,48 @@ export function ProgressControl({ resource, onMark, pending }: ProgressControlPr
   }
 
   return (
-    <Row>
-      <Field
-        label={t("progress.label", { unit })}
-        type="number"
-        inputMode="numeric"
-        min={0}
-        {...(knownTotal === null ? {} : { max: knownTotal })}
-        value={current}
-        // The current position, so the box shows where you are without pre-filling a value that
-        // would be re-submitted unchanged by a stray tap on Save.
-        placeholder={String(resource.progress?.current ?? 0)}
-        onChange={(event) => setCurrent(event.target.value)}
-        onKeyDown={(event) => {
-          if (event.key === "Enter") {
-            event.preventDefault();
-            submit();
-          }
-        }}
-      />
-
-      {knownTotal === null ? (
+    // Its own section: this is the one thing on the card you type into, and under `Card`'s even gap
+    // it sat between the position text and the link chips looking like more of the same.
+    <CardSection>
+      <Row>
         <Field
-          label={t("progress.unknownTotal")}
+          label={t("progress.label", { unit })}
           type="number"
           inputMode="numeric"
-          min={1}
-          value={total}
-          onChange={(event) => setTotal(event.target.value)}
+          min={0}
+          {...(knownTotal === null ? {} : { max: knownTotal })}
+          value={current}
+          // The current position, so the box shows where you are without pre-filling a value that
+          // would be re-submitted unchanged by a stray tap on Save.
+          placeholder={String(resource.progress?.current ?? 0)}
+          onChange={(event) => setCurrent(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") {
+              event.preventDefault();
+              submit();
+            }
+          }}
         />
-      ) : (
-        <Text tone="muted">{t("progress.of", { total: knownTotal })}</Text>
-      )}
 
-      <Button onClick={submit} disabled={!valid || pending}>
-        {t("progress.action")}
-      </Button>
-    </Row>
+        {knownTotal === null ? (
+          <Field
+            label={t("progress.unknownTotal")}
+            type="number"
+            inputMode="numeric"
+            min={1}
+            value={total}
+            onChange={(event) => setTotal(event.target.value)}
+          />
+        ) : (
+          <Text as="span" tone="muted">
+            {t("progress.of", { total: knownTotal })}
+          </Text>
+        )}
+
+        <Button onClick={submit} disabled={!valid || pending}>
+          {t("progress.action")}
+        </Button>
+      </Row>
+    </CardSection>
   );
 }

@@ -262,7 +262,10 @@ export default ts.config([
   // before and around the build, so they cannot depend on it. Type-aware linting is
   // disabled because there is no project to type them against.
   {
-    files: ["scripts/**/*.mjs"],
+    // Flat-config `files` are resolved against this file's directory, not eslint's
+    // cwd, so the per-app scripts need their own pattern — `scripts/**` alone matches
+    // only the repo-root ones and apps/web/scripts would lint under the browser config.
+    files: ["scripts/**/*.mjs", "apps/*/scripts/**/*.mjs"],
     ...ts.configs.disableTypeChecked,
     languageOptions: {
       // `disableTypeChecked` switches off the type-aware *rules*, but the parser

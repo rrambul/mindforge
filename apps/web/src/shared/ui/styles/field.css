@@ -16,6 +16,20 @@
   box-sizing: border-box;
 }
 
+/* The control and the button that submits it, on one line. */
+.mf-field__line {
+  display: flex;
+  align-items: center;
+  gap: var(--mf-space-2);
+  /* Wraps rather than shrinks — the button must not be squeezed under the touch floor (§5.1). */
+  flex-wrap: wrap;
+}
+
+/* A few characters wide. A 0–100 rating in a full-width box reads as a field expecting a sentence. */
+.mf-field[data-width="short"] .mf-field__control {
+  width: 6rem;
+}
+
 textarea.mf-field__control {
   min-height: calc(var(--mf-touch-min) * 2);
   line-height: var(--mf-leading-body);

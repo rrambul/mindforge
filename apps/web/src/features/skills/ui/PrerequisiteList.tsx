@@ -1,9 +1,16 @@
 import { allPrerequisites, type PrereqEdge } from "@mindforge/core";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Button, Row, Select, StatusChip, Text } from "../../../shared/ui/index.js";
+import {
+  Button,
+  CardSection,
+  ChipList,
+  RemovableChip,
+  Row,
+  Select,
+  Text,
+} from "../../../shared/ui/index.js";
 import type { Skill } from "../api/use-skills.js";
-import "./skill-card.css";
 
 interface PrerequisiteListProps {
   readonly skill: Skill;
@@ -23,6 +30,10 @@ interface PrerequisiteListProps {
  *
  * The exclusion is stated rather than silent, because a name missing from a list with no explanation
  * reads as a bug.
+ *
+ * The chips and the add button share one line. As four stacked rows — a caption, the chips, each with
+ * its own underlined "Remove", then the button — this was the longest block on a card whose actual
+ * content is usually two words.
  */
 export function PrerequisiteList({
   skill,
@@ -55,24 +66,8 @@ export function PrerequisiteList({
   const chosenId = chosen === "" ? (candidates[0]?.id ?? "") : chosen;
 
   return (
-    <>
-      <Text tone="muted">{t("prerequisites.heading")}</Text>
-
-      {skill.prerequisiteIds.length === 0 ? (
-        <Text tone="muted">{t("prerequisites.none")}</Text>
-      ) : (
-        <ul className="mf-prereq-list" aria-label={t("prerequisites.heading")}>
-          {skill.prerequisiteIds.map((prereqId) => (
-            <li key={prereqId}>
-              <StatusChip>{byId.get(prereqId)?.name ?? prereqId}</StatusChip>
-              <Button variant="quiet" onClick={() => onRemove(prereqId)} disabled={pending}>
-                {t("prerequisites.remove")}
-              </Button>
-            </li>
-          ))}
-        </ul>
-      )}
-
+    // The caption is the section's, rather than a muted line of body copy pretending to be a heading.
+    <CardSection label={t("prerequisites.heading")}>
       {adding && candidates.length > 0 ? (
         <>
           <Select
@@ -105,6 +100,26 @@ export function PrerequisiteList({
         </>
       ) : (
         <Row>
+          {skill.prerequisiteIds.length === 0 ? (
+            <Text as="span" tone="muted">
+              {t("prerequisites.none")}
+            </Text>
+          ) : (
+            <ChipList label={t("prerequisites.heading")}>
+              {skill.prerequisiteIds.map((prereqId) => (
+                <li key={prereqId}>
+                  <RemovableChip
+                    removeLabel={t("prerequisites.remove")}
+                    disabled={pending}
+                    onRemove={() => onRemove(prereqId)}
+                  >
+                    {byId.get(prereqId)?.name ?? prereqId}
+                  </RemovableChip>
+                </li>
+              ))}
+            </ChipList>
+          )}
+
           <Button
             variant="quiet"
             onClick={() => setAdding(true)}
@@ -115,6 +130,6 @@ export function PrerequisiteList({
           </Button>
         </Row>
       )}
-    </>
+    </CardSection>
   );
 }

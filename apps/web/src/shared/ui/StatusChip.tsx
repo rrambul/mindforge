@@ -11,12 +11,27 @@ import "./styles/chip.css";
 export function StatusChip({
   children,
   live = false,
+  accent,
 }: {
   readonly children: ReactNode;
   readonly live?: boolean;
+  /**
+   * Ember for the one status that means *in progress* — a resource you are reading, and nothing
+   * else. It matches the colour of that resource's own progress fill, so the chip and the bar are
+   * saying the same thing, and it makes the item you are actually on findable in a long list.
+   *
+   * Deliberately only this one value. Tinting `finished` green and `abandoned` grey would rank the
+   * two, and FR-R5 is explicit that stopping is guilt-free — a palette that moralises about it would
+   * push people back to leaving things `active` forever, which is worse data.
+   */
+  readonly accent?: "ember";
 }) {
   return (
-    <span className="mf-status-chip" {...(live ? { role: "status" } : {})}>
+    <span
+      className="mf-status-chip"
+      {...(accent === undefined ? {} : { "data-accent": accent })}
+      {...(live ? { role: "status" } : {})}
+    >
       {children}
     </span>
   );

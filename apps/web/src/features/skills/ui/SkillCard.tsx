@@ -1,12 +1,20 @@
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { Button, Card, Row, Spread, StatusChip, Text } from "../../../shared/ui/index.js";
+import {
+  Button,
+  Card,
+  CardSection,
+  Heading,
+  Row,
+  Spread,
+  StatusChip,
+  Text,
+} from "../../../shared/ui/index.js";
 import type { Skill } from "../api/use-skills.js";
 import { CalibrationNote } from "./CalibrationNote.js";
 import { PrerequisiteList } from "./PrerequisiteList.js";
 import { RateSkillControl } from "./RateSkillControl.js";
 import { SkillGauge } from "./SkillGauge.js";
-import "./skill-card.css";
 
 interface SkillCardProps {
   readonly skill: Skill;
@@ -25,7 +33,14 @@ interface SkillCardProps {
   readonly note?: ReactNode;
 }
 
-/** Dumb by design: props in, markup out. */
+/**
+ * Dumb by design: props in, markup out.
+ *
+ * The card is built in blocks rather than as one column of evenly spaced parts. It carries five
+ * different kinds of thing — what the skill is, what the evidence says, what you claim, what has to
+ * come first, and what you can do about it — and under a single gap they all had the same weight, so
+ * finding the calibration sentence meant reading everything above it.
+ */
 export function SkillCard({
   skill,
   allSkills,
@@ -44,15 +59,22 @@ export function SkillCard({
     // otherwise hears "article" repeatedly with no way to tell which skill they are on.
     <Card as="article" label={skill.name}>
       <Spread>
-        <Text>{skill.name}</Text>
+        {/* A heading, not body copy: it is the card's title, and it was set in the same type as the
+            description underneath it. */}
+        <Heading level={2}>{skill.name}</Heading>
         {/* Translated from the derived band, never from a stored one — the band moves with decay. */}
         {skill.band === null ? null : <StatusChip>{g(`band.${skill.band}`)}</StatusChip>}
       </Spread>
 
       {skill.description ? <Text tone="muted">{skill.description}</Text> : null}
 
-      <SkillGauge skill={skill} />
-      <CalibrationNote skill={skill} />
+      {/* Evidence and calibration are one thought: the gauge is what has been shown, and the sentence
+          is what that means next to what you claim. Separating them left the gap FR-S5 calls the
+          highest-value thing here floating between two unrelated controls. */}
+      <CardSection label={t("score.label")}>
+        <SkillGauge skill={skill} />
+        <CalibrationNote skill={skill} />
+      </CardSection>
 
       <RateSkillControl skill={skill} pending={pending} onRate={(level) => onRate(skill, level)} />
 
@@ -64,13 +86,15 @@ export function SkillCard({
         onRemove={(prereqId) => onRemovePrerequisite(skill, prereqId)}
       />
 
-      {note}
+      {note === undefined ? null : <CardSection>{note}</CardSection>}
 
-      <Row>
-        <Button variant="quiet" onClick={() => onDelete(skill)} disabled={pending}>
-          {t("delete")}
-        </Button>
-      </Row>
+      <CardSection>
+        <Row>
+          <Button variant="quiet" onClick={() => onDelete(skill)} disabled={pending}>
+            {t("delete")}
+          </Button>
+        </Row>
+      </CardSection>
     </Card>
   );
 }

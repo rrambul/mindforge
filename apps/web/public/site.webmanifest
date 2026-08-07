@@ -1,0 +1,28 @@
+{
+  "name": "Mindforge",
+  "short_name": "Mindforge",
+  "description": "A personal system for tracking learning, attention, and cognitive friction.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#e9ecee",
+  "theme_color": "#f7f9fa",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "type": "image/svg+xml",
+      "sizes": "any"
+    },
+    {
+      "src": "/icon-192.png",
+      "type": "image/png",
+      "sizes": "192x192",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512.png",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "any maskable"
+    }
+  ]
+}

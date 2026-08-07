@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="Mindforge">
+  <title>Mindforge</title>
+  <!--
+    The mark: an M cut square, with the strike running hot at its vertex.
+
+    Drawn on a 32 x 32 grid so every edge lands on a whole pixel at 16 and 32. This
+    file is the source every raster icon is generated from — see
+    scripts/generate-icons.mjs. Edit the two paths here, run `pnpm icons`, and the
+    .ico and .png set follows.
+
+    Colours are literal rather than var(--mf-band-*) because a favicon renders in
+    browser chrome, outside the document, where the token sheet does not exist. They
+    are copied from src/styles/tokens.css and must be changed with it. The in-app
+    mark (src/app/Logo.tsx) reads the tokens directly and is the one that matters for
+    the no-raw-colour rule.
+  -->
+  <style>
+    /*
+      The tab strip follows the browser's theme, not the app's. tokens.css makes dark
+      opt-in via the toggle by product decision, but that decision governs the
+      document — it has no say over the chrome this icon sits in, so here OS
+      preference is the right signal.
+    */
+    .steel { fill: #161d22 }
+    @media (prefers-color-scheme: dark) { .steel { fill: #c9d2d8 } }
+  </style>
+  <defs>
+    <!--
+      The temper run, coolest band at the top down to ember at the point of impact.
+      Straw (#c89a34) is omitted on purpose: sitting between bronze and ember it is a
+      light value in a dark neighbourhood, and at 16px it reads as a hole punched
+      through the letter. The four remaining stops keep the scale's direction, which
+      is the part the ordering encodes.
+    -->
+    <linearGradient id="mf-run" gradientUnits="userSpaceOnUse" x1="16" y1="6" x2="16" y2="24">
+      <stop offset="0" stop-color="#5b87a6" />
+      <stop offset=".28" stop-color="#455d8a" />
+      <stop offset=".55" stop-color="#7c4e66" />
+      <stop offset=".8" stop-color="#b06a33" />
+      <stop offset="1" stop-color="#c2582f" />
+    </linearGradient>
+  </defs>
+  <path class="steel" d="M3 26V6h4l9 12 9-12h4v20h-4V12l-9 12-9-12v14z" />
+  <path fill="url(#mf-run)" d="M7 6l9 12 9-12v6l-9 12-9-12z" />
+</svg>

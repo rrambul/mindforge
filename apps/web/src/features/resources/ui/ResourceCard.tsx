@@ -4,8 +4,11 @@ import {
   Button,
   ButtonLink,
   Card,
+  CardSection,
+  Figure,
+  Heading,
   Row,
-  Spread,
+  Stack,
   StatusChip,
   Text,
 } from "../../../shared/ui/index.js";
@@ -46,46 +49,72 @@ export function ResourceCard({
   const { t: g } = useTranslation("glossary");
 
   const over = resource.status === "finished" || resource.status === "abandoned";
+  const percent = resource.fraction === null ? null : Math.round(resource.fraction * 100);
+  const position = resource.progress && resource.progress.current > 0 ? resource.progress : null;
 
   return (
-    <Card as="article" variant={resource.status === "active" ? "raised" : "muted"}>
-      <Spread>
-        {/* Both translated from stored enum values, never from display text (§5.2). */}
-        <StatusChip>{g(`resourceType.${resource.type}`)}</StatusChip>
-        <StatusChip>{g(`resourceStatus.${resource.status}`)}</StatusChip>
-      </Spread>
+    // Labelled with the title, so a screen-reader user moving between cards by role hears which
+    // resource each one is instead of "article" repeated down the list.
+    <Card
+      as="article"
+      variant={resource.status === "active" ? "raised" : "muted"}
+      label={resource.title}
+    >
+      {/* The two chips sit together above the title rather than at opposite ends of a `Spread`.
+          Pushed apart they were two identically-styled badges with a gap between them, and nothing
+          said which was the type and which was the state; adjacent they read as one line, "Book,
+          Reading". The title then comes first in the reading order it deserves — it is what you are
+          looking for when you scan the library, and it used to be the third thing on the card. */}
+      <Stack gap="tight">
+        <Row>
+          {/* Both translated from stored enum values, never from display text (§5.2). */}
+          <StatusChip>{g(`resourceType.${resource.type}`)}</StatusChip>
+          <StatusChip {...(resource.status === "active" ? { accent: "ember" as const } : {})}>
+            {g(`resourceStatus.${resource.status}`)}
+          </StatusChip>
+        </Row>
 
-      <Text>
-        <span className="mf-resource-title">{resource.title}</span>
-      </Text>
-      {resource.author ? <Text tone="muted">{resource.author}</Text> : null}
+        <Heading level={2}>
+          <span className="mf-resource-title">{resource.title}</span>
+        </Heading>
 
-      {/* A bar only when there is a real fraction. `fraction` is null rather than 0 when the total
+        {resource.author ? <Text tone="muted">{resource.author}</Text> : null}
+      </Stack>
+
+      {/* One line for where you are, instead of the three stacked ones this was: a bar, then a
+          percentage, then the position. They are all the same fact and belong together.
+
+          A bar only when there is a real fraction. `fraction` is null rather than 0 when the total
           is unknown, and rendering an empty bar for it would claim you had made no progress. */}
-      {resource.fraction === null ? null : (
-        <div
-          className="mf-progress-track"
-          role="progressbar"
-          aria-valuenow={Math.round(resource.fraction * 100)}
-          aria-valuemin={0}
-          aria-valuemax={100}
-          aria-label={t("progress.fraction", { percent: Math.round(resource.fraction * 100) })}
-        >
-          <div className="mf-progress-fill" style={{ width: `${resource.fraction * 100}%` }} />
+      {percent === null && position === null ? null : (
+        <div className="mf-resource-progress">
+          {percent === null ? null : (
+            <>
+              <div
+                className="mf-progress-track"
+                role="progressbar"
+                aria-valuenow={percent}
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-label={t("progress.fraction", { percent })}
+              >
+                <div className="mf-progress-fill" style={{ width: `${percent}%` }} />
+              </div>
+              <Figure>{t("progress.fraction", { percent })}</Figure>
+            </>
+          )}
+
+          {position === null ? null : (
+            <Text as="span" tone="muted">
+              {t("progress.atPosition", {
+                unit: position.unit,
+                current: position.current,
+              })}
+              {position.total === null ? "" : ` ${t("progress.of", { total: position.total })}`}
+            </Text>
+          )}
         </div>
       )}
-
-      {resource.progress && resource.progress.current > 0 ? (
-        <Text tone="muted">
-          {t("progress.atPosition", {
-            unit: resource.progress.unit,
-            current: resource.progress.current,
-          })}
-          {resource.progress.total === null
-            ? ""
-            : ` ${t("progress.of", { total: resource.progress.total })}`}
-        </Text>
-      ) : null}
 
       {/* Stated plainly, with no editorial. Abandoning is guilt-free (FR-R5), and the reason is
           data rather than a confession. */}
@@ -97,6 +126,7 @@ export function ResourceCard({
         </Text>
       ) : null}
 
+      {/* Each of these draws its own `CardSection` — a control and a fact stop looking alike. */}
       {over ? null : (
         <ProgressControl
           resource={resource}
@@ -107,32 +137,40 @@ export function ResourceCard({
 
       {links}
 
-      {note}
+      {/* The composer names itself ("Add a note"), so the rule is all the separation it needs. */}
+      {note === undefined ? null : <CardSection>{note}</CardSection>}
 
-      <Row>
-        {resource.url ? (
-          <ButtonLink href={resource.url} target="_blank" variant="quiet">
-            {t("action.open")}
-          </ButtonLink>
-        ) : null}
+      {/* Nothing to act on: something finished with no link has no actions, and an empty row under a
+          rule reads as a control that failed to render. */}
+      {!over || resource.url ? (
+        <CardSection>
+          <Row>
+            {resource.url ? (
+              <ButtonLink href={resource.url} target="_blank">
+                {t("action.open")}
+              </ButtonLink>
+            ) : null}
 
-        {resource.status === "inbox" ? (
-          <Button onClick={() => onQueue(resource)} disabled={pending}>
-            {t("action.queue")}
-          </Button>
-        ) : null}
+            {/* The triage decision on something fresh out of the inbox, so it leads. */}
+            {resource.status === "inbox" ? (
+              <Button variant="primary" onClick={() => onQueue(resource)} disabled={pending}>
+                {t("action.queue")}
+              </Button>
+            ) : null}
 
-        {over ? null : (
-          <>
-            <Button onClick={() => onFinish(resource)} disabled={pending}>
-              {t("action.finish")}
-            </Button>
-            <Button variant="quiet" onClick={() => onAbandon(resource)} disabled={pending}>
-              {t("action.abandon")}
-            </Button>
-          </>
-        )}
-      </Row>
+            {over ? null : (
+              <>
+                <Button onClick={() => onFinish(resource)} disabled={pending}>
+                  {t("action.finish")}
+                </Button>
+                <Button variant="quiet" onClick={() => onAbandon(resource)} disabled={pending}>
+                  {t("action.abandon")}
+                </Button>
+              </>
+            )}
+          </Row>
+        </CardSection>
+      ) : null}
     </Card>
   );
 }

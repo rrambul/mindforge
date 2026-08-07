@@ -1,8 +1,17 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Button, Callout, Row, Select, StatusChip, Text } from "../../../shared/ui/index.js";
+import {
+  Button,
+  Callout,
+  CardSection,
+  ChipList,
+  Label,
+  RemovableChip,
+  Row,
+  Select,
+  Text,
+} from "../../../shared/ui/index.js";
 import type { Resource } from "../api/use-resources.js";
-import "./resource-card.css";
 
 export interface LinkTarget {
   readonly id: string;
@@ -36,6 +45,11 @@ interface ResourceLinksProps {
  * small set you mostly read and occasionally change. Deliberately **not** on the URL capture row — that
  * is the ≤5s path (FR-R2), and triage is what happens later when you have the attention for it. So the
  * link is set from the card, which also means it can be *changed* later rather than only at capture.
+ *
+ * **Missions and skills are listed separately**, each under its own word. They were one flat row of
+ * identical chips, which threw away the only thing the row was there to say: "Rust ownership" and
+ * "Borrowing" looked the same, so you could not tell the mission from the skill without knowing your
+ * own data by heart. Two labelled rows cost one line and answer it outright.
  */
 export function ResourceLinks({
   resource,
@@ -46,6 +60,7 @@ export function ResourceLinks({
   error = null,
 }: ResourceLinksProps) {
   const { t } = useTranslation("resources");
+  const { t: g } = useTranslation("glossary");
   const [adding, setAdding] = useState<"mission" | "skill" | null>(null);
   const [chosen, setChosen] = useState("");
 
@@ -71,7 +86,7 @@ export function ResourceLinks({
   const nothingLinked = resource.missionIds.length === 0 && resource.skillIds.length === 0;
 
   return (
-    <>
+    <CardSection label={t("links.heading")}>
       {error === null ? null : (
         <Callout tone="danger" live>
           {error}
@@ -82,33 +97,45 @@ export function ResourceLinks({
           its absence is worth a sentence — not a nag, just the fact. */}
       {nothingLinked ? <Text tone="muted">{t("links.none")}</Text> : null}
 
-      {nothingLinked ? null : (
-        <ul className="mf-prereq-list" aria-label={t("links.heading")}>
-          {resource.missionIds.map((id) => (
-            <li key={id}>
-              <StatusChip>{missionsById.get(id) ?? id}</StatusChip>
-              <Button
-                variant="quiet"
-                disabled={pending}
-                onClick={() => withMission(resource.missionIds.filter((other) => other !== id))}
-              >
-                {t("links.remove")}
-              </Button>
-            </li>
-          ))}
-          {resource.skillIds.map((id) => (
-            <li key={id}>
-              <StatusChip>{skillsById.get(id) ?? id}</StatusChip>
-              <Button
-                variant="quiet"
-                disabled={pending}
-                onClick={() => withSkill(resource.skillIds.filter((other) => other !== id))}
-              >
-                {t("links.remove")}
-              </Button>
-            </li>
-          ))}
-        </ul>
+      {/* The kind is named once, beside the row, rather than repeated on every chip. Both words come
+          from the glossary, so the library and the missions screen cannot end up calling them
+          different things (§5.2). */}
+      {resource.missionIds.length === 0 ? null : (
+        <Row>
+          <Label>{g("mission_plural")}</Label>
+          <ChipList label={g("mission_plural")}>
+            {resource.missionIds.map((id) => (
+              <li key={id}>
+                <RemovableChip
+                  removeLabel={t("links.remove")}
+                  disabled={pending}
+                  onRemove={() => withMission(resource.missionIds.filter((other) => other !== id))}
+                >
+                  {missionsById.get(id) ?? id}
+                </RemovableChip>
+              </li>
+            ))}
+          </ChipList>
+        </Row>
+      )}
+
+      {resource.skillIds.length === 0 ? null : (
+        <Row>
+          <Label>{g("skill_plural")}</Label>
+          <ChipList label={g("skill_plural")}>
+            {resource.skillIds.map((id) => (
+              <li key={id}>
+                <RemovableChip
+                  removeLabel={t("links.remove")}
+                  disabled={pending}
+                  onRemove={() => withSkill(resource.skillIds.filter((other) => other !== id))}
+                >
+                  {skillsById.get(id) ?? id}
+                </RemovableChip>
+              </li>
+            ))}
+          </ChipList>
+        </Row>
       )}
 
       {adding === null ? (
@@ -163,6 +190,6 @@ export function ResourceLinks({
           </Row>
         </>
       )}
-    </>
+    </CardSection>
   );
 }

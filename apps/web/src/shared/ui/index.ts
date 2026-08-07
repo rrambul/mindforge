@@ -12,9 +12,12 @@
 export { Button, ButtonLink } from "./Button.js";
 export { Callout } from "./Callout.js";
 export { Card } from "./Card.js";
+export { CardSection } from "./CardSection.js";
+export { ChipList } from "./ChipList.js";
 export { ChoiceGroup, type Choice } from "./ChoiceGroup.js";
 export { Field, TextareaField } from "./Field.js";
 export { Heading } from "./Heading.js";
+export { RemovableChip } from "./RemovableChip.js";
 export { Row } from "./Row.js";
 export { Select, type SelectOption } from "./Select.js";
 export { Spread } from "./Spread.js";

@@ -1,9 +1,26 @@
 /* A skill card's own layout. The gauge and the calibration row exist for one screen. */
 
+/* The bar, and the number it stands for, on one line. */
+.mf-gauge-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--mf-space-3);
+}
+
+/* Track and rating mark in one column, so the tick is positioned against the bar's own width
+   rather than the card's — a mark at 90% has to land at 90% of the thing it refers to. */
+.mf-gauge-scale {
+  flex: 1 1 8rem;
+  display: grid;
+  gap: 2px;
+}
+
 .mf-gauge {
   height: 8px;
   border-radius: var(--mf-r);
-  background: var(--mf-scale);
+  /* The token for a gauge track. It was `--mf-scale`, which is the border colour. */
+  background: var(--mf-sunk);
   overflow: hidden;
 }
 
@@ -34,21 +51,32 @@
   height: 8px;
 }
 
+.mf-gauge__mark,
+.mf-gauge__key {
+  /* `--mf-text`, not the `--mf-fg` this used to name: that token does not exist, so the mark
+     painted as transparent and the comparison FR-S5 exists to force was invisible. */
+  background: var(--mf-text);
+  width: 2px;
+}
+
 .mf-gauge__mark {
   position: absolute;
   top: 0;
-  width: 2px;
   height: 100%;
-  background: var(--mf-fg);
   transform: translateX(-1px);
 }
 
-.mf-prereq-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-wrap: wrap;
+/* The same mark, inline in the sentence that says what it is. */
+.mf-gauge__key {
+  display: inline-block;
+  height: 0.8em;
+  vertical-align: -0.05em;
+}
+
+/* Score and interval, kept together on the baseline. */
+.mf-gauge__value {
+  display: inline-flex;
+  align-items: baseline;
   gap: var(--mf-space-2);
-  align-items: center;
+  white-space: nowrap;
 }

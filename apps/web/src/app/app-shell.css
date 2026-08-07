@@ -17,12 +17,27 @@
 }
 
 .mf-brand {
+  /* inline-flex so the mark and the wordmark are laid out by gap rather than by the
+     letter-spacing below, which would otherwise apply between them and put the mark a
+     tracking unit away from a word it is meant to be locked to. */
+  display: inline-flex;
+  align-items: center;
+  gap: var(--mf-space-2);
   font-family: var(--mf-font-display);
   font-size: var(--mf-step-0);
   font-weight: 600;
   letter-spacing: var(--mf-tracking-label);
   text-transform: uppercase;
   color: var(--mf-text);
+}
+
+/* The mark's steel is currentColor, so it inherits --mf-text from .mf-brand and needs
+   no colour of its own. Only its optical alignment is set here: cap height sits a
+   little above the mark's own, and matching them by eye reads better than matching the
+   boxes. */
+.mf-logo {
+  flex: none;
+  translate: 0 -1px;
 }
 
 .mf-main {

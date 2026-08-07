@@ -12,6 +12,67 @@
   white-space: nowrap;
 }
 
+/* The one status that means "in progress", tinted to match its own progress fill. See
+   `StatusChip` for why no other status gets a colour. */
+.mf-status-chip[data-accent="ember"] {
+  border-color: var(--mf-ember);
+  color: var(--mf-ember);
+}
+
+.mf-chip-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--mf-space-2);
+  align-items: center;
+}
+
+/* A name you can take off. Sentence case and body colour, unlike `.mf-status-chip`: this holds a
+   mission's topic or a skill's name, and uppercasing those made them read as statuses. */
+.mf-removable-chip {
+  display: inline-flex;
+  align-items: stretch;
+  border: 1px solid var(--mf-scale);
+  border-radius: var(--mf-r);
+  background: var(--mf-surface);
+  overflow: hidden;
+}
+
+.mf-removable-chip__name {
+  padding: var(--mf-space-1) var(--mf-space-2);
+  font-size: var(--mf-step--1);
+  color: var(--mf-text);
+  /* An id fallback or a long mission topic has to break somewhere. */
+  overflow-wrap: anywhere;
+}
+
+.mf-removable-chip__remove {
+  /* Under the 44px capture floor on purpose — see `RemovableChip`. Above WCAG 2.2's 24px. */
+  min-width: 26px;
+  padding: 0;
+  border: none;
+  border-left: 1px solid var(--mf-scale);
+  background: var(--mf-sunk);
+  color: var(--mf-muted);
+  font-family: var(--mf-font-body);
+  font-size: var(--mf-step-0);
+  line-height: 1;
+  cursor: pointer;
+  transition: background var(--mf-dur-ui) ease;
+}
+
+.mf-removable-chip__remove:hover:not(:disabled) {
+  background: var(--mf-scale);
+  color: var(--mf-text);
+}
+
+.mf-removable-chip__remove:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
 .mf-fieldset {
   margin: 0;
   padding: 0;

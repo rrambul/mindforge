@@ -4,6 +4,21 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>Mindforge</title>
+
+    <!-- The vector mark is the one browsers should prefer: it stays crisp at any tab
+         density and re-inks itself for dark chrome. The .ico is the fallback, and is
+         listed second because order is how a browser picks. -->
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="icon" href="/favicon.ico" sizes="16x16 32x32 48x48" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/site.webmanifest" />
+
+    <!-- One value, not a prefers-color-scheme pair. tokens.css makes dark opt-in via
+         the in-app toggle rather than OS preference, so a phone in dark mode still
+         gets the light shell — and a theme-colour that disagreed would paint the
+         browser's chrome a colour the page never uses. #f7f9fa is --mf-surface,
+         which is what the top bar is actually filled with. -->
+    <meta name="theme-color" content="#f7f9fa" />
   </head>
   <body>
     <div id="root"></div>

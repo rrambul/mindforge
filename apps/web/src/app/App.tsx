@@ -14,6 +14,7 @@ import { Button, Row, StatusChip, Text } from "../shared/ui/index.js";
 import { AppShell, Brand, Nav, type NavItem } from "./AppShell.js";
 import { CommandActions } from "./CommandActions.js";
 import { GoalsScreen } from "./GoalsScreen.js";
+import { Logo } from "./Logo.js";
 import { MissionsScreen } from "./MissionsScreen.js";
 import { createQueryClient, I18nProvider } from "./providers.js";
 import { ResourcesScreen } from "./ResourcesScreen.js";
@@ -113,7 +114,10 @@ function Shell({ signedIn, sessionKnown }: ShellProps) {
         bar={
           <>
             <Row>
-              <Brand>{t("appName")}</Brand>
+              <Brand>
+                <Logo />
+                {t("appName")}
+              </Brand>
               {signedIn ? (
                 <Nav label={t("appName")} items={items} current={screen} onSelect={setScreen} />
               ) : null}
