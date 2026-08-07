@@ -5,3 +5,4 @@
  */
 export { PrismaClient, createPrismaClient } from "./client.js";
 export { claimsFor, runAsUser, type RlsClaims, type RlsTransaction } from "./rls.js";
+export { rebuildDailyActivity, type RollupResult } from "./rollup.js";

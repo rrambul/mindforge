@@ -6,6 +6,9 @@
     "moduleResolution": "NodeNext",
     "noEmit": true
   },
-  "include": ["src/**/*", "test/**/*"],
+  // `scripts/**` is included so the seeds are type-checked and lint-checked like everything else.
+  // `pnpm lint` runs `eslint .`, and a file outside the project makes the type-aware parser error
+  // rather than skip it. tsconfig.build.json leaves them out — they are run with tsx, never built.
+  "include": ["src/**/*", "test/**/*", "scripts/**/*"],
   "exclude": ["node_modules", "dist"]
 }
