@@ -81,6 +81,35 @@ export async function signUp(): Promise<TestUser> {
   return { id: body.user.id, email, accessToken: body.access_token };
 }
 
+/**
+ * Give a user a real timezone and week start.
+ *
+ * The signup trigger inserts nothing but the id, so every test user is `UTC` with a Monday week —
+ * which means a "per user timezone" rollup and a Sunday-start plan grid are both untestable without
+ * this. Written straight through the admin connection rather than through an endpoint: the settings
+ * write path is a thing under test, not a fixture.
+ *
+ * Note that the API reads these into `RequestContext` at request time, so a change here is visible
+ * to the very next request without re-issuing the token.
+ */
+export async function setProfile(
+  db: PrismaClient,
+  userId: string,
+  settings: { timezone?: string; weekStartsOn?: 0 | 1; locale?: string },
+): Promise<void> {
+  await db.$executeRawUnsafe(
+    `update profiles
+        set timezone = coalesce($2, timezone),
+            week_starts_on = coalesce($3, week_starts_on),
+            locale = coalesce($4, locale)
+      where id = $1::uuid`,
+    userId,
+    settings.timezone ?? null,
+    settings.weekStartsOn ?? null,
+    settings.locale ?? null,
+  );
+}
+
 /** Cascades through profiles to every owned row (FR-A4). */
 export async function deleteUsers(db: PrismaClient, ids: readonly string[]): Promise<void> {
   if (ids.length === 0) return;

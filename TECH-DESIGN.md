@@ -562,21 +562,65 @@ create table friction_events (
 create table weekly_plans (
   id         uuid primary key default gen_random_uuid(),
   user_id    uuid not null,
-  week_start date not null,             -- Monday, user's timezone
+  -- The week's first day in the user's timezone, honouring profiles.week_starts_on:
+  -- Monday for en, Sunday for pt-BR (FR-L5). NOT always Monday.
+  week_start date not null,
   unique (user_id, week_start)
 );
 
 create table weekly_allocations (
+  id         uuid primary key default gen_random_uuid(),
   plan_id    uuid not null references weekly_plans(id) on delete cascade,
   user_id    uuid not null,
   mission_id uuid references missions(id) on delete cascade,
   skill_id   uuid references skills(id) on delete cascade,
   planned_minutes integer not null,
-  primary key (plan_id, mission_id, skill_id)
+
+  -- Exactly one subject. An allocation against both would be counted twice by
+  -- plan-vs-actual; against neither is a target with nothing to aim at.
+  constraint weekly_allocations_one_subject
+    check (num_nonnulls(mission_id, skill_id) = 1),
+  -- Zero is the absence of an allocation, not an allocation of nothing.
+  constraint weekly_allocations_minutes_positive check (planned_minutes > 0)
+);
+
+-- At most one allocation per subject per week. Two partial indexes rather than one
+-- unique constraint, because UNIQUE is NULLS DISTINCT by default and would accept
+-- (plan, missionX, NULL) an unlimited number of times.
+create unique index weekly_allocations_plan_mission_key
+  on weekly_allocations (plan_id, mission_id) where skill_id is null;
+create unique index weekly_allocations_plan_skill_key
+  on weekly_allocations (plan_id, skill_id) where mission_id is null;
+
+-- The ritual happened (FR-F6). §6 routes POST /reviews/weekly and this document
+-- previously defined no table for it, so there was nowhere to record what you
+-- decided — and M2's finish line is "three weekly reviews and changed one thing
+-- because of one", which is not observable without one.
+create table weekly_reviews (
+  id           uuid primary key default gen_random_uuid(),
+  user_id      uuid not null,
+  week_start   date not null,
+  completed_at timestamptz not null default now(),
+  changed_one_thing text,          -- the finish line, as a column
+  note         text,
+  unique (user_id, week_start)
 );
 ```
 
+> **Corrected in M2.** `weekly_allocations` was specified with
+> `primary key (plan_id, mission_id, skill_id)` over two nullable columns, which Postgres rejects —
+> every primary-key column is implicitly `not null`, so the table either refuses to be created or
+> forces every allocation to name a mission _and_ a skill, the opposite of FR-F5. The row now carries
+> its own id and the invariant is a check plus two partial unique indexes.
+
 **Index note:** `friction_events` and `focus_sessions` are the analytics hot path. Index `(user_id, occurred_at desc)` and `(user_id, mission_id, occurred_at desc)` on both, plus `(user_id, type, occurred_at desc)` on friction.
+
+**`focus_sessions.skill_id` (added in M2).** Not in the table above as originally written, and added
+because FR-F5 allocates weekly minutes per mission _or skill_ while nothing recorded which skill a
+session was about — a skill allocation had a planned number and no actual to compare it against.
+`friction_events` has carried `skill_id` from the start, so the asymmetry read as an oversight. It is
+optional at capture time and set by the picker that already sets mission and resource, so the ≤5s
+budget is unchanged. In M4 lessons make session→skill derivable and this becomes the fallback.
 
 ### 3.4 Retention and assessment
 
@@ -715,21 +759,61 @@ create table learner_memories (
 );
 
 -- Daily rollup. Powers the activity grid (§3.9) and every dashboard that would
--- otherwise scan raw sessions. Rebuilt nightly per user timezone, and on write.
+-- otherwise scan raw sessions. Rebuilt nightly per user timezone, over a trailing
+-- window rather than yesterday alone — see the note below.
 create table daily_activity (
   user_id          uuid not null,
   day              date not null,          -- in the user's timezone, not UTC
   focus_minutes    integer not null default 0,
   session_count    integer not null default 0,
+  -- Intensity-weighted minutes of the sessions that hit friction (§9.3b). These do
+  -- NOT sum to focus_minutes: a session with no friction contributes to focus and to
+  -- neither of these.
   ember_minutes    integer not null default 0,
   slag_minutes     integer not null default 0,
-  reviews_done     integer not null default 0,
-  reviews_correct  integer not null default 0,
-  lessons_completed integer not null default 0,
   notes_captured   integer not null default 0,
+  -- Distinct resources held a focus session on. Resources keep a progress snapshot
+  -- rather than a progress log, so nothing else dated exists to count.
   resources_touched integer not null default 0,
-  artifacts_logged integer not null default 0,
+  -- A stale grid and an empty grid look identical without this, and a nightly job is
+  -- the thing most likely to fail quietly.
+  rebuilt_at       timestamptz not null default now(),
   primary key (user_id, day)
+);
+
+-- Nudges (FR-N1, FR-N3, FR-N4). Added in M2; §10's job table named the jobs and
+-- nothing defined where their output goes.
+--
+-- "Quiet by default" is a DELIVERY decision, not an off switch. Read as
+-- off-until-enabled the feature ships dead — nobody turns on notifications they have
+-- never seen. These are generated by default and surface as a marker and a line
+-- inside the app: no push, no sound, nothing that can interrupt a focus session.
+-- §14.1 makes the same argument about the changelog.
+create table notification_prefs (
+  user_id  uuid not null,
+  kind     text not null check (kind in ('weekly_review','stall')),
+  enabled  boolean not null default true,
+  config   jsonb not null default '{}',   -- {"weekday":0,"hour":18} | {"afterDays":12}
+  primary key (user_id, kind)
+);
+
+create table notifications (
+  id          uuid primary key default gen_random_uuid(),
+  user_id     uuid not null,
+  kind        text not null check (kind in ('weekly_review','stall')),
+  -- Stable per occurrence: "stall:<missionId>:<weekBucket>". Uniqueness here is what
+  -- makes the nightly job safe to re-run — without it a stall that has been true for
+  -- a week produces seven identical nudges.
+  dedupe_key  text not null,
+  -- ICU arguments, never rendered text. The message key is `kind` and the SPA
+  -- translates at render (§5.2); English baked into the row cannot be read in pt-BR.
+  payload     jsonb not null default '{}',
+  subject_type text,
+  subject_id  uuid,
+  created_at  timestamptz not null default now(),
+  seen_at     timestamptz,
+  dismissed_at timestamptz,
+  unique (user_id, dedupe_key)
 );
 
 create table workspace_files (         -- sync ledger; see §7.4
@@ -743,6 +827,23 @@ create table workspace_files (         -- sync ledger; see §7.4
   primary key (mission_id, path)
 );
 ```
+
+> **`daily_activity` and "derived numbers are never stored".** It is a stored derivation, and the
+> exemption is narrow: it is a **cache**, never authoritative. Nothing decides anything from it,
+> nothing writes it but the rollup, and it rebuilds from raw rows at any moment. The alternative is
+> scanning every session and friction event to draw 365 cells, which is the query that makes an
+> activity grid something you stop opening.
+>
+> **Four columns from the original specification are deferred, not dropped.** `reviews_done`,
+> `reviews_correct`, `lessons_completed` and `artifacts_logged` have no source table until M4–M6, so
+> they could only ever read zero — and a zero is a claim that something was measured. They arrive
+> with the tables that can fill them, and §3.9's layer switcher offers only the layers that have data.
+>
+> **The rollup re-runs over a trailing window, not over yesterday alone.** §9.3 classifies `too_hard`
+> by whether the session produced learning, and the debrief that decides it is often written the next
+> morning — so a day's ember share can change after the day is over. Rebuilding is delete-then-insert
+> over the range, because an upsert can only revise a day upwards and the stale row for a day that is
+> now empty would survive forever.
 
 ### 3.6 Row-level security
 
@@ -840,6 +941,21 @@ So the cell carries two dimensions:
 A heavy, grey-slag cell reads as _"you spent a lot and got little."_ A heavy ember cell reads as real work. An empty cell is neutral — no shading of shame, because rest days are part of the design.
 
 **Layers.** The same grid, switchable: focus time (default), reviews completed, lessons completed, notes captured, artifacts shipped. Cadence patterns are what the grid is genuinely good at surfacing — _"you have never once logged a Saturday"_ is a fact about your life your weekly plan should probably respect.
+
+> **M2 ships two of those five: focus and notes.** Reviews, lessons and artifacts have no source table
+> until M5, M4 and M6. A switcher offering layers that are flat by construction teaches you the grid is
+> decoration, so the unavailable ones are **absent rather than disabled** — the API's layer enum is the
+> two that exist, and asking for a third is a 422 rather than a screen of zeroes claiming you completed
+> no reviews. They arrive with their data.
+
+**Intensity is relative to your own history**, not to an absolute scale: the four steps are quartiles
+of your own non-empty days across the window. A thirty-minute day is a real day for someone whose days
+are thirty minutes, and an absolute scale renders their entire year as the palest shade — which says
+nothing and reads as failure.
+
+**Hue is null, not grey, on a day with no logged friction.** Grey means "you spent a lot and got
+little", which is a measurement. A day you simply did not annotate has not been measured, and shading
+it grey would be a lie about it in exactly the direction §7.2 forbids.
 
 **Consistency, not streaks.** No counter that resets to zero and shames you. The figure alongside the grid is **active days in the last 28** — it degrades gracefully, recovers naturally, and can't be broken by one bad week. (`REQUIREMENTS.md` FR-N5.)
 
@@ -1074,14 +1190,14 @@ NestJS modules, one per bounded context. REST with Zod-validated DTOs from `pack
 | `highlights`  | CRUD, `POST /highlights/:id/promote` → creates a `review_item`                                                                                                                         |
 | `focus`       | `POST /focus/sessions/start`, `POST /:id/stop`, `POST /:id/debrief`, `POST /focus/sessions` (manual/backfill), SSE `GET /focus/live`                                                   |
 | `friction`    | `POST /friction` (single tap), `GET /friction/summary`                                                                                                                                 |
-| `planning`    | `GET/PUT /plans/:weekStart`, `GET /plans/:weekStart/actual`, `POST /reviews/weekly`                                                                                                    |
+| `planning`    | `GET/PUT /plans/:weekStart`, `GET /plans/:weekStart/actual`, `POST /reviews/weekly/:weekStart`, `GET /reviews/weekly`                                                                  |
 | `teach`       | `POST /missions/:id/lessons/generate` → enqueues, `GET /agent-runs/:id` (SSE progress), `POST /missions/:id/sync`, `GET /lessons`, `GET /reference-docs`, `POST /lessons/:id/complete` |
 | `records`     | `GET/POST /learning-records`                                                                                                                                                           |
 | `review`      | `GET /review/queue`, `POST /review/:itemId/answer`                                                                                                                                     |
 | `assessments` | `POST /assessments/generate`, `GET /assessments/:id`, `POST /assessments/:id/answer`, `POST /assessments/:id/submit`, `POST /questions/:id/flag`                                       |
 | `artifacts`   | CRUD                                                                                                                                                                                   |
-| `insights`    | `GET /insights/focus`, `/friction`, `/learning`, `/consumption-vs-retention`, `/backlog`                                                                                               |
-| `account`     | `POST /account/export`, `DELETE /account`                                                                                                                                              |
+| `insights`    | `GET /insights/focus`, `/friction`, `/learning`, `/consumption-vs-retention`, `/backlog`, `/activity`                                                                                  |
+| `account`     | `GET/PATCH /me`, `GET/PUT /me/notification-prefs`, `POST /me/changelog-seen`, `GET /notifications`, `POST /notifications/:id/dismiss`, `POST /account/export`, `DELETE /account`       |
 
 **Long operations never block a request.** Anything touching the LLM returns `202` with an `agent_run_id`; the SPA subscribes to `GET /agent-runs/:id/stream` (SSE) for progress and the terminal result.
 
@@ -1390,6 +1506,67 @@ The conditional clause matters: "too hard" that you _pushed through_ is desirabl
 
 **Suggestions** (FR-C4) are rule-based first — thresholds over recent windows (`tooling > 30% of sessions on mission X over 14 days` → "spend a session fixing your environment"). Only the _phrasing_ goes near a model, and only in v2. A rule you can read beats an LLM opinion you can't audit.
 
+### 9.3b Ember and slag minutes
+
+Settled in M2, because the weekly review is the first screen that reports it and until then the code
+carried a proxy: every friction event was weighted as one minute, so `emberShare` was a share of the
+_count_ wearing the minutes field. §3.5 stored `ember_minutes` while §3.9 described "a fraction of the
+day's friction", and neither said what the rule was.
+
+**A friction event is a moment, not a duration.** Nothing records how long an interruption cost, and
+asking would break the ≤5s capture budget that makes the data exist at all. So minutes are
+_attributed_ rather than measured:
+
+```
+weight(e)      = e.intensity                    -- 1..5, collected since M1, previously unread
+share(e)       = sessionMinutes × weight(e) / Σ weight
+emberMinutes   = Σ share(e) where classify(e) = productive
+slagMinutes    = Σ share(e) where classify(e) = wasteful
+```
+
+Rounded by largest remainder so the shares sum exactly to the session's minutes — flooring loses a
+minute per session, and a month of rollups drifts entirely into whichever class rounds down.
+
+Three consequences, each a choice rather than a fact:
+
+- **A session with no friction contributes to neither.** Its minutes are focus minutes and nothing
+  else. `emberMinutes + slagMinutes` therefore covers only the sessions that hit friction and does not
+  sum to `focusMinutes`. Calling unexamined time ember would be the flattering answer and the wrong
+  one: an hour you never noticed anything about is not an hour of demonstrated productive struggle.
+- **A tap logged outside any session gets no minutes at all.** It is still counted, and still appears
+  in the top-sources list — the API reports `unattributedEventCount` so the two figures cannot
+  silently disagree with each other.
+- **The classification can change after the fact**, because the debrief that decides `too_hard` may be
+  written the next morning. Any stored rollup must therefore be rebuildable rather than append-only.
+
+`producedLearning` remains an interim proxy reading the session's debrief. CLAUDE.md previously said
+it expires "in M2/M5"; the M2 half cannot, because §9.3's real definition needs learning records or
+passed reviews and neither exists until M4/M5. A session with no debrief classifies as wasteful, by
+design.
+
+### 9.5 Backlog health and stall detection
+
+Also settled in M2. FR-I7 and FR-R6 name the outputs — queue growth versus throughput, abandonment
+rate and reasons, stalled items — with no window, no threshold, and no definition of "stalled". These
+are the definitions:
+
+| Term          | Definition                                                                                             |
+| ------------- | ------------------------------------------------------------------------------------------------------ |
+| Window        | **28 days**, matching the activity grid's "active days in the last 28" so the two figures agree        |
+| Open          | `inbox`, `queued`, `active`. `reference` is neither open nor resolved — a thing you keep is not debt   |
+| Resolved      | `finished` + `abandoned`, dated within the window                                                      |
+| Stalled       | `active` with no focus session for **21 days** — started and not abandoned, so the action is to decide |
+| Mission stall | An **active** mission with no focus session for **12 days** (FR-N3), counted from creation if never    |
+
+"Untouched" means no focus session, never "no write": editing a mission's `why` at midnight is
+thinking about it, not working on it.
+
+**Signals are returned as a key plus its numbers, never a sentence** — the SPA translates (§5.2) — and
+null far more often than not. At most one fires, ordered by what you can act on soonest rather than by
+size: three stalled books is a smaller decision than reversing a month of queue growth. A growing
+queue needs to clear throughput by two, not one; a line about a single book every month is how a user
+learns to stop reading the line.
+
 ### 9.4 ZPD recommendation
 
 Candidate scoring over the skill graph:
@@ -1614,14 +1791,28 @@ Opt-in per release, one tap, never automatic. It closes a loop the product other
 
 Each phase leaves a working, useful app.
 
+> **`NORTHSTAR.md` §4 is the authority on sequencing; this section is the coarse shape.** They
+> disagreed on the weekly rhythm and the north star wins: Phase 1 below listed "weekly plan vs.
+> actual" alongside the capture loop and Phase 3 listed the "weekly review ritual" with retention,
+> while §4 puts both in M2 — deliberately, because the review ritual is the habit loop that stops the
+> app being abandoned at week three, and shipping it two milestones after capture is shipping it too
+> late to do that job. Corrected below.
+
 ### Phase 0 — Skeleton (est. small)
 
 Monorepo, Prisma schema for §3.1/§3.3, RLS + RLS tests, Supabase Auth + Nest guard, SPA shell with routing and the command palette, Railway deploy for `api`/`web`.
 
 ### Phase 1 — The capture loop (the v0 milestone)
 
-Missions · Goals · Skills (manual score only) · Resources with progress and capture-by-URL · Focus timer with intention + debrief · Friction logging · Weekly plan vs. actual · One dashboard · Offline queue · PWA.
+Missions · Goals · Skills (manual score only) · Resources with progress and capture-by-URL · Focus timer with intention + debrief · Friction logging · Notes on anything · Offline queue · PWA.
 **No LLM calls at all.** Ship it, use it for three weeks, and see whether the data is there. If it isn't, no amount of AI fixes the app.
+
+### Phase 1b — The weekly rhythm (M2)
+
+Weekly plan and plan vs. actual · the weekly review ritual · ember/slag by the deterministic rule ·
+backlog health · the activity grid · the nightly rollup · quiet notifications · the in-app changelog.
+Still no LLM calls. This is the phase that decides whether the capture loop from Phase 1 gets used in
+week four.
 
 ### Phase 2 — The teach engine
 
@@ -1630,7 +1821,7 @@ This is the phase where the risky unknowns live — budget accordingly.
 
 ### Phase 3 — Retention and measurement
 
-Review queue (FSRS) · assessments with confidence rating · grading · evidence-based skill scores with decay and confidence intervals · calibration gap · study plans · the insights suite · weekly review ritual.
+Review queue (FSRS) · assessments with confidence rating · grading · evidence-based skill scores with decay and confidence intervals · calibration gap · study plans · the rest of the insights suite (learning analytics, consumption vs. retention, and the three activity-grid layers whose tables land here).
 
 ### Phase 4 — Reduce the friction it measures
 

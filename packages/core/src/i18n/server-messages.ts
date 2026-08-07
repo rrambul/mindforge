@@ -76,6 +76,15 @@ const EN = {
     "{subject, select, resource {That resource} skill {That skill} mission {That mission} other {That}} no longer exists.",
   "error.resource.progress_out_of_range":
     "{total, plural, =0 {That position isn't valid.} other {This has # {unit}, so that position isn't valid.}}",
+  /**
+   * The weekly plan (FR-F5). Parking a mission is a statement that you are not working on it, so
+   * allocating hours to a parked one is a contradiction rather than an oversight — §5.3 excludes
+   * parked missions from allocation and from plan-vs-actual alike.
+   */
+  "error.planning.subject_missing": "That mission or skill no longer exists.",
+  "error.planning.mission_parked":
+    "That mission is parked. Unpark it before planning time against it.",
+  "error.planning.duplicate_subject": "That mission or skill appears twice in this week's plan.",
 } as const;
 
 export type ServerMessageKey = keyof typeof EN;
@@ -132,6 +141,11 @@ const PT_BR: Readonly<Record<ServerMessageKey, string>> = {
     "{subject, select, resource {Esse recurso} skill {Essa habilidade} mission {Essa missão} other {Isso}} não existe mais.",
   "error.resource.progress_out_of_range":
     "{total, plural, =0 {Essa posição não é válida.} other {Isto tem # {unit}, então essa posição não é válida.}}",
+  "error.planning.subject_missing": "Essa missão ou habilidade não existe mais.",
+  "error.planning.mission_parked":
+    "Essa missão está pausada. Retome antes de planejar tempo para ela.",
+  "error.planning.duplicate_subject":
+    "Essa missão ou habilidade aparece duas vezes no plano da semana.",
 };
 
 const CATALOG: Readonly<Record<Locale, Readonly<Record<ServerMessageKey, string>>>> = {

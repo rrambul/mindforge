@@ -146,9 +146,15 @@ Ten steps. Each is a week or three of evenings, ships something usable, and has 
 - **Activity grid**: intensity = minutes, hue = ember share; layers for reviews, lessons, notes; consistency over streaks (FR-I6b)
 - Nightly rollup job into `daily_activity`, per user timezone
 - Notifications: weekly review time, stall detection — quiet by default
-- **In-app changelog** (Settings → What's new) with an unseen-entries marker; optional one-tap Artifact logging per release
+- **In-app changelog** (Settings → What's new) with an unseen-entries marker
+- Two carryovers M2 cannot be built honestly without: **`seed:minimal` / `seed:rich`** (an M0 bullet — the grid and the insights are undesignable against an empty database) and **a settings write path**, since `profiles` was read-only over the API and "per user timezone" described a column nobody could set
 
 **Done when:** you've done three weekly reviews and changed one thing because of one.
+
+> **Deferred out of M2:** the optional one-tap **Artifact** logging per release (`TECH-DESIGN.md`
+> §14.1). It needs the `artifacts` table, which is the wisdom pillar and belongs with the rest of
+> M6 — shipping an artifacts surface with one caller, ahead of its milestone, to serve a changelog
+> bullet is backwards. The changelog itself ships.
 
 ---
 
