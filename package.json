@@ -37,6 +37,11 @@
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.66.0"
   },
+  "pnpm": {
+    "peerDependencyRules": {
+      "_comment": "@swc-node/register declares `typescript: >= 4.3 < 7` as a peer and nothing in the two Nest apps declared TypeScript at all, so pnpm satisfied it from whatever else was in scope — 5.9.3 in apps/api (via @nestjs/cli) and 7.0.2 in apps/worker (via prisma). 7 is outside its own range, and its loader reads `ts.Extension.Js`, which TS 7's CommonJS shape does not have: the worker crashed at loader init with `Cannot read properties of undefined (reading 'Js')`. Nothing caught it because turbo's `dev` task is persistent, so it surfaced only as a restart line in the TUI. Both apps now declare typescript explicitly at the pinned version; this block documents why they must keep doing so."
+    }
+  },
   "lint-staged": {
     "*.{ts,tsx,js,mjs}": [
       "eslint --fix --max-warnings=0 --no-warn-ignored",
