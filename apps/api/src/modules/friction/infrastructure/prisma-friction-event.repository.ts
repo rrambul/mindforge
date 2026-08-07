@@ -1,4 +1,5 @@
 import {
+  elapsedMinutes,
   FRICTION_TYPES,
   producedLearning,
   type FrictionType,
@@ -119,9 +120,11 @@ export class PrismaFrictionEventRepository implements FrictionEventRepository {
           type: true,
           intensity: true,
           occurredAt: true,
-          // The outcome the classification turns on. Joined rather than fetched per event:
-          // classifying 200 events would otherwise be 200 extra queries.
-          session: { select: { hitIntention: true } },
+          sessionId: true,
+          // The outcome the classification turns on, and the length the split divides. Joined
+          // rather than fetched per event: classifying 200 events would otherwise be 200 extra
+          // queries.
+          session: { select: { hitIntention: true, startedAt: true, endedAt: true } },
         },
       });
 
@@ -132,6 +135,14 @@ export class PrismaFrictionEventRepository implements FrictionEventRepository {
                 type: row.type,
                 intensity: row.intensity,
                 occurredAt: row.occurredAt,
+                sessionId: row.sessionId,
+                // `elapsedMinutes` rather than arithmetic here: it floors, and a second rounding
+                // rule in this file would make a 59.6-minute session 60 minutes to the split and
+                // 59 everywhere else.
+                sessionMinutes:
+                  row.session?.endedAt == null
+                    ? null
+                    : elapsedMinutes(row.session.startedAt, row.session.endedAt),
                 sessionProducedLearning:
                   row.session === null
                     ? null

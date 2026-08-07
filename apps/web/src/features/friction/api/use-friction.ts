@@ -1,4 +1,4 @@
-import type { FrictionType, LogFrictionInput } from "@mindforge/core";
+import type { FrictionSplit, FrictionType, LogFrictionInput } from "@mindforge/core";
 import {
   useMutation,
   useQuery,
@@ -47,11 +47,18 @@ export function useFrictionChips(enabled: boolean): UseQueryResult<ChipsResponse
   });
 }
 
-export interface SummaryResponse {
-  readonly productiveMinutes: number;
-  readonly wastefulMinutes: number;
-  readonly emberShare: number | null;
+/**
+ * Extends the core type rather than restating it.
+ *
+ * The three split fields were hand-copied here and had already drifted: they still read
+ * `productiveMinutes`/`wastefulMinutes` after the M2 rule renamed them to ember and slag, and
+ * nothing caught it because a hand-written response interface is a claim about the server, not a
+ * check on one. Anchoring to `FrictionSplit` makes the next rename a type error here.
+ */
+export interface SummaryResponse extends FrictionSplit {
   readonly eventCount: number;
+  /** Taps logged outside a session, or inside one still running — counted, but given no minutes. */
+  readonly unattributedEventCount: number;
   readonly byType: Readonly<Partial<Record<string, number>>>;
 }
 

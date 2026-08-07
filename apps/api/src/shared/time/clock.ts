@@ -1,43 +1,15 @@
-import { Injectable } from "@nestjs/common";
-
 /**
- * Time as a dependency.
+ * Time as a dependency — the Nest half.
  *
- * Every "day", "week", and nightly rollup in this product derives from the
- * user's IANA timezone rather than server-local time, and none of that is
- * testable if a use case can reach for the wall clock. The repo-wide ESLint rule
- * banning an argless `new Date()` is the enforcement; this is the one sanctioned
- * exception.
+ * The port and both implementations moved to `@mindforge/core` in M2, when the nightly rollup gave
+ * them a second consumer in `apps/worker`. What stays here is the one part that is genuinely about
+ * this app: the injection token. A DI token is a fact about a framework, and `packages/core` is
+ * imported by the SPA.
+ *
+ * Re-exported rather than left to be imported from two places, so `@Inject(CLOCK) clock: Clock`
+ * remains one import line and nothing has to know the port emigrated.
  */
-export interface Clock {
-  now(): Date;
-}
+
+export { FixedClock, SystemClock, type Clock } from "@mindforge/core";
 
 export const CLOCK = Symbol("Clock");
-
-@Injectable()
-export class SystemClock implements Clock {
-  now(): Date {
-    // The single place in the codebase allowed to read the wall clock. Everything
-    // else injects Clock, which is what makes timezone-derived rollups testable.
-    // eslint-disable-next-line no-restricted-syntax
-    return new Date();
-  }
-}
-
-/** For tests: a clock that does not move unless you move it. */
-export class FixedClock implements Clock {
-  constructor(private current: Date) {}
-
-  now(): Date {
-    return new Date(this.current.getTime());
-  }
-
-  set(instant: Date): void {
-    this.current = instant;
-  }
-
-  advance(ms: number): void {
-    this.current = new Date(this.current.getTime() + ms);
-  }
-}

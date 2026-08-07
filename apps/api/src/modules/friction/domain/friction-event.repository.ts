@@ -8,11 +8,20 @@ export interface FrictionFilter {
   readonly missionId?: string | undefined;
 }
 
-/** One row per event, joined to its session's outcome so friction can be classified. */
+/** One row per event, joined to its session so friction can be classified and attributed. */
 export interface ClassifiableFrictionEvent {
   readonly type: FrictionType;
   readonly intensity: number;
   readonly occurredAt: Date;
+  /** Null for a standalone tap — one logged outside any session. */
+  readonly sessionId: string | null;
+  /**
+   * The session's own length. Null when there was no session, or when it is still running.
+   *
+   * This is what the ember/slag split divides among a session's events (§9.3 as settled in M2):
+   * friction events are moments, so the minutes are the session's, attributed by intensity.
+   */
+  readonly sessionMinutes: number | null;
   /**
    * Null when the event was logged outside a session, or the session has no debrief yet.
    * `classifyFriction` treats absent as "did not produce learning", which is the honest

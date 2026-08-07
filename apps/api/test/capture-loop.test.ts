@@ -269,24 +269,83 @@ describe("friction (FR-C1, FR-C2)", () => {
   it("computes the ember share from the session's outcome, not from a stored column", async () => {
     // The same type, opposite meanings, decided by whether the block arrived anywhere. This is
     // the product's headline distinction and it is derived on every read.
-    const session = await startSession(alice);
+    //
+    // Backfilled rather than started-and-stopped, because since M2 the split divides the session's
+    // own minutes: a session that lasts no time attributes none, and the flip would be invisible.
+    const session = JSON.parse(
+      (
+        await post("/v1/focus/sessions", alice, {
+          startedAt: "2026-08-05T09:00:00.000Z",
+          endedAt: "2026-08-05T10:00:00.000Z",
+          hitIntention: "yes",
+        })
+      ).body,
+    ) as SessionResponse;
     await post("/v1/friction", alice, { type: "too_hard", sessionId: session.id });
-    await post(`/v1/focus/sessions/${session.id}/stop`, alice);
-    await post(`/v1/focus/sessions/${session.id}/debrief`, alice, { hitIntention: "yes" });
 
     const productive = JSON.parse((await get("/v1/friction/summary", alice)).body) as {
       emberShare: number | null;
+      emberMinutes: number;
       eventCount: number;
     };
     expect(productive.emberShare).toBe(1);
+    expect(productive.emberMinutes).toBe(60);
     expect(productive.eventCount).toBe(1);
 
     // Now say the block went nowhere. The same event flips to slag.
     await post(`/v1/focus/sessions/${session.id}/debrief`, alice, { hitIntention: "no" });
     const wasted = JSON.parse((await get("/v1/friction/summary", alice)).body) as {
       emberShare: number | null;
+      slagMinutes: number;
     };
     expect(wasted.emberShare).toBe(0);
+    expect(wasted.slagMinutes).toBe(60);
+  });
+
+  it("divides one session's minutes among its events by intensity", async () => {
+    // The M2 rule end to end: an hour with one shrugged-off interruption and one bruising stretch
+    // of productive struggle was mostly the second thing.
+    const session = JSON.parse(
+      (
+        await post("/v1/focus/sessions", alice, {
+          startedAt: "2026-08-05T09:00:00.000Z",
+          endedAt: "2026-08-05T10:00:00.000Z",
+        })
+      ).body,
+    ) as SessionResponse;
+    await post("/v1/friction", alice, {
+      type: "interruption",
+      intensity: 1,
+      sessionId: session.id,
+    });
+    await post("/v1/friction", alice, {
+      type: "productive_struggle",
+      intensity: 5,
+      sessionId: session.id,
+    });
+
+    const summary = JSON.parse((await get("/v1/friction/summary", alice)).body) as {
+      emberMinutes: number;
+      slagMinutes: number;
+    };
+    expect(summary).toMatchObject({ emberMinutes: 50, slagMinutes: 10 });
+  });
+
+  it("counts a standalone tap but gives it no minutes", async () => {
+    // No session means no duration to divide. It still shows up in the count and in the
+    // top-sources list, so the two numbers cannot silently disagree with each other.
+    await post("/v1/friction", alice, { type: "tooling" });
+
+    const summary = JSON.parse((await get("/v1/friction/summary", alice)).body) as {
+      eventCount: number;
+      unattributedEventCount: number;
+      emberShare: number | null;
+    };
+    expect(summary).toMatchObject({
+      eventCount: 1,
+      unattributedEventCount: 1,
+      emberShare: null,
+    });
   });
 
   it("reports a null ember share when nothing has been logged", async () => {

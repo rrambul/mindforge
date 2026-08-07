@@ -4,6 +4,10 @@
  * Deliberately deterministic, with no model call: a rule you can read beats an
  * LLM opinion you cannot audit, and this number drives the app's headline
  * metric. See TECH-DESIGN.md §9.3.
+ *
+ * This file owns the *rule*. Turning classified events into ember and slag
+ * minutes is arithmetic with its own set of choices, and lives next door in
+ * `split.ts`.
  */
 
 export const FRICTION_TYPES = [
@@ -43,31 +47,4 @@ export function classifyFriction(type: FrictionType, outcome: SessionOutcome): F
   if (ALWAYS_PRODUCTIVE.has(type)) return "productive";
   if (CONDITIONAL.has(type) && outcome.producedLearning) return "productive";
   return "wasteful";
-}
-
-export interface FrictionSplit {
-  readonly productiveMinutes: number;
-  readonly wastefulMinutes: number;
-  /** Productive share of classified friction, 0–1. Null when there is none. */
-  readonly emberShare: number | null;
-}
-
-export function frictionSplit(
-  events: readonly { type: FrictionType; minutes: number; outcome: SessionOutcome }[],
-): FrictionSplit {
-  let productiveMinutes = 0;
-  let wastefulMinutes = 0;
-
-  for (const e of events) {
-    if (e.minutes < 0) throw new RangeError(`minutes must be >= 0, received ${e.minutes}`);
-    if (classifyFriction(e.type, e.outcome) === "productive") productiveMinutes += e.minutes;
-    else wastefulMinutes += e.minutes;
-  }
-
-  const total = productiveMinutes + wastefulMinutes;
-  return {
-    productiveMinutes,
-    wastefulMinutes,
-    emberShare: total === 0 ? null : productiveMinutes / total,
-  };
 }

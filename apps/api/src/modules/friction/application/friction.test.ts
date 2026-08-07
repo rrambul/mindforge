@@ -201,11 +201,28 @@ describe("GetFrictionSummary", () => {
     summary = new GetFrictionSummary(events);
   });
 
+  /**
+   * One event in its own 60-minute session, unless a session is named.
+   *
+   * A session of its own by default because the split divides a session's minutes among its
+   * events: two events sharing a session share those minutes, and two events that disagree about
+   * `producedLearning` cannot be in the same session at all.
+   */
+  let nextSession = 0;
   function event(
     type: FrictionType,
     sessionProducedLearning: boolean | null,
+    options: { sessionId?: string | null; sessionMinutes?: number | null; intensity?: number } = {},
   ): ClassifiableFrictionEvent {
-    return { type, intensity: 3, occurredAt: NOW, sessionProducedLearning };
+    nextSession += 1;
+    return {
+      type,
+      intensity: options.intensity ?? 3,
+      occurredAt: NOW,
+      sessionId: options.sessionId === undefined ? `session-${nextSession}` : options.sessionId,
+      sessionMinutes: options.sessionMinutes === undefined ? 60 : options.sessionMinutes,
+      sessionProducedLearning,
+    };
   }
 
   it("reports no ember share when there is nothing to report", async () => {
@@ -249,6 +266,56 @@ describe("GetFrictionSummary", () => {
     const result = await summary.execute(ALICE, {});
     expect(result.byType).toEqual({ tooling: 2, interruption: 1 });
     expect(result.eventCount).toBe(3);
+  });
+
+  it("divides one session's minutes among its own events, weighted by intensity", async () => {
+    // The rule the M1 proxy stood in for. Two events in one 60-minute session, weights 1 and 5.
+    events.classifiable = [
+      event("interruption", false, { sessionId: "s1", intensity: 1 }),
+      event("productive_struggle", false, { sessionId: "s1", intensity: 5 }),
+    ];
+    await expect(summary.execute(ALICE, {})).resolves.toMatchObject({
+      emberMinutes: 50,
+      slagMinutes: 10,
+    });
+  });
+
+  it("does not let one long session's minutes leak into another's split", async () => {
+    // Grouping is what makes this true. Flattening every event into one bucket would attribute the
+    // 240-minute session's minutes to the 20-minute session's tooling event.
+    events.classifiable = [
+      event("productive_struggle", false, { sessionId: "long", sessionMinutes: 240 }),
+      event("tooling", false, { sessionId: "short", sessionMinutes: 20 }),
+    ];
+    await expect(summary.execute(ALICE, {})).resolves.toMatchObject({
+      emberMinutes: 240,
+      slagMinutes: 20,
+    });
+  });
+
+  it("counts a standalone tap but attributes it no minutes", async () => {
+    // There is no duration to divide. Dropping it silently would make the two minute figures
+    // disagree with the event count above them for no visible reason.
+    events.classifiable = [event("tooling", null, { sessionId: null, sessionMinutes: null })];
+    const result = await summary.execute(ALICE, {});
+    expect(result).toMatchObject({
+      eventCount: 1,
+      unattributedEventCount: 1,
+      emberMinutes: 0,
+      slagMinutes: 0,
+      emberShare: null,
+    });
+    expect(result.byType).toEqual({ tooling: 1 });
+  });
+
+  it("attributes nothing from a session that is still running", async () => {
+    // A running session has a start and no end, so its length is not a number yet. It arrives in
+    // the split when it stops.
+    events.classifiable = [event("tooling", null, { sessionId: "live", sessionMinutes: null })];
+    await expect(summary.execute(ALICE, {})).resolves.toMatchObject({
+      unattributedEventCount: 1,
+      emberShare: null,
+    });
   });
 });
 

@@ -4,9 +4,11 @@ import {
   frictionSplit,
   type AttributeFrictionInput,
   type FrictionChips,
+  type FrictionMoment,
   type FrictionSplit,
   type FrictionSummaryQuery,
   type LogFrictionInput,
+  type SessionFriction,
 } from "@mindforge/core";
 import { Inject, Injectable } from "@nestjs/common";
 import { ID_GENERATOR, type IdGenerator } from "../../../shared/ids/id-generator.js";
@@ -91,6 +93,24 @@ export class GetFrictionChips {
 export interface FrictionSummary extends FrictionSplit {
   readonly eventCount: number;
   readonly byType: Partial<Record<string, number>>;
+  /**
+   * Events that got no minutes — logged outside a session, or inside one still running.
+   *
+   * Reported rather than dropped. They are counted in `eventCount` and in `byType`, so "tooling is
+   * your top source" still includes them, but they cannot be in `emberMinutes` or `slagMinutes`
+   * because there is no duration to divide. A summary that silently omitted them would make the
+   * two numbers disagree with the count above them for no visible reason.
+   */
+  readonly unattributedEventCount: number;
+}
+
+/**
+ * `SessionFriction` is readonly all the way down, which is right for a value crossing into
+ * packages/core and wrong for the accumulator that builds one. This is the same shape with the
+ * array open, so the grouping loop can push without a cast.
+ */
+interface MutableSessionFriction extends Omit<SessionFriction, "events"> {
+  readonly events: FrictionMoment[];
 }
 
 /**
@@ -99,11 +119,10 @@ export interface FrictionSummary extends FrictionSplit {
  * Computed here from a deterministic rule, never read from a stored column — a rule you can
  * read beats a number you have to trust, and this one drives the app's headline metric.
  *
- * `minutes` is 1 per event rather than a real duration, and that is a known simplification
- * worth naming: friction events are moments, not intervals, so the split is currently a *count*
- * share dressed in the minutes field. Weighting by intensity or by the gap between consecutive
- * events would both be inventions. The honest version arrives with the weekly review (M2),
- * which is the first screen that reports it.
+ * Until M2 the `minutes` fed to `frictionSplit` was 1 per event, so the "share of minutes" was a
+ * share of the *count* wearing the minutes field. It is now real: a session's own length divided
+ * among its events in proportion to intensity, which is why the rows are grouped by session here
+ * before the split sees them. The rule and the reasoning live in `packages/core/src/friction/split.ts`.
  */
 @Injectable()
 export class GetFrictionSummary {
@@ -115,19 +134,32 @@ export class GetFrictionSummary {
     const rows = await this.events.listClassifiable(userId, query);
 
     const byType: Record<string, number> = {};
+    const bySession = new Map<string, MutableSessionFriction>();
+    let unattributedEventCount = 0;
+
     for (const row of rows) {
       byType[row.type] = (byType[row.type] ?? 0) + 1;
+
+      if (row.sessionId === null || row.sessionMinutes === null) {
+        unattributedEventCount += 1;
+        continue;
+      }
+
+      let session = bySession.get(row.sessionId);
+      if (session === undefined) {
+        session = {
+          minutes: row.sessionMinutes,
+          outcome: { producedLearning: row.sessionProducedLearning ?? false },
+          events: [],
+        };
+        bySession.set(row.sessionId, session);
+      }
+      session.events.push({ type: row.type, intensity: row.intensity });
     }
 
-    const split = frictionSplit(
-      rows.map((row) => ({
-        type: row.type,
-        minutes: 1,
-        outcome: { producedLearning: row.sessionProducedLearning ?? false },
-      })),
-    );
+    const split = frictionSplit(bySession.values());
 
-    return { ...split, eventCount: rows.length, byType };
+    return { ...split, eventCount: rows.length, byType, unattributedEventCount };
   }
 }
 
