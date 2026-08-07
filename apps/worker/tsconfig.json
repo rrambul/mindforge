@@ -1,6 +1,10 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
+    // Explicit, like packages/db. The worker is a bare Node process — no DOM, no Nest HTTP — so
+    // `process`, `setTimeout` and `URL` come from here and nowhere else, and leaving it to tsc's
+    // automatic @types discovery made it depend on where pnpm happened to link the package.
+    "types": ["node"],
     "outDir": "./dist",
     "rootDir": "./src",
     "module": "NodeNext",
