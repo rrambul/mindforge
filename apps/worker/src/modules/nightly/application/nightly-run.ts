@@ -4,7 +4,9 @@ import {
   detectStalls,
   localDay,
   localHour,
+  StallPayloadSchema,
   startOfWeek,
+  WeeklyReviewPayloadSchema,
   type Clock,
   type IsoDate,
   type StallConfig,
@@ -161,9 +163,13 @@ export class NightlyRun {
           userId: profile.userId,
           kind: "stall" as const,
           dedupeKey: stall.dedupeKey,
-          // Arguments, not a sentence. The SPA renders the `stall` message key in the user's own
-          // locale (§5.2), and English baked into this row could never be read in pt-BR.
-          payload: { topic, untouchedDays: stall.untouchedDays },
+          // Built through the shared schema, not by hand. This wrote `{ topic, untouchedDays }`
+          // while the SPA read `missionTopic` — so every nudge rendered "a mission has gone quiet"
+          // and lost the one thing FR-N3 exists to say, with both suites green because each
+          // asserted its own spelling. Arguments, not a sentence: the SPA renders the message in
+          // the user's own locale (§5.2), and English baked into this row could never be read in
+          // pt-BR.
+          payload: StallPayloadSchema.parse({ missionTopic: topic, days: stall.untouchedDays }),
           subjectType: "mission",
           subjectId: stall.missionId,
         },
@@ -193,7 +199,7 @@ export class NightlyRun {
         userId: profile.userId,
         kind: "weekly_review",
         dedupeKey: `weekly_review:${weekStart}`,
-        payload: { weekStart },
+        payload: WeeklyReviewPayloadSchema.parse({ weekStart }),
         subjectType: null,
         subjectId: null,
       },

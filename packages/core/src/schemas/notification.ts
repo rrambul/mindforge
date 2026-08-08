@@ -77,3 +77,34 @@ export type UpdateNotificationPrefsInput = z.infer<typeof UpdateNotificationPref
 export function defaultNotificationPrefs(): readonly NotificationPref[] {
   return NOTIFICATION_KINDS.map((kind) => NotificationPrefSchema.parse({ kind }));
 }
+
+/**
+ * The payload each `kind` carries — the ICU arguments its message is rendered with.
+ *
+ * **This exists because the two sides drifted and neither's tests could notice.** The worker wrote
+ * `{ topic, untouchedDays }`; the SPA read `missionTopic`, found nothing, and rendered "a mission has
+ * gone quiet" — losing the one thing FR-N3 exists to say. Both suites passed, because each asserted
+ * against its own spelling. A shared schema is the only thing that makes that impossible rather than
+ * unlikely: the producer builds through it and the consumer parses through it, so a rename that
+ * misses one side fails to compile.
+ *
+ * The field names are the **ICU argument names** in the `settings` locale bundle, not the domain's — the
+ * payload's whole job is to be spread into a message, and a translator reading `{missionTopic}`
+ * should find that name here.
+ */
+export const StallPayloadSchema = z.strictObject({
+  missionTopic: z.string().min(1),
+  days: z.number().int().min(0),
+});
+export type StallPayload = z.infer<typeof StallPayloadSchema>;
+
+/** The weekly review nudge is about the week, not a thing in it. */
+export const WeeklyReviewPayloadSchema = z.strictObject({
+  weekStart: z.string(),
+});
+export type WeeklyReviewPayload = z.infer<typeof WeeklyReviewPayloadSchema>;
+
+export const NOTIFICATION_PAYLOAD_SCHEMAS = {
+  stall: StallPayloadSchema,
+  weekly_review: WeeklyReviewPayloadSchema,
+} as const satisfies Record<NotificationKind, unknown>;

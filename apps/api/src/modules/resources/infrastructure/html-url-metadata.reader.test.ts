@@ -265,6 +265,34 @@ describe("not reaching the internal network (SSRF)", () => {
     expect(isPubliclyRoutable(url)).toBe(false);
   });
 
+  /**
+   * Shorthand and non-decimal IPv4, which look like they should walk straight past the guard.
+   *
+   * `isIpLiteral` matches only four dotted octets, so on the raw string `127.1` has a dot (clearing
+   * the bare-hostname rejection), fails the literal test, and would fall through to `return true` —
+   * a review flagged exactly that. It does not happen, because WHATWG `URL` normalises every one of
+   * these to `127.0.0.1` before `parsed.hostname` is read, and the guard only ever sees the
+   * normalised form.
+   *
+   * Pinned rather than argued: the guard's correctness rests on a parser behaviour nothing in this
+   * file states, and a future move to a hand-rolled host parse would silently reopen the hole.
+   */
+  it.each([
+    "http://127.1/",
+    "http://127.0.1/",
+    "http://127.0.0.1./",
+    "http://127.1:54322/",
+    // Decimal, hex and octal spellings of the same address.
+    "http://2130706433/",
+    "http://0x7f000001/",
+    "http://017700000001/",
+    // And the metadata endpoint in the forms that matter.
+    "http://0xa9fea9fe/",
+    "http://2852039166/",
+  ])("rejects %s, because URL normalises it before the guard sees it", (url) => {
+    expect(isPubliclyRoutable(url)).toBe(false);
+  });
+
   it.each([
     "https://example.com/a",
     "http://doc.rust-lang.org/ch04",

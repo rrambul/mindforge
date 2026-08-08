@@ -1,6 +1,6 @@
-import { QueryClientProvider } from "@tanstack/react-query";
+import { QueryClientProvider, useQueryClient } from "@tanstack/react-query";
 import { RouterProvider } from "@tanstack/react-router";
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { useMe } from "../features/auth/api/use-me.js";
 import { useSupabaseSession } from "../features/auth/api/use-supabase-session.js";
 import { guessLocaleFromBrowser } from "../shared/lib/i18n.js";
@@ -48,6 +48,8 @@ function LocalisedApp() {
   const signedIn = session != null;
   const me = useMe(signedIn);
 
+  useClearCacheOnSignOut(signedIn);
+
   // One router for the app's lifetime. Rebuilding it would reset history, so the context is updated
   // through the provider rather than by constructing a new one when the profile arrives.
   const router = useMemo(
@@ -67,4 +69,33 @@ function LocalisedApp() {
       />
     </I18nProvider>
   );
+}
+
+/**
+ * Empty the query cache the moment a session ends.
+ *
+ * The `QueryClient` is created once for the app's lifetime, `signOut()` only clears Supabase's own
+ * storage, and **no query key is scoped by user** — so signing out and signing in as somebody else
+ * in the same tab left every cached answer in place. `["me"]` has `staleTime: Infinity`, which made
+ * it the worst of them: the second user rendered with the first user's locale, timezone and week
+ * start, so every "day" and "week" on their screen was bucketed by a zone they had never chosen.
+ * Entity lists served the first user's rows until each one happened to refetch.
+ *
+ * Keyed off the session transition rather than off the sign-out button, because a session can end
+ * without anyone pressing it: an expired refresh token, or a sign-out in another tab, both arrive
+ * through `onAuthStateChange` and neither goes near that handler.
+ *
+ * `clear()` rather than `invalidateQueries()`: invalidating leaves the stale data in place and
+ * refetches, so the previous user's rows stay on screen until the network answers.
+ */
+function useClearCacheOnSignOut(signedIn: boolean): void {
+  const queryClient = useQueryClient();
+  // Starts as `false` so that arriving already-signed-in is not read as a transition. The first
+  // render's session is `undefined` — not yet known — which is also not signed in.
+  const wasSignedIn = useRef(false);
+
+  useEffect(() => {
+    if (wasSignedIn.current && !signedIn) queryClient.clear();
+    wasSignedIn.current = signedIn;
+  }, [signedIn, queryClient]);
 }

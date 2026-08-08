@@ -151,3 +151,47 @@ test.describe("the front door", () => {
     );
   });
 });
+
+test("does not serve one user's data to the next in the same tab", async ({ page }) => {
+  // The query client lives for the app's lifetime, `signOut()` only clears Supabase's storage, and no
+  // query key is scoped by user — so before this was fixed the second user rendered with the first
+  // user's profile.
+  //
+  // Asserted on the **interface language**, and that choice is the whole test. `["me"]` is the query
+  // with `staleTime: Infinity`, so it is the one that never re-fetches away the problem — and
+  // `App.tsx` reads its `locale` to pick the bundle every string renders from. Settings has its own
+  // query for the same row, which refetches on mount and would hide the bug: an earlier version of
+  // this test read the timezone field there and passed with the fix reverted.
+  //
+  // Only observable here. Every jsdom test builds a fresh QueryClient per render, so a cache cannot
+  // survive anything, and no other spec signs two users in.
+  const first = credentials();
+  const second = credentials();
+
+  await page.goto("/");
+  await page.getByRole("button", { name: "Create an account instead" }).click();
+  await fillCredentials(page, first.email, first.password);
+  await page.getByRole("button", { name: "Create account" }).click();
+  await expect(signedIn(page)).toBeVisible();
+
+  await page.getByRole("link", { name: "Settings" }).click();
+  await page.getByLabel("Interface language").selectOption("pt-BR");
+  // Two forms on the screen each have a Save; this one belongs to the calendar section.
+  await page.getByLabel("Language and calendar").getByRole("button", { name: "Save" }).click();
+  // The whole shell re-renders in Portuguese, which is how we know `["me"]` now holds pt-BR.
+  await expect(page.getByRole("link", { name: "Hoje" })).toBeVisible();
+
+  await page.getByRole("button", { name: "Sair" }).click();
+  await expect(page.getByRole("heading", { name: /Entrar|Sign in/ })).toBeVisible();
+
+  await page.getByRole("button", { name: /Criar uma conta|Create an account instead/ }).click();
+  // The front door is in Portuguese now, so its field labels are too — which is itself the proof
+  // that the first user's locale reached the shell.
+  await page.getByLabel(/E-mail|Email/).fill(second.email);
+  await page.getByLabel(/Senha|Password/).fill(second.password);
+  await page.getByRole("button", { name: /Criar conta|Create account/ }).click();
+
+  // A fresh account is `en`. Seeing Portuguese here is the first user's profile still in the cache.
+  await expect(page.getByRole("link", { name: "Today" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Hoje" })).toBeHidden();
+});

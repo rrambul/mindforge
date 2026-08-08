@@ -1,6 +1,7 @@
 import {
   defaultNotificationPrefs,
   FixedClock,
+  StallPayloadSchema,
   type IsoDate,
   type NotificationPref,
   type StallCandidate,
@@ -175,16 +176,23 @@ describe("NightlyRun", () => {
         userId: ALICE,
         subjectType: "mission",
         subjectId: "m1",
-        payload: { topic: "Writing that people finish", untouchedDays: 40 },
+        payload: { missionTopic: "Writing that people finish", days: 40 },
       });
     });
 
-    it("carries arguments rather than a sentence", () => {
-      // The SPA renders the `stall` message key in the user's own locale (§5.2). English baked into
-      // this row could never be read in pt-BR.
+    it("carries exactly the arguments the message names, not the domain's", () => {
+      // This asserted `["topic", "untouchedDays"]` and passed, while the SPA looked for
+      // `missionTopic` — so every nudge rendered "a mission has gone quiet" and lost the one thing
+      // FR-N3 exists to say. The payload is now built through `StallPayloadSchema`, which is
+      // `strictObject`, so a rename on either side fails to compile rather than falling back.
       return run.execute().then(() => {
         const payload = gateway.raised.find((n) => n.kind === "stall")!.payload;
-        expect(Object.keys(payload).sort()).toEqual(["topic", "untouchedDays"]);
+        expect(Object.keys(payload).sort()).toEqual(["days", "missionTopic"]);
+        // Parsing it back is the assertion that matters: the SPA does exactly this.
+        expect(StallPayloadSchema.parse(payload)).toEqual({
+          missionTopic: "Writing that people finish",
+          days: 40,
+        });
       });
     });
 

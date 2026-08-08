@@ -1,4 +1,4 @@
-import type { NotificationKind } from "@mindforge/core";
+import { StallPayloadSchema, type NotificationKind } from "@mindforge/core";
 import { describe, expect, it } from "vitest";
 import type { Nudge } from "../api/use-notifications.js";
 import { nudgeMessage } from "./message.js";
@@ -25,10 +25,16 @@ describe("nudgeMessage", () => {
     });
   });
 
-  it("accepts the name `detectStalls` actually computes", () => {
-    expect(nudgeMessage(nudge("stall", { missionTopic: "Rust", untouchedDays: 12 })).args).toEqual({
-      missionTopic: "Rust",
-      days: 12,
+  it("no longer accepts the domain's own field name, and should not", () => {
+    // This used to read `untouchedDays` as well as `days`, described as costing one line and saving
+    // a nudge from the anonymous fallback. It was papering over the real defect: the worker wrote
+    // `topic`, not `missionTopic`, so the leniency never helped and the fallback fired anyway.
+    //
+    // With `StallPayloadSchema` as the contract on both sides, `untouchedDays` cannot be written,
+    // and accepting it would only hide the next drift the same way.
+    expect(nudgeMessage(nudge("stall", { missionTopic: "Rust", untouchedDays: 12 }))).toEqual({
+      key: "stallUndated",
+      args: { missionTopic: "Rust" },
     });
   });
 
@@ -56,6 +62,33 @@ describe("nudgeMessage", () => {
     // It is about the week rather than about a thing in it, so extra payload fields are ignored.
     expect(nudgeMessage(nudge("weekly_review", { weekStart: "2026-08-03" }))).toEqual({
       key: "weeklyReview",
+      args: {},
+    });
+  });
+});
+
+describe("the payload contract with the worker", () => {
+  it("renders the named message from exactly what StallPayloadSchema produces", () => {
+    // The regression this file exists for. The worker wrote `{ topic, untouchedDays }` and this
+    // module read `missionTopic`, so every stall nudge rendered the anonymous fallback — and both
+    // suites stayed green, because each asserted its own spelling. Building the fixture *through*
+    // the shared schema is what ties them together: a rename that misses one side stops compiling.
+    const payload = StallPayloadSchema.parse({
+      missionTopic: "Writing that people finish",
+      days: 23,
+    });
+
+    expect(nudgeMessage(nudge("stall", payload))).toEqual({
+      key: "stall",
+      args: { missionTopic: "Writing that people finish", days: 23 },
+    });
+  });
+
+  it("falls back to the anonymous message rather than crashing on an older payload", () => {
+    // A row written before the schema existed still has to render something. `safeParse`, not
+    // `parse`: a bar that throws over one stale nudge is worse than a vague sentence.
+    expect(nudgeMessage(nudge("stall", { topic: "old", untouchedDays: 9 }))).toEqual({
+      key: "stallUnnamed",
       args: {},
     });
   });

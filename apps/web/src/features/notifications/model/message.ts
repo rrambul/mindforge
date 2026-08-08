@@ -1,3 +1,4 @@
+import { StallPayloadSchema } from "@mindforge/core";
 import type { Nudge } from "../api/use-notifications.js";
 
 /**
@@ -25,26 +26,23 @@ function text(payload: Readonly<Record<string, unknown>>, field: string): string
   return typeof value === "string" && value.trim() !== "" ? value : null;
 }
 
-function count(payload: Readonly<Record<string, unknown>>, field: string): number | null {
-  const value = payload[field];
-  return typeof value === "number" && Number.isFinite(value) ? value : null;
-}
-
 export function nudgeMessage(nudge: Nudge): NudgeMessage {
   if (nudge.kind === "stall") {
-    const missionTopic = text(nudge.payload, "missionTopic");
-    // `untouchedDays` is what `detectStalls` computes; `days` is the shorter name a payload might
-    // reasonably use. Accepting both costs one line and saves a nudge that would otherwise render
-    // as the anonymous fallback.
-    const days = count(nudge.payload, "days") ?? count(nudge.payload, "untouchedDays");
+    // Parsed through the shared schema rather than read field by field. Reading by hand is how this
+    // came to look for `missionTopic` while the worker wrote `topic`: every nudge fell through to
+    // the anonymous fallback and nothing failed. `safeParse` rather than `parse` because a row
+    // written by an older release must degrade to the unnamed message, not crash the bar.
+    const parsed = StallPayloadSchema.safeParse(nudge.payload);
+    if (parsed.success) {
+      return { key: "stall", args: parsed.data };
+    }
 
-    if (missionTopic !== null && days !== null) {
-      return { key: "stall", args: { missionTopic, days } };
-    }
-    if (missionTopic !== null) {
-      return { key: "stallUndated", args: { missionTopic } };
-    }
-    return { key: "stallUnnamed", args: {} };
+    // A payload that has the name but not the count is still worth a sentence — the mission is the
+    // part that makes the nudge actionable.
+    const missionTopic = text(nudge.payload, "missionTopic");
+    return missionTopic === null
+      ? { key: "stallUnnamed", args: {} }
+      : { key: "stallUndated", args: { missionTopic } };
   }
 
   // The weekly review nudge is about the week, not about a thing in it, so it needs no arguments —
