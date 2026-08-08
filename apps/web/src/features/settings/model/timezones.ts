@@ -19,11 +19,6 @@ export function isKnownTimeZone(value: string): boolean {
   return resolveTimeZone(value) === value;
 }
 
-/** What the browser thinks it is in. The starting point, not the answer — the profile owns that. */
-export function browserTimeZone(): string {
-  return resolveTimeZone(Intl.DateTimeFormat().resolvedOptions().timeZone);
-}
-
 /**
  * Every zone the engine knows, plus whatever the profile is already set to.
  *

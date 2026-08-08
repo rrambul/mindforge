@@ -1,4 +1,10 @@
-import { DEFAULT_LOCALE, SUPPORTED_LOCALES, resolveLocale, type Locale } from "@mindforge/core";
+import {
+  DEFAULT_LOCALE,
+  SUPPORTED_LOCALES,
+  resolveLocale,
+  resolveTimeZone,
+  type Locale,
+} from "@mindforge/core";
 import i18next, { type i18n as I18n } from "i18next";
 import ICU from "i18next-icu";
 import { initReactI18next } from "react-i18next";
@@ -141,6 +147,18 @@ export function guessLocaleFromBrowser(): Locale {
     if (resolved !== DEFAULT_LOCALE || candidate.toLowerCase().startsWith("en")) return resolved;
   }
   return DEFAULT_LOCALE;
+}
+
+/**
+ * What the browser thinks it is in. The starting point, not the answer — the profile owns that.
+ *
+ * Here rather than in `features/settings`, where it started, because signup needs it too: the profile
+ * trigger cannot know a zone and a new account left at UTC buckets every "day" and "week" by a
+ * calendar the user never chose. Two features means `shared/`, and it belongs beside
+ * `guessLocaleFromBrowser` anyway — same question, different axis (§5.2).
+ */
+export function browserTimeZone(): string {
+  return resolveTimeZone(Intl.DateTimeFormat().resolvedOptions().timeZone);
 }
 
 /** `lang` and `dir` on <html>, per §5.2. Both locales are LTR; dir is set anyway. */

@@ -12,10 +12,11 @@ Playwright starts the API and the web dev server itself, and reuses them if you 
 
 ## What is covered
 
-| Flow                                                      | File                    |
-| --------------------------------------------------------- | ----------------------- |
-| Sign up → sign in → sign out                              | `auth.spec.ts`          |
-| Weekly plan → log a session → review shows plan vs actual | `weekly-rhythm.spec.ts` |
+| Flow                                                      | File                      |
+| --------------------------------------------------------- | ------------------------- |
+| Sign up → sign in → sign out                              | `auth.spec.ts`            |
+| Weekly plan → log a session → review shows plan vs actual | `weekly-rhythm.spec.ts`   |
+| A new account is seeded from the browser it signed up in  | `signup-calendar.spec.ts` |
 
 ## What is not, yet
 
@@ -32,6 +33,23 @@ rather than something rediscovered later:
 The offline one is worth pulling forward: idempotency is easy to get wrong and silent when you do,
 and the jsdom tests can only prove the queue's own rules, not that a real reconnect replays exactly
 once.
+
+## Why the config pins a locale and a timezone
+
+`use.locale` is `en-US` and `use.timezoneId` is `UTC`, because a new account is now seeded from the
+browser rather than left on UTC. Playwright's defaults are the machine's own, so without these a
+signup writes whatever the developer happens to be in — and this suite asserts on weeks, which is
+exactly the thing that then moves. A suite about days and weeks cannot be calibrated by the machine
+running it.
+
+`signup-calendar.spec.ts` overrides both, which is the point of it. It is also the only level that
+can check the seeding at all: the profile row is made by a trigger on `auth.users`, the locale and
+zone come from the browser, and the write goes through the settings endpoint — three processes, so a
+unit test can assert what the client _sent_ and not what an account ends up holding.
+
+It waits for the PATCH rather than for the sign-out button. `onAuthStateChange` fires inside
+`signUp`, so the shell is on screen while the seed is still in flight — waiting on that alone raced
+the write, passed because the server happened to finish first, and aborted the request mid-flight.
 
 ## Why `weekly-rhythm.spec.ts` uses the retroactive form
 

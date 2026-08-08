@@ -34,6 +34,17 @@ export default defineConfig({
     // Hardcoded because the dev server uses `strictPort`: 5173 is either free or the run fails loudly,
     // which is the whole point of that setting (see CLAUDE.md).
     baseURL: "http://localhost:5173",
+    /**
+     * Both pinned, because a new account is now seeded from the browser rather than left on UTC.
+     *
+     * Playwright's defaults are the machine's locale and zone, so without these a signup writes
+     * whatever the developer happens to be in — and `weekly-rhythm.spec.ts` asserts on a week, which
+     * is exactly the thing that moves. A suite about days and weeks cannot be calibrated by the
+     * machine that runs it. `signup-calendar.spec.ts` overrides them on purpose, which is the point
+     * of it.
+     */
+    locale: "en-US",
+    timezoneId: "UTC",
     // Only on failure, and only then: a trace per test is hundreds of megabytes of CI artifact for
     // runs nobody looks at.
     trace: "retain-on-failure",

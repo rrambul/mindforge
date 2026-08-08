@@ -1,9 +1,10 @@
 import { useId, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { now } from "../../../shared/lib/clock.js";
+import { browserTimeZone } from "../../../shared/lib/i18n.js";
 import { Button, Field, Text } from "../../../shared/ui/index.js";
 import { zoneTimeLabel } from "../model/labels.js";
-import { browserTimeZone, isKnownTimeZone, supportedTimeZones } from "../model/timezones.js";
+import { isKnownTimeZone, supportedTimeZones } from "../model/timezones.js";
 
 interface TimezonePickerProps {
   readonly value: string;

@@ -2,6 +2,7 @@ import { useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { supabase } from "../../../shared/api/supabase.js";
 import { Button, Callout, Field, Heading, Row, Stack } from "../../../shared/ui/index.js";
+import { useSignUp } from "../api/use-sign-up.js";
 
 type Mode = "signIn" | "signUp";
 
@@ -24,6 +25,9 @@ export function SignInForm() {
   const [password, setPassword] = useState("");
   const [failed, setFailed] = useState(false);
   const [pending, setPending] = useState(false);
+  // Signing up is not just an auth call: it is also the one moment the browser's locale, zone and
+  // week start can be written to the profile, which is why it has a hook and signing in does not.
+  const signUp = useSignUp();
 
   async function submit(event: FormEvent): Promise<void> {
     event.preventDefault();
@@ -33,7 +37,7 @@ export function SignInForm() {
     const { error } =
       mode === "signIn"
         ? await supabase.auth.signInWithPassword({ email, password })
-        : await supabase.auth.signUp({ email, password });
+        : await signUp(email, password);
 
     setPending(false);
     // No success branch: onAuthStateChange fires and the router re-renders. Setting

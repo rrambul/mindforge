@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { browserTimeZone, isKnownTimeZone, supportedTimeZones } from "./timezones.js";
+import { browserTimeZone } from "../../../shared/lib/i18n.js";
+import { isKnownTimeZone, supportedTimeZones } from "./timezones.js";
 
 describe("isKnownTimeZone", () => {
   it("accepts a real IANA zone", () => {

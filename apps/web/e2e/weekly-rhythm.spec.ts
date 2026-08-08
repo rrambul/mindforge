@@ -35,9 +35,10 @@ async function signUp(page: Page): Promise<void> {
 /**
  * The Monday of the current week, in UTC.
  *
- * A fresh account is UTC and starts its week on Monday, so this is the week the app will resolve for
- * `/weeks/<date>` — and the session below is dated inside it. Derived rather than hardcoded, because a
- * fixed date would put the session outside the window the moment the calendar moved past it.
+ * A fresh account is seeded from the browser, and the config pins that to `en-US` and UTC — so this
+ * is the week the app will resolve for `/weeks/<date>`, and the session below is dated inside it.
+ * Derived rather than hardcoded, because a fixed date would put the session outside the window the
+ * moment the calendar moved past it.
  */
 function thisMonday(): string {
   const today = new Date(Date.now());
