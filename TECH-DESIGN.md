@@ -1368,9 +1368,30 @@ next run.
 
 **A nonexistent plugin path is skipped silently** — no throw, the run just proceeds with no skill and
 writes a plausible lesson from parametric memory, which is the one thing `SKILL.md` forbids. So assert
-on the `system/init` message (`:4438`): `plugins` contains the expected path, `skills` contains
+on the `system/init` message (`:4438`): `plugins` contains the expected name, `skills` contains
 `mindforge-teach:teach`, `tools` excludes `Bash`. Fail the run loudly if not. The SDK does not expand
 `~`; use `path.join(os.homedir(), …)`.
+
+**All three assertions were confirmed to pass** by `apps/worker/scripts/teach-probe.ts`, which is the
+M3 spike and the reason this section is fact rather than plan. Three things it established beyond the
+assertions themselves:
+
+- **`settingSources: []` does exclude the host's user skills.** The probe machine has seven skills in
+  `~/.claude/skills/`; none appeared. What _does_ appear is the CLI's own bundled set, which is not
+  filesystem-sourced and cannot be excluded this way — `options.skills` is what keeps them out of the
+  system prompt.
+- **`init.skills` lists what was _discovered_, not what was loaded into the prompt.** Asserting on it
+  proves the plugin resolved, which is the failure that is otherwise silent — but it is not proof the
+  skill is in context.
+- **The init handshake happens before authentication**, so Q1–Q3 can be checked for free. An
+  unauthenticated run still emits `init` and then fails with a synthetic result whose usage is all
+  zeros — which is worth knowing before treating a zero-cost run as a cheap one.
+
+**`CLAUDE_CONFIG_DIR` isolation also isolates the credentials.** That is correct in production, where
+the worker authenticates with `ANTHROPIC_API_KEY` and needs no config directory at all (§11 — the key
+exists only in `api` and `worker`). It is worth writing down because locally it presents as
+`apiKeySource: "none"` and "Not logged in", which looks like a broken integration rather than working
+isolation.
 
 _Fallback if plugin loading fights back:_ inline the skill body via
 `systemPrompt: { type: "preset", preset: "claude_code", append: skillBody }`. That loses progressive
@@ -1647,22 +1668,35 @@ Most captures cost nothing. That matters — this endpoint runs on every article
 
   **The agent path is the exception to "everything routes through `packages/llm`", and it needs its own
   rule.** The Agent SDK never touches this package — it spawns a CLI subprocess that calls the API
-  itself — so the rows are reconstructed from the message stream: **one row per `SDKAssistantMessage`,
-  deduplicated by `message.message.id`**. That dedupe is not optional. Parallel tool calls emit several
-  assistant messages sharing one id and carrying identical cumulative usage, so a row per message
-  inflates the token count by the parallelism factor. Key on `request_id` where present and `message.id`
-  otherwise; `request_id` is optional on the type, so the column cannot be `NOT NULL`.
+  itself — so the rows are reconstructed from the run rather than written at the call site.
 
-  Two further traps here, both of which kill a run rather than mis-report it:
+  **The message stream is not the whole bill.** Measured, not assumed: a one-turn probe
+  (`apps/worker/scripts/teach-probe.ts`) reported two models in `modelUsage` and only one in the
+  assistant-message stream. The invisible one was `claude-haiku-4-5` doing the SDK's own internal work,
+  and it was **22% of that run's cost**. Result-level `usage` is no better — it covers the main model
+  only, and excludes subagents. So:
 
-  1. **`estimateCostUsd` throws on an unknown model** (`packages/llm/src/index.ts`). The CLI reports
-     whatever `message.model` says, which may be a dated or provider-specific id absent from `PRICING`
-     — and that throw happens inside the message loop. Use a non-throwing variant that records
-     `cost_usd = null` plus a warning. A missing price is unknown, and unknown is not zero (which is
-     also why the column is nullable).
-  2. **The SDK's own `total_cost_usd` is a client-side estimate** from a price table baked in when the
-     SDK was built. Store it on `agent_runs.result` as a cross-check against our own figure, never as
-     the source of truth.
+  1. **One row per distinct `SDKAssistantMessage`**, keyed on `request_id` where present and
+     `message.id` otherwise, purpose `teach_turn`. Both were populated in the probe, but `request_id` is
+     optional on the type, so the column cannot be `NOT NULL`. The dedupe is not optional either:
+     parallel tool calls emit several assistant messages sharing one id and carrying identical
+     cumulative usage, so a row per message inflates tokens by the parallelism factor.
+  2. **One reconciliation row per model** for whatever `modelUsage` reports that the turns did not
+     account for, purpose `teach_overhead`. This is what makes the invariant hold: **the sum of a run's
+     `llm_calls` equals its `modelUsage`.** Without it the cost meter quietly understates, and it
+     understates by more as the agent leans on subagents.
+
+  Two further traps, both of which kill a run rather than mis-report it:
+
+  - **`modelUsage` is keyed by a dated model id.** The probe's key was
+    `claude-haiku-4-5-20251001` with `canonicalModel: "claude-haiku-4-5"` in a separate field.
+    `packages/llm`'s `PRICING` has the canonical id, so pricing the key directly **throws** — inside the
+    message loop, which kills the run. Canonicalise first, and use a non-throwing variant that records
+    `cost_usd = null` plus a warning when a model is genuinely unknown. A missing price is unknown, and
+    unknown is not zero — which is also why the column is nullable.
+  - **The SDK's own `total_cost_usd` is a client-side estimate** from a price table baked in when the
+    SDK was built; its docs say not to bill from it. Store it on `agent_runs.result` as a cross-check
+    against our own figure, never as the source of truth.
 
 - Per-user monthly soft cap, configurable. On breach: non-essential jobs (digests, plan regeneration) pause; user-initiated jobs warn and continue.
 - A cost meter in the UI. If you're spending $80/month on lesson generation you should find out from the app, not the invoice.

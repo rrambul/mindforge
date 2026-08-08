@@ -6,12 +6,14 @@
     // automatic @types discovery made it depend on where pnpm happened to link the package.
     "types": ["node"],
     "outDir": "./dist",
-    "rootDir": "./src",
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true,
     "strictPropertyInitialization": false
   },
-  "include": ["src/**/*", "test/**/*"]
+  // `scripts` is in the project so `pnpm lint` (which runs `eslint .`) can type-aware-lint the
+  // teach probe. A file outside the project cannot be linted at all, and the probe is the one place
+  // that constructs the real `query()` options — exactly where a silent type drift would hurt.
+  "include": ["src/**/*", "test/**/*", "scripts/**/*"]
 }

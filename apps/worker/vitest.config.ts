@@ -13,6 +13,7 @@ export default defineConfig({
       "@mindforge/core": pkg("core"),
       "@mindforge/db": pkg("db"),
       "@mindforge/llm": pkg("llm"),
+      "@mindforge/workspace": pkg("workspace"),
     },
   },
   test: {
