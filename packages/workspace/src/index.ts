@@ -57,6 +57,18 @@ export {
 
 export { etagsMatch, normalizeEtag, sha256, storageEtag } from "./hash.js";
 
+export {
+  M3_ABSENCES,
+  notTracked,
+  renderBriefing,
+  type BriefingInput,
+  type FrictionSummary,
+  type NotTracked,
+  type SelfReportedSkill,
+  type Tracked,
+  type ZpdCandidate,
+} from "./briefing.js";
+
 export type { FileTree, LocalFile, ObjectStore, StoredObject } from "./ports.js";
 
 export {
