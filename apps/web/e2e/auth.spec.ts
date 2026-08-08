@@ -49,7 +49,11 @@ test.describe("the front door", () => {
     // No success message is rendered by design — `onAuthStateChange` fires and the shell re-renders.
     // So the assertion is that the app appeared, which is the only honest signal there is.
     await expect(signedIn(page)).toBeVisible();
-    await expect(page.getByRole("button", { name: "Today" })).toBeVisible();
+    // A link, not a button, since M2's route tree. That is the point of the change rather than an
+    // incidental detail: middle-click, ⌘-click and a screen reader's link list all do nothing on a
+    // button, and this assertion is what caught the nav still being one.
+    await expect(page.getByRole("link", { name: "Today" })).toBeVisible();
+    await expect(page).toHaveURL(/\/$/u);
 
     /**
      * The reload proves the session survives it — read back out of `localStorage` and re-verified.
@@ -107,7 +111,10 @@ test.describe("the front door", () => {
 
     // The library is empty for a new account, and its empty state is server-confirmed: rendering it
     // means `GET /v1/resources` answered 200 rather than 401.
-    await page.getByRole("button", { name: "Library" }).click();
+    await page.getByRole("link", { name: "Library" }).click();
+    // The URL changing is the other half of what the route tree bought: before M2 this screen could
+    // not be linked to, bookmarked, or reached with Back.
+    await expect(page).toHaveURL(/\/library$/u);
     await expect(page.getByText(/Paste a link to anything/)).toBeVisible();
   });
 

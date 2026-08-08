@@ -1,3 +1,4 @@
+import { Link } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 import "./app-shell.css";
 
@@ -27,43 +28,41 @@ export function Brand({ children }: { readonly children: ReactNode }) {
   return <span className="mf-brand">{children}</span>;
 }
 
-export interface NavItem<T extends string> {
-  readonly id: T;
+export interface NavItem {
+  readonly to: string;
   readonly label: string;
 }
 
 /**
- * Two buttons, not a router.
+ * Links now, not buttons.
  *
- * TanStack Router is a dependency and this is deliberately not it: a route tree over two screens
- * describes nothing. It earns its place once Today grows a "next" block that deep-links into a
- * mission and mission detail exists to link to — at which point it can be designed against real
- * routes rather than guessed ones.
+ * These were `<button onClick>` while there was no router, which cost more than a URL: middle-click,
+ * ⌘-click, "copy link address" and a screen reader's link list all did nothing, because none of them
+ * are things a button does. `aria-current="page"` still carries the active state — the stylesheet
+ * keys off it and there is no class for it (`app-shell.css`).
+ *
+ * `activeOptions.exact` matters only for `/`, which is a prefix of every other path and would
+ * otherwise read as the current page everywhere.
  */
-export function Nav<T extends string>({
+export function Nav({
   label,
   items,
-  current,
-  onSelect,
 }: {
   readonly label: string;
-  readonly items: readonly NavItem<T>[];
-  readonly current: T;
-  readonly onSelect: (id: T) => void;
+  readonly items: readonly NavItem[];
 }) {
   return (
     <nav className="mf-nav" aria-label={label}>
       {items.map((item) => (
-        <button
-          key={item.id}
-          type="button"
+        <Link
+          key={item.to}
+          to={item.to}
           className="mf-nav__item"
-          // aria-current, not a class: this is what tells a screen reader which screen you are on.
-          aria-current={current === item.id ? "page" : undefined}
-          onClick={() => onSelect(item.id)}
+          activeOptions={{ exact: item.to === "/" }}
+          activeProps={{ "aria-current": "page" }}
         >
           {item.label}
-        </button>
+        </Link>
       ))}
     </nav>
   );

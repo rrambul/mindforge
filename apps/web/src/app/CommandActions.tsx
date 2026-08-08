@@ -1,4 +1,5 @@
 import type { FrictionType } from "@mindforge/core";
+import { useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { useRunningSession, useStopSession } from "../features/focus/api/use-focus.js";
@@ -6,6 +7,7 @@ import { frictionBody, useLogFriction } from "../features/friction/api/use-frict
 import { captureBody, useCaptureResource } from "../features/resources/api/use-resources.js";
 import { ActionsProvider, type Action } from "../shared/lib/action-registry.js";
 import { CommandSurface } from "../shared/ui/CommandSurface.js";
+import { NAV_ROUTES } from "./router.js";
 
 /**
  * Assembles the action registry and owns the command surface.
@@ -17,15 +19,11 @@ import { CommandSurface } from "../shared/ui/CommandSurface.js";
  * here too, because a keyboard user's first instinct is to type a screen's name, and a palette that
  * answers "start focus" but not "goals" feels broken rather than focused.
  */
-export function CommandActions({
-  onNavigate,
-  children,
-}: {
-  readonly onNavigate: (
-    screen: "today" | "missions" | "goals" | "skills" | "notes" | "resources",
-  ) => void;
-  readonly children: ReactNode;
-}) {
+export function CommandActions({ children }: { readonly children: ReactNode }) {
+  // `useNavigate`, not a callback from the shell. The prop version needed its own copy of the screen
+  // union and its own copy of the list below, so widening one and not the others put a screen in the
+  // bar and left it out of the palette — which is exactly what happened.
+  const navigate = useNavigate();
   const { t } = useTranslation("command");
   const { t: nav } = useTranslation("common");
   // The friction vocabulary lives in its own namespace, translated once and read here rather than
@@ -99,32 +97,25 @@ export function CommandActions({
             .then((text) => {
               const url = text.trim();
               if (/^https?:\/\/\S+$/i.test(url)) capture.mutate(captureBody({ url }));
-              else onNavigate("resources");
+              else void navigate({ to: "/library" });
             })
-            .catch(() => onNavigate("resources"));
+            .catch(() => void navigate({ to: "/library" }));
         },
       },
     ];
 
-    const going: Action[] = (
-      [
-        ["today", "nav.today"],
-        ["missions", "nav.missions"],
-        ["goals", "nav.goals"],
-        ["skills", "nav.skills"],
-        ["notes", "nav.notes"],
-        ["resources", "nav.resources"],
-      ] as const
-    ).map(([screen, key]) => ({
-      id: `go-${screen}`,
-      label: t("action.goTo", { screen: nav(key) }),
+    // Read from the same table the nav bar renders, so the two cannot disagree about which screens
+    // exist.
+    const going: Action[] = NAV_ROUTES.map((route) => ({
+      id: `go-${route.path}`,
+      label: t("action.goTo", { screen: nav(route.labelKey) }),
       group: t("group.go"),
-      keywords: [screen, nav(key)],
-      run: () => onNavigate(screen),
+      keywords: [route.path, nav(route.labelKey)],
+      run: () => void navigate({ to: route.path }),
     }));
 
     return [...capturing, ...going];
-  }, [t, nav, friction, runningId, stop, logFriction, capture, onNavigate]);
+  }, [t, nav, friction, runningId, stop, logFriction, capture, navigate]);
 
   return (
     <ActionsProvider actions={actions} isOpen={isOpen} open={open} close={close}>
