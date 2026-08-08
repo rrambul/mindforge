@@ -1,12 +1,16 @@
 import { Module } from "@nestjs/common";
 
+import { MissionsModule } from "../../missions/presentation/missions.module.js";
 import { BRIEFING_READER } from "../application/briefing.port.js";
+import { WORKSPACE_INDEX_REPOSITORY } from "../application/index.port.js";
+import { ReindexWorkspace } from "../application/reindex-workspace.js";
 import { MISSION_WORKSPACE_READER } from "../application/teach.port.js";
 import { TeachRuns } from "../application/teach.use-cases.js";
 import { AGENT_RUN_REPOSITORY } from "../domain/agent-run.repository.js";
 import { PrismaAgentRunRepository } from "../infrastructure/prisma-agent-run.repository.js";
 import { PrismaBriefingReader } from "../infrastructure/prisma-briefing.reader.js";
 import { PrismaMissionWorkspaceReader } from "../infrastructure/prisma-mission-workspace.reader.js";
+import { PrismaWorkspaceIndexRepository } from "../infrastructure/prisma-workspace-index.repository.js";
 import { TeachController } from "./teach.controller.js";
 
 /**
@@ -33,13 +37,19 @@ import { TeachController } from "./teach.controller.js";
  * without naming what it binds to.
  */
 @Module({
+  // The one `imports` this module has, and it is the rule working rather than an
+  // exception to it: reindexing MISSION.md must go through the module that owns
+  // `missions`, so it needs that module's exported use case.
+  imports: [MissionsModule],
   controllers: [TeachController],
   providers: [
     TeachRuns,
+    ReindexWorkspace,
     { provide: AGENT_RUN_REPOSITORY, useClass: PrismaAgentRunRepository },
     { provide: MISSION_WORKSPACE_READER, useClass: PrismaMissionWorkspaceReader },
     { provide: BRIEFING_READER, useClass: PrismaBriefingReader },
+    { provide: WORKSPACE_INDEX_REPOSITORY, useClass: PrismaWorkspaceIndexRepository },
   ],
-  exports: [TeachRuns, BRIEFING_READER],
+  exports: [TeachRuns, ReindexWorkspace, BRIEFING_READER],
 })
 export class TeachModule {}

@@ -23,11 +23,12 @@ export class PrismaDispatchGateway implements TeachDispatchGateway {
     // workspace key is a fact about the mission: reading the run's copy would let
     // a stale one point a run at a prefix the mission no longer uses.
     const rows = await this.prisma.$queryRawUnsafe<
-      { id: string; user_id: string; mission_id: string; workspace_key: string }[]
+      { id: string; user_id: string; mission_id: string; workspace_key: string; timezone: string }[]
     >(
-      `select r.id, r.user_id, r.mission_id, m.workspace_key
+      `select r.id, r.user_id, r.mission_id, m.workspace_key, p.timezone
          from agent_runs r
          join missions m on m.id = r.mission_id
+         join profiles p on p.id = r.user_id
         where r.status = 'queued'
           and r.kind = 'generate_lesson'
           and m.workspace_key is not null
@@ -43,6 +44,7 @@ export class PrismaDispatchGateway implements TeachDispatchGateway {
       userId: row.user_id,
       missionId: row.mission_id,
       workspaceKey: row.workspace_key,
+      timezone: row.timezone,
     };
   }
 

@@ -1,4 +1,4 @@
-import type { TeachRuns } from "@mindforge/api/teach";
+import type { ReindexWorkspace, TeachRuns } from "@mindforge/api/teach";
 import { FixedClock } from "@mindforge/core";
 import { isExcludedFromSync, storageEtag, type FileState } from "@mindforge/workspace";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -101,12 +101,25 @@ type Writes = readonly (readonly [string, string])[];
 
 function harness(
   transcript: readonly AgentEvent[],
-  options: { writes?: Writes; throwAtEnd?: boolean } = {},
+  options: {
+    writes?: Writes;
+    throwAtEnd?: boolean;
+    indexWarnings?: readonly { code: string; args?: Record<string, unknown> }[];
+    finishRejects?: boolean;
+    /**
+     * Somebody else writing while the agent has the workspace.
+     *
+     * Applied mid-transcript rather than before `execute`, because that is what
+     * makes it a conflict: written earlier it is simply the baseline, and
+     * materialize would download it.
+     */
+    concurrentWrite?: readonly (readonly [string, string])[];
+  } = {},
 ) {
   const storage = new Map<string, Uint8Array>([[`${PREFIX}/MISSION.md`, bytes("# Mission")]]);
   const disk = new FakeDisk();
   const recorded: RecordedCall[] = [];
-  const finished: { status: string; error: string | null }[] = [];
+  const finished: { status: string; error: string | null; result?: unknown }[] = [];
   let alive = true;
 
   const gateway: WorkspaceGateway = {
@@ -145,6 +158,9 @@ function harness(
         // stream finishes would miss them.
         if (event.type === "result") {
           for (const [path, content] of options.writes ?? []) disk.files.set(path, bytes(content));
+          for (const [path, content] of options.concurrentWrite ?? []) {
+            storage.set(`${PREFIX}/${path}`, bytes(content));
+          }
         }
       }
       // A failing query() yields its result message and *then* throws. This is
@@ -162,14 +178,43 @@ function harness(
 
   const heartbeat = vi.fn((): Promise<boolean> => Promise.resolve(alive));
   const finish = vi.fn(
-    (_userId: string, _runId: string, outcome: { status: string; error: string | null }) => {
+    (
+      _userId: string,
+      _runId: string,
+      outcome: { status: string; error: string | null; result?: unknown },
+    ) => {
       finished.push(outcome);
-      return Promise.resolve({} as never);
+      return options.finishRejects
+        ? Promise.reject(new Error("This run has already finished."))
+        : Promise.resolve({} as never);
     },
   );
   const runs = { heartbeat, finish } as unknown as TeachRuns;
 
-  const teach = new TeachRun(agent, sink, new WorkspaceSync(gateway, new FixedClock(AT)), runs);
+  // A double rather than the real one: the reindexer is the API's, tested against
+  // real Postgres there. What this file needs from it is that the loop calls it
+  // after the sync and folds its warnings into the run result — the parsing is
+  // somebody else's suite.
+  const indexed: { files: string[] }[] = [];
+  const reindex = {
+    execute: (input: { files: ReadonlyMap<string, Uint8Array> }) => {
+      indexed.push({ files: [...input.files.keys()] });
+      return Promise.resolve({
+        lessons: 1,
+        referenceDocs: 0,
+        records: 0,
+        warnings: options.indexWarnings ?? [],
+      });
+    },
+  } as unknown as ReindexWorkspace;
+
+  const teach = new TeachRun(
+    agent,
+    sink,
+    new WorkspaceSync(gateway, new FixedClock(AT)),
+    runs,
+    reindex,
+  );
 
   return {
     teach,
@@ -178,6 +223,7 @@ function harness(
     recorded,
     finished,
     heartbeat,
+    indexed,
     kill: () => {
       alive = false;
     },
@@ -190,6 +236,7 @@ function harness(
         briefing: "# Briefing\n\nDue reviews: not tracked yet.\n",
         pluginDir: "/tmp/plugin",
         skillRef: SKILL,
+        timezone: "America/Sao_Paulo",
       }),
   };
 }
@@ -231,6 +278,24 @@ describe("a clean run", () => {
   it("deletes the workspace afterwards", async () => {
     await h.execute();
     expect(h.disk.disposed).toBe(true);
+  });
+
+  it("reindexes after the sync, not before", async () => {
+    // Storage is canonical, so a row must never point at a path that failed to
+    // upload. The lesson the agent wrote has to be in the set the reindexer sees.
+    await h.execute();
+
+    expect(h.indexed).toHaveLength(1);
+    expect(h.indexed[0]?.files).toContain("lessons/0001-closures.html");
+  });
+
+  it("does not offer the briefing to the reindexer", async () => {
+    // Excluded at the walk, so it is not in Storage and not in the index either —
+    // a `lessons`-style row for Mindforge's own scaffolding would be a library
+    // entry nobody wrote.
+    await h.execute();
+
+    expect(h.indexed[0]?.files).not.toContain("BRIEFING.md");
   });
 });
 
@@ -448,19 +513,49 @@ describe("liveness", () => {
 });
 
 describe("a conflicted run", () => {
-  it("is a success, and says which files were contested", async () => {
+  it("is a success, and records which files were contested", async () => {
     // §7.4: the work landed and both versions were kept. Calling it failed would
-    // make the honest outcome look like the broken one.
+    // make the honest outcome look like the broken one, and push people toward
+    // re-running — which makes more conflicts.
     const h = harness([INIT, call("req_1"), result()], {
-      writes: [["MISSION.md", "# Mission, edited by the agent"]],
+      // A lesson too, so the no-lesson rule cannot mask the conflict.
+      writes: [...WROTE_A_LESSON, ["MISSION.md", "# Mission, edited by the agent"]],
+      concurrentWrite: [["MISSION.md", "# Mission, edited by somebody else"]],
     });
-    h.storage.set(`${PREFIX}/MISSION.md`, bytes("# Mission, edited by somebody else"));
+    const outcome = await h.execute();
 
-    // A lesson too, so the no-lesson rule does not mask the conflict.
-    const outcome = await harness([INIT, call("req_1"), result()], {
-      writes: [...WROTE_A_LESSON, ["MISSION.md", "# edited"]],
-    }).execute();
+    expect(outcome.status).toBe("succeeded_with_conflicts");
+    expect(h.finished.at(-1)?.status).toBe("succeeded_with_conflicts");
+    expect((h.finished.at(-1)?.result as { conflicts?: { path: string }[] }).conflicts).toEqual([
+      { path: "MISSION.md", reason: "changed_in_storage" },
+    ]);
+  });
+});
 
-    expect(outcome.status).toBe("succeeded");
+describe("what the run reports back", () => {
+  it("carries the reindexer's warnings, so a partial index is visible", async () => {
+    // §7.4's degradation rule is "stored, partially indexed" — which is only
+    // useful if the partiality reaches somebody. Warnings are stable keys plus
+    // ICU args rather than prose, because the run screen renders in pt-BR too.
+    const h = harness([INIT, call("req_1"), result()], {
+      writes: WROTE_A_LESSON,
+      indexWarnings: [{ code: "filename_unnumbered", args: { filename: "closures.html" } }],
+    });
+
+    await h.execute();
+
+    expect((h.finished.at(-1)?.result as { warnings?: { code: string }[] }).warnings).toEqual([
+      { code: "filename_unnumbered", args: { filename: "closures.html" } },
+    ]);
+  });
+
+  it("does not crash the worker when the run was already finished", async () => {
+    // The reaper may have given up on it while the agent was still going. That is
+    // a legal outcome — the mission has moved on — rather than something to take
+    // the process down over.
+    const h = harness([INIT, call("req_1"), result()], { writes: [], finishRejects: true });
+
+    await expect(h.execute()).resolves.toMatchObject({ status: "failed" });
+    expect(h.disk.disposed).toBe(true);
   });
 });

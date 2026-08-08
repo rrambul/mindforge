@@ -103,6 +103,7 @@ export class TeachDispatcher implements OnApplicationBootstrap, OnModuleDestroy 
         briefing,
         pluginDir: plugin.path,
         skillRef: plugin.skillRef,
+        timezone: queued.timezone,
       });
 
       this.logger.log(

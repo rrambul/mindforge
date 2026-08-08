@@ -6,6 +6,14 @@ export interface QueuedRun {
   readonly missionId: string;
   /** Assigned by the API when the run was queued, so the worker never derives one. */
   readonly workspaceKey: string;
+  /**
+   * The learner's IANA zone.
+   *
+   * Carried rather than looked up later because every "day" in this product
+   * derives from it (§5.2), and a learning record dated 2026-08-08 that resolves
+   * server-local can land on the 7th — in a different weekly review.
+   */
+  readonly timezone: string;
 }
 
 export interface TeachDispatchGateway {

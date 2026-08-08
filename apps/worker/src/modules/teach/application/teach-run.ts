@@ -1,4 +1,4 @@
-import { TeachRuns, type AgentRunResult } from "@mindforge/api/teach";
+import { ReindexWorkspace, TeachRuns, type AgentRunResult } from "@mindforge/api/teach";
 import { estimateCostUsd, type LlmUsage } from "@mindforge/llm";
 import { LESSONS_DIR, type Change } from "@mindforge/workspace";
 import { Inject, Injectable, Logger } from "@nestjs/common";
@@ -82,6 +82,7 @@ export class TeachRun {
     @Inject(LLM_CALL_SINK) private readonly calls: LlmCallSink,
     private readonly sync: WorkspaceSync,
     private readonly runs: TeachRuns,
+    private readonly reindex: ReindexWorkspace,
   ) {}
 
   async execute(input: {
@@ -92,6 +93,8 @@ export class TeachRun {
     readonly briefing: string;
     readonly pluginDir: string;
     readonly skillRef: string;
+    /** The learner's IANA zone, so a record's `Date:` resolves in theirs. */
+    readonly timezone: string;
   }): Promise<TeachRunOutcome> {
     const { dir, baseline } = await this.sync.materialize(input);
 
@@ -122,10 +125,29 @@ export class TeachRun {
         return this.fail(input, synced.changes, "The run finished without writing a lesson.");
       }
 
+      // After the sync, because Storage is canonical: a row must never point at a
+      // path that failed to upload. And warnings rather than failures — §7.4's
+      // degradation rule is "stored, partially indexed", so a lesson the parser
+      // could not read is still a lesson the learner has.
+      const indexed = await this.reindex.execute({
+        userId: input.userId,
+        missionId: input.missionId,
+        files: new Map((await dir.walk()).map((file) => [file.path, file.bytes] as const)),
+        deleted: synced.changes.filter((c) => c.kind === "deleted").map((c) => c.path),
+        timezone: input.timezone,
+      });
+
       const status = synced.conflicts.length > 0 ? "succeeded_with_conflicts" : "succeeded";
       await this.runs.finish(input.userId, input.runId, {
         status,
-        result: resultOf(seen, synced.changes, synced.conflicts),
+        result: {
+          ...resultOf(seen, synced.changes, synced.conflicts),
+          // Spread rather than rebuilt: `args` is optional and
+          // `exactOptionalPropertyTypes` distinguishes "absent" from "undefined",
+          // so copying the field explicitly turns every warning without args into
+          // one that has an undefined one.
+          warnings: indexed.warnings.map((warning) => ({ ...warning })),
+        },
         error: null,
       });
 
