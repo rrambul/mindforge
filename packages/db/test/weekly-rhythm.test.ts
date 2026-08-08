@@ -116,6 +116,20 @@ const MARKS: Record<string, string> = {
   notification_prefs: "alice",
   notifications: "alice-key",
 };
+/**
+ * A valid mark that collides with neither user's row, for the planted-insert proof.
+ *
+ * Separate from the two above precisely because reusing them is what made that proof vacuous: a
+ * value that cannot be cast, or that trips a unique index, throws before the policy is asked.
+ */
+const PLANTED: Record<string, string> = {
+  weekly_plans: "2026-02-16",
+  weekly_reviews: "planted-changed",
+  daily_activity: "33",
+  notification_prefs: "planted",
+  notifications: "planted-key",
+};
+
 const BOB_MARKS: Record<string, string> = {
   weekly_plans: "2026-01-12",
   weekly_reviews: "bob-changed",
@@ -176,7 +190,16 @@ describe.each(CASES)("row-level security on $table", ({ table, identity }) => {
   });
 
   it("silently affects zero rows when updating another user's data", async () => {
-    await asUser(ALICE, `update ${table} set user_id = user_id where user_id = $1::uuid`, BOB);
+    // Alice attempts to take ownership, which is a real mutation. It used to be
+    // `set user_id = user_id` — a no-op that cannot fail even if `USING` were widened to `true`, so
+    // the assertion below could never have caught a broken read policy. This one can: with `USING
+    // (true)` Alice would match Bob's row and move it to herself, and Bob's would vanish.
+    await asUser(
+      ALICE,
+      `update ${table} set user_id = $2::uuid where user_id = $1::uuid`,
+      BOB,
+      ALICE,
+    );
     const bobAfter = await asUser<{ v: string }[]>(BOB, `select ${identity} as v from ${table}`);
     expect(bobAfter.map((r) => r.v)).toEqual([BOB_MARKS[table]]);
   });
@@ -188,11 +211,20 @@ describe.each(CASES)("row-level security on $table", ({ table, identity }) => {
   });
 
   it("refuses to insert a row owned by someone else", async () => {
-    // The WITH CHECK half. Without it Alice can write into Bob's account even
-    // though she cannot read it back, which is worse than a read leak: it
-    // corrupts data nobody is looking at.
-    const [sql, params] = CASES.find((c) => c.table === table)!.insert(BOB, "planted");
-    await expect(asUser(ALICE, sql, ...params)).rejects.toThrow();
+    // The WITH CHECK half. Without it Alice can write into Bob's account even though she cannot
+    // read it back, which is worse than a read leak: it corrupts data nobody is looking at.
+    //
+    // **This test used to pass for the wrong reason on four of the five tables.** It reused each
+    // case's mark, so `weekly_plans` cast "planted" through `::date` and `daily_activity` through
+    // `::int` — both syntax errors — while `weekly_reviews` and `notification_prefs` collided with
+    // Bob's existing unique row. Every one of them threw, none of them reached the policy, and
+    // stripping every `with check` from the migration left the suite green. Verified by doing
+    // exactly that.
+    //
+    // So the planted row is now valid and non-colliding, and the assertion names the error: only a
+    // policy violation says "row-level security", and nothing else Postgres raises here does.
+    const [sql, params] = CASES.find((c) => c.table === table)!.insert(BOB, PLANTED[table]!);
+    await expect(asUser(ALICE, sql, ...params)).rejects.toThrow(/row-level security/i);
   });
 });
 
