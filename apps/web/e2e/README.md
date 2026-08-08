@@ -12,11 +12,12 @@ Playwright starts the API and the web dev server itself, and reuses them if you 
 
 ## What is covered
 
-| Flow                                                      | File                      |
-| --------------------------------------------------------- | ------------------------- |
-| Sign up → sign in → sign out                              | `auth.spec.ts`            |
-| Weekly plan → log a session → review shows plan vs actual | `weekly-rhythm.spec.ts`   |
-| A new account is seeded from the browser it signed up in  | `signup-calendar.spec.ts` |
+| Flow                                                       | File                      |
+| ---------------------------------------------------------- | ------------------------- |
+| Sign up → sign in → sign out                               | `auth.spec.ts`            |
+| Weekly plan → log a session → review shows plan vs actual  | `weekly-rhythm.spec.ts`   |
+| A new account is seeded from the browser it signed up in   | `signup-calendar.spec.ts` |
+| Create a mission → teach it → a run is queued and reported | `teach.spec.ts`           |
 
 ## What is not, yet
 
@@ -25,7 +26,11 @@ rather than something rediscovered later:
 
 - The capture loop: start focus → log friction → stop → debrief → appears on Today
 - Add a resource by URL → update progress → abandon with reason
-- Generate a lesson → run completes → renders in the sandbox → mark outcome (M4, model stubbed)
+- Generate a lesson → **run completes** → renders in the sandbox → mark outcome (M4, model stubbed).
+  `teach.spec.ts` covers the first half of this: the button, the 202, and the card reporting a
+  queued run. It stops there on purpose — the worker is not started by this config, and
+  non-negotiable 8 forbids live API calls in the suite. The completion half needs a stubbed agent
+  gateway, which arrives with M4's reader.
 - Review queue: due items → answer → schedule moves (M5)
 - Offline: go offline → log friction → reconnect → event persists exactly once
 - A keyboard-only pass through the capture loop
@@ -50,6 +55,16 @@ unit test can assert what the client _sent_ and not what an account ends up hold
 It waits for the PATCH rather than for the sign-out button. `onAuthStateChange` fires inside
 `signUp`, so the shell is on screen while the seed is still in flight — waiting on that alone raced
 the write, passed because the server happened to finish first, and aborted the request mid-flight.
+
+## What `teach.spec.ts` proves that nothing else can
+
+The same shape as the M2 defect below, still available in M3. The button lives in `features/teach`,
+the endpoint in the API's `teach` module, the card in `features/missions` — and nothing joins them
+except a render prop threaded through `app/MissionsScreen`, because §2.2 rule 6 forbids one feature
+importing another. Every unit test on both sides passes with that thread cut.
+
+Confirmed to discriminate: deleting the `renderTeach` prop from `MissionsScreen` fails both of its
+tests.
 
 ## Why `weekly-rhythm.spec.ts` uses the retroactive form
 
