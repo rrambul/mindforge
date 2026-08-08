@@ -29,6 +29,23 @@ subject types, the integration tests exercised them — and there was no way to 
 the UI. The schema being ready looked like the feature being done. FR-N1 calls `standalone` the escape
 hatch for the genuinely unfiled thought, and it had become the only path the UI offered.
 
+**The same shape produced M2's worst defect, and it is the one to remember.** `focus_sessions` has had
+`mission_id` and `skill_id` since M0; the plan grid, plan-vs-actual and the review screen were each
+correct and each proven by their own tests — and _neither capture path wrote either column_. So a user
+could allocate two hours to a mission, log both, and read `0 min`. Every layer green, the path absent.
+A column existing is not evidence that anything writes it, and a suite of correct layers is not
+evidence of a working feature. `apps/web/e2e/weekly-rhythm.spec.ts` exists because that is the only
+level the gap was visible from.
+
+Three narrower cases of the same thing came out of the review, all fixed: the offline queue's
+IndexedDB key was a constant, so signing out with unsent captures and signing in as somebody else
+replayed them into the new account — cleanly, because every capture endpoint is an idempotent upsert.
+`defaultWeekStartsOn` sat in `packages/core` with tests and no callers, because the only thing that can
+create a profile is a trigger on `auth.users` and a trigger cannot see a browser; every account
+therefore started on UTC and Monday whoever it belonged to. And an insights integration test booted a
+probe module with `enableCors` inlined, so its ETag and CORS assertions checked the test against
+itself.
+
 M1's own finish line — ten real focus sessions logged without opening the code — was never reached;
 M2 was started ahead of its three-week soak (sequencing rule 1), knowingly. That decision is worth
 remembering if the capture loop turns out not to stick, because nothing downstream fixes it.
@@ -117,13 +134,19 @@ its commit: nothing builds a container, so nothing sets `GIT_SHA`.
 was installed for the whole of M1 with no config and no specs — `pnpm test:e2e` crashed, nothing ran it,
 and `apps/web/vitest.config.ts` excluded 378 lines (`App.tsx`, `providers.tsx`, `SignInForm`,
 `use-supabase-session`) on the stated grounds that Playwright covered them. Sign up → sign in → sign out
-was untested at every level. `apps/web/e2e/` now covers that flow and CI runs it; the other seven flows
-§13.2 names are listed in `apps/web/e2e/README.md` so the gap stays a list rather than a surprise.
+was untested at every level. `apps/web/e2e/` now covers that flow, M2's weekly rhythm, and the signup
+seeding, and CI runs all three; the other six flows §13.2 names are listed in `apps/web/e2e/README.md`
+so the gap stays a list rather than a surprise.
+
+The config pins `locale: en-US` and `timezoneId: UTC`, and that is load-bearing rather than tidy: a new
+account is seeded from the browser it signed up in, Playwright otherwise uses the machine's own locale
+and zone, and two specs assert on which week a session lands in. A suite about days and weeks cannot be
+calibrated by the machine running it.
 
 One blind spot is written down there rather than claimed: the suite proves a session survives a reload,
 but **not** that the sign-in form does not flash while the stored session is read — `toBeVisible` retries
 until things settle. Verified by breaking the `sessionKnown` guard and watching the suite stay green. It
-does discriminate on what it claims: breaking `signOut()` fails three of five.
+does discriminate on what it claims: breaking `signOut()` fails four of `auth.spec.ts`'s six.
 
 Five gates run outside the test suites, all wired into CI: `pnpm check:boundaries` (the architecture
 rules actually fire), `pnpm check:i18n` (FR-L7), the per-package coverage gates, a second

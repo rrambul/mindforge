@@ -86,8 +86,9 @@ component — the check still holds, and the file to break is the new one.
 Asserting the absence of a flash is an assertion about a moment rather than an outcome, and every
 version of it is a race. So it is written down instead.
 
-The suite does discriminate on what it claims to cover: breaking `supabase.auth.signOut()` fails three
-of the five tests.
+The suite does discriminate on what it claims to cover: breaking `supabase.auth.signOut()` fails four
+of `auth.spec.ts`'s six tests. It was three of five until M2 added the sixth — signing in as somebody
+else in the same tab — which depends on the same call.
 
 ## Why the coverage config points here
 
