@@ -61,19 +61,69 @@ export interface QueueStorage {
   clear(): Promise<void>;
 }
 
-const STORAGE_KEY = "mindforge.offline-queue";
+const STORAGE_PREFIX = "mindforge.offline-queue";
 
-export const idbStorage: QueueStorage = {
-  async read() {
-    return (await get<QueuedRequest[]>(STORAGE_KEY)) ?? [];
-  },
-  async write(requests) {
-    await set(STORAGE_KEY, requests);
-  },
-  async clear() {
-    await del(STORAGE_KEY);
-  },
-};
+/**
+ * The key everything was stored under before the queue was scoped by user.
+ *
+ * IndexedDB is per-origin, not per-account, so one key meant one queue for the device: sign out with
+ * unsent captures, sign in as somebody else, and the next flush replayed them with the *new* user's
+ * token. Every capture endpoint is an idempotent upsert keyed on a client-minted UUID, so those rows
+ * would have landed cleanly — in the wrong account, indistinguishable from real ones.
+ */
+const UNSCOPED_STORAGE_KEY = STORAGE_PREFIX;
+
+/**
+ * One IndexedDB key per user.
+ *
+ * The id rather than the email, because an email can change and the queue has to survive that; and
+ * separate keys rather than a `userId` field per entry, so a wrong filter cannot leak one user's
+ * captures into another's flush — there is nothing to filter.
+ */
+export function idbStorageFor(userId: string): QueueStorage {
+  const key = `${STORAGE_PREFIX}.${userId}`;
+  let discardedUnscoped = false;
+
+  /**
+   * Abandon the pre-scoping queue rather than adopting it, once per instance.
+   *
+   * Adopting looks kinder and is the bug: an unscoped queue records no owner, so handing it to
+   * whoever signs in first is precisely the cross-user write the scoping exists to prevent — one
+   * last time, and silently, because an idempotent upsert makes a misattributed capture look
+   * exactly like a real one.
+   *
+   * So it is dropped, and loudly if it held anything. Losing an unattributable capture is a real
+   * loss and gets said out loud; filing it under the wrong account would be worse and unsayable.
+   */
+  async function discardUnscoped(): Promise<void> {
+    if (discardedUnscoped) return;
+    discardedUnscoped = true;
+
+    const stranded = await get<QueuedRequest[]>(UNSCOPED_STORAGE_KEY);
+    if (stranded === undefined) return;
+    if (stranded.length > 0) {
+      console.warn(
+        `Discarded ${String(stranded.length)} capture(s) queued before the offline queue was scoped by user — they record no owner, so replaying them could file them under the wrong account.`,
+      );
+    }
+    await del(UNSCOPED_STORAGE_KEY);
+  }
+
+  return {
+    async read() {
+      // Every path through the queue starts here — `pending`, `enqueue` and `flush` all read first —
+      // so this is the one place the old key is guaranteed to be reached exactly once.
+      await discardUnscoped();
+      return (await get<QueuedRequest[]>(key)) ?? [];
+    },
+    async write(requests) {
+      await set(key, requests);
+    },
+    async clear() {
+      await del(key);
+    },
+  };
+}
 
 /** What a flush attempt does with one request. */
 export type Disposition = "sent" | "retry" | "dropped";
@@ -108,7 +158,14 @@ export function isRetryable(error: unknown): boolean {
 }
 
 export interface OfflineQueueOptions {
-  readonly storage?: QueueStorage;
+  /**
+   * Required, with no default.
+   *
+   * There used to be one — the single unscoped IndexedDB key — and a default is what let a queue be
+   * built without anyone deciding whose captures it holds. Now that the storage names a user, that
+   * decision belongs to the caller and the type says so.
+   */
+  readonly storage: QueueStorage;
   /** Injected so the queue does not depend on the http client, which depends on auth. */
   readonly send: (path: string, body: unknown, method: QueuedMethod) => Promise<unknown>;
   readonly onChange?: (pending: number) => void;
@@ -136,7 +193,7 @@ export class OfflineQueue {
   private storageLock: Promise<unknown> = Promise.resolve();
 
   constructor(private readonly options: OfflineQueueOptions) {
-    this.storage = options.storage ?? idbStorage;
+    this.storage = options.storage;
   }
 
   async pending(): Promise<number> {

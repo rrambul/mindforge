@@ -21,11 +21,7 @@ export function App(): React.JSX.Element {
 
   return (
     <QueryClientProvider client={queryClient}>
-      {/* Inside Query because the queue sends through the http client; outside the screens because
-          every capture path enqueues into the same one. */}
-      <OfflineQueueProvider>
-        <LocalisedApp />
-      </OfflineQueueProvider>
+      <LocalisedApp />
     </QueryClientProvider>
   );
 }
@@ -59,14 +55,20 @@ function LocalisedApp() {
 
   return (
     <I18nProvider locale={me.data?.locale ?? browserLocale}>
-      <RouterProvider
-        router={router}
-        context={{
-          signedIn,
-          timezone: me.data?.timezone ?? "UTC",
-          weekStartsOn: me.data?.weekStartsOn ?? 1,
-        }}
-      />
+      {/* Inside Query because the queue sends through the http client; outside the screens because
+          every capture path enqueues into the same one. Here rather than around `LocalisedApp`
+          because it needs the user id: IndexedDB is per-origin, so one key would mean one queue for
+          the device, and a sign-out with unsent captures would replay them into the next account. */}
+      <OfflineQueueProvider userId={session?.user.id}>
+        <RouterProvider
+          router={router}
+          context={{
+            signedIn,
+            timezone: me.data?.timezone ?? "UTC",
+            weekStartsOn: me.data?.weekStartsOn ?? 1,
+          }}
+        />
+      </OfflineQueueProvider>
     </I18nProvider>
   );
 }

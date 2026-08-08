@@ -1,12 +1,33 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError, NetworkError } from "../api/problem.js";
 import {
   OfflineQueue,
+  idbStorageFor,
   isRetryable,
   startAutoFlush,
   type QueueStorage,
   type QueuedRequest,
 } from "./offline-queue.js";
+
+/**
+ * IndexedDB, as a Map.
+ *
+ * jsdom has no IndexedDB and adding a polyfill would test `fake-indexeddb`'s fidelity rather than
+ * the thing that can be wrong here, which is *which key* each user reads and writes.
+ */
+const { store } = vi.hoisted(() => ({ store: new Map<string, unknown>() }));
+
+vi.mock("idb-keyval", () => ({
+  get: (key: string) => Promise.resolve(store.get(key)),
+  set: (key: string, value: unknown) => {
+    store.set(key, value);
+    return Promise.resolve();
+  },
+  del: (key: string) => {
+    store.delete(key);
+    return Promise.resolve();
+  },
+}));
 
 /** In memory, so the tests are about ordering and drop rules rather than about IndexedDB. */
 function memoryStorage(initial: QueuedRequest[] = []): QueueStorage & { entries: QueuedRequest[] } {
@@ -515,5 +536,106 @@ describe("flush", () => {
     await queue.flush();
     expect(await queue.pending()).toBe(0);
     expect(sent).toEqual(["/friction"]);
+  });
+});
+
+describe("idbStorageFor", () => {
+  const ALICE = "11111111-1111-4111-8111-111111111111";
+  const BOB = "22222222-2222-4222-8222-222222222222";
+
+  function entry(key: string): QueuedRequest {
+    return { key, path: "/friction", body: {}, queuedAt: "2026-08-05T12:00:00Z", attempts: 0 };
+  }
+
+  beforeEach(() => {
+    store.clear();
+  });
+
+  /**
+   * The one this exists for.
+   *
+   * IndexedDB is per-origin, not per-account, and the key used to be a constant. So signing out with
+   * unsent captures and signing in as somebody else replayed them with the *new* user's token — and
+   * because every capture endpoint is an idempotent upsert on a client-minted UUID, they landed
+   * cleanly in the wrong account and looked exactly like real rows.
+   */
+  it("keeps one user's captures out of another's queue", async () => {
+    const alice = idbStorageFor(ALICE);
+    const bob = idbStorageFor(BOB);
+
+    await alice.write([entry("friction:a")]);
+
+    expect(await bob.read()).toEqual([]);
+    expect(await alice.read()).toHaveLength(1);
+  });
+
+  it("does not empty one user's queue when another's is cleared", async () => {
+    const alice = idbStorageFor(ALICE);
+    const bob = idbStorageFor(BOB);
+    await alice.write([entry("friction:a")]);
+    await bob.write([entry("friction:b")]);
+
+    await bob.clear();
+
+    expect(await alice.read()).toHaveLength(1);
+    expect(await bob.read()).toEqual([]);
+  });
+
+  describe("the queue left behind by the unscoped version", () => {
+    // Created per test rather than annotated on a shared `let`: `MockInstance`'s signature moves
+    // between vitest majors, and inference does not.
+    const silenceWarnings = () => vi.spyOn(console, "warn").mockImplementation(() => undefined);
+
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    /**
+     * Dropped rather than adopted, and this test is the decision rather than a description of it.
+     *
+     * Adopting reads as the kinder option and is the same bug once more: an unscoped queue records
+     * no owner, so giving it to whoever signs in first is exactly the misattributed write the
+     * scoping exists to stop — silently, because an upsert makes it indistinguishable from real data.
+     */
+    it("is discarded rather than replayed into whichever account signs in first", async () => {
+      silenceWarnings();
+      store.set("mindforge.offline-queue", [entry("friction:orphan")]);
+
+      expect(await idbStorageFor(ALICE).read()).toEqual([]);
+      expect(store.has("mindforge.offline-queue")).toBe(false);
+    });
+
+    it("says so out loud, because an abandoned capture is real data loss", async () => {
+      const warn = silenceWarnings();
+      store.set("mindforge.offline-queue", [entry("friction:orphan")]);
+
+      await idbStorageFor(ALICE).read();
+
+      expect(warn).toHaveBeenCalledOnce();
+      expect(warn.mock.calls[0]?.[0]).toContain("1 capture");
+    });
+
+    it("stays quiet when there was nothing in it", async () => {
+      const warn = silenceWarnings();
+      store.set("mindforge.offline-queue", []);
+
+      await idbStorageFor(ALICE).read();
+
+      expect(warn).not.toHaveBeenCalled();
+      expect(store.has("mindforge.offline-queue")).toBe(false);
+    });
+
+    // Every path through the queue reads first, so a check on each read would run on every flush
+    // and every tap, for a key that is gone after the first one.
+    it("is looked for once per storage, not on every read", async () => {
+      silenceWarnings();
+      const alice = idbStorageFor(ALICE);
+      await alice.read();
+
+      store.set("mindforge.offline-queue", [entry("friction:later")]);
+      await alice.read();
+
+      expect(store.has("mindforge.offline-queue")).toBe(true);
+    });
   });
 });
