@@ -1,9 +1,11 @@
 import { Module } from "@nestjs/common";
 
+import { BRIEFING_READER } from "../application/briefing.port.js";
 import { MISSION_WORKSPACE_READER } from "../application/teach.port.js";
 import { TeachRuns } from "../application/teach.use-cases.js";
 import { AGENT_RUN_REPOSITORY } from "../domain/agent-run.repository.js";
 import { PrismaAgentRunRepository } from "../infrastructure/prisma-agent-run.repository.js";
+import { PrismaBriefingReader } from "../infrastructure/prisma-briefing.reader.js";
 import { PrismaMissionWorkspaceReader } from "../infrastructure/prisma-mission-workspace.reader.js";
 import { TeachController } from "./teach.controller.js";
 
@@ -36,7 +38,8 @@ import { TeachController } from "./teach.controller.js";
     TeachRuns,
     { provide: AGENT_RUN_REPOSITORY, useClass: PrismaAgentRunRepository },
     { provide: MISSION_WORKSPACE_READER, useClass: PrismaMissionWorkspaceReader },
+    { provide: BRIEFING_READER, useClass: PrismaBriefingReader },
   ],
-  exports: [TeachRuns],
+  exports: [TeachRuns, BRIEFING_READER],
 })
 export class TeachModule {}

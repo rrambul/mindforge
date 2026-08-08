@@ -1,0 +1,97 @@
+import { M3_ABSENCES, type BriefingInput } from "@mindforge/workspace";
+import { Inject, Injectable } from "@nestjs/common";
+
+import { USER_SCOPED_DB, type UserScopedDb } from "../../../shared/persistence/user-scoped-db.js";
+import type { BriefingReader } from "../application/briefing.port.js";
+
+/**
+ * What Mindforge actually knows about a mission, for the briefing.
+ *
+ * Three of the four inputs it does not have are not queried at all — they have no
+ * source table until M4/M5/M6, and `M3_ABSENCES` says so in words the agent
+ * reads. Writing a query that returns an empty list for them would be worse than
+ * not writing one: an empty list renders as a measurement.
+ */
+
+/** Long enough to see a pattern, short enough that last month's friction is not "recent". */
+const FRICTION_WINDOW_DAYS = 14;
+
+/** The `## Next` sections the ZPD recommender reads, newest first. */
+const ZPD_LIMIT = 8;
+
+@Injectable()
+export class PrismaBriefingReader implements BriefingReader {
+  constructor(@Inject(USER_SCOPED_DB) private readonly db: UserScopedDb) {}
+
+  gather(userId: string, missionId: string): Promise<BriefingInput> {
+    return this.db.run(userId, async (tx) => {
+      const [mission] = await tx.$queryRawUnsafe<{ topic: string }[]>(
+        `select topic from missions where id = $1::uuid`,
+        missionId,
+      );
+
+      const [counts] = await tx.$queryRawUnsafe<{ lessons: bigint; records: bigint }[]>(
+        `select
+           (select count(*) from lessons where mission_id = $1::uuid) as lessons,
+           (select count(*) from learning_records where mission_id = $1::uuid) as records`,
+        missionId,
+      );
+
+      const records = await tx.$queryRawUnsafe<{ next: string; storage_path: string }[]>(
+        `select next, storage_path from learning_records
+          where mission_id = $1::uuid and next is not null and next <> ''
+          order by recorded_at desc
+          limit $2`,
+        missionId,
+        ZPD_LIMIT,
+      );
+
+      // Self-reported only, and the briefing labels them as such. `perceived_level`
+      // has its own column and no path to a score precisely so the gap between
+      // them stays meaningful (FR-S5).
+      // `::text` because the column is a numeric and the briefing renders it as
+      // words. Casting in SQL rather than formatting here keeps the decision at
+      // the boundary — a Prisma Decimal stringifies differently than a raw number
+      // and the difference would show up in a lesson.
+      const skills = await tx.$queryRawUnsafe<{ name: string; perceived_level: string | null }[]>(
+        `select name, perceived_level::text as perceived_level from skills order by name`,
+      );
+
+      // The one genuinely measured signal in the file. `friction_events` has
+      // existed since M1, so "none in 14 days" is something Mindforge knows.
+      // `type`, not `kind` — friction_events names it `type`, and whether an event
+      // was productive is computed from it rather than stored (see classifyFriction),
+      // so this reports what was logged rather than a verdict the briefing has no
+      // business reaching on its own.
+      const friction = await tx.$queryRawUnsafe<{ type: string; occurrences: bigint }[]>(
+        `select type, count(*) as occurrences from friction_events
+          where occurred_at > now() - make_interval(days => $1)
+          group by type
+          order by occurrences desc`,
+        FRICTION_WINDOW_DAYS,
+      );
+
+      return {
+        missionTopic: mission?.topic ?? null,
+        lessonCount: Number(counts?.lessons ?? 0),
+        recordCount: Number(counts?.records ?? 0),
+        zpdCandidates: records.map((record) => ({
+          next: record.next,
+          fromRecord: record.storage_path.split("/").pop() ?? record.storage_path,
+        })),
+        skills: skills.map((skill) => ({
+          name: skill.name,
+          perceivedLevel: skill.perceived_level,
+        })),
+        recentFriction: friction.map((row) => ({
+          kind: row.type,
+          occurrences: Number(row.occurrences),
+        })),
+        frictionWindowDays: FRICTION_WINDOW_DAYS,
+        // Not queried, because there is nothing to query. Each carries the
+        // sentence the agent must read instead of a zero.
+        ...M3_ABSENCES,
+      } satisfies BriefingInput;
+    });
+  }
+}

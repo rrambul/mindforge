@@ -15,6 +15,8 @@
 export { TeachRuns } from "./application/teach.use-cases.js";
 export { TeachModule } from "./presentation/teach.module.js";
 
+export { BRIEFING_READER, type BriefingReader } from "./application/briefing.port.js";
+
 export {
   MISSION_WORKSPACE_READER,
   type MissionWorkspace,
