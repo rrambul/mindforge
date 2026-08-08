@@ -11,7 +11,8 @@ import {
 import { Debrief } from "../features/focus/ui/Debrief.js";
 import { LogPastSession } from "../features/focus/ui/LogPastSession.js";
 import { RunningSession } from "../features/focus/ui/RunningSession.js";
-import { StartFocus, type SessionSubject } from "../features/focus/ui/StartFocus.js";
+import { StartFocus } from "../features/focus/ui/StartFocus.js";
+import type { SessionSubject } from "../features/focus/ui/SubjectPicker.js";
 import {
   frictionBody,
   useAttributeFriction,
@@ -263,6 +264,7 @@ export function TodayScreen() {
                 }
                 onCancel={() => setLoggingPast(false)}
                 pending={record.isPending}
+                subjects={subjects}
               />
             </>
           ) : (

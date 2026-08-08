@@ -9,11 +9,14 @@ import {
   type PastSessionProblem,
 } from "../model/past-session.js";
 import { OutcomeChips, RatingRow } from "./debrief-controls.js";
+import { findSubject, subjectFields, SubjectPicker, type SessionSubject } from "./SubjectPicker.js";
 
 interface LogPastSessionProps {
   readonly onSubmit: (input: CreateFocusSessionInput) => void;
   readonly onCancel: () => void;
   readonly pending: boolean;
+  /** The same list the timer offers. Empty is fine — the picker then renders nothing. */
+  readonly subjects: readonly SessionSubject[];
 }
 
 /**
@@ -26,11 +29,12 @@ interface LogPastSessionProps {
  *
  * The debrief reuses the live flow's controls — the questions mean the same thing.
  */
-export function LogPastSession({ onSubmit, onCancel, pending }: LogPastSessionProps) {
+export function LogPastSession({ onSubmit, onCancel, pending, subjects }: LogPastSessionProps) {
   const { t } = useTranslation("focus");
   const { t: common } = useTranslation("common");
   const [form, setForm] = useState<PastSessionForm>(() => defaultPastSession());
   const [problem, setProblem] = useState<PastSessionProblem | null>(null);
+  const [subjectKey, setSubjectKey] = useState("");
 
   function patch(changes: Partial<PastSessionForm>): void {
     setForm((current) => ({ ...current, ...changes }));
@@ -46,7 +50,10 @@ export function LogPastSession({ onSubmit, onCancel, pending }: LogPastSessionPr
       setProblem(result.problem);
       return;
     }
-    onSubmit(result.input);
+    // The subject is what a plan is compared against, and this path needs it at least as much as the
+    // timer: retroactive entry is how work done away from the app arrives, so a backfilled session
+    // with no mission is an hour the weekly review can never see.
+    onSubmit({ ...result.input, ...subjectFields(findSubject(subjects, subjectKey)) });
   }
 
   const errorFor = (field: PastSessionProblem["field"]): string | undefined =>
@@ -89,6 +96,13 @@ export function LogPastSession({ onSubmit, onCancel, pending }: LogPastSessionPr
             hint={t("past.intentionHint")}
             value={form.intention}
             onChange={(event) => patch({ intention: event.target.value })}
+          />
+
+          <SubjectPicker
+            subjects={subjects}
+            value={subjectKey}
+            onChange={setSubjectKey}
+            tense="past"
           />
 
           <OutcomeChips

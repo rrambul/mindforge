@@ -51,6 +51,7 @@
       "invalid": "Essa data não é válida.",
       "future": "Essa sessão ainda não aconteceu.",
       "too_long": "Mais de um dia — verifique o número."
-    }
+    },
+    "subject": "Sobre o que foi este bloco?"
   }
 }

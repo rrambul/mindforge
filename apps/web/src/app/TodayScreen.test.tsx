@@ -144,6 +144,47 @@ describe("nothing running", () => {
     expect(sent.mock.calls[0]?.[0]).toMatchObject({ missionId: MISSION_ID });
   });
 
+  it("files a backfilled session too, which is the path FR-F2 exists for", async () => {
+    // The same defect as on the timer, on the path that matters at least as much: retroactive entry
+    // is how work done away from the app arrives, so a backfilled session with no mission is an hour
+    // the weekly review can never see. Fixing only `StartFocus` would have left this half open.
+    runningReturns(null);
+    const sent = vi.fn();
+    server.use(
+      http.get(`${API}/missions`, () =>
+        HttpResponse.json({
+          missions: [
+            {
+              id: MISSION_ID,
+              topic: "Rust, properly",
+              why: null,
+              successLooksLike: null,
+              constraints: null,
+              currentLevel: null,
+              status: "active",
+              createdAt: "2026-08-01T09:00:00.000Z",
+              updatedAt: "2026-08-01T09:00:00.000Z",
+            },
+          ],
+        }),
+      ),
+      http.post(`${API}/focus/sessions`, async ({ request }) => {
+        sent(await request.json());
+        return HttpResponse.json(session(), { status: 201 });
+      }),
+    );
+
+    renderWithProviders(<TodayScreen />);
+    await userEvent.click(await screen.findByRole("button", { name: /forgot to time/i }));
+
+    const picker = await screen.findByLabelText(/What was this about/);
+    await userEvent.selectOptions(picker, `mission:${MISSION_ID}`);
+    await userEvent.click(screen.getByRole("button", { name: /Log it/i }));
+
+    await waitFor(() => expect(sent).toHaveBeenCalled());
+    expect(sent.mock.calls[0]?.[0]).toMatchObject({ missionId: MISSION_ID });
+  });
+
   it("sends nothing extra when no subject is chosen", async () => {
     // The picker must not cost the ≤5s path a tap: leaving it alone has to be the same request as
     // before it existed.
