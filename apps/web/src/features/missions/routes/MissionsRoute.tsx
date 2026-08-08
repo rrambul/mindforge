@@ -36,9 +36,17 @@ export interface MissionsRouteProps {
    * rule 6). Optional, so the route renders without it.
    */
   readonly renderNote?: (subjectId: string) => ReactNode;
+  /**
+   * "Teach me the next thing" for this mission (FR-T3).
+   *
+   * A second render prop for the same reason as the first: the panel needs
+   * `features/teach`, and a feature may not import another (§2.2 rule 6). The
+   * screen in `app/` composes both.
+   */
+  readonly renderTeach?: (missionId: string) => ReactNode;
 }
 
-export function MissionsRoute({ renderNote }: MissionsRouteProps) {
+export function MissionsRoute({ renderNote, renderTeach }: MissionsRouteProps) {
   const { t } = useTranslation("missions");
   const { t: common } = useTranslation("common");
   const [composing, setComposing] = useState(false);
@@ -149,6 +157,7 @@ export function MissionsRoute({ renderNote }: MissionsRouteProps) {
             mission={mission}
             pending={setParked.isPending && setParked.variables?.id === mission.id}
             note={renderNote?.(mission.id)}
+            teach={renderTeach?.(mission.id)}
             onTogglePark={(target: Mission) =>
               setParked.mutate({ id: target.id, parked: target.status === "active" })
             }

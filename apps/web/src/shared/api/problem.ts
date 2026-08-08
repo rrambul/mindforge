@@ -34,6 +34,11 @@ export const PROBLEM = {
   validationFailed: `${TYPE_BASE}/validation-failed`,
   wipLimitReached: `${TYPE_BASE}/wip-limit-reached`,
   focusAlreadyRunning: `${TYPE_BASE}/focus-session-already-running`,
+  // One run per mission at a time (FR-T3). Branched on because the answer to
+  // "teach me something" while something is being taught is to show that run,
+  // not an error — the rejection and the thing it was rejected for are the same
+  // fact seen from two sides.
+  runAlreadyActive: `${TYPE_BASE}/run-already-active`,
 } as const;
 
 /**

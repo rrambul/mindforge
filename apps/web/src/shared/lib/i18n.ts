@@ -24,6 +24,7 @@ import enPlanning from "../../locales/en/planning.json";
 import enResources from "../../locales/en/resources.json";
 import enSettings from "../../locales/en/settings.json";
 import enSkills from "../../locales/en/skills.json";
+import enTeach from "../../locales/en/teach.json";
 import ptAuth from "../../locales/pt-BR/auth.json";
 import ptCommand from "../../locales/pt-BR/command.json";
 import ptCommon from "../../locales/pt-BR/common.json";
@@ -39,6 +40,7 @@ import ptPlanning from "../../locales/pt-BR/planning.json";
 import ptResources from "../../locales/pt-BR/resources.json";
 import ptSettings from "../../locales/pt-BR/settings.json";
 import ptSkills from "../../locales/pt-BR/skills.json";
+import ptTeach from "../../locales/pt-BR/teach.json";
 
 /**
  * react-i18next with ICU MessageFormat, the same syntax the server-side bundle uses
@@ -67,6 +69,7 @@ export const NAMESPACES = [
   "planning",
   "insights",
   "settings",
+  "teach",
 ] as const;
 
 const resources = {
@@ -86,6 +89,7 @@ const resources = {
     planning: enPlanning,
     insights: enInsights,
     settings: enSettings,
+    teach: enTeach,
   },
   "pt-BR": {
     common: ptCommon,
@@ -103,6 +107,7 @@ const resources = {
     planning: ptPlanning,
     insights: ptInsights,
     settings: ptSettings,
+    teach: ptTeach,
   },
 } as const satisfies Record<Locale, Record<(typeof NAMESPACES)[number], unknown>>;
 

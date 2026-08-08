@@ -1,0 +1,49 @@
+{
+  "action": {
+    "start": "Teach me the next thing",
+    "starting": "Starting",
+    "running": "Teaching…"
+  },
+  "status": {
+    "queued": "Queued. This starts within a few seconds.",
+    "running": "Writing you a lesson. This usually takes a few minutes — you can leave this page.",
+    "succeeded": "{count, plural, =0 {Done.} one {Done — one new lesson.} other {Done — # new lessons.}}",
+    "succeeded_with_conflicts": "Done, but somebody else had edited {count, plural, one {a file} other {# files}} while this was running. Both versions were kept.",
+    "failed": "That run didn't finish.",
+    "cancelled": "Cancelled."
+  },
+  "conflict": {
+    "heading": "Where the other versions are",
+    "body": "Nothing was overwritten. The incoming copy sits beside the original in your workspace, and you can decide which to keep.",
+    "path": "{path}"
+  },
+  "warning": {
+    "heading": "{count, plural, one {# thing wasn't indexed} other {# things weren't indexed}}",
+    "body": "The files are saved. Some of what's in them didn't fit anything Mindforge tracks, so it isn't searchable yet.",
+    "section_missing": "A section this format expects is missing: {heading}",
+    "section_empty": "This section is empty: {heading}",
+    "section_placeholder": "This section still has its template text: {heading}",
+    "section_unknown": "Nothing here stores this section yet: {heading}",
+    "heading_duplicated": "This heading appears twice; the first was used: {heading}",
+    "value_unknown": "Couldn't read {field}, so it was left blank.",
+    "value_coerced": "{field} wasn't one of the values Mindforge knows, so it was stored as the closest match.",
+    "value_malformed": "Couldn't read {field}.",
+    "filename_unnumbered": "{filename} has no number, so it isn't in the library. Files are named 0001-, 0002- and so on.",
+    "filename_slug_normalized": "The name of {filename} was simplified for the web.",
+    "sequence_mismatch": "Two files both claim number {seq}. {kept} was used.",
+    "title_missing": "No title, so one was taken from the {source}.",
+    "title_ambiguous": "This document has {count} top-level headings; the first was used as the title.",
+    "link_unresolved": "{from} links to {to}, which isn't there."
+  },
+  "error": {
+    "run_already_active": "This mission is already being taught. Watch that run, or wait for it to finish.",
+    "generic": "Couldn't start a run."
+  },
+  "history": {
+    "heading": "Past runs",
+    "empty": "Nothing yet.",
+    "cost": "Estimated {cost}",
+    "duration": "{minutes, plural, one {# minute} other {# minutes}}",
+    "unpriced": "Cost unknown"
+  }
+}

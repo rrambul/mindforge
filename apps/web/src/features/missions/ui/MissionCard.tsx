@@ -14,13 +14,20 @@ interface MissionCardProps {
    * that composes both hands it in. Optional, so the card still renders in a test that does not care.
    */
   readonly note?: ReactNode;
+  /**
+   * "Teach me the next thing" for this mission (FR-T3), from the app layer too.
+   *
+   * Above the note rather than below it: teaching is what a mission is *for*, and
+   * a card that leads with a note composer buries the thing the learner came for.
+   */
+  readonly teach?: ReactNode;
 }
 
 /**
  * Dumb by design (§2.2 rule 5): props in, markup out, no fetching. The route decides what happens
  * when you park something.
  */
-export function MissionCard({ mission, onTogglePark, pending, note }: MissionCardProps) {
+export function MissionCard({ mission, onTogglePark, pending, note, teach }: MissionCardProps) {
   const { t } = useTranslation("missions");
   const { t: g } = useTranslation("glossary");
 
@@ -40,6 +47,11 @@ export function MissionCard({ mission, onTogglePark, pending, note }: MissionCar
           detail view — and its absence is stated rather than left as empty space, because a mission
           without one is worth noticing. */}
       {mission.why ? <Text>{mission.why}</Text> : <Text tone="hint">{t("card.noWhy")}</Text>}
+
+      {/* Not on a parked mission: parking is a statement that you are not working
+          on something, and offering to teach it is the same contradiction
+          `MissionParked` refuses for a weekly allocation (FR-M4b). */}
+      {!parked && teach}
 
       {note}
 

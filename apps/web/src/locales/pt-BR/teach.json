@@ -1,0 +1,49 @@
+{
+  "action": {
+    "start": "Me ensine a próxima coisa",
+    "starting": "Iniciando",
+    "running": "Ensinando…"
+  },
+  "status": {
+    "queued": "Na fila. Começa em alguns segundos.",
+    "running": "Escrevendo uma lição para você. Costuma levar alguns minutos — pode sair desta página.",
+    "succeeded": "{count, plural, =0 {Pronto.} one {Pronto — uma lição nova.} other {Pronto — # lições novas.}}",
+    "succeeded_with_conflicts": "Pronto, mas alguém editou {count, plural, one {um arquivo} other {# arquivos}} enquanto isso rodava. As duas versões foram mantidas.",
+    "failed": "Essa execução não terminou.",
+    "cancelled": "Cancelada."
+  },
+  "conflict": {
+    "heading": "Onde estão as outras versões",
+    "body": "Nada foi sobrescrito. A cópia que chegou está ao lado da original no seu workspace, e você decide qual fica.",
+    "path": "{path}"
+  },
+  "warning": {
+    "heading": "{count, plural, one {# coisa não foi indexada} other {# coisas não foram indexadas}}",
+    "body": "Os arquivos estão salvos. Parte do conteúdo não corresponde a nada que o Mindforge acompanha, então ainda não é pesquisável.",
+    "section_missing": "Falta uma seção que este formato espera: {heading}",
+    "section_empty": "Esta seção está vazia: {heading}",
+    "section_placeholder": "Esta seção ainda está com o texto do modelo: {heading}",
+    "section_unknown": "Nada aqui guarda esta seção ainda: {heading}",
+    "heading_duplicated": "Este título aparece duas vezes; foi usado o primeiro: {heading}",
+    "value_unknown": "Não foi possível ler {field}, então ficou em branco.",
+    "value_coerced": "{field} não era um dos valores que o Mindforge conhece, então foi guardado como o mais próximo.",
+    "value_malformed": "Não foi possível ler {field}.",
+    "filename_unnumbered": "{filename} não tem número, então não está na biblioteca. Os arquivos são nomeados 0001-, 0002- e assim por diante.",
+    "filename_slug_normalized": "O nome de {filename} foi simplificado para a web.",
+    "sequence_mismatch": "Dois arquivos reivindicam o número {seq}. Foi usado {kept}.",
+    "title_missing": "Sem título, então foi usado o do {source}.",
+    "title_ambiguous": "Este documento tem {count} títulos principais; foi usado o primeiro.",
+    "link_unresolved": "{from} aponta para {to}, que não existe."
+  },
+  "error": {
+    "run_already_active": "Esta missão já está sendo ensinada. Acompanhe essa execução ou aguarde ela terminar.",
+    "generic": "Não foi possível iniciar uma execução."
+  },
+  "history": {
+    "heading": "Execuções anteriores",
+    "empty": "Nada ainda.",
+    "cost": "Estimado em {cost}",
+    "duration": "{minutes, plural, one {# minuto} other {# minutos}}",
+    "unpriced": "Custo desconhecido"
+  }
+}
