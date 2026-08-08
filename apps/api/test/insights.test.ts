@@ -1,9 +1,6 @@
 import type { PrismaClient } from "@mindforge/db";
-import { FastifyAdapter, type NestFastifyApplication } from "@nestjs/platform-fastify";
-import { Test } from "@nestjs/testing";
+import type { NestFastifyApplication } from "@nestjs/platform-fastify";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { InsightsModule } from "../src/modules/insights/presentation/insights.module.js";
-import { SharedModule } from "../src/shared/shared.module.js";
 import {
   adminDb,
   bearer,
@@ -13,26 +10,6 @@ import {
   signUp,
   type TestUser,
 } from "./support/stack.js";
-
-// TEMPORARY probe boot — replaced with bootApp() before hand-off.
-async function bootProbe(): Promise<NestFastifyApplication> {
-  const moduleRef = await Test.createTestingModule({
-    imports: [SharedModule, InsightsModule],
-  }).compile();
-  const probe = moduleRef.createNestApplication<NestFastifyApplication>(new FastifyAdapter());
-  probe.setGlobalPrefix("v1");
-  probe.enableCors({
-    origin: "http://localhost:5173",
-    credentials: true,
-    methods: ["GET", "HEAD", "POST", "PATCH", "PUT", "DELETE"],
-    allowedHeaders: ["authorization", "content-type", "if-none-match"],
-    exposedHeaders: ["etag"],
-  });
-  await probe.init();
-  await probe.getHttpAdapter().getInstance().ready();
-  return probe;
-}
-void bootApp;
 
 /**
  * The insights dashboard end to end (FR-I6b, FR-I7, §3.9, §6.1).
@@ -250,7 +227,10 @@ async function seedFriction(
 
 beforeAll(async () => {
   db = adminDb();
-  app = await bootProbe();
+  // The real app, not a probe module with only SharedModule + InsightsModule. The CORS assertions
+  // below are the reason it matters: a probe that configured its own `enableCors` would pass them
+  // while `bootstrap.ts` — the thing that actually serves requests — said something else entirely.
+  app = await bootApp();
   [alice, bob] = await Promise.all([signUp(), signUp()]);
   // Explicit rather than relying on the signup default: every assertion below about which day a
   // thing landed on is a statement about this setting.
