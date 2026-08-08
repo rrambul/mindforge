@@ -92,10 +92,14 @@ jobs:
       # `db` and `kong` are not excludable here: Postgres is the point, and GoTrue sits behind the
       # Kong gateway that `API_URL` addresses. The names come from `supabase start --help`, which is
       # the only authority on them — an invalid one is a hard failure rather than a silent no-op.
+      # `storage` is no longer excluded. M3 keeps teach workspaces in it (§7.2), and the bucket's
+      # access control is "a private bucket with no policies denies everyone but the service role" —
+      # a claim about somebody else's schema that is only worth making if something checks it.
+      # packages/db/test/workspace-bucket.test.ts does, over HTTP, which needs the service running.
       - name: Start Supabase
         run: |
           supabase start \
-            --exclude realtime,storage,imgproxy,studio,edge-runtime,functions,vector,analytics,inbucket
+            --exclude realtime,imgproxy,studio,edge-runtime,functions,vector,analytics,inbucket
 
       # `supabase status -o env` emits the local keys and URLs under the CLI's own names; the apps
       # read different ones. Mapped explicitly rather than sourced wholesale, so a rename in the CLI
@@ -111,6 +115,10 @@ jobs:
             echo "SUPABASE_URL=$API_URL"
             echo "SUPABASE_ANON_KEY=$ANON_KEY"
             echo "SUPABASE_SERVICE_ROLE_KEY=$SERVICE_ROLE_KEY"
+            # Storage denials are asserted with a minted `authenticated` token rather than the anon
+            # key, because anon and authenticated are different roles and a policy can grant one
+            # without the other. Signing one needs the secret.
+            echo "SUPABASE_JWT_SECRET=$JWT_SECRET"
             echo "DATABASE_URL=$DB_URL"
             echo "DIRECT_URL=$DB_URL"
             echo "APP_ORIGIN=http://localhost:5173"
@@ -141,6 +149,15 @@ jobs:
       # at the other.
       - name: API integration suite, with its coverage gate
         run: pnpm --filter @mindforge/api test:integration:coverage
+
+      # New in M3, and it closes a gap `apps/worker/vitest.config.ts` had been describing as one:
+      # the worker's `infrastructure/` layer is excluded from unit coverage on the grounds that
+      # adapters are proved by running them, and until now nothing ran them. The Storage adapter is
+      # the first place that mattered — `list()` is not recursive, and neither `download()` nor
+      # `upload()` returns an ETag, so a double written to agree with the client's shape would have
+      # been wrong in three places at once.
+      - name: Worker integration suite, with its coverage gate
+        run: pnpm --filter @mindforge/worker test:integration:coverage
 
       # Chromium only. A second engine doubles the slowest gate in the pipeline to catch rendering
       # differences this suite does not assert on — see playwright.config.ts.

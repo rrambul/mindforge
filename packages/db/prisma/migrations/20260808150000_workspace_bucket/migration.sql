@@ -1,0 +1,54 @@
+-- The Storage bucket teach workspaces live in (M3) — TECH-DESIGN.md §7.2, §7.6.
+--
+-- In a migration rather than in `supabase/config.toml` for the reason every RLS
+-- policy is: `config.toml` applies to `supabase start` on a developer's laptop,
+-- and migrations apply everywhere — including the deploy that has never happened
+-- yet. A bucket that exists locally and not in production is the same class of
+-- drift as a policy clicked into the dashboard.
+--
+-- `postgres` can write `storage.buckets` even though `supabase_storage_admin`
+-- owns it. Verified before relying on it, because the neighbouring assumption —
+-- that Prisma can introspect this schema — is false.
+
+INSERT INTO storage.buckets (id, name, public, file_size_limit)
+VALUES ('mindforge', 'mindforge', false, 52428800)
+ON CONFLICT (id) DO NOTHING;
+
+-- ============================================================================
+-- Access control: none, deliberately, and this is the strongest available
+-- position rather than an omission.
+-- ============================================================================
+--
+-- RLS is enabled on `storage.objects` by Supabase, and a private bucket with no
+-- policy therefore denies **everyone** except the service role, which bypasses
+-- RLS entirely. Probed rather than assumed, with a real `authenticated` JWT
+-- against a private bucket with no policies:
+--
+--     read   → 400
+--     list   → []
+--     write  → 400
+--
+-- That is exactly the reachability this design wants, and a per-user prefix
+-- policy would be strictly weaker: it would grant `authenticated` a direct path
+-- to Storage that nothing in the product needs.
+--
+-- Nothing needs one, because nothing but the worker touches Storage:
+--
+--   * The **worker** holds the service-role key, bypasses RLS by design (§3.6),
+--     and scopes every object by `user_id` in the path itself. That hand-written
+--     filter is the enforcement, which is why CLAUDE.md's first non-negotiable
+--     puts `userId` on every repository method.
+--   * The **SPA** never reads Storage. Lessons are served from a separate origin
+--     through short-lived signed URLs the API mints after an RLS-checked
+--     ownership test (§7.5), and it never trusts a path from the client — the
+--     path is resolved from the lesson row.
+--
+-- So the rule to hold onto if this is ever revisited: **adding a policy here
+-- widens access.** If a future milestone needs the browser to read Storage
+-- directly, the policy to write is a prefix match on `auth.uid()`
+-- (`(storage.foldername(name))[2] = auth.uid()::text` for `workspaces/<uid>/…`),
+-- and it needs its own proof that user A cannot read user B's prefix — the same
+-- bar as any table (non-negotiable 2).
+--
+-- `packages/db/test/workspace-bucket.test.ts` pins the denials above, so this
+-- comment cannot quietly become false.

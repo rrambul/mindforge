@@ -1,5 +1,6 @@
 import { Global, Module } from "@nestjs/common";
 import { NightlyModule } from "./modules/nightly/presentation/nightly.module.js";
+import { TeachModule } from "./modules/teach/presentation/teach.module.js";
 import { CLOCK, SystemClock } from "./shared/clock.js";
 import { ENV, loadEnv } from "./shared/env.js";
 import { PRISMA, WorkerPrisma } from "./shared/prisma.js";
@@ -23,7 +24,7 @@ import { PRISMA, WorkerPrisma } from "./shared/prisma.js";
  */
 @Global()
 @Module({
-  imports: [NightlyModule],
+  imports: [NightlyModule, TeachModule],
   providers: [
     { provide: ENV, useFactory: () => loadEnv() },
     WorkerPrisma,

@@ -57,6 +57,8 @@ export {
 
 export { etagsMatch, normalizeEtag, sha256, storageEtag } from "./hash.js";
 
+export type { FileTree, LocalFile, ObjectStore, StoredObject } from "./ports.js";
+
 export {
   conflictPathFor,
   detectConflicts,

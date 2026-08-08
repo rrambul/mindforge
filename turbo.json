@@ -41,6 +41,11 @@
     "test": {
       "dependsOn": ["test:unit", "test:integration"],
       "outputs": []
+    },
+    "test:integration:coverage": {
+      "dependsOn": ["^build"],
+      "cache": false,
+      "outputs": ["coverage/**"]
     }
   }
 }

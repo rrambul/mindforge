@@ -17,6 +17,10 @@ export default defineConfig({
     },
   },
   test: {
+    // `src` only. M3 added `test/`, which needs a running Supabase and its own
+    // config — without this bound the unit run picks those up and fails for want
+    // of an environment, which reads as a broken unit suite.
+    include: ["src/**/*.test.ts"],
     passWithNoTests: true,
     coverage: {
       provider: "v8",

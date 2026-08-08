@@ -239,6 +239,9 @@ importers:
       '@nestjs/core':
         specifier: ^11.1.28
         version: 11.1.28(@nestjs/common@11.1.28(reflect-metadata@0.2.2)(rxjs@7.8.2))(reflect-metadata@0.2.2)(rxjs@7.8.2)
+      '@supabase/supabase-js':
+        specifier: ^2.112.1
+        version: 2.112.1
       bullmq:
         specifier: ^5.81.3
         version: 5.81.3

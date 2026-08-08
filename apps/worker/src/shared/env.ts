@@ -3,9 +3,15 @@ import { z } from "zod";
 /**
  * The worker's environment, validated once at boot.
  *
- * Deliberately a smaller set than the API's. The worker serves no HTTP, verifies no tokens, and has
- * no CORS — asking it for `SUPABASE_URL` or `APP_ORIGIN` would make it refuse to start over settings
- * it never reads, which is the kind of thing that turns a deploy into an afternoon.
+ * Still a smaller set than the API's: the worker serves no HTTP, verifies no tokens, and has no
+ * CORS, so asking it for `APP_ORIGIN` would make it refuse to start over a setting it never reads —
+ * the kind of thing that turns a deploy into an afternoon.
+ *
+ * **`SUPABASE_URL` arrived in M3 and the note above used to name it as an example of what not to
+ * require.** That changed when the worker gained a reason to read it: teach workspaces live in
+ * Storage (§7.2), and the worker is the only thing that touches them. It is required rather than
+ * optional because a worker that boots without it fails at the first agent run instead of at
+ * startup, which is the failure mode `REDIS_URL`'s absence exists to avoid.
  *
  * **`REDIS_URL` is deliberately absent.** It is in `.env.example` and TECH-DESIGN §2 names BullMQ as
  * the queue, but no Redis exists locally, in CI, or in any config in this repo, and `bullmq` is a
@@ -21,6 +27,16 @@ const EnvSchema = z.object({
   DATABASE_URL: z.string().min(1),
 
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
+
+  /** Storage lives here. Teach workspaces are the worker's only reason to know it (§7.2). */
+  SUPABASE_URL: z.string().min(1),
+
+  /**
+   * Bypasses RLS, which is the point: the workspace bucket has no policies, so this key is the only
+   * thing that can read it. Every path the worker builds is scoped by `user_id` in code, and that
+   * hand-written scoping is the enforcement.
+   */
+  SUPABASE_SERVICE_ROLE_KEY: z.string().min(1),
 
   /**
    * How often the scheduler wakes. Fifteen minutes is fine granularity for jobs whose triggers are
