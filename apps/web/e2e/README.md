@@ -12,18 +12,18 @@ Playwright starts the API and the web dev server itself, and reuses them if you 
 
 ## What is covered
 
-| Flow                         | File           |
-| ---------------------------- | -------------- |
-| Sign up → sign in → sign out | `auth.spec.ts` |
+| Flow                                                      | File                    |
+| --------------------------------------------------------- | ----------------------- |
+| Sign up → sign in → sign out                              | `auth.spec.ts`          |
+| Weekly plan → log a session → review shows plan vs actual | `weekly-rhythm.spec.ts` |
 
 ## What is not, yet
 
-§13.2 names eight flows. These are the seven still missing, listed here so the gap is a known one
+§13.2 names eight flows. These are the six still missing, listed here so the gap is a known one
 rather than something rediscovered later:
 
 - The capture loop: start focus → log friction → stop → debrief → appears on Today
 - Add a resource by URL → update progress → abandon with reason
-- Weekly plan → log sessions → weekly review shows plan vs. actual (M2)
 - Generate a lesson → run completes → renders in the sandbox → mark outcome (M4, model stubbed)
 - Review queue: due items → answer → schedule moves (M5)
 - Offline: go offline → log friction → reconnect → event persists exactly once
@@ -32,6 +32,19 @@ rather than something rediscovered later:
 The offline one is worth pulling forward: idempotency is easy to get wrong and silent when you do,
 and the jsdom tests can only prove the queue's own rules, not that a real reconnect replays exactly
 once.
+
+## Why `weekly-rhythm.spec.ts` uses the retroactive form
+
+A session started and stopped inside a test lasts zero minutes, so an assertion driven by the timer
+would read `0 min` whether or not the session was filed against anything — it would pass against the
+exact bug the file exists for. FR-F2's retroactive form takes a date, a start time and a duration,
+which is a real hour the review can be checked against.
+
+It is the one spec written from a defect rather than from a flow. Plan-vs-actual, the review screen
+and the grid were each correct and each proven by their own tests, while neither capture path wrote
+`focus_sessions.mission_id` — so a user could allocate two hours, log both, and read `0 min`. Every
+layer green, the path absent. Confirmed to discriminate: dropping the subject from the past-session
+submit fails it on the week screen.
 
 ## What this suite caught that 365 jsdom tests did not
 
