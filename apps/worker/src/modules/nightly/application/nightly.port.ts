@@ -24,7 +24,15 @@ export interface RaisedNotification {
   readonly userId: string;
   readonly kind: "weekly_review" | "stall";
   readonly dedupeKey: string;
-  readonly payload: Record<string, unknown>;
+  /**
+   * ICU arguments, and scalars only.
+   *
+   * Not `Record<string, unknown>`: these go into a jsonb column and then into
+   * `IntlMessageFormat.format()`, and neither accepts a function or a class instance. Typing it
+   * loosely and casting at the driver boundary was the first version, which both hid that and
+   * tripped `no-unnecessary-type-assertion`.
+   */
+  readonly payload: Record<string, string | number | boolean | null>;
   readonly subjectType: string | null;
   readonly subjectId: string | null;
 }

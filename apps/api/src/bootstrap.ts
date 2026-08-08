@@ -29,7 +29,16 @@ export async function createApp(): Promise<NestFastifyApplication> {
     // OPTIONS is absent deliberately: Fastify answers the preflight itself, and listing
     // it would imply a route that does not exist.
     methods: ["GET", "HEAD", "POST", "PATCH", "PUT", "DELETE"],
-    allowedHeaders: ["authorization", "content-type"],
+    // `if-none-match` is the same class of bug as the methods above, one layer down. §6.1 puts
+    // ETags on the dashboard reads, and a header a browser is not told it may send is simply
+    // stripped at the preflight — so the SPA would revalidate nothing, always get a 200, and the
+    // feature would look implemented while never once firing.
+    allowedHeaders: ["authorization", "content-type", "if-none-match"],
+    // The other half of the same feature. `ETag` is not a CORS-safelisted *response* header, so
+    // `response.headers.get("etag")` reads null cross-origin unless it is exposed — and a client
+    // that cannot read the tag has nothing to send back in `If-None-Match`. Both directions have
+    // to be open or neither does anything, which is why `test/insights.test.ts` asserts both.
+    exposedHeaders: ["etag"],
   });
 
   // Without this, `onModuleDestroy` never runs on SIGTERM — which is how Railway

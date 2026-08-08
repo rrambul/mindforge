@@ -4,8 +4,10 @@ import { AccountModule } from "./modules/account/presentation/account.module.js"
 import { FocusModule } from "./modules/focus/presentation/focus.module.js";
 import { FrictionModule } from "./modules/friction/presentation/friction.module.js";
 import { GoalsModule } from "./modules/goals/presentation/goals.module.js";
+import { InsightsModule } from "./modules/insights/presentation/insights.module.js";
 import { MissionsModule } from "./modules/missions/presentation/missions.module.js";
 import { NotesModule } from "./modules/notes/presentation/notes.module.js";
+import { PlanningModule } from "./modules/planning/presentation/planning.module.js";
 import { ResourcesModule } from "./modules/resources/presentation/resources.module.js";
 import { SkillsModule } from "./modules/skills/presentation/skills.module.js";
 import { SharedModule } from "./shared/shared.module.js";
@@ -21,6 +23,8 @@ import { SharedModule } from "./shared/shared.module.js";
     ResourcesModule,
     GoalsModule,
     SkillsModule,
+    PlanningModule,
+    InsightsModule,
   ],
   controllers: [HealthController],
 })
