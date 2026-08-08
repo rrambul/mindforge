@@ -14,8 +14,13 @@ Don't restate these docs here. When something changes, update the doc, not this 
 
 ## Status
 
-**M1 — the capture loop — feature-complete** (`NORTHSTAR.md` §4). Every bullet on M1's list is
-built, tested, and behind the gates.
+**M2 — the weekly rhythm — feature-complete** (`NORTHSTAR.md` §4). Every bullet on M2's list is
+built, tested, and behind the gates, along with two carryovers it could not be built honestly
+without: the seed scripts (an M0 bullet) and a settings write path.
+
+**What M2 needs now is you doing three weekly reviews.** Its finish line is "you've done three
+weekly reviews and changed one thing because of one" — `weekly_reviews.changed_one_thing` is a
+column precisely so that is observable rather than remembered. Like M1's, it is not a coding task.
 
 One bullet was reported done before it was, which is worth recording because the mistake is easy to
 repeat: **"notes on anything"** (line 125) reads "one tap from a running session, **or from any
@@ -24,12 +29,21 @@ subject types, the integration tests exercised them — and there was no way to 
 the UI. The schema being ready looked like the feature being done. FR-N1 calls `standalone` the escape
 hatch for the genuinely unfiled thought, and it had become the only path the UI offered.
 
-**What M1 needs now is three weeks of you actually using it** (`NORTHSTAR.md` §4, sequencing rule 1).
-Its finish line is "you've logged 10 real focus sessions without opening the code", and that is not a
-coding task. If capture doesn't stick, nothing downstream fixes it.
+M1's own finish line — ten real focus sessions logged without opening the code — was never reached;
+M2 was started ahead of its three-week soak (sequencing rule 1), knowingly. That decision is worth
+remembering if the capture loop turns out not to stick, because nothing downstream fixes it.
 
-`pnpm dev` gives you a sign-in screen, then six screens: Today, Missions, Goals, Skills, Notes, and
-Library. ⌘K opens the command palette anywhere.
+`pnpm dev` gives you a sign-in screen, then eight screens: Today, Missions, Goals, Skills, Notes,
+Library, Insights, and Settings — plus `/weeks/<date>` and `/weeks/<date>/review`, which is where the
+milestone actually lives. **Every screen has a URL now**: M2 introduced the TanStack Router tree that
+`App.tsx` and `AppShell.tsx` had each been deferring in a comment since M1. ⌘K opens the command
+palette anywhere, and reads its list from the same route table the nav does — that list used to be
+written three times, so widening one put a screen in the bar and left it out of the palette.
+
+`pnpm --filter @mindforge/db seed:rich` gives you six months of history for `dev@mindforge.local` /
+`mindforge-dev`, shaped so every derived signal fires at least once; `seed:report` prints what the
+`packages/core` functions actually say about it. Use it before designing anything that reads
+`daily_activity` — a fixture where every insight is null is the one shape that proves nothing.
 
 What shipped, in the order it was built: the server message bundle, the API request foundation (auth
 guard, RFC 7807 errors, Zod validation, RLS-scoped access), **missions** (WIP limit of 3, revision
@@ -40,9 +54,31 @@ from any resource, skill, or mission card — **resources** with URL capture, **
 targets, **skills** with a prerequisite DAG and the calibration gap, the **command palette**, and the
 **guided first mission**.
 
-**Cross-feature composition lives in `app/`, and there are now five wrappers doing it**:
-`TodayScreen`, `GoalsScreen`, `MissionsScreen`, `SkillsScreen`, `ResourcesScreen`, plus `SubjectNote`
-and `CommandActions`. §2.2 rule 6 forbids a feature importing another, so a resource card cannot reach
+Then M2, in the order it was built: the **schema** (weekly plans and allocations, weekly reviews,
+`daily_activity`, notifications), the **weekly-rhythm maths** in `packages/core` (timezone-aware
+calendar, the real ember/slag rule, plan-vs-actual, backlog health, the activity grid, stall
+detection), the **seed scripts and the rollup**, the **worker** (nightly rollup, stall detection, the
+weekly-review reminder), the **planning**, **insights** and **account** API modules, the **route
+tree**, **versioning and the changelog**, and the four screens: the weekly plan, the weekly review,
+Insights, and Settings.
+
+Three things M2 found by building rather than by reading, each of which had been sitting there:
+
+1. **`prisma migrate dev` has never worked in this repo.** The `profiles.id → auth.users.id` foreign
+   key is a cross-schema reference and Prisma refuses to introspect past it unless `auth` joins the
+   datasource's `schemas`, which would hand Prisma ownership of tables Supabase owns. Every migration
+   after the first is hand-written; that is the workflow, not a shortcut.
+2. **The worker never booted.** Its `@swc-node/register` resolved TypeScript 7 while the API's
+   resolved 5.9 — neither the pinned 6.0.3 — and the loader crashed reading `ts.Extension.Js`.
+   Invisible because turbo's `dev` task is persistent, so it showed as one restart line in the TUI.
+   Both apps now declare `typescript` explicitly.
+3. **`GET /v1/health` reported `0.0.0 / dev / none`.** All three fields read env vars nothing set,
+   so the endpoint whose entire job is answering "which code and which schema is running" had been
+   answering it with placeholders since M0.
+
+**Cross-feature composition lives in `app/`, and there are now nine wrappers doing it**:
+`TodayScreen`, `GoalsScreen`, `MissionsScreen`, `SkillsScreen`, `ResourcesScreen`, `WeekScreen`,
+`WeekReviewScreen`, `InsightsScreen`, `SettingsScreen`, plus `SubjectNote` and `CommandActions`. §2.2 rule 6 forbids a feature importing another, so a resource card cannot reach
 for the notes composer — the screen that composes both hands it in through a `renderNote` prop. That is
 the rule working as intended rather than ceremony: the alternative is `features/resources` importing
 `features/notes`, which is the first step toward the 40-file refactor the boundary exists to prevent.
@@ -132,6 +168,31 @@ pnpm --filter @mindforge/db generate           # regenerate the Prisma client
 ```
 
 ## Environment facts that bite
+
+- **`prisma migrate dev` cannot run here at all.** The `profiles.id → auth.users.id` foreign key is a
+  cross-schema reference, and Prisma refuses to introspect past it unless `auth` is listed in the
+  datasource's `schemas` — which would hand Prisma ownership of tables Supabase owns. Write the
+  migration by hand, apply it with `migrate deploy`, and prove it with the RLS and integration
+  suites. Everything hand-written into a migration is invisible to `schema.prisma` and will not be
+  regenerated: the `notes.search` tsvector, every CHECK constraint, and `weekly_allocations`' two
+  partial unique indexes exist only in SQL.
+
+- **`packages/db` owns the `daily_activity` rollup**, not the worker. It has three callers that
+  cannot otherwise share code — the nightly job, `seed:rich`, and any manual rebuild — and the worker
+  cannot import `apps/api`. The domain maths it needs comes from `packages/core`; only the query
+  lives there. It is delete-then-insert over a range on purpose: a session deleted since the last run
+  has to make its day go _down_, and an upsert can only ever revise a day upwards.
+
+- **`daily_activity` is a cache, never authoritative**, which is the narrow exemption to "derived
+  numbers are computed on read". Nothing decides anything from it, nothing else writes it, and it
+  rebuilds from raw rows at any moment.
+
+- **There is no Redis anywhere** — not locally, not in CI, not in `supabase/config.toml`, not on
+  Railway. `bullmq` and `@nestjs/bullmq` are declared by both `apps/api` and `apps/worker` and
+  imported by nothing. The scheduler is a self-rescheduling `setTimeout` in `apps/worker`, and its
+  timer is also the only thing holding the event loop open. Idempotency lives in Postgres — a
+  `daily_activity` range rebuild and a unique `(user_id, dedupe_key)` on notifications — so the swap
+  to a queue stays local when Redis arrives.
 
 - **Runtimes are not uniform.** `apps/lessons` runs on Bun (pure I/O, no Prisma, no Nest, isolated by design); everything else is Node 22.
 
