@@ -46,6 +46,12 @@ export class PrismaFrictionAnalyticsReader implements FrictionAnalyticsReader {
       params.push(filter.since);
       conditions.push(`f.occurred_at >= $${params.length}`);
     }
+    if (filter.until !== undefined) {
+      params.push(filter.until);
+      // Strictly less-than: an event at exactly the week's first instant belongs to that week, and
+      // `<=` on the boundary would let two adjacent weeks both count it.
+      conditions.push(`f.occurred_at < $${params.length}`);
+    }
     if (filter.missionId !== undefined) {
       params.push(filter.missionId);
       conditions.push(`s.mission_id = $${params.length}::uuid`);

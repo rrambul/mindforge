@@ -20,7 +20,7 @@ import {
   useWeeklyPlan,
   useWeeklyReviews,
 } from "../api/use-planning.js";
-import { useFrictionSourcesSince, useFrictionSplitSince } from "../api/use-week-friction.js";
+import { useFrictionSourcesIn, useFrictionSplitIn } from "../api/use-week-friction.js";
 import { describeError } from "../model/describe-error.js";
 import { proposeNextWeek, splitOutcome } from "../model/review-summary.js";
 import { FrictionSources } from "../ui/FrictionSources.js";
@@ -71,14 +71,18 @@ export function WeekReviewRoute({ weekStart, timeZone, nav, nextWeekLink }: Week
    * offset arithmetic converges on the previous evening and the two sides disagree about which day a
    * session belongs to.
    *
-   * `/friction/summary` and `/insights/friction` take `since` and no `until`, so this window is open
-   * at the right-hand end. The blocks below say so rather than presenting the figures as the week's.
+   * Both bounds come from the same `dayBounds` call, so the window is exactly the week: `until` is
+   * the first instant of the following week and the API compares it exclusively. It was open-ended
+   * when this screen first shipped, and the figures then silently included everything after the week
+   * being reviewed.
    */
-  const since = dayBounds(weekStart, resolveTimeZone(timeZone)).start.toISOString();
+  const bounds = dayBounds(weekStart, resolveTimeZone(timeZone));
+  const since = bounds.start.toISOString();
+  const until = dayBounds(nextWeek, resolveTimeZone(timeZone)).start.toISOString();
 
   const actual = usePlanVsActual(weekStart);
-  const sources = useFrictionSourcesSince(since);
-  const split = useFrictionSplitSince(since);
+  const sources = useFrictionSourcesIn(since, until);
+  const split = useFrictionSplitIn(since, until);
   const reviews = useWeeklyReviews();
   const nextPlan = useWeeklyPlan(nextWeek);
   const complete = useCompleteWeeklyReview();
@@ -140,7 +144,10 @@ export function WeekReviewRoute({ weekStart, timeZone, nav, nextWeekLink }: Week
           {/* The window, stated. The endpoint has no upper bound, so calling this "the week's
               friction" would be a claim the request cannot support. */}
           <Text tone="hint">
-            {t("review.frictionWindow", { from: formatDay(weekStart, locale) })}
+            {t("review.frictionWindow", {
+              from: formatDay(weekStart, locale),
+              to: formatDay(addDays(weekStart, 6), locale),
+            })}
           </Text>
         </Card>
       )}
@@ -154,7 +161,10 @@ export function WeekReviewRoute({ weekStart, timeZone, nav, nextWeekLink }: Week
           <Label>{t("review.split")}</Label>
           <SplitBar split={split.data} />
           <Text tone="hint">
-            {t("review.frictionWindow", { from: formatDay(weekStart, locale) })}
+            {t("review.frictionWindow", {
+              from: formatDay(weekStart, locale),
+              to: formatDay(addDays(weekStart, 6), locale),
+            })}
           </Text>
         </Card>
       )}

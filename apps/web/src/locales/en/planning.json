@@ -66,7 +66,7 @@
     "stalled": "What stalled",
     "unplannedHeading": "What you did without planning it",
     "friction": "Friction sources",
-    "frictionWindow": "Counted from {from} onwards. This count has no end date yet, so reviewing an older week includes everything since.",
+    "frictionWindow": "The seven days from {from} to {to}.",
     "split": "Ember and slag",
     "oneThing": "The one thing you are changing",
     "changedOneThing": "What are you changing?",

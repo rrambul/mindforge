@@ -1,7 +1,7 @@
-import { dayBounds, resolveTimeZone, type IsoDate } from "@mindforge/core";
+import { addDays, dayBounds, resolveTimeZone, type IsoDate } from "@mindforge/core";
 import type { ReactNode } from "react";
 import { usePlanVsActual } from "../api/use-planning.js";
-import { useFrictionSplitSince } from "../api/use-week-friction.js";
+import { useFrictionSplitIn } from "../api/use-week-friction.js";
 import { ThisWeek } from "../ui/ThisWeek.js";
 
 /**
@@ -27,8 +27,13 @@ export interface ThisWeekBlockProps {
 
 export function ThisWeekBlock({ weekStart, timeZone, link }: ThisWeekBlockProps) {
   const actual = usePlanVsActual(weekStart);
-  const split = useFrictionSplitSince(
-    dayBounds(weekStart, resolveTimeZone(timeZone)).start.toISOString(),
+  // Closed at both ends, like the review's. On Today the right-hand bound is in the future, so it
+  // changes nothing today — but it is the same window the review will show, and two screens quoting
+  // one week's ember share must not be able to disagree about what the week is.
+  const zone = resolveTimeZone(timeZone);
+  const split = useFrictionSplitIn(
+    dayBounds(weekStart, zone).start.toISOString(),
+    dayBounds(addDays(weekStart, 7), zone).start.toISOString(),
   );
 
   if (!actual.isSuccess) return null;

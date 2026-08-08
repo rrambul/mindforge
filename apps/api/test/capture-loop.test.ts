@@ -348,6 +348,91 @@ describe("friction (FR-C1, FR-C2)", () => {
     });
   });
 
+  it("closes the window at `until`, so an old week does not include what came after", async () => {
+    // The weekly review asks for one week. Without an exclusive upper bound, reviewing the week of
+    // the 6th counted every event since the 6th — and the screen carried a caption admitting it.
+    const inside = JSON.parse(
+      (
+        await post("/v1/focus/sessions", alice, {
+          startedAt: "2026-07-06T12:00:00.000Z",
+          endedAt: "2026-07-06T13:00:00.000Z",
+        })
+      ).body,
+    ) as SessionResponse;
+    const after = JSON.parse(
+      (
+        await post("/v1/focus/sessions", alice, {
+          startedAt: "2026-07-20T12:00:00.000Z",
+          endedAt: "2026-07-20T13:00:00.000Z",
+        })
+      ).body,
+    ) as SessionResponse;
+
+    await post("/v1/friction", alice, {
+      type: "tooling",
+      sessionId: inside.id,
+      occurredAt: "2026-07-06T12:30:00.000Z",
+    });
+    await post("/v1/friction", alice, {
+      type: "tooling",
+      sessionId: after.id,
+      occurredAt: "2026-07-20T12:30:00.000Z",
+    });
+
+    const open = JSON.parse(
+      (await get("/v1/friction/summary?since=2026-07-06T00:00:00.000Z", alice)).body,
+    ) as { eventCount: number };
+    expect(open.eventCount).toBe(2);
+
+    const closed = JSON.parse(
+      (
+        await get(
+          "/v1/friction/summary?since=2026-07-06T00:00:00.000Z&until=2026-07-13T00:00:00.000Z",
+          alice,
+        )
+      ).body,
+    ) as { eventCount: number };
+    expect(closed.eventCount).toBe(1);
+  });
+
+  it("treats `until` as exclusive, so adjacent weeks cannot both claim an event", async () => {
+    // An event at exactly the boundary belongs to the week beginning, not the one ending. `lte`
+    // would let two consecutive reviews each count it.
+    const session = JSON.parse(
+      (
+        await post("/v1/focus/sessions", alice, {
+          startedAt: "2026-07-13T00:00:00.000Z",
+          endedAt: "2026-07-13T01:00:00.000Z",
+        })
+      ).body,
+    ) as SessionResponse;
+    await post("/v1/friction", alice, {
+      type: "tooling",
+      sessionId: session.id,
+      occurredAt: "2026-07-13T00:00:00.000Z",
+    });
+
+    const ending = JSON.parse(
+      (
+        await get(
+          "/v1/friction/summary?since=2026-07-06T00:00:00.000Z&until=2026-07-13T00:00:00.000Z",
+          alice,
+        )
+      ).body,
+    ) as { eventCount: number };
+    const beginning = JSON.parse(
+      (
+        await get(
+          "/v1/friction/summary?since=2026-07-13T00:00:00.000Z&until=2026-07-20T00:00:00.000Z",
+          alice,
+        )
+      ).body,
+    ) as { eventCount: number };
+
+    expect(ending.eventCount).toBe(0);
+    expect(beginning.eventCount).toBe(1);
+  });
+
   it("reports a null ember share when nothing has been logged", async () => {
     // Not zero: "no friction logged" and "all of it was wasteful" are different claims.
     const summary = JSON.parse((await get("/v1/friction/summary", alice)).body) as {

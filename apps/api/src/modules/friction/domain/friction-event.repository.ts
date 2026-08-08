@@ -5,6 +5,8 @@ export const FRICTION_EVENT_REPOSITORY = Symbol("FrictionEventRepository");
 
 export interface FrictionFilter {
   readonly since?: Date | undefined;
+  /** Exclusive, so two adjacent weeks cannot both claim an event on the boundary. */
+  readonly until?: Date | undefined;
   readonly missionId?: string | undefined;
 }
 

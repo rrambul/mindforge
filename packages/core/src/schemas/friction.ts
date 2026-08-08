@@ -47,6 +47,15 @@ export type LogFrictionInput = z.infer<typeof LogFrictionSchema>;
 
 export const FrictionSummaryQuerySchema = z.object({
   since: z.coerce.date().optional(),
+  /**
+   * Exclusive upper bound. Absent means "up to now", which is what a dashboard wants.
+   *
+   * Added in M2 because the weekly review needs a *closed* window: without it, reviewing the week of
+   * the 2nd counted every event since the 2nd, so an old review silently included everything that
+   * happened after it. The screen was honest about that in a caption, which is worse than being
+   * right when the fix is one bound.
+   */
+  until: z.coerce.date().optional(),
   missionId: UuidSchema.optional(),
 });
 export type FrictionSummaryQuery = z.infer<typeof FrictionSummaryQuerySchema>;

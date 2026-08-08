@@ -110,7 +110,16 @@ export class PrismaFrictionEventRepository implements FrictionEventRepository {
     return this.db.run(userId, async (tx) => {
       const rows = await tx.frictionEvent.findMany({
         where: {
-          ...(filter.since ? { occurredAt: { gte: filter.since } } : {}),
+          ...(filter.since || filter.until
+            ? {
+                occurredAt: {
+                  ...(filter.since ? { gte: filter.since } : {}),
+                  // Exclusive: an event at exactly midnight belongs to the week beginning, not to
+                  // the one ending, and `lte` would let both weeks count it.
+                  ...(filter.until ? { lt: filter.until } : {}),
+                },
+              }
+            : {}),
           // Friction inherits its mission from the session it happened in — events logged
           // outside a session have no mission and are correctly excluded by this filter.
           ...(filter.missionId ? { session: { missionId: filter.missionId } } : {}),

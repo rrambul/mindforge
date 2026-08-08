@@ -66,7 +66,7 @@
     "stalled": "O que parou",
     "unplannedHeading": "O que você fez sem ter planejado",
     "friction": "Fontes de fricção",
-    "frictionWindow": "Contado de {from} em diante. Esta contagem ainda não tem data final, então revisar uma semana antiga inclui tudo o que veio depois.",
+    "frictionWindow": "Os sete dias de {from} a {to}.",
     "split": "Brasa e escória",
     "oneThing": "A única coisa que você vai mudar",
     "changedOneThing": "O que você vai mudar?",

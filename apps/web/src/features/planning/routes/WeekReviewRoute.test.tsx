@@ -466,3 +466,38 @@ describe("pt-BR", () => {
     expect(await screen.findByText(/Go e Elm/)).toBeVisible();
   });
 });
+
+describe("the window the friction figures describe", () => {
+  it("closes the week at both ends", async () => {
+    // The review shipped with `since` and no `until`, so reviewing the week of the 3rd counted
+    // every event since the 3rd — and the screen carried a caption admitting it. Being honest
+    // about a wrong number is worse than being right.
+    //
+    // Asserted on the request rather than on the rendered figures, because the numbers come back
+    // from the API either way: a handler that ignores the query string cannot tell the two apart,
+    // which is exactly why the earlier tests passed before the bound existed and after it.
+    const seen: URL[] = [];
+    review({});
+    server.use(
+      http.get(`${API}/friction/summary`, ({ request }) => {
+        seen.push(new URL(request.url));
+        return HttpResponse.json(NO_SPLIT);
+      }),
+      http.get(`${API}/insights/friction`, ({ request }) => {
+        seen.push(new URL(request.url));
+        return HttpResponse.json(NO_FRICTION);
+      }),
+    );
+
+    renderReview();
+    await waitFor(() => expect(seen).toHaveLength(2));
+
+    for (const url of seen) {
+      // São Paulo is UTC−3, so the week beginning Monday the 3rd starts at 03:00Z and the bound is
+      // the following Monday at the same instant. Both come from `dayBounds`, which is the same
+      // function the API brackets the week with.
+      expect(url.searchParams.get("since")).toBe("2026-08-03T03:00:00.000Z");
+      expect(url.searchParams.get("until")).toBe("2026-08-10T03:00:00.000Z");
+    }
+  });
+});

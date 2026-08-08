@@ -4,6 +4,8 @@ export const FRICTION_ANALYTICS_READER = Symbol("FrictionAnalyticsReader");
 
 export interface FrictionAnalyticsFilter {
   readonly since?: Date | undefined;
+  /** Exclusive upper bound, so a closed week is genuinely closed. See `FrictionSummaryQuerySchema`. */
+  readonly until?: Date | undefined;
   /**
    * Narrows to one mission's friction. Mission is reachable only through the session, so this
    * filter excludes every standalone tap by construction — the same behaviour `/friction/summary`

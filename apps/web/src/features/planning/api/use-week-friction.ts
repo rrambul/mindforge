@@ -66,31 +66,43 @@ export interface FrictionSplitView extends FrictionSplit {
 }
 
 export const weekFrictionKeys = {
-  split: (since: string) => ["friction", "summary", since] as const,
-  sources: (since: string) => ["insights", "friction", since] as const,
+  split: (since: string, until: string) => ["friction", "summary", since, until] as const,
+  sources: (since: string, until: string) => ["insights", "friction", since, until] as const,
 };
 
 /**
- * `since` is an **instant**, not a date: `FrictionSummaryQuerySchema` coerces a `Date`, and the
- * moment a week begins depends on the profile's timezone. The caller derives it with `dayBounds`
+ * Both bounds are **instants**, not dates: `FrictionSummaryQuerySchema` coerces a `Date`, and the
+ * moment a week begins depends on the profile's timezone. The caller derives them with `dayBounds`
  * from `packages/core`, which is the same function the API bounds the week with.
  *
- * There is no `until`, so this is genuinely "from the start of that week onwards" — the review
- * screen labels it that way rather than calling it the week's total.
+ * `until` is exclusive and was added after the review screen shipped without it. Until then the
+ * query was open-ended, so reviewing the week of the 2nd counted every event since the 2nd — and
+ * the screen carried a caption admitting it. Being honest about a wrong number is worse than being
+ * right when the fix is one bound.
  */
-export function useFrictionSplitSince(since: string): UseQueryResult<FrictionSplitView> {
+function window(since: string, until: string): string {
+  return `since=${encodeURIComponent(since)}&until=${encodeURIComponent(until)}`;
+}
+
+export function useFrictionSplitIn(
+  since: string,
+  until: string,
+): UseQueryResult<FrictionSplitView> {
   return useQuery({
-    queryKey: weekFrictionKeys.split(since),
+    queryKey: weekFrictionKeys.split(since, until),
     queryFn: ({ signal }) =>
-      api.get<FrictionSplitView>(`/friction/summary?since=${encodeURIComponent(since)}`, signal),
+      api.get<FrictionSplitView>(`/friction/summary?${window(since, until)}`, signal),
   });
 }
 
 /** FR-I6b — where the friction was, which `/friction/summary` cannot answer. */
-export function useFrictionSourcesSince(since: string): UseQueryResult<FrictionSourcesView> {
+export function useFrictionSourcesIn(
+  since: string,
+  until: string,
+): UseQueryResult<FrictionSourcesView> {
   return useQuery({
-    queryKey: weekFrictionKeys.sources(since),
+    queryKey: weekFrictionKeys.sources(since, until),
     queryFn: ({ signal }) =>
-      api.get<FrictionSourcesView>(`/insights/friction?since=${encodeURIComponent(since)}`, signal),
+      api.get<FrictionSourcesView>(`/insights/friction?${window(since, until)}`, signal),
   });
 }
