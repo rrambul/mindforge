@@ -1,3 +1,4 @@
+import { TeachModule as ApiTeachModule } from "@mindforge/api/teach";
 import { Module } from "@nestjs/common";
 
 import { WorkspaceSync } from "../application/workspace-sync.js";
@@ -16,7 +17,8 @@ import { SupabaseWorkspaceGateway } from "../infrastructure/supabase-workspace.g
  * to an implementation cannot be written without naming the implementation.
  */
 @Module({
+  imports: [ApiTeachModule],
   providers: [WorkspaceSync, { provide: WORKSPACE_GATEWAY, useClass: SupabaseWorkspaceGateway }],
-  exports: [WorkspaceSync],
+  exports: [WorkspaceSync, ApiTeachModule],
 })
 export class TeachModule {}

@@ -3,6 +3,18 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
+  "exports": {
+    "./teach": {
+      "development": "./src/modules/teach/index.ts",
+      "types": "./dist/modules/teach/index.d.ts",
+      "default": "./dist/modules/teach/index.js"
+    },
+    "./shared": {
+      "development": "./src/shared/index.ts",
+      "types": "./dist/shared/index.d.ts",
+      "default": "./dist/shared/index.js"
+    }
+  },
   "scripts": {
     "build": "nest build",
     "dev": "node --conditions=development --import @swc-node/register/esm-register --watch src/main.ts",
@@ -18,6 +30,7 @@
     "@mindforge/core": "workspace:*",
     "@mindforge/db": "workspace:*",
     "@mindforge/llm": "workspace:*",
+    "@mindforge/workspace": "workspace:*",
     "@nestjs/bullmq": "^11.0.4",
     "@nestjs/common": "^11.1.28",
     "@nestjs/core": "^11.1.28",

@@ -56,6 +56,9 @@ importers:
       '@mindforge/llm':
         specifier: workspace:*
         version: link:../../packages/llm
+      '@mindforge/workspace':
+        specifier: workspace:*
+        version: link:../../packages/workspace
       '@nestjs/bullmq':
         specifier: ^11.0.4
         version: 11.0.4(@nestjs/common@11.1.28(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.1.28(@nestjs/common@11.1.28(reflect-metadata@0.2.2)(rxjs@7.8.2))(reflect-metadata@0.2.2)(rxjs@7.8.2))(bullmq@5.81.3)
@@ -218,6 +221,9 @@ importers:
       '@anthropic-ai/claude-agent-sdk':
         specifier: ^0.3.222
         version: 0.3.222(@anthropic-ai/sdk@0.115.0(zod@4.4.3))(@modelcontextprotocol/sdk@1.30.0(zod@4.4.3))(zod@4.4.3)
+      '@mindforge/api':
+        specifier: workspace:*
+        version: link:../api
       '@mindforge/core':
         specifier: workspace:*
         version: link:../../packages/core

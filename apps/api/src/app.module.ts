@@ -10,6 +10,7 @@ import { NotesModule } from "./modules/notes/presentation/notes.module.js";
 import { PlanningModule } from "./modules/planning/presentation/planning.module.js";
 import { ResourcesModule } from "./modules/resources/presentation/resources.module.js";
 import { SkillsModule } from "./modules/skills/presentation/skills.module.js";
+import { TeachModule } from "./modules/teach/presentation/teach.module.js";
 import { SharedModule } from "./shared/shared.module.js";
 
 @Module({
@@ -25,6 +26,7 @@ import { SharedModule } from "./shared/shared.module.js";
     SkillsModule,
     PlanningModule,
     InsightsModule,
+    TeachModule,
   ],
   controllers: [HealthController],
 })

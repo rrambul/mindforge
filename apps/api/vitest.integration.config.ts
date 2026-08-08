@@ -17,6 +17,9 @@ const workspaceAliases = {
   "@mindforge/core": fileURLToPath(new URL("../../packages/core/src/index.ts", import.meta.url)),
   "@mindforge/db": fileURLToPath(new URL("../../packages/db/src/index.ts", import.meta.url)),
   "@mindforge/llm": fileURLToPath(new URL("../../packages/llm/src/index.ts", import.meta.url)),
+  "@mindforge/workspace": fileURLToPath(
+    new URL("../../packages/workspace/src/index.ts", import.meta.url),
+  ),
 };
 
 /**

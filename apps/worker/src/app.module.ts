@@ -1,6 +1,7 @@
 import { Global, Module } from "@nestjs/common";
 import { NightlyModule } from "./modules/nightly/presentation/nightly.module.js";
 import { TeachModule } from "./modules/teach/presentation/teach.module.js";
+import { API_TOKENS, apiBindings } from "./shared/api-bindings.js";
 import { CLOCK, SystemClock } from "./shared/clock.js";
 import { ENV, loadEnv } from "./shared/env.js";
 import { PRISMA, WorkerPrisma } from "./shared/prisma.js";
@@ -30,7 +31,10 @@ import { PRISMA, WorkerPrisma } from "./shared/prisma.js";
     WorkerPrisma,
     { provide: PRISMA, useFactory: (owner: WorkerPrisma) => owner.client, inject: [WorkerPrisma] },
     { provide: CLOCK, useClass: SystemClock },
+    // What `@mindforge/api`'s use cases inject. See shared/api-bindings.ts — the
+    // tokens have to be the API's own symbols, not this app's identically-named ones.
+    ...apiBindings,
   ],
-  exports: [ENV, PRISMA, CLOCK],
+  exports: [ENV, PRISMA, CLOCK, ...API_TOKENS],
 })
 export class WorkerModule {}

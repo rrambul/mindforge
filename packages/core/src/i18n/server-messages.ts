@@ -85,6 +85,17 @@ const EN = {
   "error.planning.mission_parked":
     "That mission is parked. Unpark it before planning time against it.",
   "error.planning.duplicate_subject": "That mission or skill appears twice in this week's plan.",
+  /**
+   * Teach runs (FR-T3). One run per mission at a time — two agents materialising and syncing the
+   * same workspace is the fastest route to losing a lesson, and the wait is short enough that the
+   * honest answer is "it is already happening" rather than an error.
+   */
+  "error.teach.run_already_active":
+    "This mission is already being taught. Wait for that run to finish.",
+  "error.teach.run_not_found": "That run doesn't exist.",
+  "error.teach.run_transition_invalid": "That run has already finished.",
+  "error.teach.workspace_key_unavailable":
+    "This mission's topic can't be turned into a workspace name. Give it a title with some letters or numbers in it.",
 } as const;
 
 export type ServerMessageKey = keyof typeof EN;
@@ -146,6 +157,12 @@ const PT_BR: Readonly<Record<ServerMessageKey, string>> = {
     "Essa missão está pausada. Retome antes de planejar tempo para ela.",
   "error.planning.duplicate_subject":
     "Essa missão ou habilidade aparece duas vezes no plano da semana.",
+  "error.teach.run_already_active":
+    "Esta missão já está sendo ensinada. Aguarde essa execução terminar.",
+  "error.teach.run_not_found": "Essa execução não existe.",
+  "error.teach.run_transition_invalid": "Essa execução já terminou.",
+  "error.teach.workspace_key_unavailable":
+    "O tema desta missão não pode virar um nome de workspace. Dê a ela um título com letras ou números.",
 };
 
 const CATALOG: Readonly<Record<Locale, Readonly<Record<ServerMessageKey, string>>>> = {
