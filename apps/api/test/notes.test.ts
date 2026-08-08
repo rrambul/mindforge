@@ -238,12 +238,26 @@ describe("search (FR-N6)", () => {
 
   it("takes the stemming language from the profile when the client does not say", async () => {
     await db.$executeRawUnsafe(
-      `update profiles set locale = 'pt-BR' where id = $1::uuid`,
+      `update profiles set content_language = 'pt-BR' where id = $1::uuid`,
       alice.id,
     );
 
     const note = await writeNote(alice, { body: "as fronteiras do que eu sei" });
     expect(note.lang).toBe("portuguese");
+  });
+
+  it("stems by the content language, not by the interface locale", async () => {
+    // This test previously set `locale` and expected Portuguese, which is the defect it should have
+    // caught: the controller passed the UI locale where the *content* language belonged. §5.2 keeps
+    // them separate precisely because a Portuguese interface writing English notes is a reasonable
+    // thing to want — and under the wrong stemmer, searching "running" stops matching "run".
+    await db.$executeRawUnsafe(
+      `update profiles set locale = 'pt-BR', content_language = 'en' where id = $1::uuid`,
+      alice.id,
+    );
+
+    const note = await writeNote(alice, { body: "the borrow checker finally clicked" });
+    expect(note.lang).toBe("english");
   });
 
   it("never returns another user's notes for a matching search", async () => {

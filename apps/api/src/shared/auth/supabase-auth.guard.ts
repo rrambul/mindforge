@@ -61,6 +61,7 @@ export class SupabaseAuthGuard implements CanActivate {
     attachRequestContext(request, {
       userId: profile.userId,
       locale: profile.locale,
+      contentLanguage: profile.contentLanguage,
       timezone: profile.timezone,
       weekStartsOn: profile.weekStartsOn,
     });

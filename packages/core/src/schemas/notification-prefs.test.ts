@@ -1,6 +1,10 @@
-import { defaultNotificationPrefs, type NotificationPref } from "@mindforge/core";
 import { describe, expect, it } from "vitest";
-import { mergeNotificationPrefs, readStoredPref } from "./notification-prefs.js";
+import {
+  defaultNotificationPrefs,
+  mergeNotificationPrefs,
+  readStoredPref,
+  type NotificationPref,
+} from "./notification.js";
 
 describe("readStoredPref", () => {
   it("reads a row this build wrote", () => {

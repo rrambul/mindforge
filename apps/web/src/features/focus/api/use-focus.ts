@@ -124,7 +124,11 @@ export function useStartSession(): UseMutationResult<
         void offline.queue.enqueue(`focus:start:${input.id}`, "/focus/sessions/start", input);
         return;
       }
-      queryClient.setQueryData(focusKeys.running, context?.previous);
+      // `setQueryData` with `undefined` is a no-op in query-core, so this rolled back nothing when
+      // the `running` GET had failed and left no cached entry — a server-refused start (409) then
+      // kept its optimistic timer on screen for a session that does not exist, and Stop 404s on a
+      // client-minted id. `null` is the real previous state in that case: nothing was running.
+      queryClient.setQueryData(focusKeys.running, context?.previous ?? { session: null });
     },
     // onSuccess, not onSettled. A queued start must NOT trigger a refetch: the server does not
     // know about the session yet, so `running` would come back null and erase the very optimistic
@@ -158,7 +162,15 @@ export function useStopSession(): UseMutationResult<FocusSession, RequestError, 
         );
         return;
       }
-      queryClient.setQueryData(focusKeys.running, context?.previous);
+      // Same `undefined` no-op as on start, but the honest fallback is different here. Stopping
+      // implies something *was* running, so asserting `{ session: null }` would state the opposite
+      // of what we know; and asserting a session we never cached is inventing one. With no snapshot
+      // to restore, ask the server instead — the only branch where a refetch is right.
+      if (context?.previous === undefined) {
+        void queryClient.invalidateQueries({ queryKey: focusKeys.running });
+      } else {
+        queryClient.setQueryData(focusKeys.running, context.previous);
+      }
     },
     // See the note on start: a refetch after a queued stop would report the session as still
     // running and put the timer back.

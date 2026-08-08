@@ -145,6 +145,6 @@ export class FocusController {
     @CurrentUser() user: RequestContext,
     @Body(zodPipe(CreateFocusSessionSchema)) body: CreateFocusSessionInput,
   ): Promise<FocusSessionView> {
-    return toFocusSessionView(await this.recordSession.execute(user.userId, body));
+    return toFocusSessionView(await this.recordSession.execute(user.userId, body, user.timezone));
   }
 }

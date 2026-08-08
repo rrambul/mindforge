@@ -5,6 +5,7 @@ import { PrismaProfileReader } from "./profile-reader.js";
 interface ProfileRow {
   id: string;
   locale: string;
+  contentLanguage: string;
   timezone: string;
   weekStartsOn: number;
 }
@@ -23,6 +24,7 @@ function readerReturning(row: ProfileRow | null): {
 const ROW: ProfileRow = {
   id: "11111111-1111-4111-8111-111111111111",
   locale: "pt-BR",
+  contentLanguage: "en",
   timezone: "America/Sao_Paulo",
   weekStartsOn: 0,
 };
@@ -33,6 +35,7 @@ describe("PrismaProfileReader", () => {
     await expect(reader.findForAuth(ROW.id)).resolves.toEqual({
       userId: ROW.id,
       locale: "pt-BR",
+      contentLanguage: "en",
       timezone: "America/Sao_Paulo",
       weekStartsOn: 0,
     });
@@ -51,7 +54,13 @@ describe("PrismaProfileReader", () => {
     await reader.findForAuth(ROW.id);
     expect(findUnique).toHaveBeenCalledWith({
       where: { id: ROW.id },
-      select: { id: true, locale: true, timezone: true, weekStartsOn: true },
+      select: {
+        id: true,
+        locale: true,
+        contentLanguage: true,
+        timezone: true,
+        weekStartsOn: true,
+      },
     });
   });
 

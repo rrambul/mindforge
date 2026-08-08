@@ -145,13 +145,23 @@ export class PrismaFrictionEventRepository implements FrictionEventRepository {
                 intensity: row.intensity,
                 occurredAt: row.occurredAt,
                 sessionId: row.sessionId,
-                // `elapsedMinutes` rather than arithmetic here: it floors, and a second rounding
-                // rule in this file would make a 59.6-minute session 60 minutes to the split and
-                // 59 everywhere else.
+                // Clipped to the window, not the session's whole length.
+                //
+                // Events are filtered by `[since, until)` and then grouped by session, so a session
+                // straddling a week boundary used to hand its *entire* duration to both weeks — the
+                // same double count the `until` bound was added to remove, one layer down. Clipping
+                // gives each week only the part of the session that happened inside it.
+                //
+                // `elapsedMinutes` rather than arithmetic: it floors, and a second rounding rule in
+                // this file would make a 59.6-minute session 60 minutes to the split and 59
+                // everywhere else.
                 sessionMinutes:
                   row.session?.endedAt == null
                     ? null
-                    : elapsedMinutes(row.session.startedAt, row.session.endedAt),
+                    : elapsedMinutes(
+                        laterOf(row.session.startedAt, filter.since),
+                        earlierOf(row.session.endedAt, filter.until),
+                      ),
                 sessionProducedLearning:
                   row.session === null
                     ? null
@@ -162,6 +172,20 @@ export class PrismaFrictionEventRepository implements FrictionEventRepository {
       );
     });
   }
+}
+
+/**
+ * The window's bounds applied to a session's own, so a straddling session is counted once per week.
+ *
+ * `elapsedMinutes` floors at zero, so a session entirely outside the window — which the event filter
+ * makes unreachable, since the event is inside it — would contribute nothing rather than a negative.
+ */
+function laterOf(instant: Date, bound: Date | undefined): Date {
+  return bound !== undefined && bound > instant ? bound : instant;
+}
+
+function earlierOf(instant: Date, bound: Date | undefined): Date {
+  return bound !== undefined && bound < instant ? bound : instant;
 }
 
 const KNOWN: ReadonlySet<string> = new Set(FRICTION_TYPES);

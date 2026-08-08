@@ -167,8 +167,41 @@ describe("producedLearning", () => {
 });
 
 describe("record", () => {
+  it("labels by the user's day, not by UTC's", () => {
+    // A São Paulo user at 21:30 recording work that finished at 20:00 the same evening. It is already
+    // 00:30 UTC, so comparing UTC dates called this `backfilled` — wrong for part of every day for
+    // every non-UTC user, against a rule that no "day" in this product derives from UTC.
+    const evening = FocusSession.record({
+      id: ID,
+      userId: USER,
+      intention: null,
+      startedAt: new Date("2026-08-05T22:00:00Z"), // 19:00 in São Paulo
+      endedAt: new Date("2026-08-05T23:00:00Z"), // 20:00
+      debrief: { hitIntention: null, focusQuality: null, energy: null, note: null },
+      attachments: { missionId: null, resourceId: null, skillId: null, taskId: null },
+      now: new Date("2026-08-06T00:30:00Z"), // 21:30 the same evening, local
+      timeZone: "America/Sao_Paulo",
+    });
+    expect(evening.toSnapshot().entryMode).toBe("manual");
+
+    // The same instants read as two different UTC days, which is what the old comparison saw.
+    const asUtc = FocusSession.record({
+      id: ID,
+      userId: USER,
+      intention: null,
+      startedAt: new Date("2026-08-05T22:00:00Z"),
+      endedAt: new Date("2026-08-05T23:00:00Z"),
+      debrief: { hitIntention: null, focusQuality: null, energy: null, note: null },
+      attachments: { missionId: null, resourceId: null, skillId: null, taskId: null },
+      now: new Date("2026-08-06T00:30:00Z"),
+      timeZone: "UTC",
+    });
+    expect(asUtc.toSnapshot().entryMode).toBe("backfilled");
+  });
+
   it("labels something entered for today as manual", () => {
     const session = FocusSession.record({
+      timeZone: "America/Sao_Paulo",
       id: ID,
       userId: USER,
       intention: "read chapter 4",
@@ -188,6 +221,7 @@ describe("record", () => {
     // FR-F2: distinguishable without being second-class. An insight built only on timer
     // sessions describes the days you remembered to press start.
     const session = FocusSession.record({
+      timeZone: "America/Sao_Paulo",
       id: ID,
       userId: USER,
       intention: null,
@@ -210,6 +244,7 @@ describe("record", () => {
     it("is refused when it starts in the future", () => {
       expect(() =>
         FocusSession.record({
+          timeZone: "America/Sao_Paulo",
           id: ID,
           userId: USER,
           intention: null,
@@ -225,6 +260,7 @@ describe("record", () => {
     it("is refused when it ends in the future, even having started in the past", () => {
       expect(() =>
         FocusSession.record({
+          timeZone: "America/Sao_Paulo",
           id: ID,
           userId: USER,
           intention: null,
@@ -242,6 +278,7 @@ describe("record", () => {
       // would reject it.
       expect(() =>
         FocusSession.record({
+          timeZone: "America/Sao_Paulo",
           id: ID,
           userId: USER,
           intention: null,
@@ -257,6 +294,7 @@ describe("record", () => {
 
   it("carries a debrief straight in, since you already know how it went", () => {
     const session = FocusSession.record({
+      timeZone: "America/Sao_Paulo",
       id: ID,
       userId: USER,
       intention: null,
@@ -274,6 +312,7 @@ describe("record", () => {
   it("refuses a session that ends before it starts", () => {
     expect(() =>
       FocusSession.record({
+        timeZone: "America/Sao_Paulo",
         id: ID,
         userId: USER,
         intention: null,

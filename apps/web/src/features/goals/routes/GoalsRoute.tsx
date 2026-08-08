@@ -45,6 +45,26 @@ export interface GoalsRouteProps {
 }
 
 /** The goals screen (FR-M3). */
+/**
+ * The id a mutation is *currently* working on, or undefined.
+ *
+ * `mutation.variables` alone is what this read before, and TanStack v5 keeps `variables` after a
+ * mutation settles — so closing one goal pinned `pendingId` to it for the rest of the session, and no
+ * later write on any row ever showed as pending again. `MissionsRoute` had the correct shape all
+ * along (`isPending && variables?.id === x`); this is that, factored out.
+ */
+function pendingOf(
+  mutation: {
+    readonly isPending: boolean;
+    readonly variables?: Record<string, unknown> | undefined;
+  },
+  field: string,
+): string | undefined {
+  if (!mutation.isPending) return undefined;
+  const value = mutation.variables?.[field];
+  return typeof value === "string" ? value : undefined;
+}
+
 export function GoalsRoute({ resources, missions }: GoalsRouteProps) {
   const { t } = useTranslation("goals");
   const { t: g } = useTranslation("glossary");
@@ -68,11 +88,11 @@ export function GoalsRoute({ resources, missions }: GoalsRouteProps) {
   const setManual = useSetManualTarget();
 
   const pendingId =
-    close.variables?.id ??
-    reopen.variables?.id ??
-    addTarget.variables?.goalId ??
-    removeTarget.variables?.goalId ??
-    setManual.variables?.goalId;
+    pendingOf(close, "id") ??
+    pendingOf(reopen, "id") ??
+    pendingOf(addTarget, "goalId") ??
+    pendingOf(removeTarget, "goalId") ??
+    pendingOf(setManual, "goalId");
 
   const failure = [
     create.error,

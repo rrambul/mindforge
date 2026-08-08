@@ -13,6 +13,8 @@ import type { Locale, WeekStart } from "@mindforge/core";
 export interface RequestContext {
   readonly userId: string;
   readonly locale: Locale;
+  /** What the agent writes in, and what stems a note's search column. Not the UI locale (§5.2). */
+  readonly contentLanguage: Locale;
   /** IANA. Every "day", "week", and scheduled job derives from this. */
   readonly timezone: string;
   readonly weekStartsOn: WeekStart;

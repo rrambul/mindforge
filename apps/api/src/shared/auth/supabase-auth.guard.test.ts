@@ -13,6 +13,7 @@ const USER_ID = "11111111-1111-4111-8111-111111111111";
 const PROFILE: AuthProfile = {
   userId: USER_ID,
   locale: "pt-BR",
+  contentLanguage: "en",
   timezone: "America/Sao_Paulo",
   weekStartsOn: 0,
 };
@@ -158,6 +159,7 @@ describe("SupabaseAuthGuard", () => {
       expect(requestContextOf(request)).toEqual({
         userId: USER_ID,
         locale: "pt-BR",
+        contentLanguage: "en",
         timezone: "America/Sao_Paulo",
         weekStartsOn: 0,
       });

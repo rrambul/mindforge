@@ -47,6 +47,26 @@ export interface SkillsRouteProps {
   readonly renderNote?: (subjectId: string) => ReactNode;
 }
 
+/**
+ * The id a mutation is *currently* working on, or undefined.
+ *
+ * `mutation.variables` alone is what this read before, and TanStack v5 keeps `variables` after a
+ * mutation settles — so closing one goal pinned `pendingId` to it for the rest of the session, and no
+ * later write on any row ever showed as pending again. `MissionsRoute` had the correct shape all
+ * along (`isPending && variables?.id === x`); this is that, factored out.
+ */
+function pendingOf(
+  mutation: {
+    readonly isPending: boolean;
+    readonly variables?: Record<string, unknown> | undefined;
+  },
+  field: string,
+): string | undefined {
+  if (!mutation.isPending) return undefined;
+  const value = mutation.variables?.[field];
+  return typeof value === "string" ? value : undefined;
+}
+
 export function SkillsRoute({ renderNote }: SkillsRouteProps) {
   const { t } = useTranslation("skills");
   const { t: g } = useTranslation("glossary");
@@ -77,10 +97,10 @@ export function SkillsRoute({ renderNote }: SkillsRouteProps) {
   const remove = useDeleteSkill();
 
   const pendingId =
-    rate.variables?.id ??
-    addPrereq.variables?.id ??
-    removePrereq.variables?.id ??
-    remove.variables?.id;
+    pendingOf(rate, "id") ??
+    pendingOf(addPrereq, "id") ??
+    pendingOf(removePrereq, "id") ??
+    pendingOf(remove, "id");
 
   const failure = [
     create.error,

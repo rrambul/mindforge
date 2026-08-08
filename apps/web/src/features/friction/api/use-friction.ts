@@ -119,9 +119,21 @@ export function useLogFriction(): UseMutationResult<FrictionEvent, RequestError,
         void offline.queue.enqueue(`friction:${body.id}`, "/friction", body);
       }
     },
-    // Only the summary and the ranking change, and neither is on screen at the moment of the
-    // tap. Invalidating on settle keeps the tap itself free of any refetch.
-    onSettled: () => queryClient.invalidateQueries({ queryKey: frictionKeys.all }),
+    /**
+     * The summary, but **not** the chip ranking.
+     *
+     * This invalidated `frictionKeys.all`, which prefix-matches `["friction","chips"]` — and
+     * `invalidateQueries` refetches active queries regardless of `staleTime`, so the `Infinity`
+     * above did not protect it. With two types tied in the 30-day window, tapping one reordered the
+     * four inline chips under the user's thumb about 200ms later, and a rapid second tap logged the
+     * wrong type. The comment on `useFrictionChips` says that must not happen; this is what was
+     * making it happen.
+     *
+     * The ranking is a 30-day window and genuinely does not change meaningfully within a session, so
+     * leaving it until the next mount is not a staleness problem — it is the behaviour that comment
+     * describes.
+     */
+    onSettled: () => queryClient.invalidateQueries({ queryKey: frictionKeys.summary }),
   });
 }
 

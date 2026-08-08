@@ -130,7 +130,19 @@ export class RecordFocusSession {
     @Inject(ID_GENERATOR) private readonly ids: IdGenerator,
   ) {}
 
-  async execute(userId: string, input: CreateFocusSessionInput): Promise<FocusSession> {
+  /**
+   * `timeZone` is threaded in rather than read, because `entryMode` is a claim about *your* day.
+   *
+   * It used to be decided by comparing UTC dates, so a São Paulo user recording at 21:30 an entry
+   * for work finished at 20:00 the same evening got `backfilled` — it was already 00:30 UTC. Only
+   * the controller has the profile's timezone (`RequestContext`), and the domain takes it as an
+   * argument for the same reason it takes `now`.
+   */
+  async execute(
+    userId: string,
+    input: CreateFocusSessionInput,
+    timeZone: string,
+  ): Promise<FocusSession> {
     if (input.id) {
       const existing = await this.sessions.findById(userId, input.id);
       if (existing) return existing;
@@ -155,6 +167,7 @@ export class RecordFocusSession {
         taskId: input.taskId ?? null,
       },
       now: this.clock.now(),
+      timeZone,
     });
 
     await this.sessions.save(userId, session);

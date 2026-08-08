@@ -453,6 +453,55 @@ describe("friction (FR-C1, FR-C2)", () => {
     expect(beginning.eventCount).toBe(1);
   });
 
+  it("gives each week only the part of a straddling session that fell in it", async () => {
+    // Events are filtered by the window and then grouped by session, so a session spanning a week
+    // boundary handed its *whole* length to both weeks — the same double count the `until` bound was
+    // added to remove, one layer in. A two-hour block from 23:00 Sunday to 01:00 Monday is one hour
+    // of each week, not two hours of both.
+    const session = JSON.parse(
+      (
+        await post("/v1/focus/sessions", alice, {
+          startedAt: "2026-07-12T23:00:00.000Z",
+          endedAt: "2026-07-13T01:00:00.000Z",
+        })
+      ).body,
+    ) as SessionResponse;
+
+    // One tap on each side of midnight, so both weeks have an event to attribute against.
+    await post("/v1/friction", alice, {
+      type: "tooling",
+      sessionId: session.id,
+      occurredAt: "2026-07-12T23:30:00.000Z",
+    });
+    await post("/v1/friction", alice, {
+      type: "tooling",
+      sessionId: session.id,
+      occurredAt: "2026-07-13T00:30:00.000Z",
+    });
+
+    const ending = JSON.parse(
+      (
+        await get(
+          "/v1/friction/summary?since=2026-07-06T00:00:00.000Z&until=2026-07-13T00:00:00.000Z",
+          alice,
+        )
+      ).body,
+    ) as { slagMinutes: number };
+    const beginning = JSON.parse(
+      (
+        await get(
+          "/v1/friction/summary?since=2026-07-13T00:00:00.000Z&until=2026-07-20T00:00:00.000Z",
+          alice,
+        )
+      ).body,
+    ) as { slagMinutes: number };
+
+    expect(ending.slagMinutes).toBe(60);
+    expect(beginning.slagMinutes).toBe(60);
+    // And the two together are the session, not twice it.
+    expect(ending.slagMinutes + beginning.slagMinutes).toBe(120);
+  });
+
   it("reports a null ember share when nothing has been logged", async () => {
     // Not zero: "no friction logged" and "all of it was wasteful" are different claims.
     const summary = JSON.parse((await get("/v1/friction/summary", alice)).body) as {

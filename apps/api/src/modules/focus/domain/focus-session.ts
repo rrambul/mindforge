@@ -1,6 +1,8 @@
 import {
   elapsedMinutes,
+  localDay,
   producedLearning,
+  resolveTimeZone,
   type EntryMode,
   type IntentionOutcome,
 } from "@mindforge/core";
@@ -104,6 +106,8 @@ export class FocusSession {
     debrief: FocusSessionDebrief;
     attachments: FocusSessionAttachments;
     now: Date;
+    /** IANA, from the profile. `entryMode` is a claim about *your* day, not about UTC's. */
+    timeZone: string;
   }): FocusSession {
     // Rejected rather than clamped: both boundaries are the user's own claim, and moving one silently
     // would record a duration they did not enter. A block dated tomorrow otherwise sits at the top of
@@ -120,7 +124,7 @@ export class FocusSession {
       null,
       input.debrief,
       input.attachments,
-      isSameDay(input.startedAt, input.now) ? "manual" : "backfilled",
+      isSameLocalDay(input.startedAt, input.now, input.timeZone) ? "manual" : "backfilled",
       input.now,
     );
   }
@@ -252,14 +256,22 @@ function assertRating(field: string, value: number | null): void {
 }
 
 /**
- * Compared in UTC, not the user's timezone.
+ * Compared in the user's timezone, which it was not until M2 was reviewed.
  *
- * A deliberate simplification and worth flagging: `entryMode` is a coarse label for how the
- * data arrived, not a figure anyone reports on, so a session logged near midnight being
+ * It used to slice both instants' ISO strings, i.e. compare UTC days — so a São Paulo user recording
+ * at 21:30 an entry for work finished at 20:00 the same evening got `backfilled`, because it was
+ * already 00:30 UTC. Wrong for part of every day for every non-UTC user, against a repo rule that no
+ * "day" derives from UTC or server-local time.
+ *
+ * The comment that stood here defended it as harmless and added that the values which *are* reported
+ * on "come with M2". They have; the timezone is on `RequestContext` now, and the justification
+ * expired with it. Kept below for the record, since the reasoning is still right about what
+ * `entryMode` is for:
  * called `backfilled` instead of `manual` changes nothing anyone reads. Every value that
  * *is* reported on — daily rollups, the activity grid, "this week" — derives from the
  * profile's timezone (§5.2), and those come with M2.
  */
-function isSameDay(a: Date, b: Date): boolean {
-  return a.toISOString().slice(0, 10) === b.toISOString().slice(0, 10);
+function isSameLocalDay(a: Date, b: Date, timeZone: string): boolean {
+  const zone = resolveTimeZone(timeZone);
+  return localDay(a, zone) === localDay(b, zone);
 }

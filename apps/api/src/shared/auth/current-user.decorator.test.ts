@@ -7,6 +7,7 @@ import { attachRequestContext, type RequestContext } from "./request-context.js"
 const CONTEXT: RequestContext = {
   userId: "11111111-1111-4111-8111-111111111111",
   locale: "en",
+  contentLanguage: "en",
   timezone: "Europe/Lisbon",
   weekStartsOn: 1,
 };

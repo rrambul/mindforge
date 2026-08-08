@@ -279,12 +279,16 @@ describe("RecordFocusSession", () => {
   });
 
   it("records a session you forgot to time (FR-F2)", async () => {
-    const session = await record.execute(ALICE, {
-      startedAt: new Date("2026-08-05T09:00:00Z"),
-      endedAt: new Date("2026-08-05T10:30:00Z"),
-      intention: "read chapter 4",
-      hitIntention: "yes",
-    });
+    const session = await record.execute(
+      ALICE,
+      {
+        startedAt: new Date("2026-08-05T09:00:00Z"),
+        endedAt: new Date("2026-08-05T10:30:00Z"),
+        intention: "read chapter 4",
+        hitIntention: "yes",
+      },
+      "America/Sao_Paulo",
+    );
 
     expect(session.minutes).toBe(90);
     expect(session.entryMode).toBe("manual");
@@ -301,10 +305,14 @@ describe("RecordFocusSession", () => {
     ).execute(ALICE, {});
 
     await expect(
-      record.execute(ALICE, {
-        startedAt: new Date("2026-08-05T09:00:00Z"),
-        endedAt: new Date("2026-08-05T10:00:00Z"),
-      }),
+      record.execute(
+        ALICE,
+        {
+          startedAt: new Date("2026-08-05T09:00:00Z"),
+          endedAt: new Date("2026-08-05T10:00:00Z"),
+        },
+        "America/Sao_Paulo",
+      ),
     ).resolves.toMatchObject({ isRunning: false });
   });
 
@@ -315,8 +323,8 @@ describe("RecordFocusSession", () => {
       startedAt: new Date("2026-08-05T09:00:00Z"),
       endedAt: new Date("2026-08-05T10:00:00Z"),
     };
-    await record.execute(ALICE, input);
-    await record.execute(ALICE, input);
+    await record.execute(ALICE, input, "America/Sao_Paulo");
+    await record.execute(ALICE, input, "America/Sao_Paulo");
     expect(sessions.saveCount).toBe(1);
   });
 });

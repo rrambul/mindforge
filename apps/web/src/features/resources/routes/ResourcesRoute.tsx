@@ -54,6 +54,26 @@ export interface ResourcesRouteProps {
   readonly renderLinks?: (resource: Resource) => ReactNode;
 }
 
+/**
+ * The id a mutation is *currently* working on, or undefined.
+ *
+ * `mutation.variables` alone is what this read before, and TanStack v5 keeps `variables` after a
+ * mutation settles — so closing one goal pinned `pendingId` to it for the rest of the session, and no
+ * later write on any row ever showed as pending again. `MissionsRoute` had the correct shape all
+ * along (`isPending && variables?.id === x`); this is that, factored out.
+ */
+function pendingOf(
+  mutation: {
+    readonly isPending: boolean;
+    readonly variables?: Record<string, unknown> | undefined;
+  },
+  field: string,
+): string | undefined {
+  if (!mutation.isPending) return undefined;
+  const value = mutation.variables?.[field];
+  return typeof value === "string" ? value : undefined;
+}
+
 export function ResourcesRoute({ renderNote, renderLinks }: ResourcesRouteProps) {
   const { t } = useTranslation("resources");
   const { t: g } = useTranslation("glossary");
@@ -72,7 +92,10 @@ export function ResourcesRoute({ renderNote, renderLinks }: ResourcesRouteProps)
 
   // Which card is mid-write, so only its buttons go quiet rather than the whole list.
   const pendingId =
-    progress.variables?.id ?? edit.variables?.id ?? finish.variables?.id ?? abandon.variables?.id;
+    pendingOf(progress, "id") ??
+    pendingOf(edit, "id") ??
+    pendingOf(finish, "id") ??
+    pendingOf(abandon, "id");
 
   // Capture failures that were *queued* are deliberately absent here: the shell already reports the
   // pending count, and a red alert next to a box that accepted your link would contradict itself.

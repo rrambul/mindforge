@@ -79,9 +79,12 @@ export class NotesController {
     @CurrentUser() user: RequestContext,
     @Body(zodPipe(CreateNoteSchema)) body: CreateNoteInput,
   ): Promise<NoteView> {
-    // The content language comes from the profile, not the request: it decides which stemmer the
-    // generated search column uses (FR-L4), and a client guess would make search silently worse.
-    return toView(await this.write.execute(user.userId, body, user.locale));
+    // `contentLanguage`, not `locale`. This comment already said "the content language" while the
+    // argument was the *interface* one — so a pt-BR interface writing English notes stored
+    // `lang='portuguese'`, the generated tsvector used the Portuguese stemmer, and searching
+    // "running" stopped matching "run". The two are separate settings precisely because a Portuguese
+    // interface with English content is a reasonable thing to want (§5.2).
+    return toView(await this.write.execute(user.userId, body, user.contentLanguage));
   }
 
   @Patch(":id")

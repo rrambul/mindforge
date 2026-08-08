@@ -1,7 +1,7 @@
 import {
-  defaultNotificationPrefs,
   localDay,
-  NotificationPrefSchema,
+  mergeNotificationPrefs,
+  readStoredPref,
   resolveTimeZone,
   type Clock,
   type IsoDate,
@@ -99,24 +99,20 @@ export class PrismaNightlyGateway implements NightlyGateway {
       select: { kind: true, enabled: true, config: true },
     });
 
-    const byKind = new Map<string, NotificationPref>();
-    for (const row of stored) {
-      const parsed = NotificationPrefSchema.safeParse({
-        kind: row.kind,
-        enabled: row.enabled,
-        config: row.config,
-      });
-      // A row written by an older version of the app, or hand-edited, falls back to the default
-      // rather than throwing. Refusing to run the whole nightly job over one malformed preference
-      // would be the wrong trade — and silently treating it as "off" would be worse, because the
-      // user would never learn why their nudges stopped.
-      if (parsed.success) byKind.set(row.kind, parsed.data);
-      else this.logger.warn(`Ignoring malformed notification_prefs row (${userId}, ${row.kind})`);
-    }
+    // The same rule the API applies, from `packages/core`. This used to `safeParse` the whole row and
+    // fall back to the default when it failed — which replaced `enabled: false` with `true` and kept
+    // nudging a user who had switched the kind off, while Settings still reported it as off. Two
+    // implementations of one rule, disagreeing about the only field FR-N4 calls load-bearing.
+    const understood = stored.flatMap((row) => {
+      const pref = readStoredPref(row);
+      if (pref === null) {
+        this.logger.warn(`Ignoring malformed notification_prefs row (${userId}, ${row.kind})`);
+        return [];
+      }
+      return [pref];
+    });
 
-    // Merged over the defaults at read time, never seeded into the table: a future change to a
-    // default then reaches existing users, which a seeded row would have frozen out.
-    return defaultNotificationPrefs().map((fallback) => byKind.get(fallback.kind) ?? fallback);
+    return mergeNotificationPrefs(understood);
   }
 
   async raise(notifications: readonly RaisedNotification[]): Promise<number> {
