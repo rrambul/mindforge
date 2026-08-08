@@ -319,6 +319,43 @@ Unit + integration + E2E, **80% global floor enforced in CI**, `packages/core` a
 - Prompt caching is a prefix match: system prompts stay frozen per purpose, dynamic content goes after the last breakpoint. Assert on `cache_read_input_tokens` in dev.
 - The `teach` agent runs via `@anthropic-ai/claude-agent-sdk` — a different package from `@anthropic-ai/sdk`. Don't confuse them.
 
+## Agent SDK facts that bite
+
+Verified against `0.3.222`'s own `sdk.d.ts` on M3 day one, and written down because each one fails
+_silently_ — the run succeeds and does the wrong thing. Full detail in `TECH-DESIGN.md` §7.3.
+
+- **`allowedTools` does not restrict tools.** It auto-approves them. A tool left out of the list is
+  still in the model's context and still callable. Restriction is `tools` (base surface) +
+  `disallowedTools` (removes the definition) + `permissionMode: "dontAsk"`. Assert on `system/init`'s
+  `tools` array rather than trusting any of the three.
+- **`options.env` replaces the subprocess environment, it does not merge.** Spread `process.env` or
+  the run loses `PATH`, `HOME`, and `ANTHROPIC_API_KEY`. (The Python SDK merges. This one doesn't.)
+- **`query({ prompt, options })` takes one object and returns an async generator.** There is no
+  awaited result and no `result.usage`.
+- **A failing run yields its result message and then throws.** `SDKResultError` has no `result`
+  field — branch on `subtype`. Anything written after the `for await` never runs on a failure path,
+  so persist inside the loop or in `finally`.
+- **`settingSources: []` or the run inherits the host's `~/.claude`** — settings, `CLAUDE.md`, and
+  user skills. On a dev machine that is your own config leaking into a user's lesson.
+- **A skill is not loaded by copying `SKILL.md` into `cwd`.** Discovery needs `.claude/skills/` in
+  cwd or an ancestor _and_ `settingSources` including `user`/`project`, which multi-tenant isolation
+  forbids. Use `plugins: [{ type: "local", path }]`, and name the skill namespaced
+  (`mindforge-teach:teach`). **A bad plugin path is skipped silently** — assert on `init.plugins` and
+  `init.skills` or a run with no skill looks exactly like a run with one.
+- **The SDK does not expand `~`.** And the CLI binary ships as `optionalDependencies`, so
+  `npm ci --omit=optional` produces an install that fails at the first `query()`, not at install.
+
+## Supabase Storage facts that bite
+
+- **There is no conditional write.** A `PUT` with a deliberately wrong `If-Match` returns `200` and
+  overwrites — probed against `storage-api v1.60.4`. Conditional _reads_ work (`If-None-Match` → 304).
+  So ETag comparison detects a concurrent writer but cannot exclude one; what makes a teach run safe is
+  the `agent_runs` single-active-run partial index plus `.conflict-<ts>` retention (§7.4).
+- **The upload response carries no ETag.** Read it from `list()` (`metadata.eTag`) or `info()`, both
+  of which are also the only way to get it — `download()` returns a `Blob` and discards headers.
+- **`info().version` beats the ETag as a change token.** The ETag is `md5(content)`, so a
+  byte-identical rewrite leaves it unchanged; `version` moves on every write.
+
 ## Don't
 
 - Don't add gamification, streaks-with-punishment, or celebratory copy. It corrupts the data the product exists to collect.

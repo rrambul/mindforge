@@ -65,21 +65,21 @@ Three architectural forks were open after the requirements doc. Resolved as foll
 
 ## 2. Stack
 
-| Layer          | Choice                                                                          | Notes                                                                                                                                                                                      |
-| -------------- | ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Frontend       | Vite + React + TypeScript                                                       | React over Lit here: the chart/dashboard ecosystem (Recharts/visx) and TanStack Query matter more than shadow-DOM encapsulation for a single-app product.                                  |
-| Routing / data | TanStack Router + TanStack Query                                                | Query's cache + optimistic mutations are what make ≤5s capture actually feel instant.                                                                                                      |
-| UI             | Tailwind + Radix primitives                                                     | Headless primitives, own the visual design (see `REQUIREMENTS.md` §7.6 — this app needs to feel calm, not templated).                                                                      |
-| Charts         | Recharts (or visx if the friction/retention charts get custom)                  |                                                                                                                                                                                            |
-| API            | NestJS + Fastify adapter                                                        | Fastify over Express for throughput and better schema integration.                                                                                                                         |
-| Validation     | Zod, shared via `packages/core`                                                 | One schema per DTO, reused for API validation, SPA forms, and LLM structured outputs.                                                                                                      |
-| DB access      | Prisma ORM                                                                      | Mature migrations, strong TS inference, and the schema doubles as documentation. RLS needs an explicit transaction wrapper (§3.6) — a one-time cost, handled by a Prisma Client extension. |
-| Queue          | BullMQ + `@nestjs/bullmq` (Redis on Railway)                                    |                                                                                                                                                                                            |
-| Auth           | Supabase Auth (email+password, GitHub OAuth)                                    | SPA holds the session; API verifies the JWT.                                                                                                                                               |
-| DB / Storage   | Supabase Postgres + Storage                                                     | RLS on every table. Storage holds teach workspaces.                                                                                                                                        |
-| LLM            | `@anthropic-ai/sdk` (API calls), `@anthropic-ai/claude-agent-sdk` (teach agent) | Two different packages, two different jobs — see §7.1.                                                                                                                                     |
-| Observability  | Pino → Railway logs; Sentry; a `llm_calls` table for cost                       |                                                                                                                                                                                            |
-| Tests          | Vitest (unit + integration), Playwright (E2E)                                   | Matches the patterns you already use.                                                                                                                                                      |
+| Layer          | Choice                                                                          | Notes                                                                                                                                                                                                                                           |
+| -------------- | ------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Frontend       | Vite + React + TypeScript                                                       | React over Lit here: the chart/dashboard ecosystem (Recharts/visx) and TanStack Query matter more than shadow-DOM encapsulation for a single-app product.                                                                                       |
+| Routing / data | TanStack Router + TanStack Query                                                | Query's cache + optimistic mutations are what make ≤5s capture actually feel instant.                                                                                                                                                           |
+| UI             | Tailwind + Radix primitives                                                     | Headless primitives, own the visual design (see `REQUIREMENTS.md` §7.6 — this app needs to feel calm, not templated).                                                                                                                           |
+| Charts         | Recharts (or visx if the friction/retention charts get custom)                  |                                                                                                                                                                                                                                                 |
+| API            | NestJS + Fastify adapter                                                        | Fastify over Express for throughput and better schema integration.                                                                                                                                                                              |
+| Validation     | Zod, shared via `packages/core`                                                 | One schema per DTO, reused for API validation, SPA forms, and LLM structured outputs.                                                                                                                                                           |
+| DB access      | Prisma ORM                                                                      | Mature migrations, strong TS inference, and the schema doubles as documentation. RLS needs an explicit transaction wrapper — `runAsUser` (§3.6). A Prisma Client extension looks like the right shape here and isolates nothing; §3.6 says why. |
+| Queue          | **None.** A self-rescheduling `setTimeout` in `worker`; idempotency in Postgres | BullMQ + Redis was the plan and is still the destination — see §10. It is not what runs. `bullmq` and `@nestjs/bullmq` are declared by both server apps and imported by nothing.                                                                |
+| Auth           | Supabase Auth (email+password, GitHub OAuth)                                    | SPA holds the session; API verifies the JWT.                                                                                                                                                                                                    |
+| DB / Storage   | Supabase Postgres + Storage                                                     | RLS on every table. Storage holds teach workspaces.                                                                                                                                                                                             |
+| LLM            | `@anthropic-ai/sdk` (API calls), `@anthropic-ai/claude-agent-sdk` (teach agent) | Two different packages, two different jobs — see §7.1.                                                                                                                                                                                          |
+| Observability  | Pino → Railway logs; Sentry; a `llm_calls` table for cost                       |                                                                                                                                                                                                                                                 |
+| Tests          | Vitest (unit + integration), Playwright (E2E)                                   | Matches the patterns you already use.                                                                                                                                                                                                           |
 
 ### Repo layout
 
@@ -860,25 +860,43 @@ create policy missions_owner on missions
 
 **The API must connect as the requesting user, not as a superuser**, or RLS is decoration. Two connection paths:
 
-- **`api`** — forwards the caller's JWT so `auth.uid()` resolves. Prisma has no built-in hook for this, so it's a **Prisma Client extension** that wraps every operation in a transaction and sets the claim first:
+- **`api`** — forwards the caller's JWT so `auth.uid()` resolves. Prisma has no hook for attaching
+  session state to an operation, so this is an explicit transaction primitive rather than a
+  transparently-scoped client:
 
   ```ts
   // packages/db/src/rls.ts
-  export const withRls = (prisma: PrismaClient, claims: string) =>
-    prisma.$extends({
-      query: {
-        $allOperations: ({ args, query }) =>
-          prisma.$transaction(async (tx) => {
-            await tx.$executeRaw`select set_config('request.jwt.claims', ${claims}, true)`;
-            return query(args);
-          }),
-      },
+  export function runAsUser<R>(
+    prisma: PrismaClient,
+    claims: RlsClaims,
+    fn: (tx: RlsTransaction) => Promise<R>,
+  ): Promise<R> {
+    return prisma.$transaction(async (tx) => {
+      await tx.$executeRawUnsafe(SET_CLAIMS, JSON.stringify(claims));
+      await tx.$executeRawUnsafe(`set local role authenticated`);
+      return fn(tx);
     });
+  }
   ```
 
-  A request-scoped Nest provider builds the extended client once per request from the verified JWT; repositories inject _that_, never the raw client. **`set_config(..., true)` is transaction-local** — the `true` matters. Without it the setting leaks across pooled connections and one user's claims apply to another's query.
+  **Two things must both be true, and getting either wrong fails silently and open** — the query
+  succeeds and returns everyone's rows:
 
-  Note this makes every operation a transaction, which is a real (small) cost. Batch reads in a single `$transaction` where it matters.
+  1. **The connection must not own the tables.** Prisma connects as `postgres`, which owns them, so
+     policies do not apply to it at all and setting `request.jwt.claims` alone changes nothing.
+     `set local role authenticated` is what makes them bind. This is transaction-local, so it cannot
+     leak across a pooled connection.
+  2. **The query must run in the same transaction as the settings.** This section used to recommend a
+     `$extends({ query: { $allOperations } })` wrapper whose callback opened a `$transaction` and then
+     called `query(args)`. That does not work: `query` is bound to the base client and runs on a
+     _different_ connection than `tx`. It looks right, type-checks, and isolates nothing — FR-A3 rested
+     entirely on it for the whole of M0 and M1.
+
+  Both failure modes are pinned by `packages/db/test/rls.test.ts` against the real database: `runAsUser`
+  isolates, and claims without the role switch do not. Callers receive the transaction client and issue
+  queries on it — which costs a little more to type than a magic client and buys two things worth
+  having: it is correct, and a repository method that must write two tables atomically (a mission and
+  its revision) already has its transaction.
 
 - **`worker`** — has no request context. It uses the service-role key **and therefore bypasses RLS**. Every worker query must filter `user_id` explicitly. Enforce this with a lint rule and a code-review checklist item; it is the single most likely place a cross-user leak appears.
 
@@ -1260,69 +1278,236 @@ Because the layout is byte-identical to a local teaching workspace, `mindforge p
 
 ### 7.3 The agent worker
 
+> **Verified against `@anthropic-ai/claude-agent-sdk@0.3.222`** (which bundles CLI `2.1.222`), reading
+> `sdk.d.ts` rather than the docs, on M3 day one as §16.1 required. Line references below are into that
+> file. The previous version of this section was a sketch and was wrong in nine places; the ones that
+> would have shipped silently are marked **⚠**.
+
 ```ts
-// apps/worker/src/teach/generate-lesson.processor.ts   — SHAPE, not verified API
-@Processor("teach")
-export class GenerateLessonProcessor {
-  async process(job: Job<GenerateLessonInput>) {
-    const { userId, missionId } = job.data;
-    const run = await this.runs.markRunning(job.data.agentRunId);
-    const dir = await this.workspace.materialize(userId, missionId); // Storage → /tmp/ws/<id>
+// apps/worker/src/modules/teach/infrastructure/agent-sdk.gateway.ts
+const ac = new AbortController();
+const deadline = setTimeout(() => ac.abort(), TEACH_TIMEOUT_MS);
 
-    try {
-      // Pre-computed context so the agent starts warm instead of re-deriving state.
-      await this.workspace.writeBriefing(dir, await this.zpd.briefing(userId, missionId));
-
-      const result = await query(
-        "Teach me the next thing. Read BRIEFING.md first — it has my current " +
-          "zone of proximal development, weak skills, and review items that are due.",
-        {
-          cwd: dir,
-          // Skill files are copied into the workspace so the agent loads them
-          // exactly as Claude Code would locally.
-          allowedTools: ["Read", "Write", "Edit", "Glob", "Grep", "WebSearch", "WebFetch"],
-          // No Bash: the agent has no business running shell commands here.
-          model: "claude-opus-5",
-          maxTurns: 40,
-          abortSignal: AbortSignal.timeout(15 * 60_000),
-        },
-      );
-
-      const changes = await this.workspace.sync(userId, missionId, dir); // §7.4
-      await this.indexer.reindex(userId, missionId, changes);
-      await this.runs.succeed(run.id, { changes, usage: result.usage });
-    } finally {
-      await fs.rm(dir, { recursive: true, force: true });
-    }
+try {
+  for await (const message of query({
+    prompt:
+      "Teach me the next thing. Read BRIEFING.md first — it has my current " +
+      "zone of proximal development, weak skills, and what is not measured yet.",
+    options: {
+      cwd: dir,
+      model: "claude-opus-5",
+      effort: "high", //  the SDK will not read packages/llm's EFFORT for you
+      maxTurns: 40,
+      maxBudgetUsd: TEACH_BUDGET_USD, //  second cap; unlike `usage`, it counts subagents
+      abortController: ac, //  ⚠ there is no `abortSignal` option (:1327)
+      tools: ["Read", "Write", "Edit", "Glob", "Grep", "WebSearch", "WebFetch"],
+      disallowedTools: ["Bash"], //  removes the definition from the request (:1390)
+      permissionMode: "dontAsk", //  deny anything not pre-approved
+      plugins: [{ type: "local", path: TEACH_PLUGIN_DIR }], //  how the skill loads — see below
+      skills: ["mindforge-teach:teach"], //  namespaced; a bare "teach" matches nothing
+      settingSources: [], //  ⚠ else the run inherits the host's ~/.claude
+      strictMcpConfig: true,
+      env: { ...process.env, CLAUDE_CONFIG_DIR: runConfigDir }, //  ⚠ replaces, never merges
+    },
+  })) {
+    await this.onMessage(message); //  persist here, not after the loop
   }
+} catch (err) {
+  await this.onRunError(err); //  ⚠ a failed query yields its result *and then throws*
+} finally {
+  clearTimeout(deadline);
+  await fs.rm(dir, { recursive: true, force: true });
 }
 ```
 
+**What the types actually say**, since three of these are the difference between a working run and a
+silently wrong one:
+
+- **`query()` takes one object and returns an async generator** — `query({ prompt, options })`, and
+  `Query extends AsyncGenerator<SDKMessage, void>` (`:2587`, `:2279`). There is no `await`ed result
+  object, so there is no `result.usage` to read at the end.
+- **⚠ `allowedTools` restricts nothing.** Its own doc comment: _"List of tool names that are
+  auto-allowed without prompting… To restrict which tools are available, use the `tools` option
+  instead"_ (`:1368`). A tool merely absent from `allowedTools` is still in the model's context and
+  still callable. The old sketch listed six tools there and commented "No Bash" — Bash was never
+  withheld, only left un-auto-approved. Restriction needs `tools` (the base surface),
+  `disallowedTools` (removes the definition outright), and `permissionMode: "dontAsk"` as the
+  deny-by-default floor. Assert `Bash` is absent from `system/init`'s `tools` array (`:4446`) rather
+  than trusting any of them.
+- **⚠ `options.env` replaces the subprocess environment; it does not merge.** _"not merged with
+  `process.env`. Spread `process.env` yourself if the subprocess still needs inherited variables like
+  `PATH`, `HOME`, or `ANTHROPIC_API_KEY`"_ (`:1436`). Omitting the spread strips the API key and the
+  run fails to authenticate. (The Python SDK merges. The TypeScript one does not.)
+- **⚠ A failing run yields a result message and then throws.** `SDKResultError` (`:4295`) has
+  `subtype: 'error_during_execution' | 'error_max_turns' | 'error_max_budget_usd' | …` and — unlike
+  `SDKResultSuccess` — **no `result` field**. Branch on `subtype` before reading it. Because the
+  generator throws, anything written after the `for await` never runs on a failure path: the
+  `llm_calls` rows, the sync, the run status. Persist inside the loop or in `finally`.
+- **Usage arrives per message, and at two granularities.** Each `SDKAssistantMessage` (`:2876`)
+  carries `message.usage` and an optional `request_id`; the terminal result carries `usage`,
+  `modelUsage` (`:1265`) and `total_cost_usd`. **`usage` excludes subagent tokens while `modelUsage`
+  and `total_cost_usd` include them** — count with `modelUsage`. See §8.6 for the dedupe rule.
+
+**How the skill loads — the mechanism, because the obvious one does not work.** The previous version
+said skill files are "copied into the workspace so the agent loads them exactly as Claude Code would
+locally". Both halves are wrong. Copying `SKILL.md` into `cwd` makes it a file, not a skill:
+discovery walks `.claude/skills/` in `cwd` and its ancestors, and only when `settingSources` includes
+`'user'` or `'project'` — which multi-tenant isolation forbids, since those same sources drag in the
+host's `~/.claude/settings.json` and `CLAUDE.md`. And the skill as written declares
+`disable-model-invocation: true`, which means the model may never invoke it; only a human typing a
+slash command can, and the SDK has no slash-command surface.
+
+So: **the skill is loaded as a local plugin** (`plugins: [{ type: "local", path }]`, `:1757`), which
+is the one mechanism that binds a skill directory to an arbitrary `cwd`. `TEACH_PLUGIN_DIR` is
+**generated at build time** from `skills/teach/` with the `disable-model-invocation` line stripped and
+the §7.3a addendum appended — not copied verbatim. The skill is then namespaced `mindforge-teach:teach`
+and must be named that way in `skills` (`:3456`). The three format docs are _additionally_ copied into
+the workspace root so the skill's relative links resolve, and all four files join `BRIEFING.md` on the
+sync-back exclude list — otherwise they upload into the user's Storage prefix and diff as `deleted`
+next run.
+
+**A nonexistent plugin path is skipped silently** — no throw, the run just proceeds with no skill and
+writes a plausible lesson from parametric memory, which is the one thing `SKILL.md` forbids. So assert
+on the `system/init` message (`:4438`): `plugins` contains the expected path, `skills` contains
+`mindforge-teach:teach`, `tools` excludes `Bash`. Fail the run loudly if not. The SDK does not expand
+`~`; use `path.join(os.homedir(), …)`.
+
+_Fallback if plugin loading fights back:_ inline the skill body via
+`systemPrompt: { type: "preset", preset: "claude_code", append: skillBody }`. That loses progressive
+disclosure (~9.5KB always in context) and keeps everything else, including the single shared `SKILL.md`
+that §7.1 chose the Agent SDK for. Note that `SKILL.md`'s own `allowed-tools` frontmatter is ignored
+under the SDK either way — tool scoping is expressed at the `query()` level or not at all.
+
 **Design points:**
 
-- **`BRIEFING.md` is the ZPD bridge (FR-T7).** Generated fresh each run from learning records, skill-graph gaps, due review items, and recent friction. It's a workspace file, so the agent reads it with the same tools it reads everything else — no special protocol. It's regenerated (not appended) every run and excluded from sync-back.
-- **No `Bash` tool.** The `teach` skill mentions opening lessons via CLI; that's a local nicety with no server equivalent. Withholding Bash meaningfully shrinks the blast radius of a compromised or confused run.
-- **Hard timeout and turn cap**, both surfaced in `agent_runs`. A runaway agent is a cost incident.
-- **One run per mission at a time**, enforced with a BullMQ job key. Two concurrent runs on the same workspace is the fastest route to a corrupt sync.
-- **Ephemeral disk.** Railway containers have ephemeral filesystems, which is exactly right here: materialize → run → sync → delete. Never rely on disk surviving a deploy.
+- **`BRIEFING.md` is the ZPD bridge (FR-T7).** Generated fresh each run from learning records,
+  skill-graph gaps, and recent friction. It's a workspace file, so the agent reads it with the same
+  tools it reads everything else — no special protocol. Regenerated (not appended) every run and
+  excluded from sync-back. **Sections whose source table does not exist yet say so in words** — see
+  §7.3b; a briefing that renders "0 reviews due" is a measurement claim the model will teach from.
+- **No `Bash` tool** — see the ⚠ above for why that takes three options rather than one.
+- **Turn cap and hard timeout, both surfaced in `agent_runs`.** The turn cap is `maxTurns`. **The
+  timeout is ours**: the SDK has no session timeout of any kind, so it is an `AbortController` plus a
+  `setTimeout` cleared in `finally`, with `API_TIMEOUT_MS` and `CLAUDE_STREAM_IDLE_TIMEOUT_MS` passed
+  through `options.env` as the inner limits. `maxBudgetUsd` is the third cap and the only one denominated
+  in the thing that actually hurts.
+- **One run per mission at a time**, enforced by a **partial unique index** —
+  `create unique index agent_runs_one_active_per_mission on agent_runs (mission_id) where status in ('queued','running')`
+  — insert, and let `23505` become a 409. Same shape as `weekly_allocations`' two partial indexes.
+  (This used to say "a BullMQ job key". There is no Redis and no queue; see §10.) What the index does
+  not give you and a queue would have: a lease. So `agent_runs.heartbeat_at` is written on every
+  message and a reaper fails runs whose heartbeat has gone stale — without it, a worker that dies
+  mid-run wedges that mission forever.
+- **Ephemeral disk.** Railway containers have ephemeral filesystems, which is exactly right here:
+  materialize → run → sync → delete. Never rely on disk surviving a deploy.
+- **Each run is a subprocess.** `query()` spawns a `claude` CLI process over stdio — one session, one
+  process, roughly 1 GiB RAM and 1 CPU while it runs. That is the number that sizes the Railway plan,
+  and it is why concurrency is capped per mission rather than merely serialized per user.
+- **The CLI binary ships as `optionalDependencies`** (eight platform packages pinned to the SDK
+  version). `npm ci --omit=optional` — a common container-hardening default — installs no binary, and
+  the failure surfaces at the first `query()` rather than at install time. Keep optionals, or install
+  Claude Code natively and set `pathToClaudeCodeExecutable`.
+
+### 7.3a The `SKILL.md` addendum — what an unattended run must override
+
+§7.1 chose the Agent SDK so the skill "runs unchanged". It cannot run entirely unchanged: `teach` was
+written for a human sitting there. The generated plugin appends an addendum covering each assumption,
+ordered by how likely it is to end a run having produced nothing:
+
+1. **It asks questions and waits.** _"If the user is unclear about the mission… your first job should
+   be to question the user"_, and _"Confirm with the user before changing the mission."_ Nothing
+   answers. The run burns turns or returns `subtype: "success"` having written no lesson. The addendum
+   says: this run is unattended, never block on a question, work from `BRIEFING.md` when `MISSION.md` is
+   thin, and write open questions to a file the app surfaces rather than asking. Never edit `MISSION.md`
+   — propose the change in a note. This is a larger stall risk than the missing Bash tool, and it is
+   backstopped in code: **a `success` result with no added or modified file under `lessons/` is
+   recorded as a failure**, not a success.
+2. **It opens lessons with a CLI command.** No Bash, no display. End by reporting the relative path.
+3. **It reads `./assets/` as a directory.** `Read` errors on directories — use `Glob`. Same for
+   computing the next `NNNN`.
+4. **Its in-lesson "ask your teacher followup questions" reminder points nowhere.** Lessons render on a
+   separate origin under `connect-src 'none'` (§7.5) and can reach nothing. Word it to point at the app.
+5. **`RESOURCES-FORMAT.md` asks for resources "actually inspected" with honest trust.** `WebFetch`
+   cannot watch a video, listen to a podcast, or open a paywalled book. Uncorrected, the library fills
+   with `trust: high` backed by landing pages — and trust is the exact field the teaching is grounded
+   in. The addendum caps a landing page at `medium`.
+6. **Its workspace inventory omits `BRIEFING.md` and `.memory/`.** An agent tidying to its own
+   inventory can delete them. Both are declared read-only inputs.
+7. **An absent section means unmeasured, not zero.** Stated explicitly, because §7.3b's honest
+   absences only work if the reader does not fill them in.
+
+### 7.3b What M3 cannot measure, and must therefore not claim
+
+`BRIEFING.md` is read by a model that will treat a number as evidence. Non-negotiable 1 — _"unknown is
+never rendered as zero"_ — is load-bearing here in a way it is not on a screen a human can squint at: a
+fabricated "0 items due" produces a lesson that skips revision on false evidence.
+
+| Section         | Needs                            | Arrives | Renders as                                                                |
+| --------------- | -------------------------------- | ------- | ------------------------------------------------------------------------- |
+| Due reviews     | `review_items` + FSRS            | M5      | "not tracked yet — do not assume the learner has or has not revised"      |
+| Weak skills     | `skill_evidence`                 | M4/M6   | "none recorded; levels below are self-reported, not measured"             |
+| Review accuracy | review outcomes                  | M5      | "unmeasured"                                                              |
+| Lesson outcomes | `lessons.completed_at`/`outcome` | M4      | "no completion signal exists; past lessons may or may not have been read" |
+| Calibration gap | `score` vs `perceived_level`     | M6      | section omitted entirely                                                  |
+| ZPD candidates  | records' `## Next` only in M3    | partial | labelled as records-only, not as "your ZPD"                               |
+| Friction        | `friction_events`                | **now** | rendered — the one signal that is genuinely measured today                |
+
+**Enforced by types, not by discipline.** `renderBriefing()` takes a `BriefingInput` whose unavailable
+fields are `{ status: "not-tracked"; reason: string }` rather than `number | null`. A number is not
+constructible for a section with no source table, so a later edit cannot accidentally render zero.
 
 ### 7.4 Sync protocol (files ↔ Postgres)
 
 Files are canonical. Postgres is a rebuildable index. `workspace_files` is the ledger that makes the diff cheap and conflicts detectable.
 
+> **Probed against the running stack** (`storage-api v1.60.4`, `@supabase/storage-js 2.112.1`) rather
+> than assumed, because the conflict design rests entirely on what Storage will and will not promise.
+> What it gives you: an ETag, which is `md5(content)` for a single-part upload, readable from
+> `list()` (`FileMetadata.eTag`) and from `info()` — and `info()` also returns a `version` UUID.
+> Conditional **reads** work (`If-None-Match` → `304`). What it does **not** give you: an ETag on the
+> upload response, and any conditional **write** at all — a `PUT` carrying a deliberately wrong
+> `If-Match` returned `200` and overwrote the object. **There is no compare-and-swap.**
+
 **Materialize (Storage → disk):**
 
-1. List the Storage prefix, download every object into `/tmp/ws/<runId>/`.
-2. Record `content_hash` (sha256) per file as the **baseline**.
+1. `list()` the prefix **first**, recording `path`, `metadata.eTag` and `size` as the **baseline**.
+   The order matters: `download()` hands back a `Blob` and discards response headers, so the ETag can
+   never come from the download step.
+2. Download every object into `/tmp/ws/<runId>/`, recording `content_hash` (sha256) per file.
 
 **Sync back (disk → Storage):**
 
-1. Walk the directory, hash every file.
+1. Walk the directory, hash every file. Apply the exclude list **at the walk**, not at the upload —
+   `BRIEFING.md`, `SKILL.md` and the three format docs are inputs we wrote, and a file excluded only
+   from upload still diffs as `deleted` on the next run.
 2. Compare to baseline: `added` / `modified` / `deleted` / `unchanged`.
-3. For each changed file, check that Storage's current ETag still matches what we downloaded. A mismatch means someone else wrote in between → **conflict**.
-4. Upload changed files; delete removed ones; update `workspace_files`.
+3. Re-`list()` the prefix and compare each changed file's current `eTag` to the baseline. A mismatch
+   means someone else wrote in between → **conflict**. This is a list, not a download, which is the
+   whole reason to use the ETag rather than re-hashing.
+4. Upload changed files; delete removed ones; **re-`list()` again** to learn the new ETags, since the
+   upload response does not carry them; update `workspace_files`.
 
-**Conflicts are surfaced, never resolved silently.** On mismatch the run is marked `succeeded_with_conflicts`, both versions are retained (the incoming write lands at `<path>.conflict-<timestamp>`), and the UI shows a resolution screen. Losing a lesson to a silent overwrite would be unforgivable in an app about learning.
+**What this check is, and what it is not.** It detects a concurrent write cheaply. It is **not**
+atomic: with no `If-Match`, there is a real window between the check and the write that nothing at the
+Storage layer closes. And since the ETag is `md5(content)`, it encodes the same fact
+`workspace_files.content_hash` already does — its only advantage is that listing is cheaper than
+downloading. `version` is the strictly better change token and is recorded alongside it in
+`workspace_files.storage_version`: a byte-identical rewrite leaves the ETag unchanged and moves the
+version, which is the difference between "nothing happened" and "somebody wrote".
+
+**So the ETag is not what prevents the race** — the `agent_runs` single-active-run partial unique index
+(§7.3) is. The ETag catches the _other_ writer: a local `/teach` push, or an edit made in the UI. The
+residual window is survivable because of retention, not locking, which is exactly what non-negotiable 6
+asks for.
+
+**Conflicts are surfaced, never resolved silently.** On mismatch the run is marked
+`succeeded_with_conflicts`, both versions are retained (the incoming write lands at
+`<path>.conflict-<timestamp>`), and the UI shows a resolution screen. Losing a lesson to a silent
+overwrite would be unforgivable in an app about learning.
+
+One consequence to handle rather than discover: a `.conflict-` file landing in `lessons/` is picked up
+by the reindexer's filename parse and collides on `unique (mission_id, seq)`. Conflict copies are
+excluded from indexing by name.
 
 **Reindex** parses the changed files into Postgres:
 
@@ -1459,6 +1644,26 @@ Most captures cost nothing. That matters — this endpoint runs on every article
 ### 8.6 Cost control
 
 - Every call writes a `llm_calls` row with token counts (including cache reads/writes) and computed cost.
+
+  **The agent path is the exception to "everything routes through `packages/llm`", and it needs its own
+  rule.** The Agent SDK never touches this package — it spawns a CLI subprocess that calls the API
+  itself — so the rows are reconstructed from the message stream: **one row per `SDKAssistantMessage`,
+  deduplicated by `message.message.id`**. That dedupe is not optional. Parallel tool calls emit several
+  assistant messages sharing one id and carrying identical cumulative usage, so a row per message
+  inflates the token count by the parallelism factor. Key on `request_id` where present and `message.id`
+  otherwise; `request_id` is optional on the type, so the column cannot be `NOT NULL`.
+
+  Two further traps here, both of which kill a run rather than mis-report it:
+
+  1. **`estimateCostUsd` throws on an unknown model** (`packages/llm/src/index.ts`). The CLI reports
+     whatever `message.model` says, which may be a dated or provider-specific id absent from `PRICING`
+     — and that throw happens inside the message loop. Use a non-throwing variant that records
+     `cost_usd = null` plus a warning. A missing price is unknown, and unknown is not zero (which is
+     also why the column is nullable).
+  2. **The SDK's own `total_cost_usd` is a client-side estimate** from a price table baked in when the
+     SDK was built. Store it on `agent_runs.result` as a cross-check against our own figure, never as
+     the source of truth.
+
 - Per-user monthly soft cap, configurable. On breach: non-essential jobs (digests, plan regeneration) pause; user-initiated jobs warn and continue.
 - A cost meter in the UI. If you're spending $80/month on lesson generation you should find out from the app, not the invoice.
 - Rough order of magnitude for one lesson generation with warm cache: tens of cents. Measure it in the first week rather than trusting that estimate — agent runs vary enormously with turn count.
@@ -1598,6 +1803,14 @@ Top candidates go into `BRIEFING.md` (§7.3) and onto the home screen. The recom
 | `digest:weekly`                     | Weekly, Batch API              | v2.                                                                             |
 
 Nightly jobs run **per user timezone**, not at a global UTC hour. A "daily review queue" that rolls over at 4pm local is a bug.
+
+**The `queue:job` names above are descriptive, not real.** There is no Redis and no queue — the
+scheduler is a self-rescheduling `setTimeout` in `apps/worker`, and idempotency lives in Postgres
+(the `notifications` `(user_id, dedupe_key)` unique, `daily_activity`'s range rebuild, and now
+`agent_runs`' single-active-run partial index). `bullmq` and `@nestjs/bullmq` are declared by both
+apps and imported by nothing. Read this table as "the jobs that exist", not "the queues they run on";
+the names stay so the swap to a real queue is a rename rather than a redesign. `agent_runs.job_id` is
+part of the same anticipation — an external job id, unused while the scheduler is in-process.
 
 ---
 
@@ -1753,7 +1966,7 @@ Two fixture sets, both generated by a script, neither hand-maintained:
 
 The rich set exists because insights, the activity grid, decay curves, and the galaxy are all unbuildable against an empty database — you cannot design a retention chart with three data points. Generate it from a fixed seed so it's reproducible, and keep it out of production by construction (guard on `NODE_ENV`).
 
-- **Migrations** are `prisma migrate` files in `packages/db/prisma/migrations`, applied with `prisma migrate deploy` in a release command before the new revision takes traffic. **RLS policies and any `check` constraints Prisma can't express go in hand-edited SQL inside those migration files** — never clicked into the Supabase dashboard, which is how environments drift. Generate with `prisma migrate dev --create-only`, then add the policy SQL before applying.
+- **Migrations** are `prisma migrate` files in `packages/db/prisma/migrations`, applied with `prisma migrate deploy` in a release command before the new revision takes traffic. **RLS policies and any `check` constraints Prisma can't express go in hand-edited SQL inside those migration files** — never clicked into the Supabase dashboard, which is how environments drift. **Write them by hand.** `prisma migrate dev` cannot run in this repo at all — the `profiles.id → auth.users.id` foreign key is a cross-schema reference, and Prisma refuses to introspect past it unless `auth` joins the datasource's `schemas`, which would hand Prisma ownership of tables Supabase owns. Create the directory and the SQL yourself, apply with `migrate deploy`, and prove it with the RLS and integration suites. Anything hand-written is invisible to `schema.prisma` and will not be regenerated: the `notes.search` tsvector, every CHECK constraint, and every partial unique index exist only in SQL.
 - **Connection pooling:** point Prisma at Supabase's pooler (`DATABASE_URL`, pgbouncer, `?pgbouncer=true&connection_limit=1`) and at the direct connection for migrations (`DIRECT_URL`). Getting this wrong surfaces as prepared-statement errors under load, not at deploy time.
 - **Workspace Storage bucket is private.** All access goes through signed URLs minted after an ownership check.
 - **Backups:** Postgres PITR via Supabase; Storage bucket versioning on. A lost lesson is unrecoverable creative work.
@@ -1831,8 +2044,18 @@ Readwise/Kindle · calendar · podcast history · GitHub artifacts · browser ex
 
 ## 16. Open technical items
 
-1. **Agent SDK API verification** — §7.3 is a design sketch. Read `code.claude.com/docs/en/agent-sdk` before Phase 2 and correct the processor accordingly. _(Blocking for Phase 2, nothing earlier.)_
-2. **Agent run cost and latency** — unknown until measured. A lesson may take 3 minutes or 12; it may cost $0.20 or $2. Measure in the first week of Phase 2 and revisit model/effort settings.
+1. ~~**Agent SDK API verification**~~ — **done, M3 day one.** §7.3 was verified against
+   `@anthropic-ai/claude-agent-sdk@0.3.222`'s own `sdk.d.ts` and rewritten; §7.4's conflict design was
+   verified against a live `storage-api v1.60.4`. Two findings changed the design rather than the
+   prose: `allowedTools` does not restrict tools, and Supabase Storage has no conditional write. The
+   SDK is pinned for the milestone — the CLI version is pinned to the SDK version, so bumping it
+   changes agent behaviour and earns its own commit and its own probe run.
+2. **Agent run cost and latency** — still unknown, and now measurable. A lesson may take 3 minutes or
+   12; it may cost $0.20 or $2. `llm_calls` ships with the first agent call precisely so this is read
+   off a table rather than off an invoice. Anything over ~$2 for one lesson means the defaults are
+   wrong; the levers, in order, are `effort` (`high` → `medium`), `maxBudgetUsd`, and capping `WebFetch`
+   in the §7.3a addendum — not reaching for a cheaper model, which is a product decision §8.1 has
+   already made.
 3. **Managed Agents re-evaluation** — if the memory-store model stabilizes out of beta, it deletes §7.4 entirely. Worth a spike at Phase 4.
 4. **Lesson asset handling** — the `teach` skill wants a shared `assets/` component library per workspace. Confirm relative-path resolution works through the signed-URL lessons origin; may need path rewriting on serve.
 5. **FSRS parameter fitting** — default parameters until there's enough `review_logs` to fit personalized ones (needs ~1000 reviews). Plan the refit job, don't build it yet.
