@@ -54,6 +54,14 @@ export default defineConfig({
         "src/app/providers.tsx",
         "src/features/auth/ui/**",
         "src/features/auth/api/use-supabase-session.ts",
+        // `Shell.tsx` is the code that used to be *inside* App.tsx — the bar, the nav, and the
+        // session gate — carved out in M2 because the root route has to render it. It kept the
+        // exclusion with the code; leaving it counted at 0% because of where a refactor moved it
+        // would have been an accident rather than a decision.
+        "src/app/Shell.tsx",
+        // The route tree is `createRoute` calls. A jsdom test would assert that they return routes;
+        // whether the paths are right is what the E2E suite's URL assertions check.
+        "src/app/router.tsx",
       ],
       thresholds: {
         // §13.1 per-area, with a global floor over what remains after the E2E-owned

@@ -65,15 +65,17 @@ Three ideas run through all of it, and they are the ones to preserve when changi
    and no path to `score`. The gap between them is FR-S5, and it only means something while that
    holds.
 
-Two interim proxies in the friction maths are marked in the code and expire in M2/M5:
-`producedLearning` reads the session's own debrief because §9.3's definition needs learning records and
-reviews; and the ember/slag split weights each event as one minute, so it is currently a _count_ share.
+**One interim proxy remains in the friction maths, and this note used to name two.** The ember/slag
+split no longer weights each event as one minute — M2 replaced that with the session's own length
+divided by intensity (`packages/core/src/friction/split.ts`, `TECH-DESIGN.md` §9.3b). What is left is
+`producedLearning`, which reads the session's debrief. That one was recorded as expiring "in M2/M5"
+and the M2 half never could: §9.3 defines it in terms of learning records and passed reviews, and
+neither exists until M4/M5. It expires in M5, once.
 
 Deferred deliberately: **Railway is not provisioned** — deploying an empty skeleton costs money and
-shows a blank page; revisit before M2. **No cloud Supabase project** either, since the org is at its
-2-project free limit and local is sufficient until deploy. **`seed:minimal` and `seed:rich` do not
-exist** (an M0 bullet); they matter when insights need designing against six months of history, which
-is M2.
+shows a blank page. **No cloud Supabase project** either, since the org is at its 2-project free
+limit and local is sufficient until deploy. Both of which is why `GET /v1/health` reports `dev` for
+its commit: nothing builds a container, so nothing sets `GIT_SHA`.
 
 **E2E exists now, and is the level most likely to be believed before it is written.** `@playwright/test`
 was installed for the whole of M1 with no config and no specs — `pnpm test:e2e` crashed, nothing ran it,

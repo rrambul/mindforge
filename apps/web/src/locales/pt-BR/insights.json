@@ -1,0 +1,88 @@
+{
+  "heading": "Análises",
+  "layer": {
+    "focus": "Tempo de foco",
+    "notes": "Notas registradas"
+  },
+  "grid": {
+    "heading": "O ano",
+    "layerLabel": "Mostrar",
+    "scrollLabel": "Grade de atividade — um ano de dias, role para o lado",
+    "activeDaysLabel": "Dias ativos nos últimos 28",
+    "activeDays": "{count, number}",
+    "activeDaysHint": "Não é uma sequência. Cai aos poucos, se recupera sozinha e uma semana ruim não zera nada.",
+    "neverRolledUp": "Nenhum dia deste intervalo foi consolidado ainda, então a grade está vazia e não silenciosa.",
+    "rebuiltAt": "Consolidado em {when}.",
+    "cell": {
+      "focus": "{date}: {duration} de foco. {temper}",
+      "noFocus": "{date}: nenhum foco. {temper}",
+      "notes": "{date}: {count, plural, one {# nota} other {# notas}}. {temper}",
+      "noNotes": "{date}: nenhuma nota. {temper}"
+    },
+    "temper": {
+      "measured": "{percent} do atrito daquele dia foi produtivo.",
+      "unmeasured": "Nenhum atrito registrado, então nada se sabe sobre como o tempo foi."
+    },
+    "signal": {
+      "neverOnWeekday": "Você nunca registrou um {weekday}. Dá para montar o plano semanal em torno disso, em vez de contra isso.",
+      "paceBelowPlan": "Suas últimas quatro semanas têm em média {average, number} dias ativos. Seus planos semanais supõem {planned, number}. Mude um dos dois."
+    }
+  },
+  "legend": {
+    "ember": "Atrito produtivo",
+    "slag": "Atrito desperdiçado",
+    "unmeasured": "Nada registrado — nenhuma afirmação",
+    "empty": "Nada naquele dia",
+    "intensity": {
+      "focus": "Mais escuro é mais tempo de foco",
+      "notes": "Mais escuro é mais notas"
+    }
+  },
+  "backlog": {
+    "heading": "Fila",
+    "window": "Os últimos {days, number} dias.",
+    "added": "Entraram",
+    "resolved": "Resolvidos",
+    "open": "Abertos",
+    "grew": "A fila cresceu em {count, number}.",
+    "shrank": "A fila encolheu em {count, number}.",
+    "held": "A fila manteve o tamanho.",
+    "nothingOpen": "Nada está aberto, então não há idade a relatar.",
+    "ages": "Item aberto mais antigo: {oldest, number} dias. Mediana: {median, number} dias.",
+    "stalled": {
+      "label": "Parados",
+      "explain": "Começados e deixados de lado, sem dizer. Parar é livre — o que vale é decidir qual.",
+      "none": "Nada ficou pela metade.",
+      "row": "{name} — {days, plural, one {# dia} other {# dias}} sem toque",
+      "unnamed": "Um item que não está mais na sua biblioteca",
+      "neverTouched": "Nunca aberto desde que você adicionou.",
+      "lastTouched": "Aberto pela última vez em {date}."
+    },
+    "abandonment": {
+      "label": "Interrompidos",
+      "rate": "{rate} do que você resolveu foi interrompido em vez de concluído — {abandoned, number} de {resolved, number}.",
+      "undated": "Sem taxa: {total, plural, one {o # recurso que você interrompeu não tem} other {os # recursos que você interrompeu não têm}} data, então nenhum deles pode ser colocado em uma janela.",
+      "nothingResolved": "Nada foi concluído ou interrompido nos últimos {days, number} dias, então não há taxa a relatar.",
+      "allTime": "Motivos, desde sempre.",
+      "noReasons": "Nenhum deles disse o porquê, e tudo bem.",
+      "reason": "{reason} × {count, number}",
+      "bounds": "Como a interrupção não tem data, os números de entradas, resolvidos e variação acima são limites, não contagens."
+    },
+    "signal": {
+      "growing": "A fila está crescendo: {added, number} entrando contra {resolved, number} saindo em {days, number} dias. Termine ou interrompa um antes que chegue o próximo.",
+      "stalling": "{count, number} itens estão sem toque há {days, number} dias ou mais. Escolha um e decida: terminar ou parar.",
+      "aging": "Algo está aberto há {days, number} dias. Não vai acontecer sozinho — agende ou pare."
+    }
+  },
+  "friction": {
+    "heading": "Atrito",
+    "window": "Os últimos {days, number} dias.",
+    "none": "Você não registrou nenhum atrito nos últimos {days, number} dias. Isso é ausência de dados, não um mês tranquilo.",
+    "byType": "Por tipo",
+    "byMission": "Por missão",
+    "meanIntensity": "Intensidade média {intensity, number} de 5",
+    "unattributed": "Sem missão",
+    "unattributedSplit": "{standalone, number} registrados fora de uma sessão, {inSession, number} em uma sessão que nunca foi vinculada a uma missão.",
+    "noMissions": "Nada disso aconteceu dentro da sessão de uma missão."
+  }
+}

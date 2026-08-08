@@ -1,0 +1,71 @@
+{
+  "heading": "Configurações",
+  "locales": {
+    "en": "Inglês",
+    "pt-BR": "Português (Brasil)"
+  },
+  "profile": {
+    "heading": "Idioma e calendário",
+    "language": "Idioma",
+    "locale": "Idioma da interface",
+    "contentLanguage": "Idioma das lições",
+    "contentLanguageHint": "O idioma em que o agente escreve lições, avaliações e briefings. Separado da interface de propósito — interface em português com lições em inglês é uma combinação razoável.",
+    "calendar": "Calendário",
+    "weekStart": "A semana começa em",
+    "weekStartHint": "O dia a partir do qual todo plano semanal e todo consolidado são agrupados.",
+    "sunday": "Domingo",
+    "monday": "Segunda-feira",
+    "rebuckets": "Mudar isso reposiciona todos os dias e semanas já em tela. Nada se perde — as mesmas sessões caem em outros grupos.",
+    "saving": "Salvando"
+  },
+  "timezone": {
+    "label": "Fuso horário",
+    "hint": "Todo limite de dia, semana e consolidado noturno vem daqui. Digite para buscar.",
+    "detect": "Usar o deste aparelho",
+    "unknown": "Este navegador não conhece esse fuso. Escolha um da lista.",
+    "nowThere": "Lá são {time} agora."
+  },
+  "theme": {
+    "heading": "Aparência",
+    "label": "Tema",
+    "hint": "Salvo na sua conta, então acompanha você em outro aparelho. Aplicado assim que você escolhe."
+  },
+  "nudges": {
+    "heading": "Avisos",
+    "quiet": "Eles aparecem como um marcador e uma linha dentro do app. Não há push, e-mail, som, nem nada que possa interromper uma sessão de foco.",
+    "saving": "Salvando",
+    "weeklyReview": {
+      "label": "Revisão semanal",
+      "enabled": "Lembrar de revisar a semana",
+      "hint": "A pergunta é sobre a semana que acabou, então o fim dela funciona melhor que o começo da próxima.",
+      "weekday": "Dia",
+      "hour": "Horário"
+    },
+    "stall": {
+      "label": "Missões paradas",
+      "enabled": "Perguntar sobre uma missão que ficou parada",
+      "afterDays": "Depois de",
+      "hint": "Dias sem sessão de foco. A pergunta é se vale pausar, não se você deveria se sentir mal.",
+      "range": "Entre 3 e 90 dias."
+    }
+  },
+  "notifications": {
+    "heading": "Avisos",
+    "marker": "{count, plural, one {# aviso} other {# avisos}}",
+    "empty": "Nada a dizer.",
+    "dismiss": "Dispensar",
+    "open": "Abrir",
+    "kind": {
+      "weeklyReview": "Sua semana terminou. Revisar leva uns cinco minutos.",
+      "stall": "Nenhuma sessão de foco em {missionTopic} há {days, plural, one {# dia} other {# dias}}. Ainda está ativa, ou quer pausar?",
+      "stallUndated": "{missionTopic} ficou parada. Ainda está ativa, ou quer pausar?",
+      "stallUnnamed": "Uma missão ficou parada. Ainda está ativa, ou quer pausar?"
+    }
+  },
+  "changelog": {
+    "heading": "Novidades",
+    "empty": "Nada foi publicado sob uma versão ainda.",
+    "failed": "As notas de versão não puderam ser carregadas. O app está bem; esta lista é gerada na publicação.",
+    "unseen": "{count, plural, one {# entrada nova} other {# entradas novas}}"
+  }
+}

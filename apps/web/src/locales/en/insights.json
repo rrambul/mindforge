@@ -1,0 +1,88 @@
+{
+  "heading": "Insights",
+  "layer": {
+    "focus": "Focus time",
+    "notes": "Notes captured"
+  },
+  "grid": {
+    "heading": "The year",
+    "layerLabel": "Show",
+    "scrollLabel": "Activity grid — a year of days, scroll sideways",
+    "activeDaysLabel": "Active days in the last 28",
+    "activeDays": "{count, number}",
+    "activeDaysHint": "Not a streak. It falls off gradually, recovers on its own, and one bad week cannot reset it.",
+    "neverRolledUp": "No day in this range has been rolled up yet, so the grid is empty rather than quiet.",
+    "rebuiltAt": "Rolled up {when}.",
+    "cell": {
+      "focus": "{date}: {duration} focused. {temper}",
+      "noFocus": "{date}: nothing focused. {temper}",
+      "notes": "{date}: {count, plural, one {# note} other {# notes}}. {temper}",
+      "noNotes": "{date}: no notes. {temper}"
+    },
+    "temper": {
+      "measured": "{percent} of that day's friction was productive.",
+      "unmeasured": "No friction logged, so nothing is known about how the time went."
+    },
+    "signal": {
+      "neverOnWeekday": "You have never once logged a {weekday}. Your weekly plan can be built around that rather than against it.",
+      "paceBelowPlan": "Your last four weeks average {average, number} active days. Your weekly plans assume {planned, number}. Change one of the two."
+    }
+  },
+  "legend": {
+    "ember": "Productive friction",
+    "slag": "Wasteful friction",
+    "unmeasured": "Nothing logged — no claim either way",
+    "empty": "Nothing that day",
+    "intensity": {
+      "focus": "Deeper is more focus time",
+      "notes": "Deeper is more notes"
+    }
+  },
+  "backlog": {
+    "heading": "Backlog",
+    "window": "The last {days, number} days.",
+    "added": "Added",
+    "resolved": "Resolved",
+    "open": "Open",
+    "grew": "The queue grew by {count, number}.",
+    "shrank": "The queue shrank by {count, number}.",
+    "held": "The queue held its size.",
+    "nothingOpen": "Nothing is open, so there is no age to report.",
+    "ages": "Oldest open item: {oldest, number} days. Median: {median, number} days.",
+    "stalled": {
+      "label": "Stalled",
+      "explain": "Started and then left, without saying so. Stopping is free — the useful move is deciding which.",
+      "none": "Nothing has been left half-started.",
+      "row": "{name} — {days, plural, one {# day} other {# days}} untouched",
+      "unnamed": "An item no longer in your library",
+      "neverTouched": "Never opened since you added it.",
+      "lastTouched": "Last opened {date}."
+    },
+    "abandonment": {
+      "label": "Stopped",
+      "rate": "{rate} of what you resolved was stopped rather than finished — {abandoned, number} of {resolved, number}.",
+      "undated": "No rate: {total, plural, one {the # resource you have stopped carries} other {the # resources you have stopped carry}} no date, so none of them can be placed in a window.",
+      "nothingResolved": "Nothing was finished or stopped in the last {days, number} days, so there is no rate to report.",
+      "allTime": "Reasons, all time.",
+      "noReasons": "None of them said why, which is allowed.",
+      "reason": "{reason} × {count, number}",
+      "bounds": "Because stopping carries no date, the added, resolved and change figures above are bounds rather than counts."
+    },
+    "signal": {
+      "growing": "The queue is growing: {added, number} in against {resolved, number} out over {days, number} days. Finish or stop one before the next arrives.",
+      "stalling": "{count, number} items have sat untouched for {days, number} days or more. Pick one and decide: finish it or stop it.",
+      "aging": "Something has been open for {days, number} days. It is not going to happen by itself — schedule it or stop it."
+    }
+  },
+  "friction": {
+    "heading": "Friction",
+    "window": "The last {days, number} days.",
+    "none": "You have not logged any friction in the last {days, number} days. That is an absence of data, not a quiet month.",
+    "byType": "By type",
+    "byMission": "By mission",
+    "meanIntensity": "Mean intensity {intensity, number} of 5",
+    "unattributed": "No mission",
+    "unattributedSplit": "{standalone, number} logged outside a session, {inSession, number} in a session that was never attached to a mission.",
+    "noMissions": "None of it happened inside a mission's session."
+  }
+}

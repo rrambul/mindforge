@@ -2,10 +2,12 @@ import { Outlet } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { useSupabaseSession } from "../features/auth/api/use-supabase-session.js";
 import { SignInForm } from "../features/auth/ui/SignInForm.js";
+import { NudgeMarker } from "../features/notifications/ui/NudgeMarker.js";
+import { useThemeSetting } from "../features/settings/api/use-theme-setting.js";
+import { ChangelogDot } from "../features/settings/ui/ChangelogDot.js";
 import { supabase } from "../shared/api/supabase.js";
 import { useActions } from "../shared/lib/action-registry.js";
 import { useOfflineQueue } from "../shared/lib/queue-context.js";
-import { useTheme } from "../shared/lib/theme.js";
 import { Button, Row, StatusChip, Text } from "../shared/ui/index.js";
 import { AppShell, Brand, Nav, type NavItem } from "./AppShell.js";
 import { CommandActions } from "./CommandActions.js";
@@ -27,9 +29,12 @@ import { NAV_ROUTES } from "./router.js";
 export function Shell() {
   const { t } = useTranslation("common");
   const { t: auth } = useTranslation("auth");
-  const { theme, toggle } = useTheme();
   const { session } = useSupabaseSession();
   const signedIn = session != null;
+  // `useThemeSetting`, not the localStorage-only `useTheme` this used to call. There are now two
+  // controls for one preference — this toggle and a select in Settings — and the old hook wrote only
+  // to the device, so the bar's choice was a preview the next profile read silently reverted.
+  const { theme, toggle } = useThemeSetting(signedIn);
   const sessionKnown = session !== undefined;
 
   // One list, read from the route table. It used to be written three times — here, in
@@ -60,6 +65,11 @@ export function Shell() {
               <Button variant="quiet" onClick={toggle} aria-label={t("theme.toggle")}>
                 {t(theme === "dark" ? "theme.light" : "theme.dark")}
               </Button>
+              {/* Quiet by delivery, not by being switched off (FR-N4): a marker and a list, never a
+                  modal, a sound, or anything that can interrupt a focus session. Both render nothing
+                  when there is nothing to say, so neither needs a conditional beyond the session. */}
+              <NudgeMarker enabled={signedIn} />
+              {signedIn ? <ChangelogDot /> : null}
               {signedIn ? <PendingCaptures /> : null}
               {signedIn ? (
                 <Button variant="quiet" onClick={() => void supabase.auth.signOut()}>

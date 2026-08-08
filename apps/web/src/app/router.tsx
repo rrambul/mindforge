@@ -7,11 +7,15 @@ import {
 import type { ReactElement } from "react";
 import { NotesRoute } from "../features/notes/routes/NotesRoute.js";
 import { GoalsScreen } from "./GoalsScreen.js";
+import { InsightsScreen } from "./InsightsScreen.js";
 import { MissionsScreen } from "./MissionsScreen.js";
 import { ResourcesScreen } from "./ResourcesScreen.js";
+import { SettingsScreen } from "./SettingsScreen.js";
 import { Shell } from "./Shell.js";
 import { SkillsScreen } from "./SkillsScreen.js";
 import { TodayScreen } from "./TodayScreen.js";
+import { WeekReviewScreen } from "./WeekReviewScreen.js";
+import { WeekScreen } from "./WeekScreen.js";
 
 /**
  * The route tree, which App.tsx and AppShell.tsx have each been deferring since M1.
@@ -67,6 +71,20 @@ export const notesRoute = screen("/notes", NotesRoute);
  * disagrees with the label above it is a small lie you have to remember.
  */
 export const libraryRoute = screen("/library", ResourcesScreen);
+export const insightsRoute = screen("/insights", InsightsScreen);
+export const settingsRoute = screen("/settings", SettingsScreen);
+
+/**
+ * The two routes that made the tree worth building.
+ *
+ * `$weekStart` is what a week is addressed by, so a plan and its review can be linked to, sent to
+ * yourself, and reached with Back. The param is deliberately not validated here: `WeekScreen`
+ * normalises whatever arrives through `startOfWeek` with the profile's own `weekStartsOn` and says
+ * which week you actually got, so `/weeks/2026-08-06` renders the week of the 3rd rather than 404ing
+ * on a date that is perfectly meaningful.
+ */
+export const weekRoute = screen("/weeks/$weekStart", WeekScreen);
+export const weekReviewRoute = screen("/weeks/$weekStart/review", WeekReviewScreen);
 
 const routeTree = rootRoute.addChildren([
   todayRoute,
@@ -75,6 +93,10 @@ const routeTree = rootRoute.addChildren([
   skillsRoute,
   notesRoute,
   libraryRoute,
+  insightsRoute,
+  settingsRoute,
+  weekRoute,
+  weekReviewRoute,
 ]);
 
 export function createAppRouter(context: RouterContext) {
@@ -109,6 +131,10 @@ export const NAV_ROUTES = [
   { path: "/skills", labelKey: "nav.skills" },
   { path: "/notes", labelKey: "nav.notes" },
   { path: "/library", labelKey: "nav.resources" },
+  { path: "/insights", labelKey: "nav.insights" },
+  // Settings is in the nav rather than tucked behind an icon: it is where the timezone lives, and
+  // until M2 there was no way to set one at all. §14.1 also puts "What's new" here.
+  { path: "/settings", labelKey: "nav.settings" },
 ] as const;
 
 export type NavPath = (typeof NAV_ROUTES)[number]["path"];

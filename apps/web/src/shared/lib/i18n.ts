@@ -11,9 +11,12 @@ import enFocus from "../../locales/en/focus.json";
 import enFriction from "../../locales/en/friction.json";
 import enGlossary from "../../locales/en/glossary.json";
 import enGoals from "../../locales/en/goals.json";
+import enInsights from "../../locales/en/insights.json";
 import enMissions from "../../locales/en/missions.json";
 import enNotes from "../../locales/en/notes.json";
+import enPlanning from "../../locales/en/planning.json";
 import enResources from "../../locales/en/resources.json";
+import enSettings from "../../locales/en/settings.json";
 import enSkills from "../../locales/en/skills.json";
 import ptAuth from "../../locales/pt-BR/auth.json";
 import ptCommand from "../../locales/pt-BR/command.json";
@@ -23,9 +26,12 @@ import ptFocus from "../../locales/pt-BR/focus.json";
 import ptFriction from "../../locales/pt-BR/friction.json";
 import ptGlossary from "../../locales/pt-BR/glossary.json";
 import ptGoals from "../../locales/pt-BR/goals.json";
+import ptInsights from "../../locales/pt-BR/insights.json";
 import ptMissions from "../../locales/pt-BR/missions.json";
 import ptNotes from "../../locales/pt-BR/notes.json";
+import ptPlanning from "../../locales/pt-BR/planning.json";
 import ptResources from "../../locales/pt-BR/resources.json";
+import ptSettings from "../../locales/pt-BR/settings.json";
 import ptSkills from "../../locales/pt-BR/skills.json";
 
 /**
@@ -52,6 +58,9 @@ export const NAMESPACES = [
   "notes",
   "skills",
   "resources",
+  "planning",
+  "insights",
+  "settings",
 ] as const;
 
 const resources = {
@@ -68,6 +77,9 @@ const resources = {
     notes: enNotes,
     skills: enSkills,
     resources: enResources,
+    planning: enPlanning,
+    insights: enInsights,
+    settings: enSettings,
   },
   "pt-BR": {
     common: ptCommon,
@@ -82,6 +94,9 @@ const resources = {
     notes: ptNotes,
     skills: ptSkills,
     resources: ptResources,
+    planning: ptPlanning,
+    insights: ptInsights,
+    settings: ptSettings,
   },
 } as const satisfies Record<Locale, Record<(typeof NAMESPACES)[number], unknown>>;
 

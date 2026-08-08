@@ -28,6 +28,7 @@ import { useSkills } from "../features/skills/api/use-skills.js";
 import { ApiError, NetworkError, PROBLEM, isProblemOfType } from "../shared/api/problem.js";
 import { Button, Callout, Heading, Row, Stack, Text } from "../shared/ui/index.js";
 import { FirstRun } from "./FirstRun.js";
+import { TodayThisWeek } from "./WeekScreen.js";
 
 /**
  * Today (§5.3). One job: get you into a focus session in one tap, or tell you why you shouldn't.
@@ -236,6 +237,11 @@ export function TodayScreen() {
           )}
         </Stack>
       )}
+
+      {/* THIS WEEK — the block §5.3 reserves at the foot of Today: planned versus actual as one bar,
+          the ember/slag split as another. It renders null when there is nothing true to say, which
+          is why it needs no conditional here: an empty section is worse than no section. */}
+      <TodayThisWeek />
     </Stack>
   );
 }

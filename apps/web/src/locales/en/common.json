@@ -24,7 +24,9 @@
     "notes": "Notes",
     "resources": "Library",
     "goals": "Goals",
-    "skills": "Skills"
+    "skills": "Skills",
+    "insights": "Insights",
+    "settings": "Settings"
   },
   "offline": {
     "pending": "{count, plural, one {# capture waiting} other {# captures waiting}}"

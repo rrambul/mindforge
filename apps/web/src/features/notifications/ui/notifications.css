@@ -1,0 +1,70 @@
+/* The nudge surface's own layout. It owns a layout role nothing else has — a panel anchored to the
+   top bar — which is the same reason `RunningSession` keeps its own stylesheet rather than pushing
+   a one-screen shape into shared/ui (§2.2 rule 7). */
+
+.mf-nudges {
+  /* The anchor for the panel below. The top bar itself is not positioned, so without this the panel
+     would hang off the viewport instead of off the button. */
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+/* A count, not a red badge. The number is the information; a dot with no number would send you
+   looking for what changed. */
+.mf-nudges__panel {
+  position: absolute;
+  top: calc(100% + var(--mf-space-2));
+  right: 0;
+  z-index: 20;
+  width: min(24rem, calc(100vw - var(--mf-space-4) * 2));
+  max-height: 60dvh;
+  overflow-y: auto;
+  padding: var(--mf-space-4);
+  border: 1px solid var(--mf-scale);
+  border-radius: var(--mf-r-lg);
+  background: var(--mf-surface);
+  box-shadow: var(--mf-elevation-1);
+}
+
+/* Not a modal and not a takeover (§14.1): no backdrop, no focus trap, the page behind stays
+   scrollable and clickable. On a narrow screen it spans the width rather than becoming a sheet,
+   because a sheet is a takeover with better manners. */
+@media (max-width: 480px) {
+  .mf-nudges__panel {
+    position: fixed;
+    top: auto;
+    left: var(--mf-space-2);
+    right: var(--mf-space-2);
+    width: auto;
+  }
+}
+
+.mf-nudge {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--mf-space-2);
+  padding: var(--mf-space-3) 0;
+  border-top: 1px solid var(--mf-scale);
+}
+
+.mf-nudge:first-child {
+  border-top: none;
+  padding-top: 0;
+}
+
+.mf-nudge__text {
+  flex: 1 1 12rem;
+  min-width: 0;
+  font-family: var(--mf-font-body);
+  font-size: var(--mf-step-0);
+  line-height: var(--mf-leading-body);
+  color: var(--mf-text);
+}
+
+.mf-nudge-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}

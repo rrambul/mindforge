@@ -18,6 +18,7 @@ export { ChoiceGroup, type Choice } from "./ChoiceGroup.js";
 export { Field, TextareaField } from "./Field.js";
 export { Heading } from "./Heading.js";
 export { RemovableChip } from "./RemovableChip.js";
+export { RouterLink } from "./RouterLink.js";
 export { Row } from "./Row.js";
 export { Select, type SelectOption } from "./Select.js";
 export { Spread } from "./Spread.js";

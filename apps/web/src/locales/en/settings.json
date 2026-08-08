@@ -1,0 +1,71 @@
+{
+  "heading": "Settings",
+  "locales": {
+    "en": "English",
+    "pt-BR": "Portuguese (Brazil)"
+  },
+  "profile": {
+    "heading": "Language and calendar",
+    "language": "Language",
+    "locale": "Interface language",
+    "contentLanguage": "Lesson language",
+    "contentLanguageHint": "What the agent writes lessons, assessments, and briefings in. Separate from the interface on purpose — a Portuguese interface with English lessons is a reasonable thing to want.",
+    "calendar": "Calendar",
+    "weekStart": "Week starts on",
+    "weekStartHint": "Which day every weekly plan and rollup is bucketed from.",
+    "sunday": "Sunday",
+    "monday": "Monday",
+    "rebuckets": "Changing these moves every day and week already on screen. Nothing is lost — the same sessions land in different buckets.",
+    "saving": "Saving"
+  },
+  "timezone": {
+    "label": "Timezone",
+    "hint": "Every day boundary, week, and nightly rollup is derived from this. Type to search.",
+    "detect": "Use this device's",
+    "unknown": "Not a timezone this browser knows. Pick one from the list.",
+    "nowThere": "It is {time} there right now."
+  },
+  "theme": {
+    "heading": "Appearance",
+    "label": "Theme",
+    "hint": "Saved to your account, so it follows you to another device. Applied as soon as you pick it."
+  },
+  "nudges": {
+    "heading": "Nudges",
+    "quiet": "These appear as a marker and a line inside the app. There is no push, no email, no sound, and nothing that can interrupt a focus session.",
+    "saving": "Saving",
+    "weeklyReview": {
+      "label": "Weekly review",
+      "enabled": "Remind me to review the week",
+      "hint": "Asked about the week that just ended, so the end of it is a better time than the start of the next one.",
+      "weekday": "Day",
+      "hour": "Time"
+    },
+    "stall": {
+      "label": "Quiet missions",
+      "enabled": "Ask about a mission that has gone quiet",
+      "afterDays": "After",
+      "hint": "Days with no focus session. The question is whether to park it, not whether you should feel bad.",
+      "range": "Between 3 and 90 days."
+    }
+  },
+  "notifications": {
+    "heading": "Nudges",
+    "marker": "{count, plural, one {# nudge} other {# nudges}}",
+    "empty": "Nothing to tell you.",
+    "dismiss": "Dismiss",
+    "open": "Open",
+    "kind": {
+      "weeklyReview": "Your week has ended. Reviewing it takes about five minutes.",
+      "stall": "No focus session on {missionTopic} in {days, plural, one {# day} other {# days}}. Still active, or park it?",
+      "stallUndated": "{missionTopic} has gone quiet. Still active, or park it?",
+      "stallUnnamed": "A mission has gone quiet. Still active, or park it?"
+    }
+  },
+  "changelog": {
+    "heading": "What's new",
+    "empty": "Nothing has shipped under a version yet.",
+    "failed": "The release notes could not be loaded. The app is fine; this list is built at release time.",
+    "unseen": "{count, plural, one {# new entry} other {# new entries}}"
+  }
+}

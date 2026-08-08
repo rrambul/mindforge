@@ -1,0 +1,93 @@
+/* The settings screen's own layout. Not in shared/ui: a switch row, a datalist field and a rendered
+   changelog exist for exactly one screen, and something used by one feature belongs to it
+   (§2.2 rule 7). Promote any of it the day a second feature needs it, not before. */
+
+/* A checkbox that is a real target. `.mf-field__control` is full-width and 44px tall, which is right
+   for a text box and absurd for a tick — so the control keeps the touch floor and the label carries
+   the width, giving the whole row as the hit area rather than a 13px square. */
+.mf-switch {
+  display: flex;
+  align-items: center;
+  gap: var(--mf-space-3);
+  min-height: var(--mf-touch-min);
+  cursor: pointer;
+}
+
+.mf-switch__box {
+  flex: none;
+  /* WCAG 2.2's 24px minimum. The row above is the 44px target; this is the glyph inside it. */
+  width: 24px;
+  height: 24px;
+  accent-color: var(--mf-accent);
+}
+
+.mf-switch__label {
+  font-family: var(--mf-font-body);
+  font-size: var(--mf-step-0);
+  color: var(--mf-text);
+}
+
+/* Two short selects sharing a line — a weekday and an hour are one sentence, not two settings. */
+.mf-schedule {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--mf-space-3);
+}
+
+.mf-schedule > * {
+  flex: 1 1 9rem;
+  min-width: 9rem;
+}
+
+/* --- The rendered changelog (§14.1) -------------------------------------- */
+
+.mf-release {
+  display: grid;
+  gap: var(--mf-space-2);
+  padding-top: var(--mf-space-4);
+  border-top: 1px solid var(--mf-scale);
+}
+
+.mf-release:first-child {
+  padding-top: 0;
+  border-top: none;
+}
+
+.mf-release__heading {
+  font-family: var(--mf-font-display);
+  font-size: var(--mf-step--1);
+  letter-spacing: var(--mf-tracking-label);
+  text-transform: uppercase;
+  color: var(--mf-muted);
+  margin: var(--mf-space-3) 0 0;
+}
+
+.mf-release__list {
+  display: grid;
+  gap: var(--mf-space-2);
+  margin: 0;
+  padding-left: var(--mf-space-4);
+  color: var(--mf-text);
+  font-family: var(--mf-font-body);
+  font-size: var(--mf-step-0);
+  line-height: var(--mf-leading-body);
+}
+
+.mf-release__code {
+  font-family: var(--mf-font-display);
+  font-size: 0.9em;
+  background: var(--mf-sunk);
+  border-radius: var(--mf-r);
+  padding: 0 var(--mf-space-1);
+}
+
+/* The unseen marker (§14.1) — "a single dot", and nothing at all when there is nothing new. */
+.mf-unseen-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--mf-ember);
+  /* Optical: a dot beside uppercase nav type sits low on the baseline. */
+  vertical-align: 0.1em;
+}
