@@ -1,10 +1,12 @@
-// Mindforge schema — the capture loop (M1) and the weekly rhythm (M2).
+// Mindforge schema — the capture loop (M1), the weekly rhythm (M2), and the
+// teach workspace (M3).
 //
-// Scope here is TECH-DESIGN.md §3.1 and §3.3, plus the two operational tables
-// from §3.5 that M2 can honestly fill: missions, goals, skills, resources,
-// notes, tasks, focus sessions, friction events, weekly plans and their
-// allocations, weekly reviews, the daily rollup, and notifications. Retention,
-// assessments, and the teach workspace tables land with their milestones.
+// Scope here is TECH-DESIGN.md §3.1, §3.2, §3.3 and §3.5: missions, goals,
+// skills, resources, notes, tasks, focus sessions, friction events, weekly plans
+// and their allocations, weekly reviews, the daily rollup, notifications — and
+// M3's index over the teach workspace: lessons, reference docs, learning
+// records, the sync ledger, agent runs, what they cost, and learner memory.
+// Retention and assessments land with their milestones.
 //
 // Two rules this file follows throughout:
 //   1. Enum-ish columns are stored as keys, never display text. The UI
@@ -66,6 +68,13 @@ model Profile {
   dailyActivity     DailyActivity[]
   notifications     Notification[]
   notificationPrefs NotificationPref[]
+  lessons           Lesson[]
+  referenceDocs     ReferenceDoc[]
+  learningRecords   LearningRecord[]
+  workspaceFiles    WorkspaceFile[]
+  agentRuns         AgentRun[]
+  llmCalls          LlmCall[]
+  learnerMemories   LearnerMemory[]
 
   @@map("profiles")
 }
@@ -81,19 +90,29 @@ model Mission {
   /// active | parked | completed | abandoned. Parked is not archived — skills
   /// keep decaying, reviews suspend, goals freeze (FR-M4b).
   status           String   @default("active")
-  /// Storage prefix. Set once: renaming a mission must not move files.
-  workspaceKey     String?  @unique @map("workspace_key")
+  /// Storage prefix under `workspaces/<user_id>/`. Set once at first
+  /// materialisation: renaming a mission must not move files. Unique per user,
+  /// not globally — the path is already scoped by user id, and a global unique
+  /// would let the first account to claim `rust` take it from everyone and leak
+  /// that it had, through the 409.
+  workspaceKey     String?  @map("workspace_key")
   createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt        DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  profile     Profile            @relation(fields: [userId], references: [id], onDelete: Cascade)
-  revisions   MissionRevision[]
-  goals       Goal[]
-  resources   ResourceLink[]
-  tasks       Task[]
-  sessions    FocusSession[]
-  allocations WeeklyAllocation[]
+  profile         Profile            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  revisions       MissionRevision[]
+  goals           Goal[]
+  resources       ResourceLink[]
+  tasks           Task[]
+  sessions        FocusSession[]
+  allocations     WeeklyAllocation[]
+  lessons         Lesson[]
+  referenceDocs   ReferenceDoc[]
+  learningRecords LearningRecord[]
+  workspaceFiles  WorkspaceFile[]
+  agentRuns       AgentRun[]
 
+  @@unique([userId, workspaceKey])
   @@index([userId, status])
   @@map("missions")
 }
@@ -539,4 +558,260 @@ model Notification {
   @@unique([userId, dedupeKey])
   @@index([userId, dismissedAt, createdAt])
   @@map("notifications")
+}
+
+// ---------------------------------------------------------------------------
+// The teach workspace (M3) — §3.2, §3.5, §7.2-§7.6.
+//
+// Every model below is an index over files. Storage is canonical
+// (non-negotiable 5) and all of this rebuilds by re-reading a workspace, which
+// is what makes a defensive parser the right answer to a format change: a row
+// that cannot be reconstructed is a row that should not have been trusted.
+// ---------------------------------------------------------------------------
+
+/// One `./lessons/NNNN-slug.html`. The primary unit of teaching (FR-T4).
+model Lesson {
+  id          String @id @default(uuid()) @db.Uuid
+  userId      String @map("user_id") @db.Uuid
+  missionId   String @map("mission_id") @db.Uuid
+  /// From the filename, never from the document. An H1 is prose the agent
+  /// rewrites; the number is the workspace's own ordering, and it is what a
+  /// learning record links back to.
+  seq         Int
+  slug        String
+  title       String
+  storagePath String @map("storage_path")
+  contentHash String @map("content_hash")
+
+  /// Set by the sandboxed reader in M4. Until then it is null for every lesson,
+  /// and null means "unread or not yet trackable" — the UI renders neither as a
+  /// zero (non-negotiable 10).
+  completedAt DateTime? @map("completed_at") @db.Timestamptz(6)
+  /// understood | shaky | lost. The first automatic skill evidence, in M4.
+  outcome     String?
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  profile Profile          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  mission Mission          @relation(fields: [missionId], references: [id], onDelete: Cascade)
+  records LearningRecord[]
+
+  @@unique([missionId, seq])
+  @@index([userId, missionId])
+  @@map("lessons")
+}
+
+/// One `./reference/slug.html` (FR-T5). The skill is explicit that these are the
+/// artifacts you revisit, unlike lessons — so they get their own library.
+model ReferenceDoc {
+  id          String @id @default(uuid()) @db.Uuid
+  userId      String @map("user_id") @db.Uuid
+  missionId   String @map("mission_id") @db.Uuid
+  slug        String
+  title       String
+  storagePath String @map("storage_path")
+  contentHash String @map("content_hash")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  profile Profile @relation(fields: [userId], references: [id], onDelete: Cascade)
+  mission Mission @relation(fields: [missionId], references: [id], onDelete: Cascade)
+
+  /// No NNNN on these: the skill revises a reference doc in place rather than
+  /// superseding it, so the path is the natural key — and it is what stops a
+  /// second reindex from doubling the library.
+  @@unique([missionId, storagePath])
+  @@index([userId, missionId])
+  @@map("reference_docs")
+}
+
+/// One `./learning-records/NNNN-slug.md` (FR-T6). Mirrors the skill's
+/// LEARNING-RECORD-FORMAT.md exactly. Append-only: a record that turns out wrong
+/// is superseded by a new one rather than edited.
+model LearningRecord {
+  id        String  @id @default(uuid()) @db.Uuid
+  userId    String  @map("user_id") @db.Uuid
+  missionId String  @map("mission_id") @db.Uuid
+  seq       Int
+  title     String
+  lessonId  String? @map("lesson_id") @db.Uuid
+
+  whatLearned String  @map("what_learned")
+  evidence    String?
+  keyInsight  String? @map("key_insight")
+  struggles   String?
+  /// What this unlocks. The ZPD recommender's only real input in M3 (FR-T7):
+  /// skill-graph gaps need evidence (M4/M6) and due reviews need M5, so a
+  /// briefing built from this alone says so rather than calling it "your ZPD".
+  next        String?
+
+  storagePath  String  @map("storage_path")
+  contentHash  String  @map("content_hash")
+  supersedesId String? @map("supersedes_id") @db.Uuid
+
+  /// From the record's `Date:` line, resolved in the user's IANA timezone. A
+  /// record dated 2026-08-08 that lands on 2026-08-07 moves which weekly review
+  /// it belongs to.
+  recordedAt DateTime @default(now()) @map("recorded_at") @db.Timestamptz(6)
+
+  profile      Profile          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  mission      Mission          @relation(fields: [missionId], references: [id], onDelete: Cascade)
+  lesson       Lesson?          @relation(fields: [lessonId], references: [id], onDelete: SetNull)
+  supersedes   LearningRecord?  @relation("RecordSupersedes", fields: [supersedesId], references: [id], onDelete: SetNull)
+  supersededBy LearningRecord[] @relation("RecordSupersedes")
+
+  @@unique([missionId, seq])
+  @@index([userId, missionId, recordedAt])
+  @@map("learning_records")
+}
+
+/// The sync ledger (§7.4). What was in Storage when a run materialised the
+/// workspace, so the diff afterwards is cheap and a conflict is detectable.
+model WorkspaceFile {
+  userId      String @map("user_id") @db.Uuid
+  missionId   String @map("mission_id") @db.Uuid
+  /// Relative: "lessons/0007-closures.html".
+  path        String
+  contentHash String @map("content_hash")
+  sizeBytes   Int    @map("size_bytes")
+
+  /// md5(content), read from list()/info(). Detects a concurrent writer; it
+  /// cannot exclude one, because Storage ignores If-Match on upload — probed,
+  /// not assumed (§7.4).
+  storageEtag    String? @map("storage_etag")
+  /// The better change token, stored alongside rather than instead: it moves on
+  /// every write, including one that leaves the bytes identical.
+  storageVersion String? @map("storage_version")
+
+  syncedAt DateTime @default(now()) @map("synced_at") @db.Timestamptz(6)
+
+  profile Profile @relation(fields: [userId], references: [id], onDelete: Cascade)
+  mission Mission @relation(fields: [missionId], references: [id], onDelete: Cascade)
+
+  @@id([missionId, path])
+  @@index([userId, missionId])
+  @@map("workspace_files")
+}
+
+/// One invocation of the agent (FR-T3). Long operations never block a request:
+/// the endpoint returns 202 with this id and the SPA subscribes for progress.
+model AgentRun {
+  id        String  @id @default(uuid()) @db.Uuid
+  userId    String  @map("user_id") @db.Uuid
+  /// Null for kinds that are not about one mission — the weekly digest.
+  missionId String? @map("mission_id") @db.Uuid
+
+  /// generate_lesson | sync_workspace | generate_assessment | grade_teach_back |
+  /// weekly_digest | generate_plan
+  kind   String
+  /// queued | running | succeeded | succeeded_with_conflicts | failed | cancelled.
+  /// `succeeded_with_conflicts` is a success: the run did its work and kept both
+  /// versions of every contested file (§7.4).
+  status String  @default("queued")
+  /// External job id, unused while the scheduler is an in-process setTimeout.
+  jobId  String? @map("job_id")
+
+  /// The rendered briefing among other things, so a bad lesson is debuggable
+  /// after the fact rather than only reproducible.
+  input  Json?
+  /// Changes, parser warnings, and the SDK's own cost estimate as a cross-check
+  /// against ours — never as the source of truth (§8.6).
+  result Json?
+  error  String?
+
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  startedAt   DateTime? @map("started_at") @db.Timestamptz(6)
+  /// Liveness lease, written on every message. A partial unique index allows one
+  /// active run per mission; without a reaper for stale heartbeats, a worker that
+  /// dies mid-run wedges that mission forever.
+  heartbeatAt DateTime? @map("heartbeat_at") @db.Timestamptz(6)
+  finishedAt  DateTime? @map("finished_at") @db.Timestamptz(6)
+
+  profile  Profile   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  mission  Mission?  @relation(fields: [missionId], references: [id], onDelete: Cascade)
+  llmCalls LlmCall[]
+
+  @@index([userId, createdAt])
+  @@index([status, heartbeatAt])
+  @@map("agent_runs")
+}
+
+/// Cost and cache-hit observability (§8.6). Non-negotiable 9: this ships with the
+/// first LLM call, not after.
+model LlmCall {
+  id         String  @id @default(uuid()) @db.Uuid
+  /// Never null. Every call in this product is made on somebody's behalf, and a
+  /// cost row nobody owns is one RLS hides from everyone.
+  userId     String  @map("user_id") @db.Uuid
+  agentRunId String? @map("agent_run_id") @db.Uuid
+
+  /// Call site. `teach_turn` is a visible assistant message; `teach_overhead` is
+  /// the reconciliation row that makes a run's calls sum to its modelUsage —
+  /// without it the SDK's own internal calls are billed to nobody, and they were
+  /// 22% of the M3 probe run.
+  purpose String
+  model   String
+  /// Per-run dedupe key: request_id where present, message.id otherwise.
+  /// Parallel tool calls emit several assistant messages sharing one id and one
+  /// cumulative usage figure.
+  callKey String? @map("call_key")
+
+  inputTokens      Int @default(0) @map("input_tokens")
+  outputTokens     Int @default(0) @map("output_tokens")
+  cacheReadTokens  Int @default(0) @map("cache_read_tokens")
+  cacheWriteTokens Int @default(0) @map("cache_write_tokens")
+
+  /// Null when the model is not in the pricing table. Never 0 as a stand-in —
+  /// zero is a measurement (non-negotiable 10).
+  costUsd   Decimal? @map("cost_usd") @db.Decimal(10, 6)
+  latencyMs Int?     @map("latency_ms")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  profile  Profile   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// Set null, not cascade: deleting a run must not delete what it cost.
+  agentRun AgentRun? @relation(fields: [agentRunId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+  @@index([agentRunId])
+  @@map("llm_calls")
+}
+
+/// Index over `memory/<user_id>/*.md` (§7.6). Cross-mission facts about the
+/// learner, replayed into every agent run — which is exactly why the user can
+/// read, edit and delete every row of it.
+model LearnerMemory {
+  id      String @id @default(uuid()) @db.Uuid
+  userId  String @map("user_id") @db.Uuid
+  /// Filename without the extension.
+  slug    String
+  /// background | teaching_preference | learning_pattern | constraint
+  kind    String
+  /// The file's one-line header. What gets loaded for relevance selection once
+  /// the memory outgrows what is worth injecting whole.
+  summary String
+
+  storagePath String @map("storage_path")
+  contentHash String @map("content_hash")
+
+  /// agent | user. The agent writes it; you own it.
+  writtenBy      String    @default("agent") @map("written_by")
+  /// User-reviewed, and therefore trusted more than an inference.
+  confirmedAt    DateTime? @map("confirmed_at") @db.Timestamptz(6)
+  /// Supersede, never mutate. Seeing that a stated preference changed is the
+  /// point; overwriting it quietly is how a model accumulates conclusions about
+  /// somebody that nobody agreed to.
+  supersededById String?   @map("superseded_by") @db.Uuid
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  profile      Profile         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  supersededBy LearnerMemory?  @relation("MemorySupersedes", fields: [supersededById], references: [id], onDelete: SetNull)
+  supersedes   LearnerMemory[] @relation("MemorySupersedes")
+
+  @@unique([userId, slug])
+  @@map("learner_memories")
 }
