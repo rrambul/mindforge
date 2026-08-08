@@ -134,6 +134,10 @@ class InMemoryReviews implements WeeklyReviewRepository {
     return Promise.resolve(stored);
   }
 
+  findForWeek(userId: string, weekStart: IsoDate): Promise<WeeklyReview | null> {
+    return Promise.resolve(this.own(userId).get(weekStart) ?? null);
+  }
+
   list(userId: string, limit: number): Promise<WeeklyReview[]> {
     const all = [...this.own(userId).values()].sort((a, b) =>
       b.weekStart.localeCompare(a.weekStart),

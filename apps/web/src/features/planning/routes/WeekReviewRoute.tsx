@@ -18,7 +18,7 @@ import {
   usePlanVsActual,
   useSaveWeeklyPlan,
   useWeeklyPlan,
-  useWeeklyReviews,
+  useWeeklyReview,
 } from "../api/use-planning.js";
 import { useFrictionSourcesIn, useFrictionSplitIn } from "../api/use-week-friction.js";
 import { describeError } from "../model/describe-error.js";
@@ -83,12 +83,13 @@ export function WeekReviewRoute({ weekStart, timeZone, nav, nextWeekLink }: Week
   const actual = usePlanVsActual(weekStart);
   const sources = useFrictionSourcesIn(since, until);
   const split = useFrictionSplitIn(since, until);
-  const reviews = useWeeklyReviews();
+  const review = useWeeklyReview(weekStart);
   const nextPlan = useWeeklyPlan(nextWeek);
   const complete = useCompleteWeeklyReview();
   const savePlan = useSaveWeeklyPlan();
 
-  const existing = reviews.data?.reviews.find((review) => review.weekStart === weekStart);
+  // Asked for by week, not found in a capped list — see `useWeeklyReview`.
+  const existing = review.data?.review ?? undefined;
   const outcome = splitOutcome(actual.data?.rows ?? []);
   const proposal = proposeNextWeek(actual.data?.rows ?? []);
 
@@ -176,7 +177,7 @@ export function WeekReviewRoute({ weekStart, timeZone, nav, nextWeekLink }: Week
             away from erasing the sentence you wrote last time — and the failure is silent, because
             the request succeeds. An error is different from a wait: the list not loading is no reason
             to stop you writing a review, so only `isPending` holds the form back. */}
-        {reviews.isPending ? (
+        {review.isPending ? (
           <Text tone="muted">{common("state.loading")}</Text>
         ) : (
           <ReviewForm

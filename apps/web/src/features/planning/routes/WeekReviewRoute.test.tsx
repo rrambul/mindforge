@@ -103,7 +103,13 @@ function review(
     ),
     http.get(`${API}/insights/friction`, () => HttpResponse.json(options.sources ?? NO_FRICTION)),
     http.get(`${API}/friction/summary`, () => HttpResponse.json(options.split ?? NO_SPLIT)),
-    http.get(`${API}/reviews/weekly`, () => HttpResponse.json({ reviews: options.reviews ?? [] })),
+    // By week, not the capped list: the screen asks for the week it is showing, because scanning a
+    // list of 52 made every older week look un-reviewed and its submit an overwrite.
+    http.get(`${API}/reviews/weekly/:weekStart`, ({ params }) =>
+      HttpResponse.json({
+        review: (options.reviews ?? []).find((r) => r.weekStart === params["weekStart"]) ?? null,
+      }),
+    ),
   );
 }
 
@@ -321,7 +327,7 @@ describe("the one thing you are changing (FR-F6)", () => {
   });
 
   it("does not offer the form until the stored review is known", async () => {
-    // The endpoint is an idempotent upsert, so a form rendered empty while the list is loading is one
+    // The endpoint is an idempotent upsert, so a form rendered empty while the stored review is loading is one
     // press away from erasing last week's sentence — and the request would succeed.
     let release = (): void => {};
     const held = new Promise<void>((resolve) => {
@@ -329,18 +335,16 @@ describe("the one thing you are changing (FR-F6)", () => {
     });
     review();
     server.use(
-      http.get(`${API}/reviews/weekly`, async () => {
+      http.get(`${API}/reviews/weekly/:weekStart`, async () => {
         await held;
         return HttpResponse.json({
-          reviews: [
-            {
-              id: "r1",
-              weekStart: WEEK,
-              completedAt: "2026-08-10T09:00:00.000Z",
-              changedOneThing: "Stop planning Fridays",
-              note: null,
-            },
-          ],
+          review: {
+            id: "r1",
+            weekStart: WEEK,
+            completedAt: "2026-08-10T09:00:00.000Z",
+            changedOneThing: "Stop planning Fridays",
+            note: null,
+          },
         });
       }),
     );

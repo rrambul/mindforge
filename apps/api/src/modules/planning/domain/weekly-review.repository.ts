@@ -1,3 +1,4 @@
+import type { IsoDate } from "@mindforge/core";
 import type { WeeklyReview } from "./weekly-review.js";
 
 export const WEEKLY_REVIEW_REPOSITORY = Symbol("WeeklyReviewRepository");
@@ -15,6 +16,16 @@ export interface WeeklyReviewRepository {
    * revision carries the moment the ritual actually happened.
    */
   save(userId: string, review: WeeklyReview): Promise<WeeklyReview>;
+
+  /**
+   * The review for one week, if it has been done.
+   *
+   * The screen that shows a week needs exactly this, and asking the capped list instead was a data
+   * loss: the SPA found `existing` by scanning the newest 52, so opening an older week rendered a
+   * blank form labelled "Complete" — and submitting it overwrote the stored sentence through an
+   * endpoint that is idempotent by design. The column M2's finish line is written in.
+   */
+  findForWeek(userId: string, weekStart: IsoDate): Promise<WeeklyReview | null>;
 
   /** Newest week first, capped by the caller. */
   list(userId: string, limit: number): Promise<WeeklyReview[]>;

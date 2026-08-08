@@ -115,6 +115,67 @@ describe("enqueue", () => {
   });
 });
 
+describe("two captures at once", () => {
+  /**
+   * A storage whose `read` genuinely yields before resolving.
+   *
+   * `memoryStorage` resolves on an already-settled promise, so two `enqueue` calls interleave only at
+   * a microtask boundary and happen to survive. Real IndexedDB does not: `read` is a request whose
+   * callback lands a full tick later, which is exactly the window the lock exists to close. A test
+   * against the friendlier double would have passed with or without the fix.
+   */
+  function slowStorage(): QueueStorage & { entries: QueuedRequest[] } {
+    const state = { entries: [] as QueuedRequest[] };
+    const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
+    return {
+      get entries() {
+        return state.entries;
+      },
+      read: async () => {
+        await tick();
+        return [...state.entries];
+      },
+      write: async (requests) => {
+        await tick();
+        state.entries = [...requests];
+      },
+      clear: async () => {
+        await tick();
+        state.entries = [];
+      },
+    };
+  }
+
+  it("keeps both, rather than the second erasing the first", async () => {
+    // Two friction chips tapped in the same second offline. Every call site is
+    // `void queue.enqueue(…)`, so nothing awaits the previous one — and before the lock both reads
+    // returned `[]` and the second write dropped the first capture with no `onDropped`, because it
+    // never became a request the server could refuse.
+    const storage = slowStorage();
+    const queue = new OfflineQueue({ send: () => Promise.reject(new Error("offline")), storage });
+
+    await Promise.all([
+      queue.enqueue("friction:1", "/friction", { type: "tooling" }),
+      queue.enqueue("friction:2", "/friction", { type: "interruption" }),
+    ]);
+
+    expect(storage.entries.map((entry) => entry.key)).toEqual(["friction:1", "friction:2"]);
+  });
+
+  it("still collapses a replay of the same key", async () => {
+    // The lock must not turn idempotent replay into duplication: one key is still one entry.
+    const storage = slowStorage();
+    const queue = new OfflineQueue({ send: () => Promise.reject(new Error("offline")), storage });
+
+    await Promise.all([
+      queue.enqueue("focus:start:a", "/focus/sessions/start", { intention: "first" }),
+      queue.enqueue("focus:start:a", "/focus/sessions/start", { intention: "second" }),
+    ]);
+
+    expect(storage.entries).toHaveLength(1);
+  });
+});
+
 describe("a capture queued while a flush is in flight", () => {
   it("is not discarded when the flush finishes", async () => {
     // The normal case on a bad connection, not an exotic race: a flush starts, you tap a friction chip

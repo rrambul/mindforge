@@ -253,6 +253,22 @@ export class CompleteWeeklyReview {
  */
 const DEFAULT_LIMIT = 52;
 
+/**
+ * The review for one week, which is what a screen about one week should ask for.
+ *
+ * Added because the SPA was finding it by scanning `ListWeeklyReviews`, and that list is capped: any
+ * week older than your newest 52 rendered a blank form labelled "Complete", whose submit then
+ * overwrote the stored sentence through an endpoint that is idempotent by design.
+ */
+@Injectable()
+export class GetWeeklyReview {
+  constructor(@Inject(WEEKLY_REVIEW_REPOSITORY) private readonly reviews: WeeklyReviewRepository) {}
+
+  execute(userId: string, weekStart: IsoDate): Promise<WeeklyReview | null> {
+    return this.reviews.findForWeek(userId, weekStart);
+  }
+}
+
 @Injectable()
 export class ListWeeklyReviews {
   constructor(@Inject(WEEKLY_REVIEW_REPOSITORY) private readonly reviews: WeeklyReviewRepository) {}

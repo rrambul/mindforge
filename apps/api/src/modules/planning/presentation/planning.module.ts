@@ -5,6 +5,7 @@ import {
   CompleteWeeklyReview,
   GetPlanVsActual,
   GetWeeklyPlan,
+  GetWeeklyReview,
   ListWeeklyReviews,
   PutWeeklyPlan,
 } from "../application/planning.use-cases.js";
@@ -31,6 +32,7 @@ import { WeeklyReviewsController } from "./weekly-reviews.controller.js";
     PutWeeklyPlan,
     GetPlanVsActual,
     CompleteWeeklyReview,
+    GetWeeklyReview,
     ListWeeklyReviews,
     { provide: WEEKLY_PLAN_REPOSITORY, useClass: PrismaWeeklyPlanRepository },
     { provide: WEEKLY_REVIEW_REPOSITORY, useClass: PrismaWeeklyReviewRepository },

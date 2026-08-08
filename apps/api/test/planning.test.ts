@@ -681,3 +681,87 @@ describe("isolation", () => {
     expect((await get("/v1/reviews/weekly", null)).statusCode).toBe(401);
   });
 });
+
+describe("a review is not lost to a capped list or a double tap", () => {
+  it("finds a review far older than the list's cap", async () => {
+    // The SPA used to find `existing` by scanning `GET /reviews/weekly`, capped at 52 — so any week
+    // older than the newest 52 rendered a blank form labelled "Complete", and submitting it
+    // overwrote the stored sentence through an endpoint that is idempotent by design.
+    const ancient = "2024-01-01";
+    await post(`/v1/reviews/weekly/${ancient}`, alice, { changedOneThing: "Mornings only" });
+
+    // Enough newer reviews to push it past the cap. Seven days apart, because the endpoint
+    // normalises whatever it is given to that week's start — dates a day apart would collapse onto
+    // the same handful of weeks and never reach 52.
+    const firstMonday = Date.UTC(2025, 0, 6);
+    for (let week = 0; week < 55; week += 1) {
+      const weekStart = new Date(firstMonday + week * 7 * 86_400_000).toISOString().slice(0, 10);
+      await post(`/v1/reviews/weekly/${weekStart}`, alice, { changedOneThing: `week ${week}` });
+    }
+
+    const listed = JSON.parse((await get("/v1/reviews/weekly", alice)).body) as {
+      reviews: { weekStart: string }[];
+    };
+    expect(listed.reviews.some((r) => r.weekStart === ancient)).toBe(false);
+
+    // And asked for directly, it is right there.
+    const one = JSON.parse((await get(`/v1/reviews/weekly/${ancient}`, alice)).body) as {
+      review: { changedOneThing: string | null } | null;
+    };
+    expect(one.review?.changedOneThing).toBe("Mornings only");
+  });
+
+  it("answers null for a week never reviewed, rather than 404", async () => {
+    // "You have not reviewed this week" is a normal state, exactly as it is for a plan.
+    const response = await get("/v1/reviews/weekly/2023-05-01", alice);
+    expect(response.statusCode).toBe(200);
+    expect(JSON.parse(response.body)).toEqual({ review: null });
+  });
+
+  it("survives two plan saves racing, and the allocations land on the surviving row", async () => {
+    // Same read-then-write shape one level up: both saves read no plan for the week, both mint an id,
+    // and the loser hit the unique index. Fixing it by upserting on `(user, week)` is only half —
+    // the allocations must go on the id the upsert actually landed on, or the caller's unused id
+    // violates the foreign key and one 500 becomes another.
+    const mission = await aMission(alice, "Raced");
+    const week = "2026-04-13";
+    const body = { allocations: [{ missionId: mission, plannedMinutes: 120 }] };
+
+    const responses = await Promise.all([
+      put(`/v1/plans/${week}`, alice, body),
+      put(`/v1/plans/${week}`, alice, body),
+    ]);
+    for (const response of responses) {
+      expect(response.statusCode, response.body).toBeLessThan(400);
+    }
+
+    const plan = JSON.parse((await get(`/v1/plans/${week}`, alice)).body) as {
+      allocations: unknown[];
+      plannedTotal: number;
+    };
+    expect(plan.allocations).toHaveLength(1);
+    expect(plan.plannedTotal).toBe(120);
+  });
+
+  it("survives two submissions racing, rather than 500ing on the loser", async () => {
+    // It was `findFirst` then `create`: both callers see nothing, both insert, and the loser raises
+    // P2002 — not a `DomainError`, so the problem filter turns it into a 500 on the endpoint
+    // documented as idempotent. A double-tap on Complete, or a queue replay, was enough.
+    const week = "2026-04-06";
+    const responses = await Promise.all([
+      post(`/v1/reviews/weekly/${week}`, alice, { changedOneThing: "first" }),
+      post(`/v1/reviews/weekly/${week}`, alice, { changedOneThing: "second" }),
+    ]);
+
+    for (const response of responses) {
+      expect(response.statusCode, response.body).toBeLessThan(400);
+    }
+
+    const rows = await db.$queryRawUnsafe<{ n: bigint }[]>(
+      `select count(*) as n from weekly_reviews where user_id = $1::uuid and week_start = $2::date`,
+      alice.id,
+      week,
+    );
+    expect(Number(rows[0]!.n)).toBe(1);
+  });
+});

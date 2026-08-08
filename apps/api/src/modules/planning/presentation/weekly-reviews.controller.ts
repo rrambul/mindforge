@@ -1,6 +1,7 @@
 import {
   CompleteWeeklyReviewSchema,
   IsoDateSchema,
+  startOfWeek,
   type CompleteWeeklyReviewInput,
   type IsoDate,
 } from "@mindforge/core";
@@ -8,7 +9,11 @@ import { Body, Controller, Get, Param, Post } from "@nestjs/common";
 import { CurrentUser } from "../../../shared/auth/current-user.decorator.js";
 import type { RequestContext } from "../../../shared/auth/request-context.js";
 import { zodPipe } from "../../../shared/validation/zod-validation.pipe.js";
-import { CompleteWeeklyReview, ListWeeklyReviews } from "../application/planning.use-cases.js";
+import {
+  CompleteWeeklyReview,
+  GetWeeklyReview,
+  ListWeeklyReviews,
+} from "../application/planning.use-cases.js";
 import type { WeeklyReview } from "../domain/weekly-review.js";
 
 export interface WeeklyReviewView {
@@ -43,6 +48,7 @@ export class WeeklyReviewsController {
   constructor(
     private readonly complete: CompleteWeeklyReview,
     private readonly list: ListWeeklyReviews,
+    private readonly one: GetWeeklyReview,
   ) {}
 
   /**
@@ -62,6 +68,25 @@ export class WeeklyReviewsController {
     return toWeeklyReviewView(
       await this.complete.execute(user.userId, weekStart, user.weekStartsOn, body),
     );
+  }
+
+  /**
+   * One week's review, or `null` if it has not been done.
+   *
+   * The screen showing a week asks for that week. It used to find it by scanning the capped list
+   * below, so any week older than the newest 52 looked un-reviewed — and completing it again
+   * overwrote what had been written there.
+   *
+   * `{ review: … }` rather than a bare `null` body, which is awkward for every client, and a 404
+   * would be wrong: "you have not reviewed this week" is a normal state, exactly as it is for a plan.
+   */
+  @Get(":weekStart")
+  async getReview(
+    @CurrentUser() user: RequestContext,
+    @Param("weekStart", zodPipe(IsoDateSchema)) weekStart: IsoDate,
+  ): Promise<{ review: WeeklyReviewView | null }> {
+    const review = await this.one.execute(user.userId, startOfWeek(weekStart, user.weekStartsOn));
+    return { review: review === null ? null : toWeeklyReviewView(review) };
   }
 
   /** Newest week first. Wrapped in an object so it can grow a cursor without breaking clients. */

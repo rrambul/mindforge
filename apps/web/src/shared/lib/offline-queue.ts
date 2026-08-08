@@ -120,6 +120,21 @@ export class OfflineQueue {
   private readonly storage: QueueStorage;
   private flushing = false;
 
+  /**
+   * Every read-modify-write of the stored queue runs one at a time, chained through this.
+   *
+   * Without it `enqueue` is a read, an `await`, and a write — so two taps close together both read
+   * the same array and the second write erases the first. All six call sites are `void queue.enqueue(…)`,
+   * so nothing awaited the previous one, and the loss was silent: `onDropped` is for a request the
+   * server refused, and this capture never became a request at all. Two friction chips tapped
+   * offline in the same second was enough, which is exactly what tapping friction looks like.
+   *
+   * The network is deliberately *outside* the chain: `flush` awaits a request per entry, and holding
+   * the lock across that would block every capture for the length of a bad connection — turning a
+   * data-loss bug into a ≤5s-budget one.
+   */
+  private storageLock: Promise<unknown> = Promise.resolve();
+
   constructor(private readonly options: OfflineQueueOptions) {
     this.storage = options.storage ?? idbStorage;
   }
@@ -133,6 +148,15 @@ export class OfflineQueue {
     path: string,
     body: unknown,
     method: QueuedMethod = "POST",
+  ): Promise<void> {
+    return this.serialise(() => this.enqueueLocked(key, path, body, method));
+  }
+
+  private async enqueueLocked(
+    key: string,
+    path: string,
+    body: unknown,
+    method: QueuedMethod,
   ): Promise<void> {
     const queue = await this.storage.read();
     const entry: QueuedRequest = { key, path, body, method, queuedAt: nowIso(), attempts: 0 };
@@ -206,21 +230,38 @@ export class OfflineQueue {
        * Identity is key + `queuedAt`, not key alone: a capture re-enqueued under the same key during
        * the flush is a *new* entry, and removing it because the old one was sent would lose it too.
        */
-      const current = await this.storage.read();
-      const remaining = current
-        .filter((request) => !settled.has(identify(request)))
-        .map((request) =>
-          retried !== null && identify(request) === identify(retried) ? retried : request,
-        );
+      // Under the lock, so an `enqueue` cannot land between this read and the write below — the same
+      // interleaving the re-read above was written to survive, one step further in.
+      const remaining = await this.serialise(async () => {
+        const current = await this.storage.read();
+        const keep = current
+          .filter((request) => !settled.has(identify(request)))
+          .map((request) =>
+            retried !== null && identify(request) === identify(retried) ? retried : request,
+          );
 
-      if (remaining.length === 0) await this.storage.clear();
-      else await this.storage.write(remaining);
+        if (keep.length === 0) await this.storage.clear();
+        else await this.storage.write(keep);
+        return keep;
+      });
 
       this.options.onChange?.(remaining.length);
       return { sent, dropped, remaining: remaining.length };
     } finally {
       this.flushing = false;
     }
+  }
+
+  /**
+   * Run `work` after everything already queued on the lock, whether that succeeded or failed.
+   *
+   * The chain is advanced with a swallowed rejection so one failed write cannot wedge every later
+   * capture behind it — the caller still sees the real error.
+   */
+  private serialise<R>(work: () => Promise<R>): Promise<R> {
+    const run = this.storageLock.then(work, work);
+    this.storageLock = run.catch(() => undefined);
+    return run;
   }
 
   private async attempt(request: QueuedRequest): Promise<Disposition> {

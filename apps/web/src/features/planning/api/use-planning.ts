@@ -75,6 +75,7 @@ export const planningKeys = {
   plan: (weekStart: IsoDate) => ["planning", "plan", weekStart] as const,
   actual: (weekStart: IsoDate) => ["planning", "actual", weekStart] as const,
   reviews: ["planning", "reviews"] as const,
+  review: (weekStart: IsoDate) => ["planning", "reviews", weekStart] as const,
 };
 
 /**
@@ -125,6 +126,24 @@ export function useSaveWeeklyPlan(): UseMutationResult<
   });
 }
 
+/**
+ * The review for the week on screen, asked for by week.
+ *
+ * The screen used to find it by scanning `useWeeklyReviews()`, and that list is capped at 52 by the
+ * API — so opening any week older than your newest 52 showed a blank form labelled "Complete", and
+ * submitting it overwrote the stored sentence through an endpoint that is idempotent by design. It
+ * was the column M2's finish line is written in, erased by a screen that thought it was empty.
+ */
+export function useWeeklyReview(
+  weekStart: IsoDate,
+): UseQueryResult<{ review: WeeklyReviewView | null }> {
+  return useQuery({
+    queryKey: planningKeys.review(weekStart),
+    queryFn: ({ signal }) =>
+      api.get<{ review: WeeklyReviewView | null }>(`/reviews/weekly/${weekStart}`, signal),
+  });
+}
+
 export function useWeeklyReviews(): UseQueryResult<{ reviews: WeeklyReviewView[] }> {
   return useQuery({
     queryKey: planningKeys.reviews,
@@ -146,6 +165,8 @@ export function useCompleteWeeklyReview(): UseMutationResult<
   return useMutation({
     mutationFn: ({ weekStart, body }) =>
       api.post<WeeklyReviewView>(`/reviews/weekly/${weekStart}`, body),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: planningKeys.reviews }),
+    // The whole namespace: the single-week read, the list, and the next-week plan the review offers
+    // to prefill all move together.
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: planningKeys.all }),
   });
 }
