@@ -258,6 +258,45 @@ export default ts.config([
     },
   },
 
+  // `packages/workspace` is a pure function of bytes, and this is what keeps it one.
+  //
+  // The `boundaries` plugin is scoped to `apps/*` above, so a package needs its own
+  // rule or its stated constraints are documentation. They are load-bearing here:
+  // this package's whole justification for existing outside `apps/worker` is that
+  // both the worker and the API can import it (`packages/db/src/rollup.ts` gives the
+  // same argument for itself), and that stops being true the moment it reaches for
+  // Prisma, Nest, Supabase, the Agent SDK — or the filesystem, which is what would
+  // quietly turn a unit-testable parser into something needing a temp directory.
+  {
+    files: ["packages/workspace/**/*.ts"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: [
+            { name: "@prisma/client", message: "packages/workspace holds no persistence." },
+            { name: "@mindforge/db", message: "packages/workspace holds no persistence." },
+            {
+              name: "node:fs",
+              message: "Pure functions of bytes only — the filesystem lives in apps/worker.",
+            },
+            {
+              name: "node:fs/promises",
+              message: "Pure functions of bytes only — the filesystem lives in apps/worker.",
+            },
+          ],
+          patterns: [
+            {
+              group: ["@nestjs/*", "@supabase/*", "@anthropic-ai/*"],
+              message:
+                "packages/workspace is framework- and vendor-free; adapters belong in apps/worker.",
+            },
+          ],
+        },
+      ],
+    },
+  },
+
   // Build tooling: plain Node ESM, deliberately outside every tsconfig — these run
   // before and around the build, so they cannot depend on it. Type-aware linting is
   // disabled because there is no project to type them against.

@@ -74,6 +74,31 @@ const FIXTURES = [
     code: `import { alphaThing } from "../../features/__alpha/api/thing.js";\nexport const bad = alphaThing;\n`,
     violation: "web-shared must not depend on web-feature",
   },
+  {
+    // `packages/workspace` is guarded by `no-restricted-imports` rather than by the
+    // boundaries plugin, which is scoped to apps/*. Different mechanism, same need
+    // for proof: a `paths`/`patterns` typo is silent in exactly the same way.
+    //
+    // The constraint is the package's whole justification for existing outside
+    // apps/worker — it is importable by both the worker and the API only while it
+    // stays a pure function of bytes.
+    path: "packages/workspace/src/__boundary-illegal.ts",
+    code: `import { readFile } from "node:fs/promises";\nexport const bad = readFile;\n`,
+    rule: "no-restricted-imports",
+    violation: "the filesystem lives in apps/worker",
+  },
+  {
+    path: "packages/workspace/src/__boundary-illegal-vendor.ts",
+    code: `import { createClient } from "@supabase/supabase-js";\nexport const bad = createClient;\n`,
+    rule: "no-restricted-imports",
+    violation: "framework- and vendor-free",
+  },
+  {
+    path: "packages/workspace/src/__boundary-legal.ts",
+    code: `import { createHash } from "node:crypto";\nexport const ok = createHash;\n`,
+    rule: "no-restricted-imports",
+    violation: null,
+  },
 ];
 
 async function lint(paths) {
@@ -108,9 +133,13 @@ async function main() {
 
     for (const fixture of FIXTURES) {
       const absolute = join(root, fixture.path);
-      const messages = (byPath.get(absolute)?.messages ?? []).filter(
-        (m) => m.ruleId === "boundaries/dependencies",
-      );
+      // Which rule is expected to speak, since not every boundary in this repo is
+      // enforced by the same one: `boundaries` is scoped to apps/*, and a package's
+      // constraints are `no-restricted-imports`. Filtering to one rule id would let
+      // the other kind pass while enforcing nothing, which is the exact failure this
+      // script exists to catch.
+      const rule = fixture.rule ?? "boundaries/dependencies";
+      const messages = (byPath.get(absolute)?.messages ?? []).filter((m) => m.ruleId === rule);
 
       if (fixture.violation === null) {
         if (messages.length > 0) {
