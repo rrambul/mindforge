@@ -39,6 +39,13 @@ const EnvSchema = z.object({
   SUPABASE_SERVICE_ROLE_KEY: z.string().min(1),
 
   /**
+   * What the agent authenticates with (§11 — the key exists only in `api` and `worker`, never in the
+   * SPA bundle). Passed through the SDK's `env`, which **replaces** rather than merges the
+   * subprocess environment, so the spread that carries it is load-bearing.
+   */
+  ANTHROPIC_API_KEY: z.string().min(1),
+
+  /**
    * How often the scheduler wakes. Fifteen minutes is fine granularity for jobs whose triggers are
    * "the user's local day rolled over" and "it is the hour they asked to be reminded" — and it means
    * a zone offset of :45 (Kathmandu, Chatham) still lands in the right hour.

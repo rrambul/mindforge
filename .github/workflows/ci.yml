@@ -119,6 +119,10 @@ jobs:
             # key, because anon and authenticated are different roles and a policy can grant one
             # without the other. Signing one needs the secret.
             echo "SUPABASE_JWT_SECRET=$JWT_SECRET"
+            # A placeholder, and correctly so: non-negotiable 8 forbids live API
+            # calls in the suites, and the worker requires the key at boot rather
+            # than discovering it missing ten minutes into an agent run.
+            echo "ANTHROPIC_API_KEY=ci-placeholder-no-live-calls"
             echo "DATABASE_URL=$DB_URL"
             echo "DIRECT_URL=$DB_URL"
             echo "APP_ORIGIN=http://localhost:5173"

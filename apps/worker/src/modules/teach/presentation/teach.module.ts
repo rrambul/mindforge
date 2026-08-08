@@ -1,8 +1,13 @@
 import { TeachModule as ApiTeachModule } from "@mindforge/api/teach";
 import { Module } from "@nestjs/common";
 
+import { AGENT_GATEWAY } from "../application/agent.port.js";
+import { LLM_CALL_SINK } from "../application/llm-call.port.js";
+import { TeachRun } from "../application/teach-run.js";
 import { WorkspaceSync } from "../application/workspace-sync.js";
 import { WORKSPACE_GATEWAY } from "../application/workspace.port.js";
+import { AgentSdkGateway } from "../infrastructure/agent-sdk.gateway.js";
+import { PrismaLlmCallSink } from "../infrastructure/prisma-llm-call.sink.js";
 import { SupabaseWorkspaceGateway } from "../infrastructure/supabase-workspace.gateway.js";
 
 /**
@@ -18,7 +23,13 @@ import { SupabaseWorkspaceGateway } from "../infrastructure/supabase-workspace.g
  */
 @Module({
   imports: [ApiTeachModule],
-  providers: [WorkspaceSync, { provide: WORKSPACE_GATEWAY, useClass: SupabaseWorkspaceGateway }],
-  exports: [WorkspaceSync, ApiTeachModule],
+  providers: [
+    WorkspaceSync,
+    TeachRun,
+    { provide: WORKSPACE_GATEWAY, useClass: SupabaseWorkspaceGateway },
+    { provide: AGENT_GATEWAY, useClass: AgentSdkGateway },
+    { provide: LLM_CALL_SINK, useClass: PrismaLlmCallSink },
+  ],
+  exports: [WorkspaceSync, TeachRun, ApiTeachModule],
 })
 export class TeachModule {}
