@@ -49,6 +49,7 @@ export class StartFocusSession {
       attachments: {
         missionId: input.missionId ?? null,
         resourceId: input.resourceId ?? null,
+        skillId: input.skillId ?? null,
         taskId: input.taskId ?? null,
       },
       now: this.clock.now(),
@@ -150,6 +151,7 @@ export class RecordFocusSession {
       attachments: {
         missionId: input.missionId ?? null,
         resourceId: input.resourceId ?? null,
+        skillId: input.skillId ?? null,
         taskId: input.taskId ?? null,
       },
       now: this.clock.now(),

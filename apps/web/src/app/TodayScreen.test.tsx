@@ -13,6 +13,7 @@ vi.mock("../shared/api/supabase.js", () => ({
 }));
 
 const SESSION_ID = "aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa";
+const MISSION_ID = "bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb";
 
 function session(overrides: Record<string, unknown> = {}) {
   return {
@@ -101,6 +102,66 @@ describe("nothing running", () => {
     expect(body.intention).toBeUndefined();
     // The client mints the id, so a retry is a replay rather than a second session (§6.1).
     expect(body.id).toMatch(/^[0-9a-f-]{36}$/);
+  });
+
+  it("sends the subject, which is what lets a plan and an actual meet", async () => {
+    // The defect this covers: before it, this form sent an intention and nothing else, so
+    // `focus_sessions.mission_id` and `skill_id` were written only by the API's own tests and the
+    // seed. A user could allocate four hours to a mission on the weekly grid, log every one of them
+    // here, and watch the review report 0m — the plan and the actual had no way to meet.
+    runningReturns(null);
+    const sent = vi.fn();
+    server.use(
+      http.get(`${API}/missions`, () =>
+        HttpResponse.json({
+          missions: [
+            {
+              id: MISSION_ID,
+              topic: "Rust, properly",
+              why: null,
+              successLooksLike: null,
+              constraints: null,
+              currentLevel: null,
+              status: "active",
+              createdAt: "2026-08-01T09:00:00.000Z",
+              updatedAt: "2026-08-01T09:00:00.000Z",
+            },
+          ],
+        }),
+      ),
+      http.post(`${API}/focus/sessions/start`, async ({ request }) => {
+        sent(await request.json());
+        return HttpResponse.json(session(), { status: 201 });
+      }),
+    );
+
+    renderWithProviders(<TodayScreen />);
+    const picker = await screen.findByLabelText(/What is this about/);
+    await userEvent.selectOptions(picker, `mission:${MISSION_ID}`);
+    await userEvent.click(screen.getByRole("button", { name: "Start focus" }));
+
+    await waitFor(() => expect(sent).toHaveBeenCalled());
+    expect(sent.mock.calls[0]?.[0]).toMatchObject({ missionId: MISSION_ID });
+  });
+
+  it("sends nothing extra when no subject is chosen", async () => {
+    // The picker must not cost the ≤5s path a tap: leaving it alone has to be the same request as
+    // before it existed.
+    runningReturns(null);
+    const sent = vi.fn();
+    server.use(
+      http.post(`${API}/focus/sessions/start`, async ({ request }) => {
+        sent(await request.json());
+        return HttpResponse.json(session(), { status: 201 });
+      }),
+    );
+
+    renderWithProviders(<TodayScreen />);
+    await userEvent.click(await screen.findByRole("button", { name: "Start focus" }));
+
+    await waitFor(() => expect(sent).toHaveBeenCalled());
+    const body = sent.mock.calls[0]?.[0] as Record<string, unknown>;
+    expect(Object.keys(body).sort()).toEqual(["id"]);
   });
 
   it("sends the intention when one is typed", async () => {

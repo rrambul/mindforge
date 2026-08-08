@@ -7,7 +7,7 @@ const ID = "22222222-2222-4222-8222-222222222222";
 const START = new Date("2026-08-05T09:00:00Z");
 const LATER = new Date("2026-08-05T09:40:00Z");
 
-const NO_ATTACHMENTS = { missionId: null, resourceId: null, taskId: null };
+const NO_ATTACHMENTS = { missionId: null, resourceId: null, skillId: null, taskId: null };
 const NO_DEBRIEF = { hitIntention: null, focusQuality: null, energy: null, note: null };
 
 function started(intention: string | null = "get the parser handling nested groups"): FocusSession {

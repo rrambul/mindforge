@@ -31,6 +31,7 @@ interface SessionResponse {
   focusQuality: number | null;
   energy: number | null;
   missionId: string | null;
+  skillId: string | null;
 }
 
 interface ProblemResponse {
@@ -157,6 +158,25 @@ describe("the loop", () => {
     expect((JSON.parse(response.body) as ProblemResponse).type).toBe(
       "https://mindforge.app/errors/focus-session-not-stopped",
     );
+  });
+
+  it("binds a session to a skill, which is what a skill allocation is measured against", async () => {
+    // `focus_sessions.skill_id` was added in M2 so a skill's weekly plan would have an actual — and
+    // then no capture path wrote it, so the plan grid offered a Skills group whose every row read 0m
+    // forever. This pins the start endpoint accepting it, because the column existing and the API's
+    // own reader handling it were already true when the feature did not work.
+    const skill = JSON.parse(
+      (await post("/v1/skills", alice, { name: "Ownership and borrowing" })).body,
+    ) as { id: string };
+
+    const started = await startSession(alice, { skillId: skill.id });
+    expect(started.skillId).toBe(skill.id);
+
+    const rows = await db.$queryRawUnsafe<{ skill_id: string | null }[]>(
+      `select skill_id from focus_sessions where id = $1::uuid`,
+      started.id,
+    );
+    expect(rows[0]?.skill_id).toBe(skill.id);
   });
 
   it("binds a session to a mission", async () => {

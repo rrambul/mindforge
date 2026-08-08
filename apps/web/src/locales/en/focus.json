@@ -4,7 +4,15 @@
     "intention": "What does done look like for this block?",
     "intentionHint": "Optional, and one line is plenty.",
     "submit": "Start focus",
-    "starting": "Starting"
+    "starting": "Starting",
+    "subject": "What is this about?",
+    "subjectHint": "Optional. It is what lets the week's plan and what you actually did be compared.",
+    "subjectNone": "Not saying",
+    "subjectGroup": {
+      "mission": "Mission",
+      "skill": "Skill",
+      "resource": "Reading"
+    }
   },
   "running": {
     "label": "Running focus session",

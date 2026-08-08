@@ -9,6 +9,8 @@ import { FocusSessionNotRunning, FocusSessionNotStopped, SessionInFuture } from 
 export interface FocusSessionAttachments {
   readonly missionId: string | null;
   readonly resourceId: string | null;
+  /** Set from the same picker as the others. Makes a skill's weekly plan measurable (FR-F5). */
+  readonly skillId: string | null;
   readonly taskId: string | null;
 }
 
@@ -138,7 +140,12 @@ export class FocusSession {
         energy: snapshot.energy,
         note: snapshot.note,
       },
-      { missionId: snapshot.missionId, resourceId: snapshot.resourceId, taskId: snapshot.taskId },
+      {
+        missionId: snapshot.missionId,
+        resourceId: snapshot.resourceId,
+        skillId: snapshot.skillId,
+        taskId: snapshot.taskId,
+      },
       snapshot.entryMode,
       snapshot.createdAt,
     );

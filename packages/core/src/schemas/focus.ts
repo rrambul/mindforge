@@ -49,6 +49,15 @@ export const StartFocusSessionSchema = z.object({
   intention: intention.optional(),
   missionId: UuidSchema.nullable().optional(),
   resourceId: UuidSchema.nullable().optional(),
+  /**
+   * What the block was about, when it was a skill.
+   *
+   * The column landed in M2 so a *skill* weekly allocation would have an actual to be compared
+   * against (FR-F5) — and then nothing wrote it, so the plan grid offered a Skills group whose every
+   * row read 0m forever. That is the shape M1 already learned to distrust: the schema looks ready
+   * and the feature cannot be finished.
+   */
+  skillId: UuidSchema.nullable().optional(),
   taskId: UuidSchema.nullable().optional(),
   /** Optional Pomodoro-style target. FR-F1: intervals are optional, never mandatory. */
   plannedMinutes: z.coerce.number().int().min(1).max(600).nullable().optional(),
@@ -91,6 +100,7 @@ export const CreateFocusSessionSchema = z
     intention: intention.optional(),
     missionId: UuidSchema.nullable().optional(),
     resourceId: UuidSchema.nullable().optional(),
+    skillId: UuidSchema.nullable().optional(),
     taskId: UuidSchema.nullable().optional(),
     hitIntention: IntentionOutcomeSchema.optional(),
     focusQuality: rating.optional(),

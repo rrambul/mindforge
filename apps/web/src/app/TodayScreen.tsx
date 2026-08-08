@@ -11,7 +11,7 @@ import {
 import { Debrief } from "../features/focus/ui/Debrief.js";
 import { LogPastSession } from "../features/focus/ui/LogPastSession.js";
 import { RunningSession } from "../features/focus/ui/RunningSession.js";
-import { StartFocus } from "../features/focus/ui/StartFocus.js";
+import { StartFocus, type SessionSubject } from "../features/focus/ui/StartFocus.js";
 import {
   frictionBody,
   useAttributeFriction,
@@ -21,6 +21,7 @@ import {
 } from "../features/friction/api/use-friction.js";
 import { FrictionAttribution } from "../features/friction/ui/FrictionAttribution.js";
 import { FrictionChips } from "../features/friction/ui/FrictionChips.js";
+import { useMissions } from "../features/missions/api/use-missions.js";
 import { noteBody, useWriteNote } from "../features/notes/api/use-notes.js";
 import { NoteComposer } from "../features/notes/ui/NoteComposer.js";
 import { useResources } from "../features/resources/api/use-resources.js";
@@ -66,6 +67,8 @@ export function TodayScreen() {
   // Only fetched once a debrief is open, and only the things attribution can point at. Composed here
   // because §2.2 rule 6 keeps `focus` and `friction` from importing skills and resources themselves.
   const sessionFriction = useSessionFriction(awaitingDebrief);
+  // Missions are what the weekly grid plans against, so the picker needs them most.
+  const missions = useMissions("active");
   const skills = useSkills({});
   const resources = useResources({});
   const attribute = useAttributeFriction();
@@ -73,10 +76,44 @@ export function TodayScreen() {
 
   const session = running.data?.session ?? null;
 
-  function onStart(intention: string | null): void {
+  /**
+   * What a block can be filed under, composed here because §2.2 rule 6 keeps `focus` from importing
+   * missions, skills and resources itself.
+   *
+   * Missions first, since they are what the weekly grid's primary rows are; then skills, which is
+   * what `focus_sessions.skill_id` was added for; then only the resources you are part-way through,
+   * because a picker listing your whole library is a picker nobody scrolls.
+   */
+  const subjects: SessionSubject[] = [
+    // Asked for active only — a parked mission is a statement that you are not working on it, and
+    // §5.3 excludes them from allocation for the same reason.
+    ...(missions.data?.missions ?? []).map((mission) => ({
+      kind: "mission" as const,
+      id: mission.id,
+      label: mission.topic,
+    })),
+    ...(skills.data?.skills ?? []).map((skill) => ({
+      kind: "skill" as const,
+      id: skill.id,
+      label: skill.name,
+    })),
+    ...(resources.data?.resources ?? [])
+      .filter((resource) => resource.status === "active")
+      .map((resource) => ({ kind: "resource" as const, id: resource.id, label: resource.title })),
+  ];
+
+  function onStart(intention: string | null, subject: SessionSubject | null): void {
     // The client mints the id so the optimistic row and the persisted one are the same row, and
     // a retry is a replay rather than a second session (§6.1).
-    start.mutate({ id: crypto.randomUUID(), ...(intention === null ? {} : { intention }) });
+    //
+    // The subject is what makes plan-vs-actual possible at all: before this, every session started
+    // from Today carried no mission and no skill, so a week's allocations had nothing to be compared
+    // against and the review reported 0m however much you had worked.
+    start.mutate({
+      id: crypto.randomUUID(),
+      ...(intention === null ? {} : { intention }),
+      ...(subject === null ? {} : { [`${subject.kind}Id`]: subject.id }),
+    });
   }
 
   function onStop(): void {
@@ -208,7 +245,7 @@ export function TodayScreen() {
       ) : (
         <Stack>
           <Heading level={1}>{t("start.heading")}</Heading>
-          <StartFocus onStart={onStart} starting={start.isPending} />
+          <StartFocus onStart={onStart} starting={start.isPending} subjects={subjects} />
 
           {/* Offered only when nothing is running. The moment you remember a block you forgot is
               when you sit down to an idle Today — and on mobile the running state is the bottom

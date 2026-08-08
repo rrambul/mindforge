@@ -4,7 +4,15 @@
     "intention": "Como é \"pronto\" para este bloco?",
     "intentionHint": "Opcional, e uma linha basta.",
     "submit": "Começar foco",
-    "starting": "Começando"
+    "starting": "Começando",
+    "subject": "Sobre o que é este bloco?",
+    "subjectHint": "Opcional. É o que permite comparar o plano da semana com o que você realmente fez.",
+    "subjectNone": "Não vou dizer",
+    "subjectGroup": {
+      "mission": "Missão",
+      "skill": "Habilidade",
+      "resource": "Leitura"
+    }
   },
   "running": {
     "label": "Sessão de foco em andamento",
