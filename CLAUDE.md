@@ -14,11 +14,76 @@ Don't restate these docs here. When something changes, update the doc, not this 
 
 ## Status
 
-**M2 — the weekly rhythm — feature-complete** (`NORTHSTAR.md` §4). Every bullet on M2's list is
-built, tested, and behind the gates, along with two carryovers it could not be built honestly
-without: the seed scripts (an M0 bullet) and a settings write path.
+**M3 — the workspace and the agent — the path exists end to end** (`NORTHSTAR.md` §4). Press "Teach
+me the next thing" on a mission and: a run queues, the dispatcher claims it, a briefing is rendered
+from what Mindforge actually knows, the agent runs with the `teach` skill loaded and `Bash` genuinely
+withheld, the workspace syncs to Storage with conflict retention, the files are parsed into `lessons`,
+`reference_docs` and `learning_records`, and `llm_calls` reconciles to the run's real bill.
 
-**What M2 needs now is you doing three weekly reviews.** Its finish line is "you've done three
+**What M3 needs now is one real run against a real key.** Its finish line is "you press it, wait, and
+a lesson file exists in Storage and a row exists in Postgres — and running `/teach` locally against
+the same workspace still works". Set `ANTHROPIC_API_KEY` in `.env.local` (there is a placeholder
+there) and `pnpm --filter @mindforge/worker probe:teach -- --teach --keep` answers §16.2 at the same
+time: what a lesson costs and how long it takes. Nobody has measured that yet.
+
+**Day one was the whole point, and it moved the design twice.** §7.3 was a sketch that said so, and
+verified against `sdk.d.ts` it was wrong in nine places. Two of them fail _silently_ — the run
+succeeds and does the wrong thing:
+
+1. **`allowedTools` does not restrict tools**, it auto-approves them. The sketch listed six and
+   commented "No Bash: the agent has no business running shell commands here". Bash was never
+   withheld. Restriction needs `tools` + `disallowedTools` + `permissionMode` together, and the only
+   real proof is asserting on `system/init`'s own tool list.
+2. **Supabase Storage has no conditional write.** A `PUT` carrying a deliberately wrong `If-Match`
+   returns 200 and overwrites — probed, not assumed. So the ETag detects a concurrent writer and
+   cannot exclude one, and what makes a run safe is the single-active-run index plus
+   `.conflict-<ts>` retention. Retention, not locking.
+
+**The probe found something reading the types could not: the message stream is not the bill.** A
+one-turn run reported two models in `modelUsage` and one in the assistant stream, and the invisible
+one — the SDK's own internal work — was 22% of the cost. Counting assistant messages would have
+understated every cost figure the product reports, by more as the agent leans on subagents. So a run
+writes one `teach_turn` row per deduplicated message _and_ one `teach_overhead` row per model for the
+residual, and the invariant is that a run's `llm_calls` sum to its `modelUsage`.
+
+**Three tables' worth of columns finally got writers, and one of them was wrong.**
+`missions.workspace_key` has existed since M0 with a comment saying it is set once so a rename cannot
+move files, and nothing ever wrote it — the same shape as M2's defect below. It was also globally
+unique, which meant the first account to claim `rust` took it from everyone and the 409 told the
+second person that somebody else had a mission by that name. Now unique per user.
+
+**§2.1 decision 2 stopped being aspirational.** "The worker calls the API's use cases; it does not
+reimplement writes" was false for two milestones: `apps/api` declared no `exports` map, so
+`@mindforge/api` resolved to nothing while `missions.module.ts` carried a dead `exports:` line saying
+otherwise. The worker now imports `TeachRuns` and binds a service-role `UserScopedDb` to the same
+token — which is exactly what `shared/persistence/user-scoped-db.ts` predicted in M2. Two things
+would have broken it silently and are now asserted by `apps/worker/test/api-module-boot.test.ts`:
+both apps declare a `CLOCK` symbol and `Symbol("Clock") !== Symbol("Clock")`, and importing
+`SharedModule` would make a process serving no HTTP demand `SUPABASE_URL`.
+
+**Two corrections to the design that came from building it**, both in the reindexer:
+`## History` is deliberately **not** parsed into `mission_revisions` — §7.4's parser table says it
+should be, but `applyEdit` already diffs `MISSION_CONTENT_FIELDS`, the section does not shrink, and
+there is no unique constraint, so three runs would have tripled a ledger the product reads as a drift
+signal. And the reindexer **upserts** where `workspace_files` correctly delete-then-inserts, because
+`lessons.completed_at` and `outcome` come from the M4 reader and are in no file: delete-then-insert
+would throw away "somebody read this lesson" on every subsequent run.
+
+Deliberately deferred, and named rather than forgotten: **`RESOURCES.md` is parsed but not indexed.**
+`resources` has no natural unique key and the file has no status column while the DB defaults to
+`inbox`, so a naive second run duplicates the library and resets a book you marked finished. That
+upsert key is a decision worth making on its own. **SSE is not built** — `EventSource` cannot send an
+`Authorization` header, the guard reads the token from nowhere else, and the SPA sends
+`credentials: "omit"`, so the card polls every five seconds while a run is live and only then. **The
+learner-memory screen (§7.6) is not built**, though the table and its RLS are.
+
+---
+
+**M2 — the weekly rhythm — feature-complete.** Every bullet on M2's list is built, tested, and behind
+the gates, along with two carryovers it could not be built honestly without: the seed scripts (an M0
+bullet) and a settings write path.
+
+**What M2 still needs is you doing three weekly reviews.** Its finish line is "you've done three
 weekly reviews and changed one thing because of one" — `weekly_reviews.changed_one_thing` is a
 column precisely so that is observable rather than remembered. Like M1's, it is not a coding task.
 
@@ -51,8 +116,9 @@ M2 was started ahead of its three-week soak (sequencing rule 1), knowingly. That
 remembering if the capture loop turns out not to stick, because nothing downstream fixes it.
 
 `pnpm dev` gives you a sign-in screen, then eight screens: Today, Missions, Goals, Skills, Notes,
-Library, Insights, and Settings — plus `/weeks/<date>` and `/weeks/<date>/review`, which is where the
-milestone actually lives. **Every screen has a URL now**: M2 introduced the TanStack Router tree that
+Library, Insights, and Settings — plus `/weeks/<date>` and `/weeks/<date>/review`. M3 adds no screen
+of its own: teaching happens from a mission card, because a mission is what a lesson is grounded in
+and a separate "Teach" page would be a place to go rather than a thing to press. **Every screen has a URL now**: M2 introduced the TanStack Router tree that
 `App.tsx` and `AppShell.tsx` had each been deferring in a comment since M1. ⌘K opens the command
 palette anywhere, and reads its list from the same route table the nav does — that list used to be
 written three times, so widening one put a screen in the bar and left it out of the palette.
@@ -95,7 +161,9 @@ Three things M2 found by building rather than by reading, each of which had been
 
 **Cross-feature composition lives in `app/`, and there are now nine wrappers doing it**:
 `TodayScreen`, `GoalsScreen`, `MissionsScreen`, `SkillsScreen`, `ResourcesScreen`, `WeekScreen`,
-`WeekReviewScreen`, `InsightsScreen`, `SettingsScreen`, plus `SubjectNote` and `CommandActions`. §2.2 rule 6 forbids a feature importing another, so a resource card cannot reach
+`WeekReviewScreen`, `InsightsScreen`, `SettingsScreen`, plus `SubjectNote` and `CommandActions`.
+`MissionsScreen` now hands a card two render props rather than one — a note composer and the teach
+panel — for the same reason it handed it the first. §2.2 rule 6 forbids a feature importing another, so a resource card cannot reach
 for the notes composer — the screen that composes both hands it in through a `renderNote` prop. That is
 the rule working as intended rather than ceremony: the alternative is `features/resources` importing
 `features/notes`, which is the first step toward the 40-file refactor the boundary exists to prevent.
