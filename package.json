@@ -1,6 +1,6 @@
 {
   "name": "mindforge",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "private": true,
   "description": "A personal system for tracking learning, attention, and cognitive friction.",
   "packageManager": "pnpm@10.13.1",
@@ -21,7 +21,8 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "prepare": "husky",
-    "check:i18n": "node scripts/check-i18n-keys.mjs"
+    "check:i18n": "node scripts/check-i18n-keys.mjs",
+    "build:changelog": "node scripts/build-changelog.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

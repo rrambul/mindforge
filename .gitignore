@@ -30,3 +30,6 @@ pnpm-debug.log*
 
 # Prisma generated client — regenerate with `pnpm --filter @mindforge/db generate`
 packages/db/generated/
+
+# Generated from CHANGELOG.md by scripts/build-changelog.mjs at build time.
+apps/web/public/changelog.json

@@ -1,0 +1,26 @@
+name: Release
+
+# One version for the whole product (§14.1). release-please reads Conventional Commits on `main`,
+# works out the bump, rewrites CHANGELOG.md, and opens a release PR. Nothing is versioned by hand —
+# and the release PR is deliberately where the generated skeleton gets rewritten into sentences,
+# because a changelog nobody can read is a git log with extra steps.
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: googleapis/release-please-action@v4
+        with:
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
