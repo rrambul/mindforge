@@ -20,6 +20,22 @@ export interface RunDirectory {
   readonly root: string;
   /** Every file under the root, with Mindforge's scaffolding already excluded. */
   walk(): Promise<readonly { readonly path: string; readonly bytes: Uint8Array }[]>;
+
+  /**
+   * Every file under one subtree, **unfiltered**.
+   *
+   * `.memory/` is excluded from `walk()` so it cannot be uploaded into a
+   * mission's Storage prefix — it belongs to the learner rather than to any one
+   * mission (§7.6). That exclusion is about where the files go, not about whether
+   * they can be read, so the memory sync asks for its own subtree explicitly.
+   *
+   * Two methods rather than a flag, because a boolean here would be a switch that
+   * turns the mission sync's guardrail off, and the only correct value for that
+   * call is the one it already has.
+   */
+  walkUnder(
+    prefix: string,
+  ): Promise<readonly { readonly path: string; readonly bytes: Uint8Array }[]>;
   read(path: string): Promise<Uint8Array>;
   write(path: string, bytes: Uint8Array): Promise<void>;
   dispose(): Promise<void>;

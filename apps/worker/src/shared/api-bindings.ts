@@ -1,5 +1,6 @@
 import {
   CLOCK as API_CLOCK,
+  ENV as API_ENV,
   ID_GENERATOR as API_ID_GENERATOR,
   PRISMA as API_PRISMA,
   USER_SCOPED_DB,
@@ -10,6 +11,7 @@ import { Inject, Injectable, type Provider } from "@nestjs/common";
 import { randomUUID } from "node:crypto";
 
 import { CLOCK, type Clock } from "./clock.js";
+import { ENV } from "./env.js";
 import { PRISMA } from "./prisma.js";
 
 /**
@@ -81,10 +83,22 @@ export const apiBindings: Provider[] = [
   { provide: USER_SCOPED_DB, useExisting: ServiceRoleDb },
   { provide: API_PRISMA, useExisting: PRISMA },
   { provide: API_CLOCK, useExisting: CLOCK },
+  // The API's `TeachModule` reads two values off `ENV` — the Supabase URL and the
+  // service-role key — to delete a memory's file. Both apps declare them under
+  // the same names, and the module takes only those two through a config token
+  // rather than the whole `Env`, precisely so this alias cannot hand back
+  // `undefined` for a field only one of them has.
+  { provide: API_ENV, useExisting: ENV },
   { provide: API_ID_GENERATOR, useExisting: WorkerIdGenerator },
 ];
 
 /** Re-exported so `WorkerModule` can list them in `exports` without a second import. */
-export const API_TOKENS = [USER_SCOPED_DB, API_PRISMA, API_CLOCK, API_ID_GENERATOR] as const;
+export const API_TOKENS = [
+  USER_SCOPED_DB,
+  API_PRISMA,
+  API_CLOCK,
+  API_ID_GENERATOR,
+  API_ENV,
+] as const;
 
 export type { Clock, UserScopedDb };

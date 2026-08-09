@@ -18,6 +18,12 @@ export { TeachModule } from "./presentation/teach.module.js";
 export { BRIEFING_READER, type BriefingReader } from "./application/briefing.port.js";
 
 export {
+  ReindexLearnerMemory,
+  type ReindexMemoryInput,
+  type ReindexMemoryResult,
+} from "./application/reindex-memory.js";
+
+export {
   ReindexWorkspace,
   type ReindexInput,
   type ReindexResult,

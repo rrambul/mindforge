@@ -1,18 +1,25 @@
 import { Module } from "@nestjs/common";
 
+import { ENV, type Env } from "../../../shared/config/env.js";
 import { MissionsModule } from "../../missions/presentation/missions.module.js";
 import { ResourcesModule } from "../../resources/presentation/resources.module.js";
 import { BRIEFING_READER } from "../application/briefing.port.js";
 import { WORKSPACE_INDEX_REPOSITORY } from "../application/index.port.js";
+import { LearnerMemories } from "../application/learner-memories.js";
+import { MEMORY_FILE_STORE, MEMORY_STORAGE_CONFIG } from "../application/memory-file.port.js";
+import { LEARNER_MEMORY_REPOSITORY } from "../application/memory.port.js";
+import { ReindexLearnerMemory } from "../application/reindex-memory.js";
 import { ReindexWorkspace } from "../application/reindex-workspace.js";
 import { MISSION_WORKSPACE_READER } from "../application/teach.port.js";
 import { TeachRuns } from "../application/teach.use-cases.js";
 import { AGENT_RUN_REPOSITORY } from "../domain/agent-run.repository.js";
 import { PrismaAgentRunRepository } from "../infrastructure/prisma-agent-run.repository.js";
 import { PrismaBriefingReader } from "../infrastructure/prisma-briefing.reader.js";
+import { PrismaLearnerMemoryRepository } from "../infrastructure/prisma-learner-memory.repository.js";
 import { PrismaMissionWorkspaceReader } from "../infrastructure/prisma-mission-workspace.reader.js";
 import { PrismaWorkspaceIndexRepository } from "../infrastructure/prisma-workspace-index.repository.js";
-import { TeachController } from "./teach.controller.js";
+import { SupabaseMemoryFileStore } from "../infrastructure/supabase-memory-file.store.js";
+import { LearnerMemoryController, TeachController } from "./teach.controller.js";
 
 /**
  * `teach` (§6) — FR-T3.
@@ -42,15 +49,30 @@ import { TeachController } from "./teach.controller.js";
   // exception to it: reindexing MISSION.md must go through the module that owns
   // `missions`, so it needs that module's exported use case.
   imports: [MissionsModule, ResourcesModule],
-  controllers: [TeachController],
+  controllers: [TeachController, LearnerMemoryController],
   providers: [
     TeachRuns,
     ReindexWorkspace,
+    ReindexLearnerMemory,
+    LearnerMemories,
     { provide: AGENT_RUN_REPOSITORY, useClass: PrismaAgentRunRepository },
     { provide: MISSION_WORKSPACE_READER, useClass: PrismaMissionWorkspaceReader },
     { provide: BRIEFING_READER, useClass: PrismaBriefingReader },
     { provide: WORKSPACE_INDEX_REPOSITORY, useClass: PrismaWorkspaceIndexRepository },
+    { provide: LEARNER_MEMORY_REPOSITORY, useClass: PrismaLearnerMemoryRepository },
+    { provide: MEMORY_FILE_STORE, useClass: SupabaseMemoryFileStore },
+    {
+      // Derived from whichever `Env` this container has, which is what lets the
+      // same module boot in `apps/worker` — its env declares both of these under
+      // the same names and nothing else the store needs.
+      provide: MEMORY_STORAGE_CONFIG,
+      inject: [ENV],
+      useFactory: (env: Env) => ({
+        supabaseUrl: env.SUPABASE_URL,
+        serviceRoleKey: env.SUPABASE_SERVICE_ROLE_KEY,
+      }),
+    },
   ],
-  exports: [TeachRuns, ReindexWorkspace, BRIEFING_READER],
+  exports: [TeachRuns, ReindexWorkspace, ReindexLearnerMemory, BRIEFING_READER],
 })
 export class TeachModule {}

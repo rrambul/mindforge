@@ -15,5 +15,6 @@
 
 export { PRISMA, USER_SCOPED_DB, type UserScopedDb } from "./persistence/user-scoped-db.js";
 
+export { ENV, type Env } from "./config/env.js";
 export { ID_GENERATOR, type IdGenerator } from "./ids/id-generator.js";
 export { CLOCK, type Clock } from "./time/clock.js";

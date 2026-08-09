@@ -4,6 +4,9 @@ import { loadEnv, supabaseIssuer, supabaseJwksUrl } from "./env.js";
 const MINIMAL = {
   DATABASE_URL: "postgresql://postgres:hunter2@127.0.0.1:54322/postgres",
   SUPABASE_URL: "http://127.0.0.1:54321",
+  // Required since M3: deleting a learner memory has to delete its file, and the
+  // workspace bucket has no policies, so only the service role can reach it.
+  SUPABASE_SERVICE_ROLE_KEY: "service-role-key",
 } satisfies NodeJS.ProcessEnv;
 
 describe("loadEnv", () => {

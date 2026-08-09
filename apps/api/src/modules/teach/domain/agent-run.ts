@@ -77,6 +77,8 @@ export interface AgentRunResult {
    * as the source of truth — it comes from a price table baked in when the SDK
    * was built, and its docs say not to bill from it (§8.6).
    */
+  /** How many learner memories the run wrote or revised (§7.6). */
+  readonly memoriesWritten?: number;
   readonly sdkCostUsd?: number;
   readonly turns?: number;
   readonly durationMs?: number;

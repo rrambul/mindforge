@@ -174,6 +174,28 @@ class TempRunDirectory implements RunDirectory {
     return files;
   }
 
+  async walkUnder(
+    prefix: string,
+  ): Promise<readonly { readonly path: string; readonly bytes: Uint8Array }[]> {
+    const files: { path: string; bytes: Uint8Array }[] = [];
+
+    const visit = async (directory: string): Promise<void> => {
+      const entries = await readdir(directory, { withFileTypes: true }).catch(() => []);
+      for (const entry of entries) {
+        const absolute = join(directory, entry.name);
+        const path = relative(this.root, absolute).split(sep).join("/");
+
+        if (entry.isDirectory()) await visit(absolute);
+        else if (entry.isFile()) files.push({ path, bytes: await readFile(absolute) });
+      }
+    };
+
+    // Missing is empty, not an error: a run whose learner has no memory yet never
+    // creates the directory, and that is the state every account starts in.
+    await visit(join(this.root, prefix));
+    return files;
+  }
+
   read(path: string): Promise<Uint8Array> {
     return readFile(join(this.root, path));
   }

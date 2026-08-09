@@ -15,6 +15,14 @@ const EnvSchema = z.object({
   /** Base URL of the Supabase stack. Auth issuer and JWKS derive from it. */
   SUPABASE_URL: z.url(),
 
+  /**
+   * Bypasses RLS, and the API needs it for exactly one thing: removing the file
+   * behind a memory the learner deleted (§7.6). The workspace bucket has no
+   * policies, so nothing else can reach it — and the path this key is given
+   * always comes from a row RLS already checked, never from a client.
+   */
+  SUPABASE_SERVICE_ROLE_KEY: z.string().min(1),
+
   PORT: z.coerce.number().int().positive().default(3000),
 
   /** The SPA's origin, for CORS. */

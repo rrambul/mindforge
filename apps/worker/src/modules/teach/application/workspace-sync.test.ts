@@ -50,6 +50,16 @@ class FakeDisk implements RunDirectory {
     );
   }
 
+  walkUnder(prefix: string) {
+    // Unfiltered, unlike `walk`. `.memory` belongs to the learner rather than to
+    // a mission, so it is excluded from the sync-back walk and read explicitly.
+    return Promise.resolve(
+      [...this.files.entries()]
+        .filter(([path]) => path.startsWith(`${prefix}/`))
+        .map(([path, content]) => ({ path, bytes: content })),
+    );
+  }
+
   read(path: string) {
     const found = this.files.get(path);
     if (!found) return Promise.reject(new Error(`no such file: ${path}`));

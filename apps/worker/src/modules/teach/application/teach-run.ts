@@ -1,4 +1,9 @@
-import { ReindexWorkspace, TeachRuns, type AgentRunResult } from "@mindforge/api/teach";
+import {
+  ReindexLearnerMemory,
+  ReindexWorkspace,
+  TeachRuns,
+  type AgentRunResult,
+} from "@mindforge/api/teach";
 import { estimateCostUsd, type LlmUsage } from "@mindforge/llm";
 import { LESSONS_DIR, type Change } from "@mindforge/workspace";
 import { Inject, Injectable, Logger } from "@nestjs/common";
@@ -10,6 +15,7 @@ import {
   type AgentRunRequest,
 } from "./agent.port.js";
 import { LLM_CALL_SINK, type LlmCallSink, type RecordedCall } from "./llm-call.port.js";
+import { MEMORY_MOUNT, MemorySync } from "./memory-sync.js";
 import { WorkspaceSync } from "./workspace-sync.js";
 
 /**
@@ -83,6 +89,8 @@ export class TeachRun {
     private readonly sync: WorkspaceSync,
     private readonly runs: TeachRuns,
     private readonly reindex: ReindexWorkspace,
+    private readonly memory: MemorySync,
+    private readonly reindexMemory: ReindexLearnerMemory,
   ) {}
 
   async execute(input: {
@@ -102,6 +110,12 @@ export class TeachRun {
       // Regenerated every run and excluded from sync-back, so this write cannot
       // appear in the diff (§7.4).
       await dir.write("BRIEFING.md", new TextEncoder().encode(input.briefing));
+
+      // The learner's cross-mission memory, mounted read-write at `.memory/`
+      // (§7.6). Separate from the workspace sync because it has its own Storage
+      // prefix and spans every mission — which is also why `.memory` is on the
+      // workspace's exclude list.
+      const memoryBefore = await this.memory.materialize(input.userId, dir);
 
       const seen = await this.drive(input, {
         cwd: dir.root,
@@ -129,6 +143,23 @@ export class TeachRun {
       // path that failed to upload. And warnings rather than failures — §7.4's
       // degradation rule is "stored, partially indexed", so a lesson the parser
       // could not read is still a lesson the learner has.
+      // Memory first, and outside the mission's sync: a fact about how somebody
+      // learns is theirs rather than this mission's, so it lands whether or not
+      // the mission's own files did.
+      const memoryAfter = await this.memory.syncBack({
+        userId: input.userId,
+        dir,
+        baseline: memoryBefore.baseline,
+      });
+      const indexedMemory = await this.reindexMemory.execute({
+        userId: input.userId,
+        files: new Map(
+          (await dir.walkUnder(MEMORY_MOUNT)).map(
+            (file) => [file.path.slice(MEMORY_MOUNT.length + 1), file.bytes] as const,
+          ),
+        ),
+      });
+
       const indexed = await this.reindex.execute({
         userId: input.userId,
         missionId: input.missionId,
@@ -146,7 +177,10 @@ export class TeachRun {
           // `exactOptionalPropertyTypes` distinguishes "absent" from "undefined",
           // so copying the field explicitly turns every warning without args into
           // one that has an undefined one.
-          warnings: indexed.warnings.map((warning) => ({ ...warning })),
+          warnings: [...indexed.warnings, ...indexedMemory.warnings].map((warning) => ({
+            ...warning,
+          })),
+          memoriesWritten: memoryAfter.written.length,
         },
         error: null,
       });

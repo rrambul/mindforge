@@ -1,7 +1,18 @@
-import { Controller, Get, HttpCode, Param, ParseUUIDPipe, Post, Query } from "@nestjs/common";
+import {
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  Param,
+  ParseUUIDPipe,
+  Post,
+  Query,
+} from "@nestjs/common";
 
 import { CurrentUser } from "../../../shared/auth/current-user.decorator.js";
 import type { RequestContext } from "../../../shared/auth/request-context.js";
+import { LearnerMemories } from "../application/learner-memories.js";
+import type { LearnerMemoryView } from "../application/memory.port.js";
 import { TeachRuns } from "../application/teach.use-cases.js";
 import type { AgentRun } from "../domain/agent-run.js";
 
@@ -83,5 +94,75 @@ export class TeachController {
     const capped = Math.min(Math.max(Number(limit) || 20, 1), 50);
     const runs = await this.runs.listForMission(user.userId, missionId, capped);
     return runs.map(toAgentRunView);
+  }
+}
+
+export interface MemoryView {
+  readonly id: string;
+  readonly slug: string;
+  readonly kind: string;
+  readonly summary: string;
+  readonly writtenBy: string;
+  readonly confirmedAt: string | null;
+  readonly supersededBySlug: string | null;
+  readonly updatedAt: string;
+}
+
+function toMemoryView(memory: LearnerMemoryView): MemoryView {
+  return {
+    id: memory.id,
+    slug: memory.slug,
+    kind: memory.kind,
+    summary: memory.summary,
+    writtenBy: memory.writtenBy,
+    confirmedAt: memory.confirmedAt?.toISOString() ?? null,
+    supersededBySlug: memory.supersededBySlug,
+    updatedAt: memory.updatedAt.toISOString(),
+  };
+}
+
+/**
+ * `/v1/me/memory` (§7.6) — what the agent has concluded about you.
+ *
+ * Under `me` rather than under a mission, because that is what it is: memory
+ * spans every mission, and filing it under one would suggest it belonged there.
+ *
+ * The three verbs are the whole of "the agent writes it; you own it". There is no
+ * create — §7.6 is explicit that an onboarding questionnaire is the wrong answer,
+ * because what people say up front about how they learn is usually wrong.
+ */
+@Controller("me/memory")
+export class LearnerMemoryController {
+  constructor(private readonly memories: LearnerMemories) {}
+
+  @Get()
+  async list(@CurrentUser() user: RequestContext): Promise<readonly MemoryView[]> {
+    return (await this.memories.list(user.userId)).map(toMemoryView);
+  }
+
+  /** The learner agreeing with an inference, which is worth more than silence. */
+  @Post(":id/confirm")
+  async confirm(
+    @CurrentUser() user: RequestContext,
+    @Param("id", ParseUUIDPipe) id: string,
+  ): Promise<MemoryView> {
+    return toMemoryView(await this.memories.confirm(user.userId, id));
+  }
+
+  /**
+   * The learner disagreeing, which deletes outright.
+   *
+   * Not a supersession: that is what the *agent* does when it changes its mind,
+   * and the record of having believed something is worth keeping. A memory the
+   * learner rejects is different — it is wrong, it is replayed into every future
+   * run on every mission, and leaving a tombstone would keep feeding it back.
+   */
+  @Delete(":id")
+  @HttpCode(204)
+  async forget(
+    @CurrentUser() user: RequestContext,
+    @Param("id", ParseUUIDPipe) id: string,
+  ): Promise<void> {
+    await this.memories.forget(user.userId, id);
   }
 }

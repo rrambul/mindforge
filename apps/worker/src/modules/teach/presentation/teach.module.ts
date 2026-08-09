@@ -4,6 +4,7 @@ import { Module } from "@nestjs/common";
 import { AGENT_GATEWAY } from "../application/agent.port.js";
 import { TEACH_DISPATCH_GATEWAY } from "../application/dispatch.port.js";
 import { LLM_CALL_SINK } from "../application/llm-call.port.js";
+import { MemorySync } from "../application/memory-sync.js";
 import { TeachRun } from "../application/teach-run.js";
 import { WorkspaceSync } from "../application/workspace-sync.js";
 import { WORKSPACE_GATEWAY } from "../application/workspace.port.js";
@@ -29,12 +30,13 @@ import { TeachDispatcher } from "./teach.dispatcher.js";
   providers: [
     WorkspaceSync,
     TeachRun,
+    MemorySync,
     TeachDispatcher,
     { provide: WORKSPACE_GATEWAY, useClass: SupabaseWorkspaceGateway },
     { provide: AGENT_GATEWAY, useClass: AgentSdkGateway },
     { provide: LLM_CALL_SINK, useClass: PrismaLlmCallSink },
     { provide: TEACH_DISPATCH_GATEWAY, useClass: PrismaDispatchGateway },
   ],
-  exports: [WorkspaceSync, TeachRun, ApiTeachModule],
+  exports: [WorkspaceSync, TeachRun, MemorySync, ApiTeachModule],
 })
 export class TeachModule {}

@@ -97,6 +97,7 @@ export {
   parseReferenceHtml,
   type ParsedHtmlDoc,
 } from "./parse/html.js";
+export { parseLearnerMemory, type MemoryKind, type ParsedMemory } from "./parse/memory.js";
 export { parseMission, type MissionHistoryEntry, type ParsedMission } from "./parse/mission.js";
 export { parseLearningRecord, type ParsedRecord } from "./parse/record.js";
 export {

@@ -1,10 +1,11 @@
-import type { ReindexWorkspace, TeachRuns } from "@mindforge/api/teach";
+import type { ReindexLearnerMemory, ReindexWorkspace, TeachRuns } from "@mindforge/api/teach";
 import { FixedClock } from "@mindforge/core";
 import { isExcludedFromSync, storageEtag, type FileState } from "@mindforge/workspace";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { AgentEvent, AgentGateway } from "./agent.port.js";
 import type { LlmCallSink, RecordedCall } from "./llm-call.port.js";
+import type { MemorySync } from "./memory-sync.js";
 import { TeachRun } from "./teach-run.js";
 import { WorkspaceSync } from "./workspace-sync.js";
 import type { RunDirectory, WorkspaceGateway } from "./workspace.port.js";
@@ -82,6 +83,16 @@ class FakeDisk implements RunDirectory {
         .map(([path, content]) => ({ path, bytes: content })),
     );
   }
+  walkUnder(prefix: string) {
+    // Unfiltered, unlike `walk`. `.memory` belongs to the learner rather than to
+    // a mission, so it is excluded from the sync-back walk and read explicitly.
+    return Promise.resolve(
+      [...this.files.entries()]
+        .filter(([path]) => path.startsWith(`${prefix}/`))
+        .map(([path, content]) => ({ path, bytes: content })),
+    );
+  }
+
   read(path: string) {
     const found = this.files.get(path);
     return found ? Promise.resolve(found) : Promise.reject(new Error(`no ${path}`));
@@ -208,12 +219,31 @@ function harness(
     },
   } as unknown as ReindexWorkspace;
 
+  // Memory is per-user rather than per-mission and has its own Storage prefix,
+  // so it is doubled here and proved by its own suite. What this file checks is
+  // that the loop mounts it before the agent runs and syncs it after.
+  const memoryWrites: string[][] = [];
+  const materializeMemory = vi.fn(() => Promise.resolve({ baseline: [] }));
+  const syncMemoryBack = vi.fn(() => Promise.resolve({ written: [], deleted: [] }));
+  const memory = {
+    materialize: materializeMemory,
+    syncBack: syncMemoryBack,
+  } as unknown as MemorySync;
+  const reindexMemory = {
+    execute: vi.fn((memoryInput: { files: ReadonlyMap<string, Uint8Array> }) => {
+      memoryWrites.push([...memoryInput.files.keys()]);
+      return Promise.resolve({ indexed: 0, superseded: 0, warnings: [] });
+    }),
+  } as unknown as ReindexLearnerMemory;
+
   const teach = new TeachRun(
     agent,
     sink,
     new WorkspaceSync(gateway, new FixedClock(AT)),
     runs,
     reindex,
+    memory,
+    reindexMemory,
   );
 
   return {
@@ -224,6 +254,9 @@ function harness(
     finished,
     heartbeat,
     indexed,
+    materializeMemory,
+    syncMemoryBack,
+    memoryWrites,
     kill: () => {
       alive = false;
     },
@@ -278,6 +311,22 @@ describe("a clean run", () => {
   it("deletes the workspace afterwards", async () => {
     await h.execute();
     expect(h.disk.disposed).toBe(true);
+  });
+
+  it("mounts the learner's memory before the agent runs", async () => {
+    // §7.6: memory spans every mission, so the agent sees it whichever workspace
+    // it is teaching. Materialised before the run, not after — reading it is the
+    // point.
+    await h.execute();
+
+    expect(h.materializeMemory).toHaveBeenCalledWith(USER, expect.anything());
+  });
+
+  it("syncs the memory back and indexes it", async () => {
+    await h.execute();
+
+    expect(h.syncMemoryBack).toHaveBeenCalled();
+    expect(h.memoryWrites).toHaveLength(1);
   });
 
   it("reindexes after the sync, not before", async () => {
