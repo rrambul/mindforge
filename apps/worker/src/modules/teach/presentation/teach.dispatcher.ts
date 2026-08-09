@@ -50,6 +50,14 @@ export class TeachDispatcher implements OnApplicationBootstrap, OnModuleDestroy 
   onApplicationBootstrap(): void {
     if (this.env.NODE_ENV === "test") return;
     this.logger.log(`Teach dispatcher polling every ${POLL_MS}ms`);
+    // Said once, loudly, because the two modes are billed to different places and
+    // the difference is otherwise invisible until an invoice or a rate limit.
+    this.logger.log(
+      this.env.TEACH_AUTH === "subscription"
+        ? "Teach runs authenticate with this machine's Claude Code login (TEACH_AUTH=subscription). " +
+            "Runs inherit ~/.claude, and nothing deployed can use this mode."
+        : "Teach runs authenticate with ANTHROPIC_API_KEY, billed as API usage.",
+    );
     void this.tick();
   }
 

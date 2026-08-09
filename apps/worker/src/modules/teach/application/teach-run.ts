@@ -119,6 +119,9 @@ export class TeachRun {
 
       const seen = await this.drive(input, {
         cwd: dir.root,
+        // Inside the run's own tree, so it is torn down with everything else
+        // rather than accumulating one directory per lesson in the temp dir.
+        configDir: `${dir.root}/.claude-config`,
         pluginDir: input.pluginDir,
         skillRef: input.skillRef,
         timeoutMs: TIMEOUT_MS,

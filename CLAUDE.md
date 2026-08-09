@@ -403,6 +403,23 @@ Unit + integration + E2E, **80% global floor enforced in CI**, `packages/core` a
 - Prompt caching is a prefix match: system prompts stay frozen per purpose, dynamic content goes after the last breakpoint. Assert on `cache_read_input_tokens` in dev.
 - The `teach` agent runs via `@anthropic-ai/claude-agent-sdk` — a different package from `@anthropic-ai/sdk`. Don't confuse them.
 
+## Two ways a teach run authenticates
+
+`TEACH_AUTH=api_key` (default) bills API usage and is the only mode anything deployed can use — a
+container has nobody logged in. `TEACH_AUTH=subscription` uses the Claude Code login on this machine
+instead, which is what makes running lessons freely during the soak affordable.
+
+Two things about it that are not obvious:
+
+- **The key must be deleted from the subprocess environment, not merely left unset.** `options.env`
+  is a spread of `process.env`, so a developer switching modes still has `ANTHROPIC_API_KEY` in
+  `.env.local`, the CLI finds it, and the run bills API credits while every log line says
+  "subscription". Caught by asserting on `system/init`'s `apiKeySource` rather than on our own
+  config — the first version of the branch did exactly this.
+- **Subscription mode gives up config isolation.** `CLAUDE_CONFIG_DIR` is what keeps a run from
+  reading the host's `~/.claude`, and it is also where the login lives. One person on their own
+  machine is fine; two users is not, which is the other reason `api_key` is the default.
+
 ## Agent SDK facts that bite
 
 Verified against `0.3.222`'s own `sdk.d.ts` on M3 day one, and written down because each one fails

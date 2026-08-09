@@ -21,6 +21,7 @@
  *
  *   pnpm --filter @mindforge/worker probe:teach
  *   pnpm --filter @mindforge/worker probe:teach -- --teach --keep
+ *   pnpm --filter @mindforge/worker probe:teach -- --teach --subscription
  */
 import { mkdir, mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -49,7 +50,9 @@ const KEEP = process.argv.includes("--keep");
  * so — the handshake assertions still hold, and it is worth being loud that this
  * is a developer convenience production must not copy.
  */
-const HAS_API_KEY = Boolean(process.env["ANTHROPIC_API_KEY"]);
+const SUBSCRIPTION =
+  process.argv.includes("--subscription") || process.env["TEACH_AUTH"] === "subscription";
+const HAS_API_KEY = Boolean(process.env["ANTHROPIC_API_KEY"]) && !SUBSCRIPTION;
 
 /** Matches the production run. Kept here so the probe cannot drift from what ships. */
 /**
@@ -130,6 +133,13 @@ const state = {
   failures: 0,
 };
 
+/** The inherited environment with the key removed — see `authEnv`. */
+function withoutApiKey(source: NodeJS.ProcessEnv): Record<string, string> {
+  const copy = { ...source } as Record<string, string>;
+  delete copy["ANTHROPIC_API_KEY"];
+  return copy;
+}
+
 function heading(text: string): void {
   console.log(`\n${"─".repeat(72)}\n${text}\n${"─".repeat(72)}`);
 }
@@ -178,6 +188,23 @@ function reportInit(message: Extract<SDKMessage, { type: "system"; subtype: "ini
   verdict(
     !message.tools.includes("Bash"),
     "Q3  Bash is absent from the tool list, not merely un-approved",
+  );
+  // The SDK's own account of what it authenticated with, and the only thing that
+  // can tell the two modes apart. A subscription run that still finds an
+  // ANTHROPIC_API_KEY in its inherited environment bills API credits while every
+  // log line says otherwise — which is what the first version of this did.
+  // Compared as a string because **the declared type is wrong**: `ApiKeySource` is
+  // `'user' | 'project' | 'org' | 'temporary' | 'oauth'` (sdk.d.ts:124), and the
+  // CLI emits `"ANTHROPIC_API_KEY"` and `"none"` — neither of which is in it.
+  // Narrowing to the union would make this comparison a type error about values
+  // the runtime actually produces.
+  const authenticatedWith: string = message.apiKeySource;
+  verdict(
+    SUBSCRIPTION
+      ? authenticatedWith !== "ANTHROPIC_API_KEY"
+      : authenticatedWith === "ANTHROPIC_API_KEY",
+    `Q5  authenticated as ${SUBSCRIPTION ? "the Claude Code login" : "ANTHROPIC_API_KEY"}` +
+      ` (SDK reports: ${authenticatedWith})`,
   );
 }
 
@@ -256,7 +283,11 @@ async function main(): Promise<void> {
     console.log(`plugin     ${plugin.path}`);
     console.log(`mode       ${FULL_RUN ? "full teach run" : "init handshake only"}`);
     console.log(
-      `auth       ${HAS_API_KEY ? "ANTHROPIC_API_KEY, isolated config dir (production shape)" : "host ~/.claude login — DEV ONLY, production always uses the key"}`,
+      `auth       ${
+        HAS_API_KEY
+          ? "ANTHROPIC_API_KEY, isolated config dir (TEACH_AUTH=api_key)"
+          : "this machine's Claude Code login (TEACH_AUTH=subscription) — nothing deployed can use this"
+      }`,
     );
 
     const ac = new AbortController();
@@ -283,9 +314,12 @@ async function main(): Promise<void> {
           skills: [plugin.skillRef],
           settingSources: [],
           strictMcpConfig: true,
+          // Mirrors AgentSdkGateway.authEnv exactly, including the delete —
+          // a probe that authenticated differently from production would be
+          // measuring something nobody ships.
           env: HAS_API_KEY
             ? { ...process.env, CLAUDE_CONFIG_DIR: join(root, "claude-config") }
-            : { ...process.env },
+            : withoutApiKey(process.env),
           stderr: () => {},
         },
       })) {

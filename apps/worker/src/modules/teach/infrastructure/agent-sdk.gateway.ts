@@ -46,6 +46,48 @@ const TOOLS = ["Skill", "Read", "Write", "Edit", "Glob", "Grep", "WebSearch", "W
 export class AgentSdkGateway implements AgentGateway {
   constructor(@Inject(ENV) private readonly env: Env) {}
 
+  /**
+   * The subprocess environment, which is where the two auth modes differ and the
+   * only place they do.
+   *
+   * **The spread is load-bearing in both.** `options.env` replaces rather than
+   * merges (`sdk.d.ts:1436`), so without it the subprocess loses `PATH`, `HOME`
+   * and everything else it needs to start at all.
+   */
+  private authEnv(request: AgentRunRequest): Record<string, string> {
+    const inherited = { ...process.env } as Record<string, string>;
+
+    if (this.env.TEACH_AUTH === "subscription") {
+      // **The key has to be removed, not merely left unset.** The spread carries
+      // whatever is in `process.env`, and a developer switching modes almost
+      // certainly still has `ANTHROPIC_API_KEY` in their `.env.local` — the CLI
+      // then finds it, reports `apiKeySource: "ANTHROPIC_API_KEY"`, and bills API
+      // credits while the log says "subscription". Measured, not reasoned about:
+      // the first version of this inherited the key and did exactly that.
+      delete inherited["ANTHROPIC_API_KEY"];
+
+      // Everything else inherited. The run keeps `HOME`, finds `~/.claude`, and
+      // authenticates as whoever is logged in on this machine — billed to that
+      // plan rather than to API usage.
+      //
+      // The cost is real and worth naming: `CLAUDE_CONFIG_DIR` is what otherwise
+      // keeps a run from reading the host's settings, `CLAUDE.md` and user
+      // skills, and this mode gives that up because the credentials live in the
+      // same directory. Acceptable for one person on their own machine; not for
+      // a second user, and not for anything deployed — a container has nobody
+      // logged in, which is why `api_key` is the default.
+      return inherited;
+    }
+
+    return {
+      ...inherited,
+      ANTHROPIC_API_KEY: this.env.ANTHROPIC_API_KEY ?? "",
+      // Isolated, because in this mode the key is what authenticates and the
+      // config directory carries only settings we do not want.
+      CLAUDE_CONFIG_DIR: request.configDir,
+    };
+  }
+
   async *run(request: AgentRunRequest): AsyncGenerator<AgentEvent, void> {
     const controller = new AbortController();
     const deadline = setTimeout(() => {
@@ -72,10 +114,7 @@ export class AgentSdkGateway implements AgentGateway {
           skills: [request.skillRef],
           settingSources: [],
           strictMcpConfig: true,
-          // The spread is load-bearing. A per-run config directory keeps one
-          // user's session from reading the host's settings; in production the
-          // key is what authenticates, so no config directory is needed at all.
-          env: { ...process.env, ANTHROPIC_API_KEY: this.env.ANTHROPIC_API_KEY },
+          env: this.authEnv(request),
           stderr: () => {
             // Swallowed rather than logged: the CLI writes progress noise here,
             // and a worker log full of it makes a real error unfindable.

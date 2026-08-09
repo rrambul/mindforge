@@ -71,6 +71,16 @@ export type AgentEvent =
 export interface AgentRunRequest {
   /** The materialised workspace. */
   readonly cwd: string;
+  /**
+   * A private `CLAUDE_CONFIG_DIR` for this run.
+   *
+   * Used in `api_key` mode and **deliberately ignored in `subscription` mode**,
+   * because the config directory is where the Claude Code login lives — pointing
+   * a run at an empty one there is how you get `apiKeySource: "none"` and "Not
+   * logged in", which reads like a broken integration rather than working
+   * isolation.
+   */
+  readonly configDir: string;
   /** Where the composed teach plugin was written. */
   readonly pluginDir: string;
   /** The namespaced skill reference the run must load. */
