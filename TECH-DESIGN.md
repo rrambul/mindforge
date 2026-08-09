@@ -2084,14 +2084,34 @@ Readwise/Kindle · calendar · podcast history · GitHub artifacts · browser ex
    prose: `allowedTools` does not restrict tools, and Supabase Storage has no conditional write. The
    SDK is pinned for the milestone — the CLI version is pinned to the SDK version, so bumping it
    changes agent behaviour and earns its own commit and its own probe run.
-2. **Agent run cost and latency** — still unknown, and now measurable. A lesson may take 3 minutes or
-   12; it may cost $0.20 or $2. `llm_calls` ships with the first agent call precisely so this is read
-   off a table rather than off an invoice. Anything over ~$2 for one lesson means the defaults are
-   wrong; the levers, in order, are `effort` (`high` → `medium`), `maxBudgetUsd`, and capping `WebFetch`
-   in the §7.3a addendum — not reaching for a cheaper model, which is a product decision §8.1 has
-   already made.
+2. ~~**Agent run cost and latency**~~ — **measured, M3.** One lesson on a cold workspace:
+   **26 turns, 8 minutes, $1.47.** Inside the ~$2 threshold that would have meant the defaults were
+   wrong, but not comfortably — a second lesson on a warm workspace should be cheaper (cache reads
+   were already 348K tokens against 51K writes) and that is the number to watch next. The output was
+   a 26KB lesson, a reference card, a learning record, three shared assets, and an unprompted learner
+   memory.
+
+   Two things the measurement changed:
+
+   - **`Skill` must be in `options.tools`.** It is a tool, and `tools` is the base surface — a run
+     without it loads the skill, lists it in `init.skills`, and cannot invoke it. The first live run
+     did exactly that: 12 turns, $0.27, a competent `RESOURCES.md`, and no lesson. R1 arriving through
+     the front door after the frontmatter guard was removed.
+   - **Per-assistant-message usage is not billable usage.** The run yielded 18 assistant messages over
+     8 distinct ids whose `output_tokens` summed to 121, against a real 6,276. §8.6's `teach_turn`
+     rows are therefore near-empty and the `teach_overhead` reconciliation carries ~98% of the cost.
+     The invariant still holds — the rows sum to `modelUsage`, so the meter is right — but the
+     per-turn split is not the granularity it looks like. See §16.8.
+
 3. **Managed Agents re-evaluation** — if the memory-store model stabilizes out of beta, it deletes §7.4 entirely. Worth a spike at Phase 4.
 4. **Lesson asset handling** — the `teach` skill wants a shared `assets/` component library per workspace. Confirm relative-path resolution works through the signed-URL lessons origin; may need path rewriting on serve.
 5. **FSRS parameter fitting** — default parameters until there's enough `review_logs` to fit personalized ones (needs ~1000 reviews). Plan the refit job, don't build it yet.
 6. **Timezone handling** — store the user's IANA timezone on the profile; every "day", "week", and nightly job derives from it. Get this right at Phase 1 or every analytics number will be subtly wrong.
-7. **Mission slug immutability** — `workspace_key` is a Storage prefix, so renaming a mission must not move files. Slug is set once at creation; the display topic is free to change.
+7. **`llm_calls` per-turn granularity is currently fiction.** The rows sum to `modelUsage` so the
+   cost total is correct, but the per-`teach_turn` figures are partial-message deltas rather than what
+   each turn was billed. Either attribute properly — which may need `includePartialMessages` off and a
+   different message to read usage from — or collapse to one row per model per run and stop implying
+   a breakdown that is not there. A wrong breakdown is worse than none, because §8.6's stated purpose
+   is answering "cost per lesson" and somebody will eventually ask "cost per turn".
+
+8. **Mission slug immutability** — `workspace_key` is a Storage prefix, so renaming a mission must not move files. Slug is set once at creation; the display topic is free to change.

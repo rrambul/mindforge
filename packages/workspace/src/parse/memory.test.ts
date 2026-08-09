@@ -111,6 +111,29 @@ describe("parseLearnerMemory", () => {
     );
   });
 
+  it("keeps a prose line that merely looks like a preamble key", () => {
+    // Found by running this against a real run rather than a fixture. The agent
+    // opened a memory with "Observed: 2026-08-09 (mission: Postgres RLS).
+    // Self-reported in MISSION.md constraints, consistent" — a sentence starting
+    // with a capitalised word and a colon. Matching any `Word: value` ate half of
+    // it and started the body mid-clause, with no warning.
+    const { parsed } = parseLearnerMemory(
+      "x.md",
+      "# A fact\n\nObserved: 2026-08-09 (mission: Postgres RLS). Self-reported,\nand consistent so far.\n",
+    );
+
+    expect(parsed.body).toContain("Observed: 2026-08-09");
+    expect(parsed.body).toContain("consistent so far");
+  });
+
+  it("recognises the filename a real run used for teaching preferences", () => {
+    // §7.6's layout says `teaching-preferences.md`; the agent wrote
+    // `learning-preferences.md`, which is the same thing said the other way round.
+    expect(parseLearnerMemory("learning-preferences.md", "# X\n").parsed.kind).toBe(
+      "teaching_preference",
+    );
+  });
+
   it("parses an empty file without throwing", () => {
     expect(() => parseLearnerMemory("x.md", "")).not.toThrow();
   });

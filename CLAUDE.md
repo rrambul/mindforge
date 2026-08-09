@@ -20,11 +20,17 @@ from what Mindforge actually knows, the agent runs with the `teach` skill loaded
 withheld, the workspace syncs to Storage with conflict retention, the files are parsed into `lessons`,
 `reference_docs` and `learning_records`, and `llm_calls` reconciles to the run's real bill.
 
-**What M3 needs now is one real run against a real key.** Its finish line is "you press it, wait, and
-a lesson file exists in Storage and a row exists in Postgres — and running `/teach` locally against
-the same workspace still works". Set `ANTHROPIC_API_KEY` in `.env.local` (there is a placeholder
-there) and `pnpm --filter @mindforge/worker probe:teach -- --teach --keep` answers §16.2 at the same
-time: what a lesson costs and how long it takes. Nobody has measured that yet.
+**A real run has happened, and it works.** 26 turns, 8 minutes, **$1.47** — a 26KB lesson, a
+reference card, a learning record, three shared assets, and a learner memory the agent wrote without
+being asked. §16.2 is answered. What is left of the finish line is doing it through the app rather
+than the probe, and confirming `/teach` still runs locally against the same workspace.
+
+**The first attempt failed, and the cause is the one to remember: `Skill` is a tool.** `options.tools`
+is the base surface, so a run without `Skill` in it loads the skill, lists it in `init.skills`, and
+can never invoke it — 12 turns and $0.27 of competent resource research, no lesson. That is R1
+arriving through the front door after the frontmatter guard had been taken off the back one. The
+probe's two verdicts — did it invoke the Skill tool, did a lesson appear — are the only reason this
+did not ship looking healthy.
 
 **Day one was the whole point, and it moved the design twice.** §7.3 was a sketch that said so, and
 verified against `sdk.d.ts` it was wrong in nine places. Two of them fail _silently_ — the run

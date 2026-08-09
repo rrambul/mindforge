@@ -50,6 +50,10 @@ const FILENAME_KINDS: Readonly<Record<string, MemoryKind>> = {
   "teaching-preference": "teaching_preference",
   "learning-patterns": "learning_pattern",
   "learning-pattern": "learning_pattern",
+  // What a real run actually named it. §7.6's layout says
+  // `teaching-preferences.md`; the agent wrote `learning-preferences.md`, which
+  // is the same thing said the other way round.
+  "learning-preferences": "teaching_preference",
   constraints: "constraint",
   constraint: "constraint",
 };
@@ -119,7 +123,22 @@ function readKind(declared: string | null, base: string, warnings: ParseWarning[
   return KIND_FALLBACK;
 }
 
-/** Everything that is neither the H1 nor a `Key: value` preamble line. */
+/**
+ * The keys the preamble may carry. **Only these.**
+ *
+ * Matching any `Word: value` line was content loss, found by running this against
+ * a real agent's memory rather than a fixture: it opened with
+ * `Observed: 2026-08-09 (mission: Postgres RLS). Self-reported in MISSION.md…`,
+ * a sentence that happens to start with a capitalised word and a colon. Half of
+ * it was eaten and the body began mid-clause, silently.
+ *
+ * A closed list cannot do that. An unrecognised `Foo: bar` line is prose until
+ * somebody adds it here, which is the right default for a format whose author is
+ * a model.
+ */
+const PREAMBLE_KEYS = /^\s*(kind|supersedes)\s*:\s/iu;
+
+/** Everything that is neither the H1 nor a recognised preamble line. */
 function bodyOf(source: string): string {
   const lines = source.replace(/\r\n/gu, "\n").split("\n");
   const kept: string[] = [];
@@ -129,7 +148,7 @@ function bodyOf(source: string): string {
     if (/^#\s/u.test(line)) continue;
     if (inPreamble) {
       if (line.trim() === "") continue;
-      if (/^\s*[A-Za-z][\w -]*\s*:\s/u.test(line)) continue;
+      if (PREAMBLE_KEYS.test(line)) continue;
       inPreamble = false;
     }
     kept.push(line);

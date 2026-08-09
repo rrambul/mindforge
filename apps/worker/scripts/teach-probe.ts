@@ -52,7 +52,17 @@ const KEEP = process.argv.includes("--keep");
 const HAS_API_KEY = Boolean(process.env["ANTHROPIC_API_KEY"]);
 
 /** Matches the production run. Kept here so the probe cannot drift from what ships. */
-const TOOLS = ["Read", "Write", "Edit", "Glob", "Grep", "WebSearch", "WebFetch"] as const;
+/**
+ * **`Skill` is in this list, and leaving it out is what makes a run useless.**
+ *
+ * `tools` is the base surface: a tool absent from it does not exist for the run.
+ * Without `Skill` the agent cannot load `mindforge-teach:teach` no matter that
+ * `skills` names it and `init.skills` lists it — the skill is offered and
+ * uninvokable, which is R1 arriving through the front door instead of the
+ * frontmatter. Measured: a run without it spent 12 turns and $0.27 researching
+ * resources and never wrote a lesson.
+ */
+const TOOLS = ["Skill", "Read", "Write", "Edit", "Glob", "Grep", "WebSearch", "WebFetch"] as const;
 const TIMEOUT_MS = FULL_RUN ? 15 * 60_000 : 90_000;
 
 const MISSION = `# Mission
