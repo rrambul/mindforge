@@ -1,0 +1,12 @@
+{
+  "heading": "O que o agente aprendeu sobre você",
+  "intro": "Anotações que o agente de ensino mantém sobre como você aprende, em todas as missões. Vão junto com cada lição que ele escreve, então vale remover as erradas.",
+  "empty": "Nada ainda. O agente escreve aqui conforme te ensina — não há questionário, porque o que as pessoas preveem sobre como aprendem costuma estar errado.",
+  "confirmed": "Você confirmou",
+  "superseded": "Substituída",
+  "supersededBy": "O agente depois substituiu isto por \"{slug}\". As duas ficam guardadas para você ver o que mudou.",
+  "action": {
+    "confirm": "Está certo",
+    "forget": "Remover"
+  }
+}

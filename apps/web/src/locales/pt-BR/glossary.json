@@ -65,5 +65,11 @@
     "review_accuracy": "Precisão nas revisões",
     "lessons_completed": "Lições concluídas",
     "manual": "Você decide"
+  },
+  "memoryKind": {
+    "background": "Contexto",
+    "teaching_preference": "Como você gosta de aprender",
+    "learning_pattern": "Como você aprende",
+    "constraint": "Restrição"
   }
 }

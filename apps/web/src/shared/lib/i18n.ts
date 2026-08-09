@@ -18,6 +18,7 @@ import enFriction from "../../locales/en/friction.json";
 import enGlossary from "../../locales/en/glossary.json";
 import enGoals from "../../locales/en/goals.json";
 import enInsights from "../../locales/en/insights.json";
+import enMemory from "../../locales/en/memory.json";
 import enMissions from "../../locales/en/missions.json";
 import enNotes from "../../locales/en/notes.json";
 import enPlanning from "../../locales/en/planning.json";
@@ -34,6 +35,7 @@ import ptFriction from "../../locales/pt-BR/friction.json";
 import ptGlossary from "../../locales/pt-BR/glossary.json";
 import ptGoals from "../../locales/pt-BR/goals.json";
 import ptInsights from "../../locales/pt-BR/insights.json";
+import ptMemory from "../../locales/pt-BR/memory.json";
 import ptMissions from "../../locales/pt-BR/missions.json";
 import ptNotes from "../../locales/pt-BR/notes.json";
 import ptPlanning from "../../locales/pt-BR/planning.json";
@@ -70,6 +72,7 @@ export const NAMESPACES = [
   "insights",
   "settings",
   "teach",
+  "memory",
 ] as const;
 
 const resources = {
@@ -90,6 +93,7 @@ const resources = {
     insights: enInsights,
     settings: enSettings,
     teach: enTeach,
+    memory: enMemory,
   },
   "pt-BR": {
     common: ptCommon,
@@ -108,6 +112,7 @@ const resources = {
     insights: ptInsights,
     settings: ptSettings,
     teach: ptTeach,
+    memory: ptMemory,
   },
 } as const satisfies Record<Locale, Record<(typeof NAMESPACES)[number], unknown>>;
 

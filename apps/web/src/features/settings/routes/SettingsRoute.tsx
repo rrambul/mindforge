@@ -26,6 +26,13 @@ export interface SettingsRouteProps {
    * cannot judge.
    */
   readonly renderNudges?: () => ReactNode;
+  /**
+   * What the agent has concluded about the learner (§7.6).
+   *
+   * A render prop for the same reason the nudges are: it belongs to
+   * `features/memory` and this feature may not import another (§2.2 rule 6).
+   */
+  readonly renderMemory?: () => ReactNode;
 }
 
 /**
@@ -34,7 +41,7 @@ export interface SettingsRouteProps {
  * Four blocks, in the order they matter: the settings that change what every other screen *means*,
  * then appearance, then when the app is allowed to speak, then what changed since you last looked.
  */
-export function SettingsRoute({ renderNudges }: SettingsRouteProps) {
+export function SettingsRoute({ renderNudges, renderMemory }: SettingsRouteProps) {
   const { t } = useTranslation("settings");
   const { t: common } = useTranslation("common");
 
@@ -114,6 +121,8 @@ export function SettingsRoute({ renderNudges }: SettingsRouteProps) {
           {renderNudges?.()}
         </Stack>
       </Card>
+
+      {renderMemory?.()}
 
       <Card as="section" label={t("changelog.heading")}>
         <Stack>

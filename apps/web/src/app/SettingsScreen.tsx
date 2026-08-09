@@ -1,3 +1,4 @@
+import { LearnerMemory } from "../features/memory/ui/LearnerMemory.js";
 import { CurrentNudges } from "../features/notifications/ui/CurrentNudges.js";
 import { SettingsRoute } from "../features/settings/routes/SettingsRoute.js";
 
@@ -14,5 +15,7 @@ import { SettingsRoute } from "../features/settings/routes/SettingsRoute.js";
  * the resolver returns nothing, which is honest — wire it here the day a mission has a URL.
  */
 export function SettingsScreen() {
-  return <SettingsRoute renderNudges={() => <CurrentNudges />} />;
+  return (
+    <SettingsRoute renderNudges={() => <CurrentNudges />} renderMemory={() => <LearnerMemory />} />
+  );
 }

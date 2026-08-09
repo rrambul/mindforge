@@ -65,5 +65,11 @@
     "review_accuracy": "Review accuracy",
     "lessons_completed": "Lessons completed",
     "manual": "You decide"
+  },
+  "memoryKind": {
+    "background": "Background",
+    "teaching_preference": "How you like to be taught",
+    "learning_pattern": "How you learn",
+    "constraint": "Constraint"
   }
 }

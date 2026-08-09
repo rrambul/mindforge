@@ -80,10 +80,12 @@ Still deferred, and named rather than forgotten: **SSE is not built.** `EventSou
 `Authorization` header, the guard reads the token from nowhere else, and the SPA sends
 `credentials: "omit"` — so the mission card polls every five seconds while a run is live, and only
 then. The endpoint arrives as a `fetch`-parsed stream; `features/teach/api/use-teach.ts` is where the
-swap happens. **Per-user learner memory (§7.6) is a table with RLS and nothing else** — no
-`memory/<user_id>/` materialised into a run, no review screen. It is the one M3 bullet that is
-schema-only, which is precisely the shape CLAUDE.md keeps warning about, so it is written down here
-rather than left to be discovered.
+swap happens. **Per-user learner memory (§7.6) works end to end**: mounted read-write at `.memory/` for every run
+from its own Storage prefix, indexed into `learner_memories`, and reviewable on Settings. Three rules
+are enforced where they cannot be forgotten — the agent may not delete a memory (supersede, never
+mutate), a run cannot mark its own inference as `confirmed_at`, and deleting one deletes the file too,
+because a row-only delete is undone by the next run's reindex. There is no create endpoint and no
+create button: §7.6 is explicit that an onboarding questionnaire is the wrong answer.
 
 ---
 

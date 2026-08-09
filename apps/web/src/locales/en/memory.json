@@ -1,0 +1,12 @@
+{
+  "heading": "What the agent has learned about you",
+  "intro": "Notes the teach agent keeps about how you learn, across every mission. They're sent with every lesson it writes, so a wrong one is worth removing.",
+  "empty": "Nothing yet. The agent writes here as it teaches you — there's no questionnaire, because what people predict about how they learn is usually wrong.",
+  "confirmed": "You agreed",
+  "superseded": "Replaced",
+  "supersededBy": "The agent later replaced this with \"{slug}\". Both are kept so you can see what changed.",
+  "action": {
+    "confirm": "That's right",
+    "forget": "Remove this"
+  }
+}
