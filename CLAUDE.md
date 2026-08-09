@@ -69,13 +69,21 @@ signal. And the reindexer **upserts** where `workspace_files` correctly delete-t
 `lessons.completed_at` and `outcome` come from the M4 reader and are in no file: delete-then-insert
 would throw away "somebody read this lesson" on every subsequent run.
 
-Deliberately deferred, and named rather than forgotten: **`RESOURCES.md` is parsed but not indexed.**
-`resources` has no natural unique key and the file has no status column while the DB defaults to
-`inbox`, so a naive second run duplicates the library and resets a book you marked finished. That
-upsert key is a decision worth making on its own. **SSE is not built** — `EventSource` cannot send an
+**`RESOURCES.md` indexes into the library**, and its upsert key is normalised URL first, normalised
+title second. `resources` has no natural unique constraint and the agent rewrites the file wholesale
+every run, so this is the difference between a library and a library that doubles. The columns the
+file does _not_ represent — `status`, `progress`, `finished_at`, `abandon_reason` — are not
+expressible in the writer's interface at all, because the file has no status column and the column
+defaults to `inbox`: a naive write resets a book you marked finished, on every run, forever.
+
+Still deferred, and named rather than forgotten: **SSE is not built.** `EventSource` cannot send an
 `Authorization` header, the guard reads the token from nowhere else, and the SPA sends
-`credentials: "omit"`, so the card polls every five seconds while a run is live and only then. **The
-learner-memory screen (§7.6) is not built**, though the table and its RLS are.
+`credentials: "omit"` — so the mission card polls every five seconds while a run is live, and only
+then. The endpoint arrives as a `fetch`-parsed stream; `features/teach/api/use-teach.ts` is where the
+swap happens. **Per-user learner memory (§7.6) is a table with RLS and nothing else** — no
+`memory/<user_id>/` materialised into a run, no review screen. It is the one M3 bullet that is
+schema-only, which is precisely the shape CLAUDE.md keeps warning about, so it is written down here
+rather than left to be discovered.
 
 ---
 
