@@ -8,6 +8,7 @@ import {
   parseMission,
   parseNumberedFilename,
   parseReferenceHtml,
+  parseResources,
   RECORDS_DIR,
   REFERENCE_DIR,
   sha256,
@@ -17,6 +18,7 @@ import { Inject, Injectable } from "@nestjs/common";
 
 import { CLOCK, type Clock } from "../../../shared/time/clock.js";
 import { UpdateMission } from "../../missions/application/update-mission.js";
+import { SyncWorkspaceResources } from "../../resources/application/workspace-resources.js";
 import {
   WORKSPACE_INDEX_REPOSITORY,
   type IndexedLesson,
@@ -69,6 +71,7 @@ export interface ReindexResult {
   readonly lessons: number;
   readonly referenceDocs: number;
   readonly records: number;
+  readonly resources: number;
   readonly warnings: readonly ParseWarning[];
 }
 
@@ -78,6 +81,7 @@ export class ReindexWorkspace {
     @Inject(WORKSPACE_INDEX_REPOSITORY) private readonly index: WorkspaceIndexRepository,
     @Inject(CLOCK) private readonly clock: Clock,
     private readonly missions: UpdateMission,
+    private readonly resources: SyncWorkspaceResources,
   ) {}
 
   async execute(input: ReindexInput): Promise<ReindexResult> {
@@ -94,11 +98,13 @@ export class ReindexWorkspace {
     await this.index.forgetPaths(input.userId, input.missionId, input.deleted);
 
     await this.reindexMission(input, decoder, warnings);
+    const resources = await this.reindexResources(input, decoder, warnings);
 
     return {
       lessons: lessons.length,
       referenceDocs: referenceDocs.length,
       records: records.length,
+      resources,
       warnings,
     };
   }
@@ -135,6 +141,35 @@ export class ReindexWorkspace {
       currentLevel: parsed.fields.currentLevel,
       reason: "Updated by a teach run",
     });
+  }
+
+  /**
+   * `RESOURCES.md` → the library (FR-T8), through the module that owns it.
+   *
+   * The upsert key and the columns this may not touch are decided in
+   * `SyncWorkspaceResources`, because both are resources decisions rather than
+   * teach ones — and because `resources` has no natural unique constraint, so
+   * getting it wrong doubles the library on the second run rather than failing.
+   */
+  private async reindexResources(
+    input: ReindexInput,
+    decoder: TextDecoder,
+    warnings: ParseWarning[],
+  ): Promise<number> {
+    const source = input.files.get("RESOURCES.md");
+    if (!source) return 0;
+
+    const { parsed, warnings: fileWarnings } = parseResources(decoder.decode(source));
+    warnings.push(...fileWarnings);
+
+    const { created, updated } = await this.resources.execute({
+      userId: input.userId,
+      missionId: input.missionId,
+      primary: parsed.primary,
+      rejected: parsed.rejected,
+    });
+
+    return created + updated;
   }
 
   private readLessons(

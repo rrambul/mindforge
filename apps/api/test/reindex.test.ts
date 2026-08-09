@@ -75,7 +75,11 @@ afterAll(async () => {
 });
 
 beforeEach(async () => {
+  // Resources too. They belong to the user rather than the mission, so deleting
+  // missions leaves them behind — and a title left over from an earlier test then
+  // matches the upsert key, turning a create into an update.
   await db.$executeRawUnsafe(`delete from missions where user_id = $1::uuid`, alice.id);
+  await db.$executeRawUnsafe(`delete from resources where user_id = $1::uuid`, alice.id);
   const rows = await db.$queryRawUnsafe<{ id: string }[]>(
     `insert into missions (id, user_id, topic, status, workspace_key, created_at, updated_at)
      values (gen_random_uuid(), $1::uuid, 'Postgres RLS', 'active', 'postgres-rls', now(), now())
@@ -245,6 +249,118 @@ describe("MISSION.md", () => {
       missionId,
     );
     expect(rows[0]!.workspace_key).toBe("postgres-rls");
+  });
+});
+
+describe("RESOURCES.md", () => {
+  const RESOURCES = `# Resources
+
+## Primary Sources
+
+| Resource | Type | Trust | Why it's here |
+| -------- | ---- | ----- | ------------- |
+| [The Rust Book](https://doc.rust-lang.org/book/) | docs | high | Canonical |
+
+## Explored But Rejected
+
+- [Rust in 5 Minutes](https://example.com/quick) — Too shallow
+`;
+
+  it("adds what the agent found to the library", async () => {
+    const result = await run({ "RESOURCES.md": RESOURCES });
+
+    expect(result.resources).toBe(2);
+    const rows = await db.$queryRawUnsafe<
+      { title: string; trust: string | null; status: string }[]
+    >(
+      `select title, trust, status from resources where user_id = $1::uuid order by title`,
+      alice.id,
+    );
+    expect(rows).toEqual([
+      { title: "Rust in 5 Minutes", trust: null, status: "reference" },
+      { title: "The Rust Book", trust: "high", status: "inbox" },
+    ]);
+  });
+
+  it("does not double the library on a second run", async () => {
+    // The defect this whole path was deferred a commit to avoid. `resources` has
+    // no natural unique constraint and the agent rewrites the file wholesale, so
+    // without an upsert key the library doubles every run.
+    await run({ "RESOURCES.md": RESOURCES });
+    await run({ "RESOURCES.md": RESOURCES });
+
+    const rows = await db.$queryRawUnsafe<{ n: bigint }[]>(
+      `select count(*) as n from resources where user_id = $1::uuid`,
+      alice.id,
+    );
+    expect(Number(rows[0]!.n)).toBe(2);
+  });
+
+  it("does not reset a book the learner marked finished", async () => {
+    // The most damaging thing this path could do. `RESOURCES.md` has no status
+    // column and the database defaults to `inbox`, so a naive write undoes the
+    // learner's own record of having read something — on every run, forever.
+    await run({ "RESOURCES.md": RESOURCES });
+    await db.$executeRawUnsafe(
+      `update resources set status = 'finished', finished_at = now(),
+         progress = '{"unit":"percent","current":100}'::jsonb
+        where user_id = $1::uuid and title = 'The Rust Book'`,
+      alice.id,
+    );
+
+    await run({ "RESOURCES.md": RESOURCES });
+
+    const rows = await db.$queryRawUnsafe<
+      { status: string; finished_at: Date | null; progress: unknown }[]
+    >(
+      `select status, finished_at, progress from resources
+        where user_id = $1::uuid and title = 'The Rust Book'`,
+      alice.id,
+    );
+    expect(rows[0]).toMatchObject({ status: "finished" });
+    expect(rows[0]!.finished_at).not.toBeNull();
+    expect(rows[0]!.progress).toEqual({ unit: "percent", current: 100 });
+  });
+
+  it("updates the fields the file does represent", async () => {
+    await run({ "RESOURCES.md": RESOURCES });
+    await run({
+      "RESOURCES.md": RESOURCES.replace("| docs | high |", "| book | medium |"),
+    });
+
+    const rows = await db.$queryRawUnsafe<{ type: string; trust: string }[]>(
+      `select type, trust from resources where user_id = $1::uuid and title = 'The Rust Book'`,
+      alice.id,
+    );
+    expect(rows[0]).toMatchObject({ type: "book", trust: "medium" });
+  });
+
+  it("links what it creates to the mission that found it", async () => {
+    // FR-T8: sources the agent finds appear in your library, and the library is
+    // scoped by mission.
+    await run({ "RESOURCES.md": RESOURCES });
+
+    const rows = await db.$queryRawUnsafe<{ n: bigint }[]>(
+      `select count(*) as n from resource_links where mission_id = $1::uuid`,
+      missionId,
+    );
+    expect(Number(rows[0]!.n)).toBe(2);
+  });
+
+  it("writes the rejected reason and never the abandon reason", async () => {
+    // Two columns for two different events. The agent's verdict on something
+    // nobody started is not the learner's guilt-free quit (FR-R5), and conflating
+    // them invents an abandonment that never happened.
+    await run({ "RESOURCES.md": RESOURCES });
+
+    const rows = await db.$queryRawUnsafe<
+      { rejected_reason: string | null; abandon_reason: string | null }[]
+    >(
+      `select rejected_reason, abandon_reason from resources
+        where user_id = $1::uuid and title = 'Rust in 5 Minutes'`,
+      alice.id,
+    );
+    expect(rows[0]).toEqual({ rejected_reason: "Too shallow", abandon_reason: null });
   });
 });
 

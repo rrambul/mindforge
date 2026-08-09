@@ -2,6 +2,7 @@ import { FixedClock } from "@mindforge/core";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { UpdateMission } from "../../missions/application/update-mission.js";
+import type { SyncWorkspaceResources } from "../../resources/application/workspace-resources.js";
 import type {
   IndexedLesson,
   IndexedRecord,
@@ -61,10 +62,19 @@ function harness() {
   >(() => Promise.resolve({} as never));
   const missions = { execute: update } as unknown as UpdateMission;
 
+  // A double: the upsert key and the columns it may not touch are the resources
+  // module's decisions, and its own suite proves them. What this file needs is
+  // that the reindexer hands the parsed file over at all.
+  const syncResources = vi.fn<
+    (input: { primary: unknown[]; rejected: unknown[] }) => Promise<unknown>
+  >(() => Promise.resolve({ created: 0, updated: 0 }));
+  const resources = { execute: syncResources } as unknown as SyncWorkspaceResources;
+
   return {
     saved,
     update,
-    reindex: new ReindexWorkspace(index, new FixedClock(NOW), missions),
+    syncResources,
+    reindex: new ReindexWorkspace(index, new FixedClock(NOW), missions, resources),
   };
 }
 
@@ -248,6 +258,27 @@ describe("MISSION.md", () => {
     expect(h.update).toHaveBeenCalledTimes(1);
     const [, , input] = h.update.mock.calls[0]!;
     expect(input).not.toHaveProperty("history");
+  });
+});
+
+describe("RESOURCES.md", () => {
+  it("hands the parsed library to the module that owns it", async () => {
+    await run({
+      "RESOURCES.md":
+        "# Resources\n\n## Primary Sources\n\n| Resource | Type | Trust |\n| - | - | - |\n| [The Rust Book](https://doc.rust-lang.org/book/) | docs | high |\n",
+    });
+
+    expect(h.syncResources).toHaveBeenCalledTimes(1);
+    const [input] = h.syncResources.mock.calls[0]!;
+    expect(input.primary).toEqual([
+      expect.objectContaining({ title: "The Rust Book", type: "docs", trust: "high" }),
+    ]);
+  });
+
+  it("does nothing when the workspace has no RESOURCES.md", async () => {
+    await run({ "lessons/0007-rls.html": LESSON });
+
+    expect(h.syncResources).not.toHaveBeenCalled();
   });
 });
 

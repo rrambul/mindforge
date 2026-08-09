@@ -1,6 +1,7 @@
 import { Module } from "@nestjs/common";
 
 import { MissionsModule } from "../../missions/presentation/missions.module.js";
+import { ResourcesModule } from "../../resources/presentation/resources.module.js";
 import { BRIEFING_READER } from "../application/briefing.port.js";
 import { WORKSPACE_INDEX_REPOSITORY } from "../application/index.port.js";
 import { ReindexWorkspace } from "../application/reindex-workspace.js";
@@ -40,7 +41,7 @@ import { TeachController } from "./teach.controller.js";
   // The one `imports` this module has, and it is the rule working rather than an
   // exception to it: reindexing MISSION.md must go through the module that owns
   // `missions`, so it needs that module's exported use case.
-  imports: [MissionsModule],
+  imports: [MissionsModule, ResourcesModule],
   controllers: [TeachController],
   providers: [
     TeachRuns,

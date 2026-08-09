@@ -12,10 +12,13 @@ import {
   SetResourceLinks,
 } from "../application/resource.use-cases.js";
 import { URL_METADATA } from "../application/url-metadata.port.js";
+import { SyncWorkspaceResources } from "../application/workspace-resources.js";
 import { RESOURCE_REPOSITORY } from "../domain/resource.repository.js";
+import { WORKSPACE_RESOURCE_WRITER } from "../domain/workspace-resource.writer.js";
 import { HtmlUrlMetadataReader } from "../infrastructure/html-url-metadata.reader.js";
 import { PrismaLinkTargetReader } from "../infrastructure/prisma-link-target.reader.js";
 import { PrismaResourceRepository } from "../infrastructure/prisma-resource.repository.js";
+import { PrismaWorkspaceResourceWriter } from "../infrastructure/prisma-workspace-resource.writer.js";
 import { ResourcesController } from "./resources.controller.js";
 
 /**
@@ -25,6 +28,8 @@ import { ResourcesController } from "./resources.controller.js";
 @Module({
   controllers: [ResourcesController],
   providers: [
+    SyncWorkspaceResources,
+    { provide: WORKSPACE_RESOURCE_WRITER, useClass: PrismaWorkspaceResourceWriter },
     CaptureResource,
     AddResource,
     EditResource,
@@ -38,6 +43,6 @@ import { ResourcesController } from "./resources.controller.js";
     { provide: URL_METADATA, useClass: HtmlUrlMetadataReader },
     { provide: LINK_TARGETS, useClass: PrismaLinkTargetReader },
   ],
-  exports: [CaptureResource, ListResources],
+  exports: [CaptureResource, ListResources, SyncWorkspaceResources],
 })
 export class ResourcesModule {}
