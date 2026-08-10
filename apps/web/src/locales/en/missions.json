@@ -25,7 +25,8 @@
     "unpark": "Resume",
     "parking": "Parking",
     "unparking": "Resuming",
-    "noWhy": "No reason recorded yet."
+    "noWhy": "No reason recorded yet.",
+    "openCurriculum": "Curriculum"
   },
   "field": {
     "topic": {

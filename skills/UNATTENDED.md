@@ -52,14 +52,22 @@ The workspace has a `CURRICULUM.md`: the mission's subject broken into **tracks*
 ordered fundamentals first. `BRIEFING.md` names the one track this run is for, and the lessons already
 written in it.
 
-- **Teach the next thing inside that track, not the next thing in the mission.** The skill's ZPD
-  instruction still decides _which_ thing; the track is the boundary it decides within.
+- **Write the lesson `BRIEFING.md` names.** The module's lessons are planned in advance, and the
+  briefing states which one is next: the first whose prerequisites are all finished, easiest first.
+  That ordering comes from the dependency graph, which you cannot see — you decide what goes _in_ the
+  lesson, not which lesson it is. If the briefing names none, teach the most defensible next thing
+  inside the module and claim no plan entry.
 - **Write one lesson and stop.** Modules are built one lesson per run, after the learner has done the
   last one. A run that produces four lessons has guessed at three of them without seeing how the first
   landed.
 - **Declare the track in the lesson**, in `<head>`:
   `<meta name="mindforge:track" content="<slug>">`. Use the slug from `CURRICULUM.md`. This is how
   the lesson joins its module — a lesson without it indexes as belonging to no module.
+- **Claim the plan entry too**, in the same `<head>`:
+  `<meta name="mindforge:lesson" content="<lesson slug>">`, using the slug the briefing gave you. The
+  planned lesson and the file you write are meant to be one thing; without the tag they are two, and
+  the module counts your lesson twice — once as written and once as still to come. Leave the tag off
+  when you are teaching something the plan does not list, which is legal and sometimes right.
 - **Never edit `CURRICULUM.md`.** It is an input here, like `MISSION.md`. If a track is wrong, missing
   a prerequisite, or should be split, write the case into `NOTES.md` under
   `## Proposed curriculum change`.

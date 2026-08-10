@@ -20,6 +20,8 @@
  * inventory predates it and an agent tidying to that inventory would delete it.
  */
 
+import type { LessonDepth } from "@mindforge/core";
+
 /**
  * A signal Mindforge cannot measure yet.
  *
@@ -56,6 +58,29 @@ export interface TrackLesson {
 }
 
 /**
+ * One entry of the open module's plan (FR-K2), as the agent needs to read it.
+ *
+ * The two derived facts are already resolved: whether the lesson is unblocked,
+ * and what is holding it if not. The agent is not given the edge list to reason
+ * over — it would reason about it, and the ordering is Mindforge's job (FR-K7).
+ */
+export interface PlannedLesson {
+  /** What the generated lesson must claim in `<meta name="mindforge:lesson">`. */
+  readonly slug: string;
+  readonly title: string;
+  /** One line from the plan: what this lesson is for. */
+  readonly intent: string | null;
+  /** 1–5, relative to this learner. Null when the plan did not say. */
+  readonly difficulty: number | null;
+  readonly depth: LessonDepth | null;
+  /** Already written. The plan entry and the lesson are one row. */
+  readonly written: boolean;
+  readonly unblocked: boolean;
+  /** Titles of the prerequisites still unfinished, so the reason is legible. */
+  readonly blockedBy: readonly string[];
+}
+
+/**
  * The module this run is teaching within.
  *
  * Lessons are generated one at a time, on demand — the learner finishes one and
@@ -74,6 +99,20 @@ export interface CurrentTrack {
   readonly prerequisites: readonly string[];
   /** Already written, in order. The agent reads these before adding to them. */
   readonly lessons: readonly TrackLesson[];
+  /**
+   * The module's planned lessons, in the order Mindforge would teach them.
+   *
+   * Empty when the module has no plan, which is a real state — a curriculum run
+   * that stopped short leaves one — and the briefing says so rather than implying
+   * the module is finished.
+   */
+  readonly plan: readonly PlannedLesson[];
+  /**
+   * The one the agent should write: first unblocked, unfinished, difficulty
+   * ascending (FR-K7). Null when the plan is empty or everything in it is either
+   * done or locked.
+   */
+  readonly nextLesson: PlannedLesson | null;
 }
 
 export interface BriefingInput {
@@ -160,14 +199,9 @@ function renderTrack(track: Tracked<CurrentTrack>): string {
     "done this one, and a run that writes four has guessed at three of them without seeing",
     "how the first landed.",
     "",
-    "Declare the module in the lesson's `<head>`:",
-    "",
-    "```html",
-    `<meta name="mindforge:track" content="${track.slug}">`,
-    "```",
-    "",
-    "Without it the lesson is filed under no module.",
   ];
+
+  lines.push(...renderPlan(track));
 
   if (track.prerequisites.length > 0) {
     lines.push(
@@ -193,6 +227,103 @@ function renderTrack(track: Tracked<CurrentTrack>): string {
 
 function list(items: readonly string[]): string {
   return items.length === 0 ? "_None._" : items.map((item) => `- ${item}`).join("\n");
+}
+
+/**
+ * The module's plan, and which entry to write.
+ *
+ * The whole plan is shown rather than only the target, because a lesson written
+ * without knowing what comes after it teaches everything at once. The lock states
+ * are shown for the same reason and no other: they are Mindforge's decision, and
+ * an agent told only "write this one" would keep re-deriving an order it has no
+ * dependency graph for.
+ *
+ * When there is no plan the instruction is the pre-M4 one, unchanged. A module
+ * with no plan is a real state — a curriculum run that stopped short leaves one —
+ * and inventing plan entries here would write the curriculum from inside a
+ * teaching run, which is the separation the two skills exist to keep.
+ */
+function renderPlan(track: CurrentTrack): readonly string[] {
+  const lines = ["", "### The plan for this module", ""];
+
+  if (track.plan.length === 0) {
+    lines.push(
+      "This module has no planned lessons yet. Teach the most defensible next thing inside it",
+      "from the mission and the records below, and do not write a plan of your own — the",
+      "`curriculum` skill owns that, deliberately, so it can be revised without discarding",
+      "lessons.",
+      "",
+      "Declare the module in the lesson's `<head>`:",
+      "",
+      "```html",
+      `<meta name="mindforge:track" content="${track.slug}">`,
+      "```",
+      "",
+      "Without it the lesson is filed under no module.",
+    );
+    return lines;
+  }
+
+  lines.push(list(track.plan.map(planLine)));
+
+  if (track.nextLesson === null) {
+    lines.push(
+      "",
+      "**Every planned lesson here is either written or waiting on one that is not.** Write the",
+      "most defensible next thing inside this module without claiming a plan entry, and leave",
+      "`mindforge:lesson` off — claiming an entry that is already written would attach this",
+      "lesson to a row that describes a different one.",
+      "",
+      "```html",
+      `<meta name="mindforge:track" content="${track.slug}">`,
+      "```",
+    );
+    return lines;
+  }
+
+  lines.push(
+    "",
+    `**Write this one: ${track.nextLesson.title}.**`,
+    track.nextLesson.intent === null
+      ? "The plan recorded no intent for it, so work from its title and this module's outcome."
+      : `What it is for: ${track.nextLesson.intent}`,
+    "",
+    "It is the first unblocked, unwritten lesson in the plan — every lesson it depends on is",
+    "finished. That ordering is Mindforge's, from the dependency graph and the difficulty the",
+    "curriculum recorded; you decide what goes *in* the lesson, not which lesson it is.",
+    "",
+    "Both tags go in the lesson's `<head>`:",
+    "",
+    "```html",
+    `<meta name="mindforge:track" content="${track.slug}">`,
+    `<meta name="mindforge:lesson" content="${track.nextLesson.slug}">`,
+    "```",
+    "",
+    "The first files it under this module. The second claims its entry in the plan — without it",
+    "the module counts this lesson twice, once as written and once as still to come.",
+  );
+
+  return lines;
+}
+
+/** One plan row: what it is, how hard, how deep, and whether it can be started. */
+function planLine(lesson: PlannedLesson): string {
+  const facts = [
+    lesson.difficulty === null ? "difficulty unrecorded" : `difficulty ${lesson.difficulty}/5`,
+    lesson.depth === null ? "depth unrecorded" : lesson.depth.replace("_", " "),
+  ];
+
+  if (lesson.written) facts.push("**already written**");
+  else if (!lesson.unblocked) {
+    facts.push(
+      lesson.blockedBy.length === 0
+        ? "waiting on an earlier lesson"
+        : `waiting on: ${lesson.blockedBy.join(", ")}`,
+    );
+  }
+
+  const intent = lesson.intent === null ? "" : ` — ${lesson.intent}`;
+  return `**${lesson.title}** (\`${lesson.slug}\`)${intent}  _(${facts.join("; ")})_`;
 }
 
 /**

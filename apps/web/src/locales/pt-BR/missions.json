@@ -25,7 +25,8 @@
     "unpark": "Retomar",
     "parking": "Pausando",
     "unparking": "Retomando",
-    "noWhy": "Nenhum motivo registrado ainda."
+    "noWhy": "Nenhum motivo registrado ainda.",
+    "openCurriculum": "Currículo"
   },
   "field": {
     "topic": {

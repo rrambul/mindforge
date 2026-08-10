@@ -1,3 +1,4 @@
+export * from "./curriculum/lesson-graph.js";
 export * from "./errors/domain-error.js";
 export * from "./i18n/locales.js";
 export * from "./i18n/server-messages.js";

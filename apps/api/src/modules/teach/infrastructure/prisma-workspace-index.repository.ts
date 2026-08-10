@@ -3,6 +3,7 @@ import { Inject, Injectable } from "@nestjs/common";
 import { USER_SCOPED_DB, type UserScopedDb } from "../../../shared/persistence/user-scoped-db.js";
 import type {
   IndexedLesson,
+  IndexedPlannedLesson,
   IndexedRecord,
   IndexedReferenceDoc,
   IndexedTrack,
@@ -118,11 +119,156 @@ export class PrismaWorkspaceIndexRepository implements WorkspaceIndexRepository 
     return new Map(rows.map((row) => [row.slug, row.id]));
   }
 
+  async savePlannedLessons(
+    userId: string,
+    missionId: string,
+    lessons: readonly IndexedPlannedLesson[],
+  ): Promise<void> {
+    if (lessons.length === 0) return;
+
+    // Only the modules this parse actually contained. The plan is regenerated
+    // wholesale and a run can stop halfway through writing it, so silence about a
+    // module is not a decision about it.
+    const trackIds = [...new Set(lessons.map((lesson) => lesson.trackId))];
+    const idBySlug = new Map<string, string>();
+
+    await this.db.run(userId, async (tx) => {
+      for (const lesson of lessons) {
+        // Looked up rather than inferred from `on conflict`, because the index
+        // that owns the slug is partial: once a lesson has been written from a
+        // plan entry the row leaves it, and an upsert would then insert a second
+        // row for a slug that already has one. Ordered so the plan entry wins
+        // over the legal duplicate case — two written lessons may share a
+        // filename slug, and the earlier one is the one a plan entry became.
+        const existing = await tx.$queryRawUnsafe<{ id: string }[]>(
+          `select id from lessons
+            where mission_id = $1::uuid and slug = $2
+            order by (status = 'planned') desc, seq asc nulls first
+            limit 1`,
+          missionId,
+          lesson.slug,
+        );
+
+        if (existing.length === 0) {
+          const inserted = await tx.$queryRawUnsafe<{ id: string }[]>(
+            `insert into lessons (id, user_id, mission_id, track_id, status, slug, title, intent,
+               difficulty, depth, position, created_at, updated_at)
+             values (gen_random_uuid(), $1::uuid, $2::uuid, $3::uuid, 'planned', $4, $5, $6,
+                     $7::smallint, $8, $9::smallint, now(), now())
+             returning id`,
+            userId,
+            missionId,
+            lesson.trackId,
+            lesson.slug,
+            lesson.title,
+            lesson.intent,
+            lesson.difficulty,
+            lesson.depth,
+            lesson.position,
+          );
+          idBySlug.set(lesson.slug, inserted[0]!.id);
+          continue;
+        }
+
+        await tx.$executeRawUnsafe(
+          // `title` and `track_id` move only while the row is still a plan. Once
+          // there is a file, the file is what the lesson is (non-negotiable 5) and
+          // its `<meta name="mindforge:track">` is where it lives — a regenerated
+          // curriculum must not rename a lesson somebody has read.
+          `update lessons
+              set intent = $2,
+                  difficulty = $3::smallint,
+                  depth = $4,
+                  position = $5::smallint,
+                  title = case when status = 'planned' then $6 else title end,
+                  track_id = case when status = 'planned' then $7::uuid else track_id end,
+                  updated_at = now()
+            where id = $1::uuid`,
+          existing[0]!.id,
+          lesson.intent,
+          lesson.difficulty,
+          lesson.depth,
+          lesson.position,
+          lesson.title,
+          lesson.trackId,
+        );
+        idBySlug.set(lesson.slug, existing[0]!.id);
+      }
+
+      // Dropped from the plan and never written: nothing is lost that the file
+      // cannot say again, and a stale row would be counted forever in a module
+      // fraction it no longer belongs to.
+      await tx.$executeRawUnsafe(
+        `delete from lessons
+          where mission_id = $1::uuid and status = 'planned'
+            and track_id = any($2::uuid[]) and slug <> all($3::text[])`,
+        missionId,
+        trackIds,
+        lessons.map((lesson) => lesson.slug),
+      );
+
+      // Rebuilt, not upserted: an edge carries no state the file does not have,
+      // and a dependency the curriculum removed has to actually go. Scoped to the
+      // modules in this parse, so an edge written by a module it never reached
+      // survives.
+      await tx.$executeRawUnsafe(
+        `delete from lesson_edges
+          where lesson_id in (select id from lessons where track_id = any($1::uuid[]))`,
+        trackIds,
+      );
+
+      for (const lesson of lessons) {
+        const lessonId = idBySlug.get(lesson.slug)!;
+
+        for (const prereqSlug of lesson.prerequisiteSlugs) {
+          const prereqId = idBySlug.get(prereqSlug);
+          if (prereqId === undefined || prereqId === lessonId) continue;
+          await tx.$executeRawUnsafe(
+            `insert into lesson_edges (user_id, lesson_id, prereq_id)
+             values ($1::uuid, $2::uuid, $3::uuid) on conflict do nothing`,
+            userId,
+            lessonId,
+            prereqId,
+          );
+        }
+      }
+    });
+  }
+
   async saveLessons(userId: string, lessons: readonly IndexedLesson[]): Promise<void> {
     if (lessons.length === 0) return;
 
     await this.db.run(userId, async (tx) => {
       for (const lesson of lessons) {
+        // The plan entry this file claims stops being an intention and becomes the
+        // file: same row, same id, so its intent, its difficulty and every edge
+        // pointing at it survive. `(mission_id, seq)` cannot express this — the
+        // planned row has no seq to conflict on — so the claim is its own update,
+        // and the insert below only runs when nothing was claimed.
+        const claimed =
+          lesson.planSlug === null
+            ? 0
+            : await tx.$executeRawUnsafe(
+                `update lessons
+                    set status = 'generated',
+                        track_id = $3::uuid,
+                        seq = $4::int,
+                        title = $5,
+                        storage_path = $6,
+                        content_hash = $7,
+                        updated_at = now()
+                  where mission_id = $1::uuid and slug = $2 and status = 'planned'`,
+                lesson.missionId,
+                lesson.planSlug,
+                lesson.trackId,
+                lesson.seq,
+                lesson.title,
+                lesson.storagePath,
+                lesson.contentHash,
+              );
+
+        if (claimed > 0) continue;
+
         await tx.$executeRawUnsafe(
           `insert into lessons (id, user_id, mission_id, track_id, seq, slug, title, storage_path,
              content_hash, created_at, updated_at)
@@ -139,7 +285,12 @@ export class PrismaWorkspaceIndexRepository implements WorkspaceIndexRepository 
           lesson.missionId,
           lesson.trackId,
           lesson.seq,
-          lesson.slug,
+          // The plan's slug wins over the filename's when the file claims one, on
+          // the insert as well as on the claim. It is what the plan looks the row
+          // up by, so a lesson whose file was renamed — or whose row was rebuilt
+          // from Storage — re-attaches to its plan entry instead of quietly
+          // becoming a second lesson beside it.
+          lesson.planSlug ?? lesson.slug,
           lesson.title,
           lesson.storagePath,
           lesson.contentHash,

@@ -1,0 +1,58 @@
+/* The curriculum screen (FR-K5): modules, and the lessons planned inside them. */
+
+.mf-lesson-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--mf-space-2);
+}
+
+/**
+ * A lesson's state is carried by a rail down its left edge, not by its text colour.
+ *
+ * Colour is the second channel here and never the only one: a locked lesson also
+ * says what it is waiting for, and a finished one carries a chip. The rail is what
+ * makes a module scannable — where you are in it is a shape, not a sentence you
+ * have to read four times.
+ */
+.mf-lesson-line {
+  display: flex;
+  flex-direction: column;
+  gap: var(--mf-space-1);
+  padding: var(--mf-space-2) 0 var(--mf-space-2) var(--mf-space-3);
+  border-left: 3px solid var(--mf-border);
+}
+
+.mf-lesson-line__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--mf-space-2);
+}
+
+/* Available now: the only state that gets a full-strength rail. */
+.mf-lesson-line[data-state="unblocked"] {
+  border-left-color: var(--mf-accent);
+}
+
+/**
+ * Locked is dimmer, and that is the whole treatment.
+ *
+ * Not hidden and not collapsed: seeing what is ahead is most of why this screen
+ * exists, and a plan that only shows what you can do today is a to-do list.
+ */
+.mf-lesson-line[data-state="locked"] {
+  opacity: 0.7;
+}
+
+.mf-lesson-line[data-state="completed"] {
+  border-left-color: var(--mf-success, var(--mf-accent));
+}
+
+/* The one lesson the plan would have you do next, findable in a long module. */
+.mf-lesson-line[data-next] {
+  background: var(--mf-surface-raised, transparent);
+  border-radius: var(--mf-radius-sm, 4px);
+}

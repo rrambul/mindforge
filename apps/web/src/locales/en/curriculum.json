@@ -1,0 +1,40 @@
+{
+  "heading": "Curriculum",
+  "back": "All missions",
+  "empty": {
+    "heading": "No curriculum yet",
+    "body": "The modules and their planned lessons are written by the curriculum skill, in this mission's workspace. Run it from a terminal:",
+    "command": "/curriculum",
+    "then": "The next teach run picks the file up and indexes it here."
+  },
+  "module": {
+    "outcome": "Afterwards you can: {outcome}",
+    "noOutcome": "The curriculum didn't record an outcome for this module.",
+    "builtOn": "Built on {modules}",
+    "progress": "{completed} of {total} lessons done",
+    "noPlan": "No lessons planned here yet.",
+    "lessons": "Lessons in {module}",
+    "dropped": "Dropped from the plan"
+  },
+  "lesson": {
+    "next": "Next",
+    "completed": "Done",
+    "fundamental": "{count, plural, one {# lesson builds on this} other {# lessons build on this}}",
+    "difficulty": "Difficulty {level} of 5",
+    "difficultyUnknown": "Difficulty not recorded",
+    "depthUnknown": "Depth not recorded",
+    "notWrittenYet": "not written yet",
+    "lockedBy": "Waiting on {lessons}",
+    "lockedUnnamed": "Waiting on an earlier lesson"
+  },
+  "depth": {
+    "overview": "Overview",
+    "working": "Working knowledge",
+    "deep_dive": "Deep dive"
+  },
+  "outcome": {
+    "understood": "Understood",
+    "shaky": "Shaky",
+    "lost": "Lost"
+  }
+}

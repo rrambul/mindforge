@@ -56,6 +56,21 @@ interface TrackSpec {
   readonly status: "proposed" | "active" | "done" | "dropped";
   /** Lessons: [slug, title, outcome | null], in seq order. Null outcome = never opened. */
   readonly lessons: readonly (readonly [string, string, "understood" | "shaky" | "lost" | null])[];
+  /**
+   * Lessons the curriculum planned and nothing has written yet (FR-K2):
+   * `[slug, title, difficulty, depth, depends-on slugs]`.
+   *
+   * These are what make the curriculum screen worth looking at in a seeded
+   * account. Without them every module is finished or empty, and the two states
+   * the screen exists to show — locked, and what to do next — never appear.
+   */
+  readonly planned?: readonly (readonly [
+    string,
+    string,
+    number,
+    "overview" | "working" | "deep_dive",
+    readonly string[],
+  ])[];
 }
 
 const RUST_TRACKS: readonly TrackSpec[] = [
@@ -95,6 +110,18 @@ const RUST_TRACKS: readonly TrackSpec[] = [
       ["annotating-functions", "Annotating functions", "lost"],
       ["structs-holding-references", "Structs that hold references", null],
     ],
+    // The open module, mid-plan: two written, one unread, two still ahead — and
+    // the last of those is locked behind one of them.
+    planned: [
+      [
+        "lifetimes-in-impls",
+        "Lifetimes in impl blocks",
+        4,
+        "working",
+        ["structs-holding-references"],
+      ],
+      ["higher-ranked", "Higher-ranked trait bounds", 5, "deep_dive", ["lifetimes-in-impls"]],
+    ],
   },
   {
     slug: "traits",
@@ -103,6 +130,13 @@ const RUST_TRACKS: readonly TrackSpec[] = [
     prereqs: ["ownership"],
     status: "proposed",
     lessons: [],
+    // A module planned in full and not started: every lesson unblocked-by-plan
+    // but gated behind the module before it, which is the common shape.
+    planned: [
+      ["defining-traits", "Defining a trait", 2, "overview", []],
+      ["generic-functions", "Generic functions", 3, "working", ["defining-traits"]],
+      ["trait-objects", "Trait objects and dispatch", 4, "deep_dive", ["generic-functions"]],
+    ],
   },
   {
     slug: "error-handling",
@@ -151,6 +185,10 @@ const DIST_TRACKS: readonly TrackSpec[] = [
     prereqs: ["failure-models"],
     status: "active",
     lessons: [["leaders-and-followers", "Leaders and followers", "understood"]],
+    planned: [
+      ["quorums", "Quorums and the trade they make", 3, "working", []],
+      ["read-repair", "Read repair", 4, "deep_dive", ["quorums"]],
+    ],
   },
   {
     slug: "consensus",
@@ -179,6 +217,7 @@ async function main(): Promise<void> {
     const lessons = {
       count: 0,
       completed: 0,
+      planned: 0,
     };
     const trackCount =
       (await seedCurriculum(
@@ -218,7 +257,8 @@ async function main(): Promise<void> {
     process.stdout.write(
       `seed:rich — ${options.email} / ${options.password} (${tz})\n` +
         `  ${DAYS} days from ${from} to ${today}\n` +
-        `  ${missions.length} missions, ${trackCount} tracks, ${lessons.count} lessons (${lessons.completed} completed)\n` +
+        `  ${missions.length} missions, ${trackCount} tracks, ${lessons.count} lessons ` +
+        `(${lessons.completed} completed, ${lessons.planned} planned, not yet written)\n` +
         `  ${sessionCount} sessions on ${activeDays.length} days, ${rollup.daysWritten} rollup rows\n`,
     );
   } finally {
@@ -298,7 +338,7 @@ async function seedCurriculum(
   from: IsoDate,
   startOffset: number,
   tz: string,
-  tally: { count: number; completed: number },
+  tally: { count: number; completed: number; planned: number },
 ): Promise<number> {
   const bySlug = new Map<string, string>();
 
@@ -329,7 +369,7 @@ async function seedCurriculum(
   let seq = 0;
   let day = addDays(from, startOffset);
   for (const spec of tracks) {
-    for (const [slug, title, outcome] of spec.lessons) {
+    for (const [index, [slug, title, outcome]] of spec.lessons.entries()) {
       seq += 1;
       tally.count += 1;
       // Lessons complete every few days; the last ones land well inside the window.
@@ -345,6 +385,15 @@ async function seedCurriculum(
           seq,
           slug,
           title,
+          // A written lesson keeps the plan half of its row, because a real one
+          // does: it was planned before it was written, and the curriculum screen
+          // reads difficulty and depth on every lesson, not only the pending ones.
+          // Derived from where it sits rather than listed per lesson — a module
+          // that starts easy and deepens is the shape being imitated.
+          intent: `What ${title.toLowerCase()} buys you.`,
+          difficulty: Math.min(5, index + 1),
+          depth: index === 0 ? "overview" : "working",
+          position: index + 1,
           storagePath: `workspaces/${userId}/${workspaceKey}/lessons/${String(seq).padStart(4, "0")}-${slug}.html`,
           contentHash: `seed-${workspaceKey}-${seq}`,
           completedAt,
@@ -354,7 +403,71 @@ async function seedCurriculum(
     }
   }
 
+  await seedPlan(prisma, userId, mission, tracks, bySlug, tally);
+
   return tracks.length;
+}
+
+/**
+ * The lessons a curriculum planned and nothing has written yet.
+ *
+ * Written after every module's lessons exist, because a plan entry may depend on
+ * one already written — which is the case the curriculum screen has to get right:
+ * a lesson waiting on an unread lesson is locked, and a lesson waiting on a
+ * finished one is what to do next.
+ */
+async function seedPlan(
+  prisma: ReturnType<typeof connect>,
+  userId: string,
+  mission: Named,
+  tracks: readonly TrackSpec[],
+  bySlug: ReadonlyMap<string, string>,
+  tally: { count: number; planned: number },
+): Promise<void> {
+  const lessonIds = new Map<string, string>();
+
+  for (const existing of await prisma.lesson.findMany({
+    where: { userId, missionId: mission.id },
+    select: { id: true, slug: true },
+  })) {
+    lessonIds.set(existing.slug, existing.id);
+  }
+
+  for (const spec of tracks) {
+    for (const [index, [slug, title, difficulty, depth]] of (spec.planned ?? []).entries()) {
+      tally.count += 1;
+      tally.planned += 1;
+
+      const created = await prisma.lesson.create({
+        data: {
+          userId,
+          missionId: mission.id,
+          trackId: bySlug.get(spec.slug)!,
+          status: "planned",
+          slug,
+          title,
+          intent: `What ${title.toLowerCase()} buys you.`,
+          difficulty,
+          depth,
+          position: spec.lessons.length + index + 1,
+        },
+        select: { id: true },
+      });
+      lessonIds.set(slug, created.id);
+    }
+  }
+
+  for (const spec of tracks) {
+    for (const [slug, , , , dependsOn] of spec.planned ?? []) {
+      for (const prereq of dependsOn) {
+        const prereqId = lessonIds.get(prereq);
+        if (prereqId === undefined) continue;
+        await prisma.lessonEdge.create({
+          data: { userId, lessonId: lessonIds.get(slug)!, prereqId },
+        });
+      }
+    }
+  }
 }
 
 /**

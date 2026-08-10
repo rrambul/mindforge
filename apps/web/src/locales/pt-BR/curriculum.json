@@ -1,0 +1,40 @@
+{
+  "heading": "Currículo",
+  "back": "Todas as missões",
+  "empty": {
+    "heading": "Ainda sem currículo",
+    "body": "Os módulos e suas lições planejadas são escritos pela skill de currículo, no workspace desta missão. Execute-a em um terminal:",
+    "command": "/curriculum",
+    "then": "A próxima execução de ensino lê o arquivo e o indexa aqui."
+  },
+  "module": {
+    "outcome": "Depois você consegue: {outcome}",
+    "noOutcome": "O currículo não registrou um resultado para este módulo.",
+    "builtOn": "Apoia-se em {modules}",
+    "progress": "{completed} de {total} lições concluídas",
+    "noPlan": "Nenhuma lição planejada aqui ainda.",
+    "lessons": "Lições em {module}",
+    "dropped": "Removido do plano"
+  },
+  "lesson": {
+    "next": "Próxima",
+    "completed": "Concluída",
+    "fundamental": "{count, plural, one {# lição se apoia nesta} other {# lições se apoiam nesta}}",
+    "difficulty": "Dificuldade {level} de 5",
+    "difficultyUnknown": "Dificuldade não registrada",
+    "depthUnknown": "Profundidade não registrada",
+    "notWrittenYet": "ainda não escrita",
+    "lockedBy": "Aguardando {lessons}",
+    "lockedUnnamed": "Aguardando uma lição anterior"
+  },
+  "depth": {
+    "overview": "Visão geral",
+    "working": "Uso prático",
+    "deep_dive": "Aprofundamento"
+  },
+  "outcome": {
+    "understood": "Entendi",
+    "shaky": "Inseguro",
+    "lost": "Perdido"
+  }
+}

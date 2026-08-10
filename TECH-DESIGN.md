@@ -379,22 +379,43 @@ create table learning_records (
 );
 ````
 
-### 3.2b The planned-lesson model (M4 — designed, not yet migrated)
+### 3.2b The planned-lesson model (M4 — migrated in `20260810160000_planned_lessons`)
 
-The refocused flow needs three things the schema does not have yet, and they arrive **with the
+The refocused flow needed three things the M3 schema did not have, and they arrived **with the
 parser and UI that write and read them** — a column nothing writes has burned this project twice
 (`focus_sessions.mission_id` in M2, `missions.workspace_key` in M3).
 
 ```sql
--- M4 migration, when the curriculum skill starts planning lessons:
-
 alter table lessons add column status text not null default 'generated'
   check (status in ('planned','generated'));   -- a planned lesson has no file yet
 alter table lessons add column intent text;     -- one line, from CURRICULUM.md
 alter table lessons add column difficulty smallint
-  check (difficulty between 1 and 5);           -- how hard, for YOU (FR-K2)
+  check (difficulty is null or difficulty between 1 and 5);  -- how hard, for YOU (FR-K2)
 alter table lessons add column depth text
-  check (depth in ('overview','working','deep_dive'));  -- how far down (FR-K2)
+  check (depth is null or depth in ('overview','working','deep_dive'));  -- how far down (FR-K2)
+alter table lessons add column position smallint;  -- the plan's row order in its module
+
+-- A planned lesson has no file, so the three columns describing one become
+-- nullable — and stay effectively NOT NULL for anything generated.
+alter table lessons alter column seq          drop not null;
+alter table lessons alter column storage_path drop not null;
+alter table lessons alter column content_hash drop not null;
+
+alter table lessons add constraint lessons_generated_has_file
+  check (status <> 'generated'
+         or (seq is not null and storage_path is not null and content_hash is not null));
+alter table lessons add constraint lessons_planned_has_no_file
+  check (status <> 'planned'
+         or (seq is null and storage_path is null and content_hash is null));
+-- A lesson nobody can open cannot have been understood (non-negotiable 10).
+alter table lessons add constraint lessons_planned_not_completed
+  check (status <> 'planned' or (completed_at is null and outcome is null));
+
+-- Partial, and that is the design: the plan owns each slug once per mission, and
+-- hands it over the moment a generated lesson claims it.
+create unique index lessons_planned_slug_key
+  on lessons(mission_id, slug) where status = 'planned';
+create index lessons_track_id_position_idx on lessons(track_id, position);
 
 -- "A depends on B". Read forward it locks A until B is completed; read backward
 -- it makes B fundamental for A. One edge, both readings (FR-K6, FR-K7).
@@ -405,22 +426,34 @@ create table lesson_edges (
   primary key (lesson_id, prereq_id),
   check (lesson_id <> prereq_id)
 );
+create index lesson_edges_user_id_prereq_id_idx on lesson_edges(user_id, prereq_id);
 ```
 
-Four rules that carry the design:
+Six rules that carry the design:
 
-1. **Planned lessons are rows without files.** `CURRICULUM.md` gains a per-module lesson table
+1. **Planned lessons are rows without files.** `CURRICULUM.md` gained a per-module lesson table
    (slug, title, intent, difficulty, depth, depends-on); the reindexer upserts them as
    `status = 'planned'` with no `storage_path`. Generation attaches the file and flips the status —
    the generated lesson claims its plan entry via `<meta name="mindforge:lesson">`.
-2. **Module progress = completed / planned** (FR-P2), computed on read in `packages/core`. The
-   denominator exists now because the plan does — which is what v0.1's "no fractions" rule was
-   actually about, and why it is retired rather than violated.
-3. **`fundamental` and `unblocked` are derived, never stored.** A lesson with dependents is
+2. **One row, two lives — never two rows joined.** The claimed plan entry _is_ the lesson row, so
+   `lessons.slug` is the plan's identity and `lessons_planned_slug_key` enforces it. It is
+   **partial** so the slug is released as the row flips: two written lessons may legitimately share
+   a filename slug (`0003-recap.html`, `0011-recap.html`), and a total unique would fail the
+   reindex of a workspace that has them. Generated rows keep `(mission_id, seq)` as their identity,
+   unchanged.
+3. **Module progress = completed / planned** (FR-P2), computed on read in `packages/core`. The
+   denominator is every lesson row in the module — the plan as it now stands, plus anything taught
+   off-plan — which is why it needs no "was this planned?" flag to stay honest. A module with no
+   rows at all has no denominator and renders as unknown, never as 0%.
+4. **`fundamental` and `unblocked` are derived, never stored.** A lesson with dependents is
    fundamental; a lesson whose prerequisites are all completed is unblocked. Both read off
    `lesson_edges` in `packages/core` (M4, beside the module-progress maths); the parser breaks
-   cycles the way it already does for `track_edges`.
-4. **"Next lesson"** is the first unblocked, incomplete planned lesson in module order, difficulty
+   cycles the way it already does for `track_edges`, and refuses an edge into a later module — a
+   lesson locked behind work the plan puts after it would never unblock.
+5. **`position` is a plan, exactly like `tracks.position`.** It is the row order the module table
+   was written in: the display order and the tie-break, never the sequencing. FR-K7 sequences from
+   `lesson_edges` and difficulty.
+6. **"Next lesson"** is the first unblocked, incomplete planned lesson in module order, difficulty
    ascending within a module (FR-K7). The briefing names it; the agent still decides.
 
 ### 3.3 The time tracker
@@ -1109,7 +1142,7 @@ excluded from indexing by name.
 | File                         | Parsed into                                                                              | Parser                                          |
 | ---------------------------- | ---------------------------------------------------------------------------------------- | ----------------------------------------------- |
 | `MISSION.md`                 | `missions` (revisions via `applyEdit`, never `## History`)                               | Headed-section Markdown per `MISSION-FORMAT.md` |
-| `CURRICULUM.md`              | `tracks`, `track_edges`                                                                  | Markdown tables per `CURRICULUM-FORMAT.md`      |
+| `CURRICULUM.md`              | `tracks`, `track_edges`, planned `lessons`, `lesson_edges`                               | Markdown tables per `CURRICULUM-FORMAT.md`      |
 | `RESOURCES.md`               | **nothing** — a workspace file for the agent's grounding (FR-K4), synced but not indexed | —                                               |
 | `learning-records/NNNN-*.md` | `learning_records`                                                                       | Sections per `LEARNING-RECORD-FORMAT.md`        |
 | `lessons/NNNN-*.html`        | `lessons` (title from `<title>`/`<h1>`, track from `<meta>`)                             | Cheerio                                         |
@@ -1125,6 +1158,14 @@ A lesson's `track_id` comes from its own `<meta name="mindforge:track">`, never 
 `CURRICULUM.md`, and resolves against every track that already exists rather than only those parsed
 in the same run — the run that writes a lesson normally leaves the curriculum untouched. A tag
 naming a track that does not exist leaves the lesson unfiled with a warning.
+
+The `## Module:` tables are the one place `CURRICULUM.md` does write `lessons`, and only ever the
+planned half of one: a row with no file, upserted on `(mission_id, slug)` (§3.2b). It never touches a
+row that already has a file — the plan may revise a lesson's title, intent, difficulty and
+dependencies, and it may not revise what a lesson turned out to be, which is what the file says. A
+planned lesson that vanishes from a regeneration is deleted rather than marked, because a row with
+nothing behind it is the one thing here that costs nothing to rebuild; a _written_ lesson dropped
+from the plan keeps its row and its module, and the plan simply stops mentioning it.
 
 **Parse defensively.** The `teach` skill's formats are a contract you don't control; a format change must degrade to "file stored, partially indexed", never "run failed" and never "content lost". Every parser returns `{ parsed, warnings[] }` and warnings surface in the run result.
 

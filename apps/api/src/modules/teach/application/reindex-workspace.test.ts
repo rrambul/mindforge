@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { UpdateMission } from "../../missions/application/update-mission.js";
 import type {
   IndexedLesson,
+  IndexedPlannedLesson,
   IndexedRecord,
   IndexedReferenceDoc,
   IndexedTrack,
@@ -30,6 +31,17 @@ const files = (entries: Record<string, string>): ReadonlyMap<string, Uint8Array>
 
 const LESSON = "<title>Closures</title><body><p>x</p></body>";
 
+/** Tracks and no module tables — a curriculum the run stopped halfway through. */
+const CURRICULUM_ONLY = `# Curriculum
+
+## Tracks
+
+| Order | Slug       | Track            | Prerequisites |
+| ----- | ---------- | ---------------- | ------------- |
+| 1     | iam-basics | IAM fundamentals | —             |
+| 2     | iam-deep   | IAM in anger     | iam-basics    |
+`;
+
 function harness() {
   const saved = {
     lessons: [] as IndexedLesson[],
@@ -37,6 +49,7 @@ function harness() {
     records: [] as IndexedRecord[],
     forgotten: [] as string[],
     tracks: [] as IndexedTrack[],
+    planned: [] as IndexedPlannedLesson[],
   };
 
   /** Track slugs the mission already has, for the run that writes no curriculum. */
@@ -49,6 +62,10 @@ function harness() {
       return Promise.resolve(new Map(existingTracks));
     },
     trackIdsBySlug: () => Promise.resolve(new Map(existingTracks)),
+    savePlannedLessons: (_u, _m, lessons) => {
+      saved.planned.push(...lessons);
+      return Promise.resolve();
+    },
     saveLessons: (_u, lessons) => {
       saved.lessons.push(...lessons);
       return Promise.resolve();
@@ -380,5 +397,55 @@ AWS
     expect(result.lessons).toBe(1);
     expect(result.tracks).toBe(0);
     expect(result.warnings.map((w) => w.code)).toContain("value_malformed");
+  });
+});
+
+describe("the module tables", () => {
+  const PLANNED = `# Curriculum
+
+## Tracks
+
+| Order | Slug       | Track            | Prerequisites |
+| ----- | ---------- | ---------------- | ------------- |
+| 1     | iam-basics | IAM fundamentals | —             |
+| 2     | iam-deep   | IAM in anger     | iam-basics    |
+
+## Module: iam-basics
+
+| Slug           | Lesson              | Intent       | Difficulty | Depth    | Depends on     |
+| -------------- | ------------------- | ------------ | ---------- | -------- | -------------- |
+| policy-anatomy | Anatomy of a policy | Name a part  | 1          | overview | —              |
+| policy-reading | Reading one         | Say what for | 2          | working  | policy-anatomy |
+`;
+
+  it("writes each module's lessons against the track they were planned under", async () => {
+    const result = await run({ "CURRICULUM.md": PLANNED });
+
+    expect(result.plannedLessons).toBe(2);
+    expect(h.saved.planned[1]).toEqual({
+      slug: "policy-reading",
+      title: "Reading one",
+      intent: "Say what for",
+      difficulty: 2,
+      depth: "working",
+      position: 2,
+      trackId: "track-iam-basics",
+      prerequisiteSlugs: ["policy-anatomy"],
+    });
+  });
+
+  it("plans nothing when the curriculum has no module tables yet", async () => {
+    // The half-written curriculum, which is the normal state of a run that
+    // stopped short. Its tracks still index.
+    const result = await run({ "CURRICULUM.md": CURRICULUM_ONLY });
+
+    expect(result.tracks).toBe(2);
+    expect(result.plannedLessons).toBe(0);
+    expect(h.saved.planned).toEqual([]);
+  });
+
+  it("does not plan anything on a run that did not write the curriculum", async () => {
+    await run({ "lessons/0001-x.html": LESSON });
+    expect(h.saved.planned).toEqual([]);
   });
 });

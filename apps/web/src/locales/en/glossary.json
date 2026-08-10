@@ -13,5 +13,11 @@
     "teaching_preference": "How you like to be taught",
     "learning_pattern": "How you learn",
     "constraint": "Constraint"
+  },
+  "trackStatus": {
+    "proposed": "Proposed",
+    "active": "Open",
+    "done": "Finished",
+    "dropped": "Dropped"
   }
 }

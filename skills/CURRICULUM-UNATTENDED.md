@@ -42,15 +42,19 @@ So:
 - **`SKILL.md`, `CURRICULUM-FORMAT.md`** — this skill's own documentation, placed here so its links
   resolve.
 
-## Write no lessons
+## Plan the lessons; write none of them
 
-`./lessons/` is not yours. Lessons are generated one at a time by the `teach` skill, when the learner
-opens a module and asks for the next one — which is what lets each lesson be shaped by how the last one
-landed.
+You plan every module's lessons in `CURRICULUM.md` — slug, title, intent, difficulty, depth,
+dependencies. That is the whole of your involvement with lessons.
 
-A curriculum run that also wrote lessons would have guessed at all of them at once, and it would have
-done so at the moment it knew least about this learner. If you find yourself drafting lesson content,
-that belongs in the track's `Outcome` line, compressed.
+`./lessons/` is not yours. Lesson content is generated one at a time by the `teach` skill, when the
+learner opens a module and asks for the next one — which is what lets each lesson be shaped by how the
+last one landed. A run that also wrote the lessons would have written all of them at the moment it
+knew least about this learner.
+
+The line between the two is the intent column: one line saying what the lesson is for is a plan, and
+anything the learner could read and learn from is material. If you find yourself drafting explanation,
+stop and compress it back to intent.
 
 ## Revising an existing curriculum
 
@@ -59,9 +63,11 @@ learning records, then `NOTES.md`.
 
 - **Keep the slug of every track that still exists**, even when you rename it. A written lesson points
   at the slug, and changing it orphans the module the learner has already built.
-- **Never drop a track that has lessons.** Check `./lessons/` for
-  `<meta name="mindforge:track" content="<slug>">` before removing anything. If a track with lessons
-  should go, leave it in place and say why in `NOTES.md`.
+- **Keep the slug of every planned lesson that still exists.** A written lesson claims its plan entry
+  by slug, so a renamed slug makes the app believe a finished lesson is still ahead of them.
+- **Never drop a track or a lesson that has been written.** Check `./lessons/` for
+  `<meta name="mindforge:track" content="<slug>">` and `<meta name="mindforge:lesson">` before
+  removing anything. If something written should go, leave it in place and say why in `NOTES.md`.
 - **Add to `## History`** rather than replacing it, and write a learning record capturing what changed
   and why — the same as a mission revision.
 
@@ -71,3 +77,8 @@ A run that ends without a readable `CURRICULUM.md` is recorded as a failed run, 
 If you are near your turn limit, write the tracks you are confident in and note in `NOTES.md` that the
 list is short — a curriculum of six solid subtopics is a better artifact than fifteen where the last
 nine were rushed.
+
+**Write the file in one piece, tracks table first.** If you run out of turns partway through the
+module tables, what you have written is still a curriculum: Mindforge indexes the tracks it can read
+and says which modules have no plan yet, rather than showing a zero. Note the modules you did not get
+to in `NOTES.md` under `## Curriculum questions` so the next run knows where to resume.

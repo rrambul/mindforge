@@ -23,6 +23,7 @@ import { UpdateMission } from "../../missions/application/update-mission.js";
 import {
   WORKSPACE_INDEX_REPOSITORY,
   type IndexedLesson,
+  type IndexedPlannedLesson,
   type IndexedRecord,
   type IndexedReferenceDoc,
   type IndexedTrack,
@@ -79,6 +80,8 @@ export interface ReindexInput {
 interface Curriculum {
   /** Track slug → id, scoped to this mission. */
   readonly trackIds: ReadonlyMap<string, string>;
+  /** How many planned lessons this run wrote. Zero when the file was untouched. */
+  readonly plannedLessons: number;
 }
 
 export interface ReindexResult {
@@ -86,6 +89,8 @@ export interface ReindexResult {
   readonly referenceDocs: number;
   readonly records: number;
   readonly tracks: number;
+  /** Rows the plan wrote: lessons that exist as intentions and not yet as files. */
+  readonly plannedLessons: number;
   readonly warnings: readonly ParseWarning[];
 }
 
@@ -122,12 +127,13 @@ export class ReindexWorkspace {
       referenceDocs: referenceDocs.length,
       records: records.length,
       tracks: curriculum.trackIds.size,
+      plannedLessons: curriculum.plannedLessons,
       warnings,
     };
   }
 
   /**
-   * `CURRICULUM.md` → tracks and their edges.
+   * `CURRICULUM.md` → tracks, their edges, and each module's planned lessons.
    */
   private async reindexCurriculum(
     input: ReindexInput,
@@ -141,7 +147,7 @@ export class ReindexWorkspace {
     // need somewhere to resolve their `<meta>` tag against.
     if (!source) {
       const trackIds = await this.index.trackIdsBySlug(input.userId, input.missionId);
-      return { trackIds };
+      return { trackIds, plannedLessons: 0 };
     }
 
     const { parsed, warnings: fileWarnings } = parseCurriculum(decoder.decode(source));
@@ -157,7 +163,33 @@ export class ReindexWorkspace {
 
     const trackIds = await this.index.saveTracks(input.userId, input.missionId, tracks);
 
-    return { trackIds };
+    // A planned lesson whose module did not survive the parse has nowhere to
+    // live: `lessons.track_id` would be null, and a planned row with no module is
+    // outside every fraction and every list the curriculum screen draws. The
+    // parser only produces one when a module section resolved, so this is the
+    // belt to `saveTracks` having refused the row for some other reason.
+    const planned: IndexedPlannedLesson[] = [];
+    for (const lesson of parsed.lessons) {
+      const trackId = trackIds.get(lesson.trackSlug);
+      if (trackId === undefined) {
+        warnings.push(warn("value_unknown", { field: "module", value: lesson.trackSlug }));
+        continue;
+      }
+      planned.push({
+        slug: lesson.slug,
+        title: lesson.title,
+        intent: lesson.intent,
+        difficulty: lesson.difficulty,
+        depth: lesson.depth,
+        position: lesson.position,
+        trackId,
+        prerequisiteSlugs: lesson.dependsOn,
+      });
+    }
+
+    await this.index.savePlannedLessons(input.userId, input.missionId, planned);
+
+    return { trackIds, plannedLessons: planned.length };
   }
 
   /**
@@ -233,6 +265,10 @@ export class ReindexWorkspace {
         storagePath: path,
         contentHash: sha256(bytes),
         trackId: this.resolveTrack(parsed.trackSlug, curriculum, filename, warnings),
+        // Not resolved to an id here: the row it names may not exist, and whether
+        // it does is a question about the mission's rows rather than about the
+        // file. The repository is where that lookup belongs.
+        planSlug: parsed.planSlug,
       });
     }
 

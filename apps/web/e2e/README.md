@@ -17,6 +17,7 @@ Playwright starts the API and the web dev server itself, and reuses them if you 
 | Sign up → sign in → sign out                               | `auth.spec.ts`            |
 | A new account is seeded from the browser it signed up in   | `signup-calendar.spec.ts` |
 | Create a mission → teach it → a run is queued and reported | `teach.spec.ts`           |
+| A mission card → its curriculum, empty state and all       | `curriculum.spec.ts`      |
 
 ## What is not, yet
 

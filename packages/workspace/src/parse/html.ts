@@ -33,6 +33,20 @@ import { type Parsed, type ParseWarning, warn } from "./result.js";
  */
 const TRACK_META = "mindforge:track";
 
+/**
+ * `<meta name="mindforge:lesson">` — which plan entry this file is.
+ *
+ * A lesson is generated *from* a row `CURRICULUM.md` planned, and this tag is how
+ * the file says which one, so that the plan entry and the written lesson stay one
+ * row (§3.2b). Without it the reindexer has a written lesson and an unclaimed plan
+ * entry, and the module's fraction counts the same lesson twice — once as done and
+ * once as still to come.
+ *
+ * Null is legal and permanent: a lesson taught off-plan claims nothing, and so
+ * does every lesson written before the plan existed.
+ */
+const LESSON_META = "mindforge:lesson";
+
 export interface ParsedHtmlDoc {
   /** Never null: the fallback chain ends at the de-slugged filename. */
   readonly title: string;
@@ -47,6 +61,13 @@ export interface ParsedHtmlDoc {
    * not warned about on reference docs, and is only a soft signal on lessons.
    */
   readonly trackSlug: string | null;
+  /**
+   * The planned lesson this file claims to be, or null when it claims none.
+   *
+   * Read the same way as the track tag and for the same reason: the plan entry it
+   * names is a row, and the file is what says which.
+   */
+  readonly planSlug: string | null;
   /** Relative `./assets/…` references, deduplicated and in document order. */
   readonly assets: readonly string[];
   /** Relative links to other lessons and reference docs. */
@@ -151,12 +172,20 @@ function parseHtml(
     warnings.push(warn("value_duplicated", { field: TRACK_META, value: declared.join(", ") }));
   }
 
+  const claimed = metaValues($, LESSON_META);
+  if (claimed.length > 1) {
+    // One file cannot be two plan entries. Claiming both would take two rows out
+    // of the plan for one lesson, and the module would lose a lesson it still owes.
+    warnings.push(warn("value_duplicated", { field: LESSON_META, value: claimed.join(", ") }));
+  }
+
   return {
     parsed: {
       title,
       seq,
       slug,
       trackSlug: declared[0] ?? null,
+      planSlug: claimed[0] ?? null,
       assets: [...assets],
       crossLinks: [...crossLinks],
     },

@@ -2,9 +2,11 @@ import {
   createRootRouteWithContext,
   createRoute,
   createRouter,
+  useParams,
   type AnyRoute,
 } from "@tanstack/react-router";
 import type { ReactElement } from "react";
+import { CurriculumScreen } from "./CurriculumScreen.js";
 import { InsightsScreen } from "./InsightsScreen.js";
 import { MissionsScreen } from "./MissionsScreen.js";
 import { SettingsScreen } from "./SettingsScreen.js";
@@ -46,10 +48,49 @@ function screen(path: string, component: () => ReactElement): AnyRoute {
 
 export const todayRoute = screen("/", TodayScreen);
 export const missionsRoute = screen("/missions", MissionsScreen);
+/**
+ * The one route with a parameter, and the only screen not in the nav: a curriculum
+ * belongs to a mission, so it is reached from that mission's card rather than from
+ * a bar item that would have to guess which mission you meant (FR-K5).
+ *
+ * The id is read here and handed down as a prop rather than read inside the
+ * screen. `router.tsx` imports every screen, so a screen that asked for its own
+ * params would depend on the `Register` augmentation at the bottom of this file,
+ * which depends on the tree that contains that screen — a cycle TypeScript breaks
+ * by widening the id to `any`, silently, on the way into a query key.
+ */
+function CurriculumRouteScreen(): ReactElement {
+  return (
+    <CurriculumScreen
+      missionId={pathParam(useParams({ from: "/missions/$missionId" }), "missionId")}
+    />
+  );
+}
+
+/**
+ * One named segment of the current path, as a string.
+ *
+ * Narrowed from `unknown` rather than read off the hook's return type, because
+ * that type is the casualty of the cycle described above and is `any` — and an
+ * `any` that reaches a query key is a cache entry keyed on nothing.
+ */
+function pathParam(params: unknown, name: string): string {
+  if (typeof params !== "object" || params === null) return "";
+  const value = (params as Record<string, unknown>)[name];
+  return typeof value === "string" ? value : "";
+}
+
+export const curriculumRoute = screen("/missions/$missionId", CurriculumRouteScreen);
 export const insightsRoute = screen("/insights", InsightsScreen);
 export const settingsRoute = screen("/settings", SettingsScreen);
 
-const routeTree = rootRoute.addChildren([todayRoute, missionsRoute, insightsRoute, settingsRoute]);
+const routeTree = rootRoute.addChildren([
+  todayRoute,
+  missionsRoute,
+  curriculumRoute,
+  insightsRoute,
+  settingsRoute,
+]);
 
 export function createAppRouter(context: RouterContext) {
   return createRouter({

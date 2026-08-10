@@ -35,7 +35,7 @@
     "title_ambiguous": "Este documento tem {count} títulos principais; foi usado o primeiro.",
     "link_unresolved": "{from} aponta para {to}, que não existe.",
     "value_duplicated": "Isto aparece duas vezes e só o primeiro foi mantido: {value}",
-    "edge_cycle": "Um ciclo de pré-requisitos foi removido aqui, para a ordem continuar fazendo sentido: {track}"
+    "edge_cycle": "Um ciclo de pré-requisitos foi removido aqui, para a ordem continuar fazendo sentido: {node}"
   },
   "error": {
     "run_already_active": "Esta missão já está sendo ensinada. Acompanhe essa execução ou aguarde ela terminar.",

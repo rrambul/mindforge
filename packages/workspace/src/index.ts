@@ -69,6 +69,7 @@ export {
   type BriefingInput,
   type CurrentTrack,
   type NotTracked,
+  type PlannedLesson,
   type TrackLesson,
   type Tracked,
   type ZpdCandidate,
@@ -105,7 +106,13 @@ export {
   type Table,
 } from "./markdown/table.js";
 
-export { parseCurriculum, type ParsedCurriculum, type ParsedTrack } from "./parse/curriculum.js";
+export {
+  parseCurriculum,
+  type LessonDepth,
+  type ParsedCurriculum,
+  type ParsedPlannedLesson,
+  type ParsedTrack,
+} from "./parse/curriculum.js";
 
 export {
   checkReferences,

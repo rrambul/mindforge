@@ -250,16 +250,41 @@ model Lesson {
   /// before the mission had a curriculum, and lessons taught deliberately
   /// off-plan.
   trackId     String? @map("track_id") @db.Uuid
+  /// planned | generated. A **planned** lesson is a row `CURRICULUM.md` wrote
+  /// before anything existed to read: no file, no sequence number, no hash.
+  /// Generation fills that same row in and flips it to `generated` — one row with
+  /// two lives, not two rows joined, because two rows means the module's
+  /// denominator silently gains a lesson the learner has already finished.
+  status      String  @default("generated")
   /// From the filename, never from the document. An H1 is prose the agent
   /// rewrites; the number is the workspace's own ordering, and it is what a
   /// learning record links back to. Mission-global: numbering does not restart
   /// per track, because the file layout has no per-track directory and files are
-  /// canonical.
-  seq         Int
+  /// canonical. Null while the lesson is only planned.
+  seq         Int?
+  /// The plan's identity, and what a generated lesson claims its plan entry by
+  /// (`<meta name="mindforge:lesson">`). Unique per mission **among planned rows**
+  /// only: once claimed the row leaves that index, so two written lessons may
+  /// share a filename slug.
   slug        String
   title       String
-  storagePath String  @map("storage_path")
-  contentHash String  @map("content_hash")
+  /// Null while the lesson is only planned. `lessons_generated_has_file` is what
+  /// keeps these three NOT NULL for everything with a file behind it.
+  storagePath String? @map("storage_path")
+  contentHash String? @map("content_hash")
+
+  /// One line from `CURRICULUM.md`: what this lesson is for. Null off-plan.
+  intent      String?
+  /// 1–5, how hard for **this** learner at the level `MISSION.md` records — never
+  /// a score for the learner. Null when the plan left it blank, and null is
+  /// rendered as unknown rather than as a middling 3 (non-negotiable 10).
+  difficulty  Int?    @db.SmallInt
+  /// overview | working | deep_dive. How far down, not how long.
+  depth       String?
+  /// Row order within its module in `CURRICULUM.md`. A plan, like
+  /// `tracks.position`: what unblocks next comes from `lessonEdges` and
+  /// difficulty (FR-K7), and this only breaks ties and orders the display.
+  position    Int?    @db.SmallInt
 
   /// Set by the sandboxed reader in M5. Until then it is null for every lesson,
   /// and null means "unread or not yet trackable" — the UI renders neither as a
@@ -277,11 +302,39 @@ model Lesson {
   /// are the expensive artifact and the grouping is the cheap one (non-negotiable 6).
   track   Track?           @relation(fields: [trackId], references: [id], onDelete: SetNull)
   records LearningRecord[]
+  /// Lessons this one is a prerequisite of, and the ones it depends on. Read
+  /// backwards, `prereqOf` is the fundamental count (FR-K6).
+  prereqOf LessonEdge[] @relation("lesson")
+  requires LessonEdge[] @relation("lessonPrereq")
 
   @@unique([missionId, seq])
   @@index([userId, missionId])
   @@index([trackId, seq])
+  @@index([trackId, position])
   @@map("lessons")
+}
+
+/// "A depends on B", between two planned or written lessons (FR-K2).
+///
+/// One edge, two readings, neither of them ever stored: forwards it locks A until
+/// every B is completed (FR-K7); backwards it makes B fundamental, and the more
+/// lessons depend on B the more fundamental it is (FR-K6). Both are computed on
+/// read in `packages/core`.
+///
+/// Cascade on both sides, unlike `lessons.trackId`. An edge is not an artifact —
+/// it is a statement about two lessons, and when either end is gone it is no
+/// longer about anything.
+model LessonEdge {
+  userId   String @map("user_id") @db.Uuid
+  lessonId String @map("lesson_id") @db.Uuid
+  prereqId String @map("prereq_id") @db.Uuid
+
+  lesson Lesson @relation("lesson", fields: [lessonId], references: [id], onDelete: Cascade)
+  prereq Lesson @relation("lessonPrereq", fields: [prereqId], references: [id], onDelete: Cascade)
+
+  @@id([lessonId, prereqId])
+  @@index([userId, prereqId])
+  @@map("lesson_edges")
 }
 
 /// One `./reference/slug.html` (FR-T6). The skill is explicit that these are the

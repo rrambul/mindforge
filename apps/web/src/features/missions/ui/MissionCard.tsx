@@ -21,13 +21,29 @@ interface MissionCardProps {
    * a card that leads with a note composer buries the thing the learner came for.
    */
   readonly teach?: ReactNode;
+  /**
+   * The way in to this mission's curriculum (FR-K5), from the app layer.
+   *
+   * A slot for the same reason `teach` is one, plus a second: it is a router
+   * link, and the route it points at is the app's composition rather than
+   * something a dumb card should name. Handing it in keeps this component — and
+   * every test that renders it — free of a router.
+   */
+  readonly curriculum?: ReactNode;
 }
 
 /**
  * Dumb by design (§2.2 rule 5): props in, markup out, no fetching. The route decides what happens
  * when you park something.
  */
-export function MissionCard({ mission, onTogglePark, pending, note, teach }: MissionCardProps) {
+export function MissionCard({
+  mission,
+  onTogglePark,
+  pending,
+  note,
+  teach,
+  curriculum,
+}: MissionCardProps) {
   const { t } = useTranslation("missions");
   const { t: g } = useTranslation("glossary");
 
@@ -47,6 +63,10 @@ export function MissionCard({ mission, onTogglePark, pending, note, teach }: Mis
           detail view — and its absence is stated rather than left as empty space, because a mission
           without one is worth noticing. */}
       {mission.why ? <Text>{mission.why}</Text> : <Text tone="hint">{t("card.noWhy")}</Text>}
+
+      {/* Shown on a parked mission too: the plan is still worth reading when you
+          are not working on it. */}
+      {curriculum ? <Row>{curriculum}</Row> : null}
 
       {/* Not on a parked mission: parking is a statement that you are not working
           on something, and offering to teach it is the same contradiction

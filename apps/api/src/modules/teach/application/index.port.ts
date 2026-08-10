@@ -15,6 +15,14 @@ export interface IndexedLesson {
    * warning; the repository cannot, and must not invent a module either way.
    */
   readonly trackId: string | null;
+  /**
+   * The plan entry this file claims, from `<meta name="mindforge:lesson">`.
+   *
+   * Null when the lesson claims none — an off-plan lesson, or one written before
+   * the mission had a plan. When it is set and a planned row has that slug, the
+   * two are the same row and the write fills it in rather than adding a second.
+   */
+  readonly planSlug: string | null;
 }
 
 /**
@@ -29,6 +37,28 @@ export interface IndexedTrack {
   readonly name: string;
   readonly outcome: string | null;
   readonly position: number;
+  readonly prerequisiteSlugs: readonly string[];
+}
+
+/**
+ * One row of a `## Module:` table: a lesson planned before it exists (FR-K2).
+ *
+ * `trackId` is not nullable here, unlike on a written lesson. A planned lesson
+ * comes from a module section and a module section is a track — there is nowhere
+ * for an unfiled one to have come from.
+ */
+export interface IndexedPlannedLesson {
+  readonly slug: string;
+  readonly title: string;
+  readonly intent: string | null;
+  readonly difficulty: number | null;
+  readonly depth: string | null;
+  readonly position: number;
+  readonly trackId: string;
+  /**
+   * Slugs, resolved by the repository once every lesson in the plan exists —
+   * the same two-pass reason `saveTracks` and `saveRecords` both have.
+   */
   readonly prerequisiteSlugs: readonly string[];
 }
 
@@ -86,7 +116,36 @@ export interface WorkspaceIndexRepository {
   /** Every track slug this mission has, for resolving lessons when the file is absent. */
   trackIdsBySlug(userId: string, missionId: string): Promise<ReadonlyMap<string, string>>;
 
-  /** Upsert on `(mission_id, seq)`. */
+  /**
+   * The `## Module:` tables → planned `lessons` and their `lesson_edges`.
+   *
+   * **The file owns what a lesson is; the plan owns why it is there.** A slug
+   * that already has a file behind it keeps its title, its module and its
+   * content — the plan may only revise that row's intent, difficulty, depth and
+   * position. Anything else would let a regenerated curriculum rename a lesson
+   * the learner has already read.
+   *
+   * **Pruning is per module, not per mission.** A planned row whose slug has
+   * gone from a module that *was* in this parse is deleted: there is no file
+   * behind it, so nothing is lost, and keeping it would inflate the module's
+   * denominator with a lesson the plan has abandoned. A module absent from the
+   * parse entirely is left alone — a run that stopped halfway through writing
+   * the file has not decided anything about the modules it never reached.
+   */
+  savePlannedLessons(
+    userId: string,
+    missionId: string,
+    lessons: readonly IndexedPlannedLesson[],
+  ): Promise<void>;
+
+  /**
+   * Upsert on `(mission_id, seq)` — except when the lesson claims a plan entry.
+   *
+   * A claimed plan entry *is* this lesson: the row it already has stops being an
+   * intention and becomes the file, keeping its id, its intent, its difficulty
+   * and every edge pointing at it. Inserting instead would leave the module owing
+   * a lesson that has already been taught.
+   */
   saveLessons(userId: string, lessons: readonly IndexedLesson[]): Promise<void>;
 
   /** Upsert on `(mission_id, storage_path)` — reference docs carry no sequence. */

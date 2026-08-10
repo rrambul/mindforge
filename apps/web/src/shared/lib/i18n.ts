@@ -12,6 +12,7 @@ import { initReactI18next } from "react-i18next";
 import enAuth from "../../locales/en/auth.json";
 import enCommand from "../../locales/en/command.json";
 import enCommon from "../../locales/en/common.json";
+import enCurriculum from "../../locales/en/curriculum.json";
 import enFirstRun from "../../locales/en/firstRun.json";
 import enFocus from "../../locales/en/focus.json";
 import enGlossary from "../../locales/en/glossary.json";
@@ -23,6 +24,7 @@ import enTeach from "../../locales/en/teach.json";
 import ptAuth from "../../locales/pt-BR/auth.json";
 import ptCommand from "../../locales/pt-BR/command.json";
 import ptCommon from "../../locales/pt-BR/common.json";
+import ptCurriculum from "../../locales/pt-BR/curriculum.json";
 import ptFirstRun from "../../locales/pt-BR/firstRun.json";
 import ptFocus from "../../locales/pt-BR/focus.json";
 import ptGlossary from "../../locales/pt-BR/glossary.json";
@@ -52,6 +54,7 @@ export const NAMESPACES = [
   "command",
   "firstRun",
   "insights",
+  "curriculum",
   "settings",
   "teach",
   "memory",
@@ -67,6 +70,7 @@ const resources = {
     command: enCommand,
     firstRun: enFirstRun,
     insights: enInsights,
+    curriculum: enCurriculum,
     settings: enSettings,
     teach: enTeach,
     memory: enMemory,
@@ -80,6 +84,7 @@ const resources = {
     command: ptCommand,
     firstRun: ptFirstRun,
     insights: ptInsights,
+    curriculum: ptCurriculum,
     settings: ptSettings,
     teach: ptTeach,
     memory: ptMemory,

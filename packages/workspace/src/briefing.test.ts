@@ -7,6 +7,7 @@ import {
   renderBriefing,
   type BriefingInput,
   type CurrentTrack,
+  type PlannedLesson,
 } from "./briefing.js";
 
 /**
@@ -18,6 +19,39 @@ import {
  * assertions are about what must never appear as much as about what must.
  */
 
+const WRITTEN: PlannedLesson = {
+  slug: "policies-and-roles",
+  title: "Policies and roles",
+  intent: "Say which role a policy is consulted for",
+  difficulty: 2,
+  depth: "working",
+  written: true,
+  unblocked: true,
+  blockedBy: [],
+};
+
+const NEXT: PlannedLesson = {
+  slug: "policy-evaluation",
+  title: "How a request is judged",
+  intent: "Walk a request through allow, deny and boundaries",
+  difficulty: 3,
+  depth: "working",
+  written: false,
+  unblocked: true,
+  blockedBy: [],
+};
+
+const LOCKED: PlannedLesson = {
+  slug: "policy-debugging",
+  title: "Debugging a policy",
+  intent: null,
+  difficulty: 4,
+  depth: "deep_dive",
+  written: false,
+  unblocked: false,
+  blockedBy: ["How a request is judged"],
+};
+
 const TRACK: CurrentTrack = {
   slug: "rls-basics",
   name: "RLS fundamentals",
@@ -26,6 +60,8 @@ const TRACK: CurrentTrack = {
   totalTracks: 9,
   prerequisites: ["Postgres fundamentals"],
   lessons: [{ seq: 7, title: "Policies and roles" }],
+  plan: [WRITTEN, NEXT, LOCKED],
+  nextLesson: NEXT,
 };
 
 const EMPTY: BriefingInput = {
@@ -228,5 +264,96 @@ describe("a module the curriculum left thin", () => {
     });
 
     expect(briefing).toContain("did not record an outcome for this module");
+  });
+});
+
+/**
+ * The plan, in the briefing (FR-K2, FR-K7).
+ *
+ * The agent is told *which* lesson to write and given the whole module's plan to
+ * write it against. Both halves matter: without the target it re-derives an order
+ * it has no dependency graph for, and without the plan it teaches everything at
+ * once because it cannot see what comes after.
+ */
+describe("the plan for the open module", () => {
+  it("names the lesson to write and what it is for", () => {
+    const briefing = renderBriefing(RICH);
+
+    expect(briefing).toContain("**Write this one: How a request is judged.**");
+    expect(briefing).toContain("What it is for: Walk a request through allow, deny and boundaries");
+  });
+
+  it("gives both meta tags, with the plan entry's slug filled in", () => {
+    // The slug is the one thing the agent has no other source for, and without
+    // the claim the module counts the lesson twice — once written, once still owed.
+    const briefing = renderBriefing(RICH);
+
+    expect(briefing).toContain('<meta name="mindforge:track" content="rls-basics">');
+    expect(briefing).toContain('<meta name="mindforge:lesson" content="policy-evaluation">');
+  });
+
+  it("shows the whole module's plan, not only the target", () => {
+    const briefing = renderBriefing(RICH);
+
+    expect(briefing).toContain("**Policies and roles** (`policies-and-roles`)");
+    expect(briefing).toContain("**Debugging a policy** (`policy-debugging`)");
+  });
+
+  it("marks what is written and what is waiting, and on what", () => {
+    const briefing = renderBriefing(RICH);
+
+    expect(briefing).toContain("**already written**");
+    expect(briefing).toContain("waiting on: How a request is judged");
+  });
+
+  it("says a difficulty or depth is unrecorded rather than inventing a middle value", () => {
+    // The briefing is read by a model that treats a number as evidence. A 3
+    // nobody wrote would order the module around a measurement that never happened.
+    const briefing = renderBriefing({
+      ...RICH,
+      currentTrack: {
+        ...TRACK,
+        plan: [{ ...NEXT, difficulty: null, depth: null }],
+        nextLesson: { ...NEXT, difficulty: null, depth: null },
+      },
+    });
+
+    expect(briefing).toContain("difficulty unrecorded");
+    expect(briefing).toContain("depth unrecorded");
+    expect(briefing).not.toContain("difficulty 3/5");
+  });
+
+  it("says the plan recorded no intent rather than leaving the line blank", () => {
+    const briefing = renderBriefing({
+      ...RICH,
+      currentTrack: { ...TRACK, nextLesson: LOCKED },
+    });
+
+    expect(briefing).toContain("The plan recorded no intent for it");
+  });
+
+  it("falls back to the pre-plan instruction when the module has no plan", () => {
+    // A curriculum run that stopped short leaves this state. Inventing plan
+    // entries here would write the curriculum from inside a teaching run.
+    const briefing = renderBriefing({
+      ...RICH,
+      currentTrack: { ...TRACK, plan: [], nextLesson: null },
+    });
+
+    expect(briefing).toContain("This module has no planned lessons yet");
+    expect(briefing).toContain("do not write a plan of your own");
+    expect(briefing).not.toContain("mindforge:lesson");
+  });
+
+  it("claims no plan entry when everything in the plan is written or locked", () => {
+    // Claiming an entry that is already written would attach this lesson to a row
+    // describing a different one.
+    const briefing = renderBriefing({
+      ...RICH,
+      currentTrack: { ...TRACK, plan: [WRITTEN, LOCKED], nextLesson: null },
+    });
+
+    expect(briefing).toContain("either written or waiting on one that is not");
+    expect(briefing).not.toContain('<meta name="mindforge:lesson"');
   });
 });

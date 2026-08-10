@@ -258,6 +258,38 @@ describe("the module a lesson declares", () => {
     expect(parsed.trackSlug).toBeNull();
   });
 
+  it("reads the plan entry the lesson claims", () => {
+    const { parsed } = parseLessonHtml(
+      "0007-reading-a-policy.html",
+      withMeta(`<meta name="mindforge:track" content="iam-basics" />
+      <meta name="mindforge:lesson" content="policy-reading" />`),
+    );
+
+    expect(parsed).toMatchObject({ trackSlug: "iam-basics", planSlug: "policy-reading" });
+  });
+
+  it("leaves the plan entry null when the lesson claims none, without warning", () => {
+    // Off-plan is legal and permanent, exactly as an absent track tag is. The
+    // lesson still indexes; it just does not consume an entry in the plan.
+    const { parsed, warnings } = parseLessonHtml("0007-x.html", withMeta(""));
+
+    expect(parsed.planSlug).toBeNull();
+    expect(codes({ warnings })).not.toContain("value_duplicated");
+  });
+
+  it("takes the first of two plan claims and says it had to choose", () => {
+    // One file cannot be two plan entries. Claiming both would take two rows out
+    // of the plan for one lesson, and the module would lose one it still owes.
+    const { parsed, warnings } = parseLessonHtml(
+      "0007-x.html",
+      withMeta(`<meta name="mindforge:lesson" content="policy-reading" />
+      <meta name="mindforge:lesson" content="policy-writing" />`),
+    );
+
+    expect(parsed.planSlug).toBe("policy-reading");
+    expect(codes({ warnings })).toContain("value_duplicated");
+  });
+
   it("still parses the tag on a reference doc, which the caller then ignores", () => {
     // Pinned rather than left implicit. Reference docs are revised in place and
     // shared across tracks — the skill is explicit that these are the artifacts

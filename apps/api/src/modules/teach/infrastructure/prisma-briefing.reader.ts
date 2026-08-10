@@ -1,8 +1,16 @@
 import {
+  deriveLessons,
+  nextLesson,
+  orderModule,
+  type LessonDepth,
+  type LessonNode,
+} from "@mindforge/core";
+import {
   BRIEFING_ABSENCES,
   NO_TRACK,
   type BriefingInput,
   type CurrentTrack,
+  type PlannedLesson,
   type Tracked,
 } from "@mindforge/workspace";
 import { Inject, Injectable } from "@nestjs/common";
@@ -110,10 +118,17 @@ async function readCurrentTrack(tx: Tx, missionId: string): Promise<Tracked<Curr
       track.id,
     ),
     tx.$queryRawUnsafe<{ seq: number; title: string }[]>(
-      `select seq, title from lessons where track_id = $1::uuid order by seq`,
+      // Written lessons only. A planned row has no `seq` and nothing to read, and
+      // listing it here as one the agent must not repeat would be a claim that a
+      // lesson exists when the module is precisely still owed it.
+      `select seq, title from lessons
+        where track_id = $1::uuid and status = 'generated'
+        order by seq`,
       track.id,
     ),
   ]);
+
+  const plan = await readPlan(tx, missionId, track.id);
 
   return {
     slug: track.slug,
@@ -123,5 +138,100 @@ async function readCurrentTrack(tx: Tx, missionId: string): Promise<Tracked<Curr
     totalTracks,
     prerequisites: prerequisites.map((row) => row.name),
     lessons: lessons.map((row) => ({ seq: row.seq, title: row.title })),
+    plan: plan.plan,
+    nextLesson: plan.nextLesson,
+  };
+}
+
+interface LessonRow {
+  readonly id: string;
+  readonly track_id: string | null;
+  readonly slug: string;
+  readonly title: string;
+  readonly intent: string | null;
+  readonly status: string;
+  readonly difficulty: number | null;
+  readonly depth: LessonDepth | null;
+  readonly position: number | null;
+  readonly seq: number | null;
+  readonly completed_at: Date | null;
+}
+
+/**
+ * The open module's plan, ordered and gated by `packages/core`.
+ *
+ * **The whole mission is loaded, not just this module.** A lesson may depend on
+ * one in an earlier module (FR-K2), so a query scoped to the open track would
+ * find no prerequisite rows and call every lesson unblocked — which is the exact
+ * shape of a wrong answer that looks right: the plan would still be in a sensible
+ * order, and the agent would be told to write something the learner cannot follow.
+ */
+async function readPlan(
+  tx: Tx,
+  missionId: string,
+  trackId: string,
+): Promise<{ plan: readonly PlannedLesson[]; nextLesson: PlannedLesson | null }> {
+  const [rows, edges] = await Promise.all([
+    tx.$queryRawUnsafe<LessonRow[]>(
+      `select id, track_id, slug, title, intent, status, difficulty, depth, position, seq,
+              completed_at
+         from lessons where mission_id = $1::uuid`,
+      missionId,
+    ),
+    tx.$queryRawUnsafe<{ lesson_id: string; prereq_id: string }[]>(
+      `select e.lesson_id, e.prereq_id from lesson_edges e
+         join lessons l on l.id = e.lesson_id
+        where l.mission_id = $1::uuid`,
+      missionId,
+    ),
+  ]);
+
+  const prerequisites = new Map<string, string[]>();
+  for (const edge of edges) {
+    const existing = prerequisites.get(edge.lesson_id);
+    if (existing) existing.push(edge.prereq_id);
+    else prerequisites.set(edge.lesson_id, [edge.prereq_id]);
+  }
+
+  const nodes: LessonNode[] = rows.map((row) => ({
+    id: row.id,
+    trackId: row.track_id,
+    status: row.status === "planned" ? "planned" : "generated",
+    difficulty: row.difficulty,
+    position: row.position,
+    seq: row.seq,
+    completed: row.completed_at !== null,
+    prerequisiteIds: prerequisites.get(row.id) ?? [],
+  }));
+
+  const byId = new Map(rows.map((row) => [row.id, row]));
+  const derived = deriveLessons(nodes);
+
+  const brief = (node: LessonNode): PlannedLesson => {
+    const row = byId.get(node.id)!;
+    return {
+      slug: row.slug,
+      title: row.title,
+      intent: row.intent,
+      difficulty: row.difficulty,
+      depth: row.depth,
+      written: node.status === "generated",
+      unblocked: derived.get(node.id)!.unblocked,
+      blockedBy: derived
+        .get(node.id)!
+        .blockedBy.map((id) => byId.get(id)?.title)
+        .filter((title): title is string => title !== undefined),
+    };
+  };
+
+  const module = orderModule(nodes.filter((node) => node.trackId === trackId));
+  const next = nextLesson(nodes, [trackId]);
+
+  return {
+    plan: module.map(brief),
+    // A lesson that is already written is never the one to write. `nextLesson`
+    // returns it so the app can say "read this" (M5); here, where the only verb
+    // is "teach", it is not an instruction.
+    nextLesson: next === null || next.status === "generated" ? null : brief(next),
   };
 }

@@ -59,6 +59,8 @@ function asUser<T>(userId: string, sql: string, ...params: unknown[]): Promise<T
 const missionOf: Record<string, string> = {};
 const trackOf: Record<string, string> = {};
 const prereqOf: Record<string, string> = {};
+const lessonOf: Record<string, string> = {};
+const lessonPrereqOf: Record<string, string> = {};
 
 interface TableCase {
   readonly table: string;
@@ -87,6 +89,14 @@ const CASES: readonly TableCase[] = [
       [userId, trackOf[userId], prereqOf[userId]],
     ],
   },
+  {
+    table: "lesson_edges",
+    identity: "lesson_id",
+    insert: (userId) => [
+      `insert into lesson_edges (user_id, lesson_id, prereq_id) values ($1::uuid, $2::uuid, $3::uuid)`,
+      [userId, lessonOf[userId], lessonPrereqOf[userId]],
+    ],
+  },
 ];
 
 /** `position` is NOT NULL, and `(mission_id, slug)` is unique, so marks differ. */
@@ -98,11 +108,13 @@ function positionOf(mark: string): number {
 const MARKS: Record<string, string> = {
   tracks: "alice-track-1",
   track_edges: "",
+  lesson_edges: "",
 };
 
 const BOB_MARKS: Record<string, string> = {
   tracks: "bob-track-2",
   track_edges: "",
+  lesson_edges: "",
 };
 
 /**
@@ -117,11 +129,13 @@ const BOB_MARKS: Record<string, string> = {
 const PLANTED: Record<string, string> = {
   tracks: "planted-track-9",
   track_edges: "",
+  lesson_edges: "",
 };
 
 /** The identity value each user's seeded join row carries, for the read proofs. */
 const JOIN_IDENTITY: Record<string, Record<string, () => string>> = {
   track_edges: { [ALICE]: () => trackOf[ALICE]!, [BOB]: () => trackOf[BOB]! },
+  lesson_edges: { [ALICE]: () => lessonOf[ALICE]!, [BOB]: () => lessonOf[BOB]! },
 };
 
 function expected(table: string, userId: string): string {
@@ -198,6 +212,8 @@ beforeAll(async () => {
     // track and the edge table needs two that already exist.
     prereqOf[user] = await seedTrack(user, "fundamentals", 1);
     trackOf[user] = await seedTrack(user, "advanced", 2);
+    lessonPrereqOf[user] = await seedLesson(user, 1, trackOf[user]);
+    lessonOf[user] = await seedLesson(user, 2, trackOf[user]);
   }
 
   for (const c of CASES) {
@@ -392,5 +408,208 @@ describe("a track is never the thing that deletes a lesson", () => {
     );
     expect(rows).toHaveLength(1);
     expect(rows[0]!.track_id).toBeNull();
+  });
+});
+
+/**
+ * The planned-lesson model (TECH-DESIGN.md §3.2b).
+ *
+ * A planned lesson is a row with no file, and every constraint below exists to
+ * stop a row being half of both things at once — which is the state that would
+ * make a module's fraction lie in one direction or the other.
+ */
+async function seedPlanned(
+  userId: string,
+  slug: string,
+  trackId: string,
+  mission = missionOf[userId],
+): Promise<string> {
+  const rows = await admin.$queryRawUnsafe<{ id: string }[]>(
+    `insert into lessons (id, user_id, mission_id, track_id, status, slug, title, intent,
+       difficulty, depth, position, created_at, updated_at)
+     values (gen_random_uuid(), $1::uuid, $2::uuid, $3::uuid, 'planned', $4, $4, 'do a thing',
+       2, 'working', 1, now(), now())
+     returning id`,
+    userId,
+    mission,
+    trackId,
+    slug,
+  );
+  return rows[0]!.id;
+}
+
+describe("lessons: planned rows have no file, generated rows must have one", () => {
+  it("accepts a planned lesson with no seq, path or hash", async () => {
+    await expect(seedPlanned(ALICE, "planned-ok", trackOf[ALICE]!)).resolves.toBeTruthy();
+  });
+
+  it("refuses a planned lesson that claims a file", async () => {
+    await expect(
+      admin.$executeRawUnsafe(
+        `insert into lessons (id, user_id, mission_id, track_id, status, seq, slug, title,
+           storage_path, content_hash, created_at, updated_at)
+         values (gen_random_uuid(), $1::uuid, $2::uuid, $3::uuid, 'planned', 90, 'half', 'Half',
+           'lessons/0090-half.html', 'sha', now(), now())`,
+        ALICE,
+        missionOf[ALICE],
+        trackOf[ALICE],
+      ),
+    ).rejects.toThrow(/lessons_planned_has_no_file/iu);
+  });
+
+  it("refuses a generated lesson with no file behind it", async () => {
+    // The three columns became nullable for the planned case only. Losing this
+    // check would let a reindex write a lesson row nothing can ever open.
+    await expect(
+      admin.$executeRawUnsafe(
+        `insert into lessons (id, user_id, mission_id, status, slug, title, created_at, updated_at)
+         values (gen_random_uuid(), $1::uuid, $2::uuid, 'generated', 'ghost', 'Ghost', now(), now())`,
+        ALICE,
+        missionOf[ALICE],
+      ),
+    ).rejects.toThrow(/lessons_generated_has_file/iu);
+  });
+
+  it("refuses a completed lesson nobody could have opened", async () => {
+    // Non-negotiable 10 as a constraint: a plan entry with an outcome is a claim
+    // about a file that does not exist.
+    const planned = await seedPlanned(ALICE, "not-openable", trackOf[ALICE]!);
+    await expect(
+      admin.$executeRawUnsafe(
+        `update lessons set completed_at = now(), outcome = 'understood' where id = $1::uuid`,
+        planned,
+      ),
+    ).rejects.toThrow(/lessons_planned_not_completed/iu);
+  });
+
+  it("refuses a status and a depth the product does not know", async () => {
+    await expect(
+      admin.$executeRawUnsafe(
+        `update lessons set status = 'probably_fine' where id = $1::uuid`,
+        lessonOf[ALICE],
+      ),
+    ).rejects.toThrow(/lessons_status_known/iu);
+
+    await expect(
+      admin.$executeRawUnsafe(
+        `update lessons set depth = 'quite deep' where id = $1::uuid`,
+        lessonOf[ALICE],
+      ),
+    ).rejects.toThrow(/lessons_depth_known/iu);
+  });
+
+  it("refuses a difficulty outside 1-5", async () => {
+    await expect(
+      admin.$executeRawUnsafe(
+        `update lessons set difficulty = 7 where id = $1::uuid`,
+        lessonOf[ALICE],
+      ),
+    ).rejects.toThrow(/lessons_difficulty_range/iu);
+  });
+});
+
+describe("lessons: the plan owns each slug once, and hands it over", () => {
+  it("refuses two planned lessons with the same slug in one mission", async () => {
+    // This is the reindexer's upsert key for the plan, and what a generated lesson
+    // claims its plan entry by.
+    const mission = await seedMission(ALICE, "plan-slugs");
+    const track = await seedTrack(ALICE, "only", 1, "proposed", mission);
+    await seedPlanned(ALICE, "twice", track, mission);
+    await expect(seedPlanned(ALICE, "twice", track, mission)).rejects.toThrow();
+  });
+
+  it("lets two written lessons share a filename slug", async () => {
+    // The index is partial for exactly this reason. `0003-recap.html` and
+    // `0011-recap.html` are both legal in a workspace, and a total unique here
+    // would fail the reindex of one that has them.
+    const mission = await seedMission(ALICE, "two-recaps");
+    for (const seq of [3, 11]) {
+      await expect(
+        admin.$executeRawUnsafe(
+          `insert into lessons (id, user_id, mission_id, seq, slug, title, storage_path,
+             content_hash, created_at, updated_at)
+           values (gen_random_uuid(), $1::uuid, $2::uuid, $3::int, 'recap', 'Recap', $4, 'sha',
+             now(), now())`,
+          ALICE,
+          mission,
+          seq,
+          `lessons/00${seq}-recap.html`,
+        ),
+      ).resolves.toBeDefined();
+    }
+  });
+
+  it("frees the slug the moment the plan entry is claimed", async () => {
+    // One row, two lives: generation fills the planned row in rather than adding a
+    // second one, and the row leaves the partial index as it flips.
+    const mission = await seedMission(ALICE, "claiming");
+    const track = await seedTrack(ALICE, "only", 1, "proposed", mission);
+    const planned = await seedPlanned(ALICE, "claimed", track, mission);
+
+    await admin.$executeRawUnsafe(
+      `update lessons set status = 'generated', seq = 1, storage_path = 'lessons/0001-claimed.html',
+         content_hash = 'sha' where id = $1::uuid`,
+      planned,
+    );
+
+    // And the plan may then re-plan the same slug without colliding with the
+    // lesson that was written from it.
+    await expect(seedPlanned(ALICE, "claimed", track, mission)).resolves.toBeTruthy();
+  });
+});
+
+describe("lesson_edges", () => {
+  it("refuses a lesson that is its own prerequisite", async () => {
+    await expect(
+      admin.$executeRawUnsafe(
+        `insert into lesson_edges (user_id, lesson_id, prereq_id) values ($1::uuid, $2::uuid, $2::uuid)`,
+        ALICE,
+        lessonOf[ALICE],
+      ),
+    ).rejects.toThrow();
+  });
+
+  it("does not stop a two-hop cycle, which is why the parser must", async () => {
+    const mission = await seedMission(ALICE, "lesson-cycle");
+    const track = await seedTrack(ALICE, "only", 1, "proposed", mission);
+    const a = await seedPlanned(ALICE, "cycle-a", track, mission);
+    const b = await seedPlanned(ALICE, "cycle-b", track, mission);
+
+    for (const [lesson, prereq] of [
+      [a, b],
+      [b, a],
+    ]) {
+      await expect(
+        admin.$executeRawUnsafe(
+          `insert into lesson_edges (user_id, lesson_id, prereq_id) values ($1::uuid, $2::uuid, $3::uuid)`,
+          ALICE,
+          lesson,
+          prereq,
+        ),
+      ).resolves.toBeDefined();
+    }
+  });
+
+  it("takes its edges with it when a lesson is deleted", async () => {
+    // Cascade, unlike `lessons.track_id`: an edge is a statement about two
+    // lessons, and with one end gone it is no longer about anything.
+    const mission = await seedMission(ALICE, "edge-cascade");
+    const track = await seedTrack(ALICE, "only", 1, "proposed", mission);
+    const a = await seedPlanned(ALICE, "edge-a", track, mission);
+    const b = await seedPlanned(ALICE, "edge-b", track, mission);
+    await admin.$executeRawUnsafe(
+      `insert into lesson_edges (user_id, lesson_id, prereq_id) values ($1::uuid, $2::uuid, $3::uuid)`,
+      ALICE,
+      a,
+      b,
+    );
+
+    await admin.$executeRawUnsafe(`delete from lessons where id = $1::uuid`, b);
+
+    const rows = await admin.$queryRawUnsafe<{ n: bigint }[]>(
+      `select count(*) as n from lesson_edges where lesson_id = $1::uuid`,
+      a,
+    );
+    expect(Number(rows[0]!.n)).toBe(0);
   });
 });

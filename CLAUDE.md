@@ -18,11 +18,11 @@ Four things about it that are easy to get wrong:
 2. **A lesson declares its own track**, in `<meta name="mindforge:track">`. Never from
    `CURRICULUM.md` — the agent rewrites index files wholesale, and a membership with two homes
    eventually disagrees with itself.
-3. **`tracks.position` is a plan, not the truth.** Hard sequencing comes from `track_edges`, and in
-   M4 from `lesson_edges`.
-4. **Module progress becomes a real fraction in M4** — completed over _planned_ lessons, because
-   the curriculum will plan each module's lessons up front (slug, intent, difficulty 1–5, depth,
-   depends-on edges). Until the plan exists there is no honest denominator, so nothing renders one.
+3. **`tracks.position` is a plan, not the truth.** Hard sequencing comes from `track_edges` and,
+   between lessons, from `lesson_edges`. `lessons.position` is the same kind of plan, one level down.
+4. **Module progress is a real fraction** — completed over every lesson the module now has, planned
+   or written. A module with no lessons at all returns null and renders as "not planned yet", never
+   as a zero.
 
 ## Read first
 
@@ -58,23 +58,51 @@ Storage with conflict retention, the files are parsed into `lessons`, `reference
 `learning_records`, and `llm_calls` reconciles to the run's real bill. A real run: 26 turns,
 8 minutes, **$1.47**.
 
-**M4 — the curriculum — is the current milestone** (`NORTHSTAR.md` §4). The tracks half is built:
-`CURRICULUM.md` parses into `tracks` and `track_edges` (upsert on `(mission_id, slug)`, vanished
-tracks marked `dropped` never deleted, one active track per mission enforced by a partial unique
-index), and the briefing carries the open module. What M4 still owes is the **planned-lesson
-model** — `lessons.status/intent/difficulty/depth`, `lesson_edges`, the curriculum format's
-per-module lesson tables, and the curriculum screen. The schema design is `TECH-DESIGN.md` §3.2b;
-the columns arrive **with the parser and UI that write them**, because a column nothing writes has
-burned this repo twice (`focus_sessions.mission_id` in M2, `missions.workspace_key` in M3).
+**M4 — the curriculum — is code-complete and unproven by a real run** (`NORTHSTAR.md` §4).
+`CURRICULUM.md` now plans lessons, not just tracks: a `## Module: <slug>` table per track carrying
+slug, title, intent, difficulty 1–5, depth and depends-on, parsed into planned `lessons` and
+`lesson_edges` (migration `20260810160000_planned_lessons`, design in `TECH-DESIGN.md` §3.2b). The
+briefing names the next unblocked planned lesson and the generated file claims that row back with
+`<meta name="mindforge:lesson">`; `/v1/missions/:id/curriculum` and the curriculum screen render the
+plan with its locks, fractions and fundamental counts, all derived in `packages/core`.
+
+**Curricula are authored from a terminal, deliberately.** Nothing in the app dispatches a
+`generate_curriculum` run: the endpoint always queues `generate_lesson`, and the worker always loads
+the `teach` plugin — `writeCurriculumPlugin` is built and tested with no caller. You write a
+curriculum by running `/curriculum` in the mission's workspace; the next teach run syncs the file and
+the reindexer picks it up from there. The curriculum screen's empty state names that command rather
+than offering a button, because the teach button queues a _lesson_ and the `teach` skill is told
+`CURRICULUM.md` is an input it must never write.
+
+That is a decision, not an oversight — but it means `NORTHSTAR.md` M4's done-when ("press one button
+on a fresh mission") is not met, and §7's open question, whether the agent plans good lesson lists up
+front, still needs one real curriculum run to answer. Closing the gap later is three changes: infer
+the run kind from whether the mission has tracks, pick the plugin from `run.kind` in the dispatch
+gateway, and swap the empty state's command for the button.
+
+Three things about the plan that are easy to get wrong when changing it:
+
+- **A planned lesson and the file written from it are one row**, claimed by slug. The unique index
+  on `(mission_id, slug)` is **partial** — planned rows only — so the slug is released as the row
+  flips, and two written lessons may still share a filename slug.
+- **The file owns what a lesson is; the plan owns why it is there.** A regeneration may revise a
+  written lesson's intent, difficulty, depth and position, and may never touch its title, module or
+  content.
+- **Pruning is per module.** A planned row dropped from a module the parse contained is deleted; a
+  module the parse never reached is left alone, because a run that stopped halfway has decided
+  nothing about it.
 
 `pnpm dev` gives you a sign-in screen, then four screens: **Today** (the focus timer),
 **Missions** (cards with the teach button), **Insights** (the activity grid), and **Settings**
 (profile, learner memory, changelog). ⌘K opens the command palette anywhere and reads its list from
-the same route table the nav does.
+the same route table the nav does. A fifth screen, **the curriculum** (`/missions/$missionId`), is
+reached from a mission card rather than the nav — it belongs to a mission, and a nav item would have
+to guess which one.
 
 `pnpm --filter @mindforge/db seed:rich` gives you six months of history for `dev@mindforge.local` /
-`mindforge-dev` — two curricula with modules in every state, lessons in three outcome states, ~90
-sessions shaped so every derived signal fires (never a Saturday, one dead fortnight, a parked
+`mindforge-dev` — two curricula with modules in every state, lessons in three outcome states, seven
+lessons planned and not yet written (so the curriculum screen has locks and a next lesson to show),
+~90 sessions shaped so every derived signal fires (never a Saturday, one dead fortnight, a parked
 mission). `seed:report` prints what the tracker functions actually say about it. Use it before
 designing anything that reads `daily_activity` or module progress.
 
@@ -211,9 +239,10 @@ eslint rewrites source.
 2. **A new table ships with an RLS policy and an RLS test.** Prove user A cannot read or write user
    B's rows. A table without one is an incomplete migration.
 
-3. **`packages/core` is the single implementation of domain math.** The calendar, the grid, and
-   (from M4) module progress and the lesson-graph derivations. The API and the SPA import the same
-   functions — never reimplement, never approximate.
+3. **`packages/core` is the single implementation of domain math.** The calendar, the grid, module
+   progress and the lesson-graph derivations (`curriculum/lesson-graph.ts`: fundamental, unblocked,
+   next lesson). The API and the SPA import the same functions — never reimplement, never
+   approximate.
 
 4. **Capture paths stay ≤5s and ≤2 taps.** The focus timer and (in M5) the lesson outcome. Mobile
    first: ≥44px touch targets, thumb-zone actions, `dvh` not `vh`, test at 375px. (`TECH-DESIGN.md`

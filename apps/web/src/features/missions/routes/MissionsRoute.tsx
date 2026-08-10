@@ -44,9 +44,21 @@ export interface MissionsRouteProps {
    * screen in `app/` composes both.
    */
   readonly renderTeach?: (missionId: string) => ReactNode;
+  /**
+   * The link to a mission's curriculum (FR-K5).
+   *
+   * A render prop rather than a `<Link>` here, because the route it points at is
+   * the app's route table — and because a router link inside this route would put
+   * a `RouterProvider` in the way of every test that renders it.
+   */
+  readonly renderCurriculumLink?: (missionId: string) => ReactNode;
 }
 
-export function MissionsRoute({ renderNote, renderTeach }: MissionsRouteProps) {
+export function MissionsRoute({
+  renderNote,
+  renderTeach,
+  renderCurriculumLink,
+}: MissionsRouteProps) {
   const { t } = useTranslation("missions");
   const { t: common } = useTranslation("common");
   const [composing, setComposing] = useState(false);
@@ -158,6 +170,7 @@ export function MissionsRoute({ renderNote, renderTeach }: MissionsRouteProps) {
             pending={setParked.isPending && setParked.variables?.id === mission.id}
             note={renderNote?.(mission.id)}
             teach={renderTeach?.(mission.id)}
+            curriculum={renderCurriculumLink?.(mission.id)}
             onTogglePark={(target: Mission) =>
               setParked.mutate({ id: target.id, parked: target.status === "active" })
             }
