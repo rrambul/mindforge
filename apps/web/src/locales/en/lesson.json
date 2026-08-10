@@ -1,0 +1,29 @@
+{
+  "back": "Back to the curriculum",
+  "frame": {
+    "title": "Lesson: {title}"
+  },
+  "meta": {
+    "offPlan": "Not in a module"
+  },
+  "unwritten": {
+    "heading": "Nothing to read yet",
+    "planned": "This lesson is planned but hasn't been written. Ask for it to be taught and it lands here.",
+    "noWorkspace": "This mission has no workspace yet, so there's no file behind this lesson."
+  },
+  "outcome": {
+    "legend": "How did it go?",
+    "understood": "Understood",
+    "shaky": "Shaky",
+    "lost": "Lost",
+    "hint": "Shaky is the honest answer more often than not, and it stays shaky until you redo the lesson.",
+    "recorded": "Recorded as {outcome}.",
+    "clear": "Undo",
+    "unwritten": "There's nothing to have understood yet."
+  },
+  "next": {
+    "heading": "Next",
+    "read": "Read it",
+    "notWritten": "Not written yet — one press and the agent writes it."
+  }
+}

@@ -25,7 +25,9 @@
     "depthUnknown": "Profundidade não registrada",
     "notWrittenYet": "ainda não escrita",
     "lockedBy": "Aguardando {lessons}",
-    "lockedUnnamed": "Aguardando uma lição anterior"
+    "lockedUnnamed": "Aguardando uma lição anterior",
+    "read": "Ler",
+    "reread": "Ler de novo"
   },
   "depth": {
     "overview": "Visão geral",
@@ -36,5 +38,6 @@
     "understood": "Entendi",
     "shaky": "Inseguro",
     "lost": "Perdido"
-  }
+  },
+  "library": "Biblioteca"
 }

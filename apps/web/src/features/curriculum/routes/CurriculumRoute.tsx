@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 
 import { ApiError, NetworkError } from "../../../shared/api/problem.js";
 import { Button, Callout, Card, Heading, Row, Stack, Text } from "../../../shared/ui/index.js";
-import { useCurriculum, type Curriculum } from "../api/use-curriculum.js";
+import { useCurriculum, type Curriculum, type CurriculumLesson } from "../api/use-curriculum.js";
 import { ModulePanel } from "../ui/ModulePanel.js";
 
 export interface CurriculumRouteProps {
@@ -13,6 +13,16 @@ export interface CurriculumRouteProps {
   readonly topic?: string;
   /** "Teach me the next thing", handed in by the app layer (§2.2 rule 6). */
   readonly teach?: ReactNode;
+  /**
+   * The way in to a written lesson (FR-T5), rendered by the app layer.
+   *
+   * A slot rather than a link built here, for the reason `MissionCard` takes its
+   * curriculum link as one: the route it points at is the app's composition, and a
+   * feature that named it would drag the router into every test that renders a module.
+   */
+  readonly lessonLink?: (lesson: CurriculumLesson) => ReactNode;
+  /** The reference shelf and the written record (FR-T6), also a route the app owns. */
+  readonly library?: ReactNode;
 }
 
 /**
@@ -31,7 +41,13 @@ export interface CurriculumRouteProps {
  * is told `CURRICULUM.md` is an input it must never write. Offering it here would
  * be a button that cannot do the thing the sentence above it promises.
  */
-export function CurriculumRoute({ missionId, topic, teach }: CurriculumRouteProps) {
+export function CurriculumRoute({
+  missionId,
+  topic,
+  teach,
+  lessonLink,
+  library,
+}: CurriculumRouteProps) {
   const { t } = useTranslation("curriculum");
   const curriculum = useCurriculum(missionId);
 
@@ -55,8 +71,14 @@ export function CurriculumRoute({ missionId, topic, teach }: CurriculumRouteProp
           ) : (
             <Stack gap="normal">
               {teach}
+              {library}
               {data.modules.map((module) => (
-                <ModulePanel key={module.id} module={module} nextLessonId={data.nextLessonId} />
+                <ModulePanel
+                  key={module.id}
+                  module={module}
+                  nextLessonId={data.nextLessonId}
+                  {...(lessonLink ? { lessonLink } : {})}
+                />
               ))}
             </Stack>
           )

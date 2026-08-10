@@ -51,5 +51,9 @@
       "too_long": "Mais de um dia — verifique o número."
     },
     "subject": "Sobre o que foi este bloco?"
+  },
+  "lesson": {
+    "start": "Focar nesta lição",
+    "alreadyRunning": "Já existe uma sessão em andamento."
   }
 }

@@ -1,0 +1,25 @@
+{
+  "heading": "Biblioteca",
+  "back": "Voltar ao currículo",
+  "intro": "O que esta missão deixou para trás: os documentos que o agente escreveu para serem revisitados, e o que você registrou pelo caminho.",
+  "reference": {
+    "heading": "Referência",
+    "empty": "Ainda não há documentos de referência. O agente escreve um quando uma lição produz algo que vale guardar.",
+    "open": "Abrir",
+    "unavailable": "Ainda sem workspace"
+  },
+  "records": {
+    "heading": "Registros de aprendizado",
+    "forLesson": "O que você registrou",
+    "hint": "Escrito pelo agente ao final da lição, a partir do que aconteceu de fato.",
+    "empty": "Ainda não há registros. Um é escrito ao final de cada lição."
+  },
+  "record": {
+    "fromLesson": "De: {lesson}",
+    "whatLearned": "O que você aprendeu",
+    "keyInsight": "Ideia central",
+    "evidence": "Evidência",
+    "struggles": "Dificuldades",
+    "next": "O que isso destrava"
+  }
+}

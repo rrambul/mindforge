@@ -2,6 +2,7 @@ import type { LessonDepth, LessonStatus, ModuleProgress } from "@mindforge/core"
 import { useQuery, type UseQueryResult } from "@tanstack/react-query";
 
 import { api } from "../../../shared/api/http.js";
+import { curriculumKeys } from "../../../shared/api/query-keys.js";
 
 /**
  * A mission's curriculum (FR-K5).
@@ -52,10 +53,12 @@ export interface Curriculum {
   readonly nextLessonId: string | null;
 }
 
-export const curriculumKeys = {
-  all: ["curriculum"] as const,
-  ofMission: (missionId: string) => ["curriculum", missionId] as const,
-};
+/**
+ * In `shared/api` rather than here, because the reader invalidates it: recording a
+ * lesson's outcome moves this screen's fractions, chips and "next" badge, and a
+ * feature may not import another feature's `api/` to say so (§2.2 rule 6).
+ */
+export { curriculumKeys } from "../../../shared/api/query-keys.js";
 
 /**
  * Not cached past its query.

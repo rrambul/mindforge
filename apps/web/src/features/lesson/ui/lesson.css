@@ -1,0 +1,50 @@
+/* The lesson reader (FR-T5): agent-written HTML, in a box it cannot get out of. */
+
+/**
+ * The frame takes the height it can get, and the page does not scroll around it.
+ *
+ * A lesson is a document with its own scrollbar, and nesting that inside a
+ * scrolling page gives you two — the outer one moves when you meant the inner one,
+ * and on a phone the lesson ends up a viewport-tall slot inside a taller page.
+ * `dvh` rather than `vh` (§5.1): mobile browsers shrink the visible viewport as
+ * their chrome collapses, and `vh` leaves the last lines of every lesson under the
+ * address bar.
+ *
+ * The subtracted space is the chrome above and the outcome tray below. Generous
+ * rather than exact: too small only shortens the frame, while too large clips the
+ * tray, and the tray is the capture path.
+ */
+.mf-lesson-frame {
+  display: block;
+  width: 100%;
+  min-height: 24rem;
+  height: calc(100dvh - 22rem);
+  border: 1px solid var(--mf-border);
+  border-radius: var(--mf-radius-sm, 4px);
+  /* Untrusted content: a white page on a dark theme is jarring, but forcing a
+     background here would fight lessons that set their own. Left to the lesson. */
+  background: var(--mf-surface, #fff);
+}
+
+/**
+ * The tray sticks to the bottom of the viewport on a phone.
+ *
+ * Recording an outcome is a ≤5s, ≤2-tap path (§7.1), and it stops being one if it
+ * is a scroll away at the end of a long lesson. On a wide screen there is room for
+ * it to sit in the flow, where it reads as part of the page rather than as a bar.
+ */
+.mf-lesson-tray {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+  padding: var(--mf-space-2) 0;
+  background: var(--mf-bg, transparent);
+  border-top: 1px solid var(--mf-border);
+}
+
+@media (min-width: 48rem) {
+  .mf-lesson-tray {
+    position: static;
+    border-top: none;
+  }
+}

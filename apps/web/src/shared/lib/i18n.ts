@@ -17,6 +17,8 @@ import enFirstRun from "../../locales/en/firstRun.json";
 import enFocus from "../../locales/en/focus.json";
 import enGlossary from "../../locales/en/glossary.json";
 import enInsights from "../../locales/en/insights.json";
+import enLesson from "../../locales/en/lesson.json";
+import enLibrary from "../../locales/en/library.json";
 import enMemory from "../../locales/en/memory.json";
 import enMissions from "../../locales/en/missions.json";
 import enSettings from "../../locales/en/settings.json";
@@ -29,6 +31,8 @@ import ptFirstRun from "../../locales/pt-BR/firstRun.json";
 import ptFocus from "../../locales/pt-BR/focus.json";
 import ptGlossary from "../../locales/pt-BR/glossary.json";
 import ptInsights from "../../locales/pt-BR/insights.json";
+import ptLesson from "../../locales/pt-BR/lesson.json";
+import ptLibrary from "../../locales/pt-BR/library.json";
 import ptMemory from "../../locales/pt-BR/memory.json";
 import ptMissions from "../../locales/pt-BR/missions.json";
 import ptSettings from "../../locales/pt-BR/settings.json";
@@ -55,6 +59,8 @@ export const NAMESPACES = [
   "firstRun",
   "insights",
   "curriculum",
+  "lesson",
+  "library",
   "settings",
   "teach",
   "memory",
@@ -71,6 +77,8 @@ const resources = {
     firstRun: enFirstRun,
     insights: enInsights,
     curriculum: enCurriculum,
+    lesson: enLesson,
+    library: enLibrary,
     settings: enSettings,
     teach: enTeach,
     memory: enMemory,
@@ -85,6 +93,8 @@ const resources = {
     firstRun: ptFirstRun,
     insights: ptInsights,
     curriculum: ptCurriculum,
+    lesson: ptLesson,
+    library: ptLibrary,
     settings: ptSettings,
     teach: ptTeach,
     memory: ptMemory,

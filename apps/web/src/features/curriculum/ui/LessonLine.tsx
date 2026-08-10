@@ -1,6 +1,7 @@
+import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
-import { StatusChip, Text } from "../../../shared/ui/index.js";
+import { Row, StatusChip, Text } from "../../../shared/ui/index.js";
 import type { CurriculumLesson } from "../api/use-curriculum.js";
 import "./curriculum.css";
 
@@ -8,6 +9,14 @@ interface LessonLineProps {
   readonly lesson: CurriculumLesson;
   /** The one the plan would have you do next, across the whole mission (FR-K7). */
   readonly isNext: boolean;
+  /**
+   * The way in to the reader, when there is something to read (FR-T5).
+   *
+   * Absent for a planned lesson, and that absence is the whole treatment: a link
+   * to a file that does not exist is worse than no link, and a disabled one is a
+   * control that asks to be clicked and then refuses.
+   */
+  readonly link?: ReactNode;
 }
 
 /**
@@ -27,7 +36,7 @@ interface LessonLineProps {
  * a 3, or as an empty slot the eye reads as "easy", is a measurement claim about
  * something the plan never stated (non-negotiable 10).
  */
-export function LessonLine({ lesson, isNext }: LessonLineProps) {
+export function LessonLine({ lesson, isNext, link }: LessonLineProps) {
   const { t } = useTranslation("curriculum");
 
   const state = lesson.completed
@@ -72,6 +81,10 @@ export function LessonLine({ lesson, isNext }: LessonLineProps) {
             : t("lesson.lockedBy", { lessons: lesson.blockedBy.join(", ") })}
         </Text>
       ) : null}
+
+      {/* Below the metadata, not beside the title: the line is read left to right
+          and the action is what you reach for once you have decided. */}
+      {link === undefined ? null : <Row>{link}</Row>}
     </li>
   );
 }

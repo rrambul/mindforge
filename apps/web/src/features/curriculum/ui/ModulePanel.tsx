@@ -1,7 +1,8 @@
+import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
 import { Card, Heading, Spread, Stack, StatusChip, Text } from "../../../shared/ui/index.js";
-import type { CurriculumModule } from "../api/use-curriculum.js";
+import type { CurriculumLesson, CurriculumModule } from "../api/use-curriculum.js";
 import { LessonLine } from "./LessonLine.js";
 import "./curriculum.css";
 
@@ -9,6 +10,8 @@ interface ModulePanelProps {
   readonly module: CurriculumModule;
   /** The lesson the plan would have you do next, or null. */
   readonly nextLessonId: string | null;
+  /** The way in to a written lesson, from the app layer. */
+  readonly lessonLink?: (lesson: CurriculumLesson) => ReactNode;
 }
 
 /**
@@ -20,7 +23,7 @@ interface ModulePanelProps {
  * change. A module with no plan says so instead of showing an empty bar
  * (non-negotiable 10, and `moduleProgress` returns null for exactly this).
  */
-export function ModulePanel({ module, nextLessonId }: ModulePanelProps) {
+export function ModulePanel({ module, nextLessonId, lessonLink }: ModulePanelProps) {
   const { t } = useTranslation("curriculum");
   const { t: g } = useTranslation("glossary");
 
@@ -60,7 +63,12 @@ export function ModulePanel({ module, nextLessonId }: ModulePanelProps) {
         {module.lessons.length > 0 ? (
           <ul className="mf-lesson-list" aria-label={t("module.lessons", { module: module.name })}>
             {module.lessons.map((lesson) => (
-              <LessonLine key={lesson.id} lesson={lesson} isNext={lesson.id === nextLessonId} />
+              <LessonLine
+                key={lesson.id}
+                lesson={lesson}
+                isNext={lesson.id === nextLessonId}
+                {...(lessonLink ? { link: lessonLink(lesson) } : {})}
+              />
             ))}
           </ul>
         ) : null}

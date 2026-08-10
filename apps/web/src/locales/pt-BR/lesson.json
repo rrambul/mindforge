@@ -1,0 +1,29 @@
+{
+  "back": "Voltar ao currículo",
+  "frame": {
+    "title": "Lição: {title}"
+  },
+  "meta": {
+    "offPlan": "Fora dos módulos"
+  },
+  "unwritten": {
+    "heading": "Ainda não há nada para ler",
+    "planned": "Esta lição está planejada, mas ainda não foi escrita. Peça para ensiná-la e ela aparece aqui.",
+    "noWorkspace": "Esta missão ainda não tem workspace, então não existe arquivo por trás desta lição."
+  },
+  "outcome": {
+    "legend": "Como foi?",
+    "understood": "Entendi",
+    "shaky": "Inseguro",
+    "lost": "Me perdi",
+    "hint": "Inseguro é a resposta honesta na maioria das vezes, e continua assim até você refazer a lição.",
+    "recorded": "Registrado como {outcome}.",
+    "clear": "Desfazer",
+    "unwritten": "Ainda não há o que ter entendido."
+  },
+  "next": {
+    "heading": "Próxima",
+    "read": "Ler agora",
+    "notWritten": "Ainda não escrita — um toque e o agente escreve."
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "heading": "Library",
+  "back": "Back to the curriculum",
+  "intro": "What this mission has left behind: the documents the agent wrote to be revisited, and what you recorded as you went.",
+  "reference": {
+    "heading": "Reference",
+    "empty": "No reference documents yet. The agent writes one when a lesson produces something worth keeping.",
+    "open": "Open",
+    "unavailable": "No workspace yet"
+  },
+  "records": {
+    "heading": "Learning records",
+    "forLesson": "What you recorded",
+    "hint": "Written by the agent at the end of the lesson, from what actually happened.",
+    "empty": "No learning records yet. One is written at the end of each lesson."
+  },
+  "record": {
+    "fromLesson": "From: {lesson}",
+    "whatLearned": "What you learned",
+    "keyInsight": "Key insight",
+    "evidence": "Evidence",
+    "struggles": "Struggles",
+    "next": "What this unlocks"
+  }
+}

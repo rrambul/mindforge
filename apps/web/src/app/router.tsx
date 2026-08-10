@@ -8,6 +8,8 @@ import {
 import type { ReactElement } from "react";
 import { CurriculumScreen } from "./CurriculumScreen.js";
 import { InsightsScreen } from "./InsightsScreen.js";
+import { LessonScreen } from "./LessonScreen.js";
+import { LibraryScreen } from "./LibraryScreen.js";
 import { MissionsScreen } from "./MissionsScreen.js";
 import { SettingsScreen } from "./SettingsScreen.js";
 import { Shell } from "./Shell.js";
@@ -81,6 +83,41 @@ function pathParam(params: unknown, name: string): string {
 }
 
 export const curriculumRoute = screen("/missions/$missionId", CurriculumRouteScreen);
+
+/**
+ * The reader (FR-T5) and the library (FR-T6), both below a mission for the same
+ * reason the curriculum is: neither means anything without one, and both are
+ * reached from it rather than from the nav.
+ *
+ * A lesson carries its mission in the URL even though `/lessons/$lessonId` would
+ * resolve — the back link, the "next lesson" lookup and the records panel all need
+ * the mission, and reading it from the loaded lesson would leave the whole page
+ * waiting on one request to know where it is.
+ */
+function LessonRouteScreen(): ReactElement {
+  // Widened to `unknown` on the way out of the hook, not held as its own type:
+  // that type is the casualty of the cycle described above and is `any`, so a
+  // local binding of it is an unchecked value spreading into two query keys.
+  const params: unknown = useParams({ from: "/missions/$missionId/lessons/$lessonId" });
+
+  return (
+    <LessonScreen
+      missionId={pathParam(params, "missionId")}
+      lessonId={pathParam(params, "lessonId")}
+    />
+  );
+}
+
+function LibraryRouteScreen(): ReactElement {
+  return (
+    <LibraryScreen
+      missionId={pathParam(useParams({ from: "/missions/$missionId/library" }), "missionId")}
+    />
+  );
+}
+
+export const lessonRoute = screen("/missions/$missionId/lessons/$lessonId", LessonRouteScreen);
+export const libraryRoute = screen("/missions/$missionId/library", LibraryRouteScreen);
 export const insightsRoute = screen("/insights", InsightsScreen);
 export const settingsRoute = screen("/settings", SettingsScreen);
 
@@ -88,6 +125,8 @@ const routeTree = rootRoute.addChildren([
   todayRoute,
   missionsRoute,
   curriculumRoute,
+  lessonRoute,
+  libraryRoute,
   insightsRoute,
   settingsRoute,
 ]);

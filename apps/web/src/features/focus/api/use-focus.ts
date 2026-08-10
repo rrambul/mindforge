@@ -32,6 +32,8 @@ export interface FocusSession {
   readonly energy: number | null;
   readonly note: string | null;
   readonly missionId: string | null;
+  /** The lesson the time was spent on, when the block was started from the reader (FR-F3). */
+  readonly lessonId: string | null;
 }
 
 interface RunningResponse {
@@ -108,6 +110,7 @@ export function useStartSession(): UseMutationResult<
           energy: null,
           note: null,
           missionId: input.missionId ?? null,
+          lessonId: input.lessonId ?? null,
         },
       });
 

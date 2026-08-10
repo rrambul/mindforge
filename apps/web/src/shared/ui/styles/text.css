@@ -11,6 +11,11 @@
 .mf-heading[data-level="2"] {
   font-size: var(--mf-step-1);
 }
+/* Body size, weight-differentiated. A third display size at this depth would make a
+   card title compete with the section it sits inside. */
+.mf-heading[data-level="3"] {
+  font-size: var(--mf-step-0);
+}
 
 .mf-text {
   margin: 0;

@@ -25,7 +25,9 @@
     "depthUnknown": "Depth not recorded",
     "notWrittenYet": "not written yet",
     "lockedBy": "Waiting on {lessons}",
-    "lockedUnnamed": "Waiting on an earlier lesson"
+    "lockedUnnamed": "Waiting on an earlier lesson",
+    "read": "Read",
+    "reread": "Read again"
   },
   "depth": {
     "overview": "Overview",
@@ -36,5 +38,6 @@
     "understood": "Understood",
     "shaky": "Shaky",
     "lost": "Lost"
-  }
+  },
+  "library": "Library"
 }
