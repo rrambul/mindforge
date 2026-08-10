@@ -194,3 +194,110 @@ describe("checkReferences", () => {
     expect(warnings).toEqual([]);
   });
 });
+
+describe("the module a lesson declares", () => {
+  const withMeta = (head: string) => `<!doctype html>
+<html lang="en">
+  <head>
+    <title>Reading a policy</title>
+    ${head}
+  </head>
+  <body><h1>Reading a policy</h1><p>Words.</p></body>
+</html>`;
+
+  it("reads the track and the skills the lesson claims to teach", () => {
+    const { parsed } = parseLessonHtml(
+      "0007-reading-a-policy.html",
+      withMeta(`<meta name="mindforge:track" content="iam-basics" />
+      <meta name="mindforge:skill" content="iam-read-policy" />
+      <meta name="mindforge:skill" content="iam-principal-model" />`),
+    );
+
+    expect(parsed.trackSlug).toBe("iam-basics");
+    expect(parsed.skillSlugs).toEqual(["iam-read-policy", "iam-principal-model"]);
+  });
+
+  it("leaves the track null when the lesson declares none, without warning", () => {
+    // Null is legal and permanent for two cases: lessons written before the
+    // mission had a curriculum, and lessons taught deliberately off-plan. Warning
+    // about it would make every pre-M4 lesson noisy on the next reindex.
+    const { parsed, warnings } = parseLessonHtml("0007-x.html", withMeta(""));
+
+    expect(parsed.trackSlug).toBeNull();
+    expect(parsed.skillSlugs).toEqual([]);
+    expect(codes({ warnings })).not.toContain("value_duplicated");
+  });
+
+  it("slugifies what the tag says, so a near-miss still resolves", () => {
+    // The agent writes this tag from the same CURRICULUM.md cell a human might
+    // have typed. `IAM Basics` and `iam-basics` are the same track, and the
+    // lookup on the other side is by slug.
+    const { parsed } = parseLessonHtml(
+      "0007-x.html",
+      withMeta(`<meta name="mindforge:track" content="IAM Basics" />`),
+    );
+
+    expect(parsed.trackSlug).toBe("iam-basics");
+  });
+
+  it("takes the first of two track tags and says it had to choose", () => {
+    // `lessons.track_id` is one column. Two tags is the agent hedging, and a
+    // silent pick would look deliberate.
+    const { parsed, warnings } = parseLessonHtml(
+      "0007-x.html",
+      withMeta(`<meta name="mindforge:track" content="iam-basics" />
+      <meta name="mindforge:track" content="vpc-networking" />`),
+    );
+
+    expect(parsed.trackSlug).toBe("iam-basics");
+    expect(codes({ warnings })).toContain("value_duplicated");
+  });
+
+  it("deduplicates repeated skill tags", () => {
+    const { parsed } = parseLessonHtml(
+      "0007-x.html",
+      withMeta(`<meta name="mindforge:skill" content="iam-read-policy" />
+      <meta name="mindforge:skill" content="IAM read policy" />`),
+    );
+
+    expect(parsed.skillSlugs).toEqual(["iam-read-policy"]);
+  });
+
+  it("ignores a tag with an empty or whitespace content attribute", () => {
+    const { parsed } = parseLessonHtml(
+      "0007-x.html",
+      withMeta(`<meta name="mindforge:track" content="  " />
+      <meta name="mindforge:skill" content="" />`),
+    );
+
+    expect(parsed.trackSlug).toBeNull();
+    expect(parsed.skillSlugs).toEqual([]);
+  });
+
+  it("still parses the tag on a reference doc, which the caller then ignores", () => {
+    // Pinned rather than left implicit. Reference docs are revised in place and
+    // shared across tracks — the skill is explicit that these are the artifacts
+    // you revisit — so `reference_docs` has no track column, for the same reason
+    // it has no seq. The parser does not distinguish the two document kinds here;
+    // the reindexer is what drops the value, and this test is the reminder that
+    // reading `trackSlug` off a reference doc would be reading something real and
+    // storing it nowhere.
+    const { parsed } = parseReferenceHtml(
+      "iam.html",
+      withMeta(`<meta name="mindforge:track" content="iam-basics" />`),
+    );
+
+    expect(parsed.trackSlug).toBe("iam-basics");
+  });
+});
+
+describe("meta tags that carry nothing", () => {
+  it("ignores a meta tag with no content attribute at all", () => {
+    const { parsed } = parseLessonHtml(
+      "0007-x.html",
+      `<html><head><title>T</title><meta name="mindforge:track" /></head><body><p>x</p></body></html>`,
+    );
+
+    expect(parsed.trackSlug).toBeNull();
+  });
+});

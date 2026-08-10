@@ -16,6 +16,7 @@ export const RECORDS_DIR = "learning-records";
 export const ASSETS_DIR = "assets";
 
 export const MISSION_FILE = "MISSION.md";
+export const CURRICULUM_FILE = "CURRICULUM.md";
 export const RESOURCES_FILE = "RESOURCES.md";
 export const NOTES_FILE = "NOTES.md";
 export const BRIEFING_FILE = "BRIEFING.md";
@@ -28,15 +29,20 @@ export const BRIEFING_FILE = "BRIEFING.md";
  * run that writes it again — so the exclusion has to happen before anything sees
  * the file at all.
  *
- * `BRIEFING.md` is regenerated every run. The other four are the skill and its
+ * `BRIEFING.md` is regenerated every run. The other five are the skill and its
  * format docs, copied in so the skill's relative links resolve; uploading them
  * would put Mindforge's own scaffolding inside the user's Storage prefix and give
  * it `workspace_files` rows.
+ *
+ * `CURRICULUM.md` is **not** here, and the distinction is the whole point:
+ * `CURRICULUM-FORMAT.md` is scaffolding and the curriculum itself is the
+ * learner's, canonical in Storage like `MISSION.md`.
  */
 export const SYNC_EXCLUDE: readonly string[] = [
   BRIEFING_FILE,
   "SKILL.md",
   "MISSION-FORMAT.md",
+  "CURRICULUM-FORMAT.md",
   "RESOURCES-FORMAT.md",
   "LEARNING-RECORD-FORMAT.md",
   ".memory",

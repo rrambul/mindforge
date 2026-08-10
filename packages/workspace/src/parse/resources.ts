@@ -28,6 +28,7 @@
  */
 
 import { parseDocument, readSection } from "../markdown/sections.js";
+import { bindColumns, parseLink, parseTable } from "../markdown/table.js";
 import { type Parsed, type ParseWarning, warn } from "./result.js";
 
 /** `resources.type`'s CHECK constraint. The format doc names only four of these. */
@@ -107,57 +108,6 @@ export interface ParsedRejection {
 export interface ParsedResources {
   readonly primary: readonly ParsedResource[];
   readonly rejected: readonly ParsedRejection[];
-}
-
-/** `[Title](url)`, or bare text. */
-function parseLink(cell: string): { title: string; url: string | null } {
-  const link = /^\s*\[(?<title>[^\]]*)\]\((?<url>[^)]*)\)\s*$/u.exec(cell);
-  if (link?.groups) {
-    return {
-      title: link.groups["title"]!.trim(),
-      url: link.groups["url"]!.trim() || null,
-    };
-  }
-  return { title: cell.trim(), url: null };
-}
-
-interface Table {
-  readonly headers: readonly string[];
-  readonly rows: readonly (readonly string[])[];
-}
-
-/**
- * A GitHub-flavoured pipe table.
- *
- * Leading and trailing pipes are optional in the wild, and the delimiter row is
- * matched rather than assumed to be the second line — an agent that omits it
- * writes something that is not a table, and reading its header row as data is
- * worse than reading nothing.
- */
-function parseTable(body: string): Table | null {
-  const lines = body
-    .split("\n")
-    .map((line) => line.trim())
-    .filter((line) => line.startsWith("|") || line.includes("|"));
-
-  if (lines.length < 2) return null;
-
-  const cells = (line: string): string[] =>
-    line
-      .replace(/^\|/u, "")
-      .replace(/\|$/u, "")
-      .split("|")
-      .map((cell) => cell.trim());
-
-  const headers = cells(lines[0]!);
-  const isDelimiter = cells(lines[1]!).every((cell) => /^:?-{1,}:?$/u.test(cell));
-  if (!isDelimiter) return null;
-
-  const rows = lines
-    .slice(2)
-    .map(cells)
-    .filter((row) => row.some((cell) => cell !== ""));
-  return { headers, rows };
 }
 
 function coerceType(raw: string | null, warnings: ParseWarning[]): ResourceType {
@@ -240,53 +190,36 @@ function parsePrimary(
     return [];
   }
 
-  // Header name → column index. Built once; every row reads through it, which is
-  // what makes an added or reordered column harmless.
-  const columnOf = new Map<keyof ParsedResource | "note", number>();
-  const extras: number[] = [];
+  // "Why it's here", and the several apostrophes a model might use for it.
+  const bound = bindColumns<keyof ParsedResource | "note">(
+    table,
+    COLUMN_ALIASES,
+    warnings,
+    (key) => (key.startsWith("why") ? "note" : undefined),
+  );
 
-  for (const [index, header] of table.headers.entries()) {
-    const key = header.trim().toLowerCase().replace(/\s+/gu, " ");
-    const field = COLUMN_ALIASES[key];
-
-    if (field) {
-      columnOf.set(field, index);
-    } else if (key.startsWith("why")) {
-      // "Why it's here", and the several apostrophes a model might use for it.
-      columnOf.set("note", index);
-    } else {
-      extras.push(index);
-      warnings.push(warn("section_unknown", { heading: header }));
-    }
-  }
-
-  if (!columnOf.has("title")) {
+  if (!bound.has("title")) {
     warnings.push(warn("value_malformed", { field: PRIMARY_HEADING, reason: "no_title_column" }));
     return [];
   }
 
-  const cellAt = (row: readonly string[], field: keyof ParsedResource | "note"): string | null => {
-    const index = columnOf.get(field);
-    return index === undefined ? null : (row[index] ?? null);
-  };
-
   const resources: ParsedResource[] = [];
 
-  for (const row of table.rows) {
-    const { title, url } = parseLink(cellAt(row, "title") ?? "");
+  for (const row of bound.rows) {
+    const { title, url } = parseLink(bound.cell(row, "title") ?? "");
     if (title === "") continue;
 
     resources.push({
       title,
       url,
-      type: coerceType(cellAt(row, "type"), warnings),
-      trust: coerceTrust(cellAt(row, "trust"), warnings),
-      note: cellAt(row, "note") || null,
+      type: coerceType(bound.cell(row, "type"), warnings),
+      trust: coerceTrust(bound.cell(row, "trust"), warnings),
+      note: bound.cell(row, "note"),
     });
 
-    for (const index of extras) {
+    for (const index of bound.extras) {
       const value = row[index];
-      if (value) unmapped[`${PRIMARY_HEADING}/${title}/${table.headers[index]}`] = value;
+      if (value) unmapped[`${PRIMARY_HEADING}/${title}/${bound.headers[index]}`] = value;
     }
   }
 

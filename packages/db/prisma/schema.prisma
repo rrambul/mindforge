@@ -55,6 +55,7 @@ model Profile {
   createdAt            DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
   missions          Mission[]
+  tracks            Track[]
   goals             Goal[]
   skills            Skill[]
   resources         Resource[]
@@ -101,6 +102,7 @@ model Mission {
 
   profile         Profile            @relation(fields: [userId], references: [id], onDelete: Cascade)
   revisions       MissionRevision[]
+  tracks          Track[]
   goals           Goal[]
   resources       ResourceLink[]
   tasks           Task[]
@@ -184,6 +186,97 @@ model GoalTarget {
   @@map("goal_targets")
 }
 
+/// A subtopic of a mission, and the module its lessons belong to (NORTHSTAR M4).
+///
+/// M7 calls this level an arm and calls the table `tracks`; it arrives here early
+/// because a module of lessons is a track's lessons and one entity serves both.
+/// Written by the `curriculum` skill from `CURRICULUM.md`, which is canonical —
+/// this rebuilds by re-reading a workspace like everything else in the index.
+model Track {
+  id        String @id @default(uuid()) @db.Uuid
+  userId    String @map("user_id") @db.Uuid
+  missionId String @map("mission_id") @db.Uuid
+  /// Stable, and what each lesson's `<meta name="mindforge:track">` names.
+  /// Renaming the track is free; changing this orphans its module.
+  slug      String
+  name      String
+  /// One line, observable: what you can do once the module is finished.
+  outcome   String?
+  /// The curriculum's recommended reading order, fundamentals first. A **plan**,
+  /// not a prerequisite — sequencing comes from `track_edges` and evidence (§9.4).
+  /// Where the two disagree, that gap is an insight, not a bug.
+  position  Int
+  /// proposed | active | done | dropped. A track absent from a regenerated
+  /// `CURRICULUM.md` is marked `dropped`, never deleted: the agent rewrites the
+  /// file wholesale, and a deletion would take a module of finished lessons.
+  status    String @default("proposed")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  profile   Profile      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  mission   Mission      @relation(fields: [missionId], references: [id], onDelete: Cascade)
+  prereqOf  TrackEdge[]  @relation("track")
+  requires  TrackEdge[]  @relation("trackPrereq")
+  skills    TrackSkill[]
+  lessons   Lesson[]
+  agentRuns AgentRun[]
+
+  @@unique([missionId, slug])
+  @@index([userId, missionId, position])
+  @@map("tracks")
+}
+
+/// Prerequisite DAG over tracks. Cycle prevention lives in the application layer
+/// for the same reason `skill_edges` puts it there: a constraint cannot express it.
+model TrackEdge {
+  userId   String @map("user_id") @db.Uuid
+  trackId  String @map("track_id") @db.Uuid
+  prereqId String @map("prereq_id") @db.Uuid
+
+  track  Track @relation("track", fields: [trackId], references: [id], onDelete: Cascade)
+  prereq Track @relation("trackPrereq", fields: [prereqId], references: [id], onDelete: Cascade)
+
+  @@id([trackId, prereqId])
+  @@map("track_edges")
+}
+
+/// What a track **intends** to build. Written before any of its lessons exist,
+/// which is the point of generating them lazily: intent is knowable up front,
+/// material is not. Contrast `LessonSkill`, which is what actually got taught.
+model TrackSkill {
+  userId  String @map("user_id") @db.Uuid
+  trackId String @map("track_id") @db.Uuid
+  skillId String @map("skill_id") @db.Uuid
+
+  track Track @relation(fields: [trackId], references: [id], onDelete: Cascade)
+  skill Skill @relation(fields: [skillId], references: [id], onDelete: Cascade)
+
+  @@id([trackId, skillId])
+  @@index([userId, skillId])
+  @@map("track_skills")
+}
+
+/// What a lesson actually taught, from its own `<meta name="mindforge:skill">`
+/// tags.
+///
+/// `lessons.outcome` has been documented as the first automatic skill evidence
+/// since the M0 schema and had nowhere to land — nothing joined a lesson to a
+/// skill. This is that join, and a table rather than a column because one lesson
+/// teaches more than one thing.
+model LessonSkill {
+  userId   String @map("user_id") @db.Uuid
+  lessonId String @map("lesson_id") @db.Uuid
+  skillId  String @map("skill_id") @db.Uuid
+
+  lesson Lesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  skill  Skill  @relation(fields: [skillId], references: [id], onDelete: Cascade)
+
+  @@id([lessonId, skillId])
+  @@index([userId, skillId])
+  @@map("lesson_skills")
+}
+
 model Skill {
   id             String    @id @default(uuid()) @db.Uuid
   userId         String    @map("user_id") @db.Uuid
@@ -206,6 +299,8 @@ model Skill {
   profile       Profile            @relation(fields: [userId], references: [id], onDelete: Cascade)
   prereqOf      SkillEdge[]        @relation("skill")
   requires      SkillEdge[]        @relation("prereq")
+  trackSkills   TrackSkill[]
+  lessonSkills  LessonSkill[]
   goalTargets   GoalTarget[]
   resourceLinks ResourceLink[]
   friction      FrictionEvent[]
@@ -574,9 +669,18 @@ model Lesson {
   id          String @id @default(uuid()) @db.Uuid
   userId      String @map("user_id") @db.Uuid
   missionId   String @map("mission_id") @db.Uuid
+  /// The module this lesson belongs to, from the lesson's own
+  /// `<meta name="mindforge:track">` — never from `CURRICULUM.md`, which the
+  /// agent rewrites wholesale and which would give the fact a second home to
+  /// disagree with. Null is legal and permanent for two cases: lessons written
+  /// before the mission had a curriculum, and lessons taught deliberately
+  /// off-plan.
+  trackId     String? @map("track_id") @db.Uuid
   /// From the filename, never from the document. An H1 is prose the agent
   /// rewrites; the number is the workspace's own ordering, and it is what a
-  /// learning record links back to.
+  /// learning record links back to. Mission-global: numbering does not restart
+  /// per track, because the file layout has no per-track directory and files are
+  /// canonical.
   seq         Int
   slug        String
   title       String
@@ -595,10 +699,15 @@ model Lesson {
 
   profile Profile          @relation(fields: [userId], references: [id], onDelete: Cascade)
   mission Mission          @relation(fields: [missionId], references: [id], onDelete: Cascade)
+  /// SetNull, not Cascade: if a track is ever removed by hand the lessons it held
+  /// are the expensive artifact and the grouping is the cheap one (non-negotiable 6).
+  track   Track?           @relation(fields: [trackId], references: [id], onDelete: SetNull)
+  skills  LessonSkill[]
   records LearningRecord[]
 
   @@unique([missionId, seq])
   @@index([userId, missionId])
+  @@index([trackId, seq])
   @@map("lessons")
 }
 
@@ -702,9 +811,13 @@ model AgentRun {
   userId    String  @map("user_id") @db.Uuid
   /// Null for kinds that are not about one mission — the weekly digest.
   missionId String? @map("mission_id") @db.Uuid
+  /// The module a `generate_lesson` run is teaching within. Null for
+  /// `generate_curriculum`, which precedes every track, and for anything not
+  /// scoped to one module.
+  trackId   String? @map("track_id") @db.Uuid
 
-  /// generate_lesson | sync_workspace | generate_assessment | grade_teach_back |
-  /// weekly_digest | generate_plan
+  /// generate_lesson | generate_curriculum | sync_workspace | generate_assessment |
+  /// grade_teach_back | weekly_digest | generate_plan
   kind   String
   /// queued | running | succeeded | succeeded_with_conflicts | failed | cancelled.
   /// `succeeded_with_conflicts` is a success: the run did its work and kept both
@@ -731,6 +844,7 @@ model AgentRun {
 
   profile  Profile   @relation(fields: [userId], references: [id], onDelete: Cascade)
   mission  Mission?  @relation(fields: [missionId], references: [id], onDelete: Cascade)
+  track    Track?    @relation(fields: [trackId], references: [id], onDelete: SetNull)
   llmCalls LlmCall[]
 
   @@index([userId, createdAt])

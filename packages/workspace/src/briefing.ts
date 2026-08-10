@@ -60,10 +60,50 @@ export interface FrictionSummary {
   readonly occurrences: number;
 }
 
+/** One lesson already written into the open module, so the agent does not repeat it. */
+export interface TrackLesson {
+  readonly seq: number;
+  readonly title: string;
+}
+
+/**
+ * The module this run is teaching within.
+ *
+ * Lessons are generated one at a time, on demand — the learner finishes one and
+ * asks for the next — so a run's job is not "teach the next thing in this
+ * mission" but "teach the next thing in **this track**". The boundary is what
+ * makes a module cohere; the skill's own ZPD logic still decides what inside it.
+ *
+ * `remainingSkills` is intent from `CURRICULUM.md`, never a measurement: nothing
+ * yet knows whether any of them were learnt, which is exactly what
+ * `skillEvidence`'s `NotTracked` says two fields down.
+ */
+export interface CurrentTrack {
+  readonly slug: string;
+  readonly name: string;
+  readonly outcome: string | null;
+  /** Where the curriculum put it. A reading order, not a claim about readiness. */
+  readonly position: number;
+  readonly totalTracks: number;
+  /** Track names this one is built on, so the agent can assume that ground. */
+  readonly prerequisites: readonly string[];
+  /** What the curriculum said this module should build. */
+  readonly skills: readonly string[];
+  /** Already written, in order. The agent reads these before adding to them. */
+  readonly lessons: readonly TrackLesson[];
+}
+
 export interface BriefingInput {
   readonly missionTopic: string | null;
   readonly lessonCount: number;
   readonly recordCount: number;
+
+  /**
+   * Null in two different situations the agent must not confuse, which is why
+   * this is a union rather than a nullable object: the mission may have no
+   * curriculum at all, or it may have one with no module open.
+   */
+  readonly currentTrack: Tracked<CurrentTrack>;
 
   /** Records' `## Next` sections. The only real ZPD input in M3. */
   readonly zpdCandidates: readonly ZpdCandidate[];
@@ -90,6 +130,28 @@ export interface BriefingInput {
  * The absences M3 ships with, in one place so a caller cannot phrase them
  * differently and so the day one becomes real is a deletion here.
  */
+/**
+ * The two reasons a run has no module, phrased so the agent does the right and
+ * different thing in each.
+ *
+ * Kept beside `M3_ABSENCES` because they are the same kind of statement: a fact
+ * about Mindforge that the agent must not read as a fact about the learner.
+ */
+export const NO_TRACK = {
+  noCurriculum: notTracked(
+    "This mission has no CURRICULUM.md yet, so it has no subtopics and no modules. " +
+      "Teach from the mission itself, and do not invent a curriculum or write one — " +
+      "structure is produced by a separate skill, deliberately, so it can be revised " +
+      "without discarding lessons.",
+  ),
+  noneOpen: notTracked(
+    "This mission has a curriculum, but no module is currently open. Teach the most " +
+      "defensible next thing from the mission and the records below, and leave the " +
+      "lesson's `mindforge:track` meta tag off rather than guessing at one — a lesson " +
+      "filed under the wrong module is worse than one filed under none.",
+  ),
+} as const;
+
 export const M3_ABSENCES = {
   dueReviews: notTracked(
     "Spaced repetition ships in a later release, so nothing schedules reviews yet. " +
@@ -111,6 +173,72 @@ export const M3_ABSENCES = {
 
 function section(heading: string, body: string): string {
   return `## ${heading}\n\n${body.trim()}\n`;
+}
+
+/**
+ * The open module, and the instruction that comes with it.
+ *
+ * The instruction is here rather than in `SKILL.md` because it is per-run state:
+ * which track is open changes between runs, and the skill is a fixed document
+ * vendored verbatim from upstream. `skills/UNATTENDED.md` carries the standing
+ * half of the rule; this carries the part that is only true today.
+ */
+function renderTrack(track: Tracked<CurrentTrack>): string {
+  if (isNotTracked(track)) return track.reason;
+
+  const lines = [
+    `**${track.name}** — subtopic ${track.position} of ${track.totalTracks} in this mission's curriculum.`,
+    "",
+    track.outcome === null
+      ? "The curriculum did not record an outcome for this module."
+      : `What the learner should be able to do afterwards: ${track.outcome}`,
+    "",
+    "**Teach the next thing inside this module, not the next thing in the mission.**",
+    "Write exactly one lesson and stop — the learner asks for the next one when they have",
+    "done this one, and a run that writes four has guessed at three of them without seeing",
+    "how the first landed.",
+    "",
+    "Declare the module in the lesson's `<head>`:",
+    "",
+    "```html",
+    `<meta name="mindforge:track" content="${track.slug}">`,
+    "```",
+    "",
+    'plus one `<meta name="mindforge:skill" content="…">` per skill below that the lesson',
+    "actually teaches. Without them the lesson is filed under no module and its outcome",
+    "credits no skill.",
+  ];
+
+  if (track.prerequisites.length > 0) {
+    lines.push(
+      "",
+      `Built on: ${track.prerequisites.join(", ")}. The learner has worked through those modules —`,
+      "which is not the same as having proved anything, and nothing below measures it yet.",
+    );
+  }
+
+  lines.push(
+    "",
+    "### What this module is meant to build",
+    "",
+    track.skills.length === 0
+      ? "_The curriculum named no skills for this module._"
+      : list(track.skills),
+    "",
+    "These are the curriculum's **intent**, written before any of these lessons existed.",
+    "They are not a measurement and not a checklist — nothing here says which of them the",
+    "learner has actually acquired.",
+    "",
+    "### Lessons already in this module",
+    "",
+    track.lessons.length === 0
+      ? "_None yet — this is the module's first lesson._"
+      : list(
+          track.lessons.map((lesson) => `${String(lesson.seq).padStart(4, "0")} — ${lesson.title}`),
+        ),
+  );
+
+  return lines.join("\n");
 }
 
 function list(items: readonly string[]): string {
@@ -148,6 +276,8 @@ export function renderBriefing(input: BriefingInput): string {
       ].join("\n"),
     ),
   );
+
+  parts.push(section("The module you are teaching in", renderTrack(input.currentTrack)));
 
   parts.push(
     section(

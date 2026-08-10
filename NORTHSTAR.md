@@ -177,13 +177,26 @@ Ten steps. Each is a week or three of evenings, ships something usable, and has 
 
 ### M4 — Lessons in the product
 
-**Goal:** the generated material is usable, not just stored.
+**Goal:** the generated material is usable, not just stored — and it arrives in an order.
 
+A main topic is a Mission. Under it sit **tracks** (subtopics), ordered fundamentals-first, and a
+track's lessons are its module. Lessons are still generated one at a time, on demand: you finish one,
+you ask for the next, and the module fills in behind you. Nothing is pre-generated.
+
+- **`curriculum` skill + `CURRICULUM.md`**: given a mission, propose 8–15 tracks with a one-line outcome, prerequisites, and target skills each — grounded in `RESOURCES.md`, not in the model's memory. Structure only; it proposes no scores.
+- **`tracks` table** (M7's "arm", pulled forward), `lessons.track_id`, and `lesson_skills` — the first thing that writes `skills` and `skill_edges` automatically, which shipped manual-only in M1
+- Each lesson declares its own track in a `<meta>` tag, so membership survives a rewrite. `CURRICULUM.md` is an index, not the record — the `RESOURCES.md` doubling lesson
+- Teach runs narrow from mission-scoped to **track-scoped**: `BRIEFING.md` gains the current track, the lessons already in it, and the last record's `Next`. One active track per mission
 - Sandboxed lesson renderer: separate origin, `sandbox="allow-scripts"` without `allow-same-origin`, strict CSP
-- Lesson library, reference-doc library (searchable — these are the ones you revisit)
+- Lesson library grouped by module, reference-doc library (searchable — these are the ones you revisit)
 - Learning records: browse, create, link, supersede
-- Lesson completion + outcome (understood / shaky / lost) → first automatic skill evidence
+- Lesson completion + outcome (understood / shaky / lost) → first automatic skill evidence, which `lesson_skills` is what makes landable: `lessons` has had `outcome` since M0 and no path to a skill
 - `postMessage` bridge for in-lesson quiz results
+
+A module ends when its target skills have evidence at band — **not** at a lesson count. With lazy
+generation the denominator does not exist, and "3 of 8" would be an estimate rendered as a fact. No
+percent-complete through a curriculum: that is consumption wearing a number's clothes, which §3.8
+already refused for goals.
 
 **Done when:** you complete three generated lessons end to end and the reference docs are somewhere you'd actually look things up.
 
@@ -228,11 +241,11 @@ Ten steps. Each is a week or three of evenings, ships something usable, and has 
 
 Deliberately after M6: a galaxy drawn from self-reported scores would be a pretty lie. It only becomes honest once brightness is backed by evidence.
 
-- **Schema delta:** `domains` (a galaxy) and `tracks` (an arm); skills gain `domain_id` and an optional `track_id`. Core-ness is _derived_ — a skill with no prerequisites inside its domain is core, and radial distance is prerequisite depth. Nothing is hand-positioned. (Needs a corresponding update to `TECH-DESIGN.md` §3 when this milestone starts.)
+- **Schema delta:** `tracks` and `skills.track_id` already exist — M4 needed them to group lessons into modules, and the reason M7 sits after M6 was only ever that brightness must be evidence-backed, which is an argument about the picture and not about the taxonomy. What is left is `domains` (a galaxy) and `skills.domain_id`, which earn their keep here because a domain spans missions and a track does not. Core-ness is _derived_ — a skill with no prerequisites inside its domain is core, and radial distance is prerequisite depth. Nothing is hand-positioned.
 - Layout computed from `skill_edges`; cross-arm bridges rendered faint rather than forbidden
 - Visual encoding: brightness = score, haze = confidence interval, dimming = decay, dark = frontier — reusing the temper palette and the gauge's feathering, not inventing a second visual language
 - Zoom levels: domain → track → skill, so a 200-skill galaxy stays readable
-- The teach agent proposes domain and track assignment for new skills; you can correct it, and corrections stick
+- The teach agent proposes domain assignment for new skills (track assignment ships in M4); you can correct it, and corrections stick
 - Click a star → its evidence, its lessons, its due reviews
 - **"Show me the frontier"** — the reachable-but-unlit ring, which is the ZPD recommender rendered as a place rather than a list
 

@@ -2,6 +2,31 @@
 
 Mindforge — a personal system for tracking learning, attention, and cognitive friction.
 
+## The shape of a mission
+
+A mission is a **main topic**. Under it sit **tracks** — subtopics, ordered fundamentals-first — and a
+track's lessons are its **module**. `CURRICULUM.md` is canonical for the structure, the `curriculum`
+skill writes it, and lessons are generated one at a time into whichever module is open.
+
+Four things about it that are easy to get wrong:
+
+1. **A module is a track. There is no separate entity.** One module per subtopic, always, so a second
+   table would be two names for one row.
+2. **A lesson declares its own track**, in `<meta name="mindforge:track">`, plus one
+   `<meta name="mindforge:skill">` per skill it taught. Never from `CURRICULUM.md` — the agent
+   rewrites index files wholesale, which is what doubled the resource library until its upsert key
+   was fixed, and a membership with two homes eventually disagrees with itself.
+3. **`tracks.position` is a plan, not the truth.** §9.4's ZPD score over real evidence decides what to
+   teach; the column records what the curriculum recommended. Where they disagree that is an insight
+   for M8, not a bug to fix by trusting the column.
+4. **Never render a module as a fraction.** Lessons are generated lazily, so the denominator does not
+   exist — "3 of 8" would be an estimate printed as a fact. A module ends when its skills have
+   evidence at band.
+
+`lesson_skills` is what makes M4's FR-T9 landable: `lessons.outcome` has been documented as the first
+automatic skill evidence since the M0 schema and had nowhere to land, because nothing joined a lesson
+to a skill.
+
 ## Read first
 
 | Doc                                    | For                                                                                                 |

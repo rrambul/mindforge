@@ -460,12 +460,56 @@ create table notes (
 create index notes_subject_idx on notes (user_id, subject_type, subject_id, created_at desc);
 create index notes_search_idx  on notes using gin (search);
 
+-- A subtopic. M7 calls this an "arm"; it arrives at M4 because a module of
+-- lessons is a track's lessons, and one entity is enough for both. Display text
+-- ("subtopic") is a glossary concern (§5.2), not a second table.
+create table tracks (
+  id          uuid primary key default gen_random_uuid(),
+  user_id     uuid not null,
+  mission_id  uuid not null references missions(id) on delete cascade,
+  slug        text not null,            -- stable; what a lesson's <meta> names
+  name        text not null,
+  outcome     text,                     -- one line: what you can do afterwards
+  -- The recommended reading order, fundamentals first. A PLAN, not the truth:
+  -- what to teach next is §9.4's ZPD score over skill_edges. If the two
+  -- disagree that is a signal (M8), not a bug to fix by trusting this column.
+  position    integer not null,
+  status      text not null default 'proposed'
+              check (status in ('proposed','active','done','dropped')),
+  created_at  timestamptz not null default now(),
+  unique (mission_id, slug)
+);
+
+-- Prerequisites between tracks. Same shape as skill_edges, same cycle check in
+-- app code — a DB constraint cannot express a DAG.
+create table track_edges (
+  user_id   uuid not null,
+  track_id  uuid not null references tracks(id) on delete cascade,
+  prereq_id uuid not null references tracks(id) on delete cascade,
+  primary key (track_id, prereq_id),
+  check (track_id <> prereq_id)
+);
+
+-- What a track intends to teach. Written by `curriculum`, before any lesson for
+-- the track exists — which is the whole point of generating lessons lazily.
+create table track_skills (
+  user_id  uuid not null,
+  track_id uuid not null references tracks(id) on delete cascade,
+  skill_id uuid not null references skills(id) on delete cascade,
+  primary key (track_id, skill_id)
+);
+
 -- Index over workspace files. Rebuildable — files in Storage are canonical.
 create table lessons (
   id           uuid primary key default gen_random_uuid(),
   user_id      uuid not null,
   mission_id   uuid not null references missions(id) on delete cascade,
-  seq          integer not null,        -- 0001, 0002 … from the filename
+  -- From the lesson's own <meta name="mindforge:track">, never from an index
+  -- file: the agent rewrites index files wholesale (see RESOURCES.md, §7.4), and
+  -- a membership recorded in two places eventually disagrees. Null is legal —
+  -- lessons predating the curriculum, and lessons taught off-plan.
+  track_id     uuid references tracks(id) on delete set null,
+  seq          integer not null,        -- 0001, 0002 … from the filename, mission-global
   slug         text not null,
   title        text not null,
   storage_path text not null,           -- workspaces/<u>/<m>/lessons/0007-x.html
@@ -473,6 +517,17 @@ create table lessons (
   completed_at timestamptz,
   outcome      text check (outcome in ('understood','shaky','lost')),
   unique (mission_id, seq)
+);
+
+-- What a lesson actually taught. `lessons.outcome` has been documented as the
+-- first automatic skill evidence since M0 and had nowhere to land: nothing
+-- joined a lesson to a skill. A lesson teaches more than one, so this is a table
+-- rather than a column.
+create table lesson_skills (
+  user_id   uuid not null,
+  lesson_id uuid not null references lessons(id) on delete cascade,
+  skill_id  uuid not null references skills(id) on delete cascade,
+  primary key (lesson_id, skill_id)
 );
 
 create table reference_docs (           -- teach's ./reference/*.html (FR-T5)
@@ -1266,6 +1321,7 @@ One Supabase Storage prefix per Mission, mirroring the `teach` skill's directory
 ```
 workspaces/<user_id>/<mission_slug>/
   MISSION.md
+  CURRICULUM.md
   RESOURCES.md
   NOTES.md
   lessons/0001-<slug>.html
@@ -1532,13 +1588,40 @@ excluded from indexing by name.
 
 **Reindex** parses the changed files into Postgres:
 
-| File                         | Parsed into                             | Parser                                          |
-| ---------------------------- | --------------------------------------- | ----------------------------------------------- |
-| `MISSION.md`                 | `missions` + `mission_revisions`        | Headed-section Markdown per `MISSION-FORMAT.md` |
-| `RESOURCES.md`               | `resources` (+ trust, rejected list)    | Markdown tables                                 |
-| `learning-records/NNNN-*.md` | `learning_records`                      | Sections per `LEARNING-RECORD-FORMAT.md`        |
-| `lessons/NNNN-*.html`        | `lessons` (title from `<title>`/`<h1>`) | Cheerio                                         |
-| `reference/*.html`           | `reference_docs`                        | Cheerio                                         |
+| File                         | Parsed into                                                                               | Parser                                          |
+| ---------------------------- | ----------------------------------------------------------------------------------------- | ----------------------------------------------- |
+| `MISSION.md`                 | `missions` + `mission_revisions`                                                          | Headed-section Markdown per `MISSION-FORMAT.md` |
+| `CURRICULUM.md`              | `tracks`, `track_edges`, `track_skills`, `skills`                                         | Markdown tables per `CURRICULUM-FORMAT.md`      |
+| `RESOURCES.md`               | `resources` (+ trust, rejected list)                                                      | Markdown tables                                 |
+| `learning-records/NNNN-*.md` | `learning_records`                                                                        | Sections per `LEARNING-RECORD-FORMAT.md`        |
+| `lessons/NNNN-*.html`        | `lessons` + `lesson_skills` (title from `<title>`/`<h1>`, track and skills from `<meta>`) | Cheerio                                         |
+| `reference/*.html`           | `reference_docs`                                                                          | Cheerio                                         |
+
+`CURRICULUM.md` upserts on `(mission_id, slug)` and **never deletes**: the agent rewrites the file
+wholesale, `tracks.status` and `lessons.track_id` are not expressible in it, and a track dropped from
+one regeneration would take a module of finished lessons with it. A track that vanishes from the file
+is marked `dropped`, not removed — the same shape as the `RESOURCES.md` upsert-key problem, and the
+same reason `lessons` upserts where `workspace_files` delete-then-inserts.
+
+The skills it names are matched on `skills.slug`, which is unique per **user**, not per mission. That
+is deliberate — you learn IAM once, for however many missions want it — and it means a curriculum can
+adopt an existing skill rather than fork it. It may create skills; it may never write `score`,
+`band`, or `perceived_level`, and the writer's interface is what enforces that rather than care.
+
+**`skill_edges` is deliberately not derived from `track_edges`**, correcting an earlier draft of this
+section. The obvious reading is that "track B requires track A" means every skill in B requires every
+skill in A. That is wrong twice: it is quadratic in the size of two modules, and §9.4's readiness term
+is the _fraction_ of prerequisites at `working` — so inventing twenty-five edges where the learner
+meant one pushes a genuinely reachable skill out of their ZPD. Track-level order is what a curriculum
+knows; skill-level order is not, and asserting it makes the recommender worse rather than better.
+Skill prerequisites stay manual.
+
+A lesson's `track_id` and its `lesson_skills` come from its own `<meta>` tags, never from
+`CURRICULUM.md`, and both resolve against every track and skill that already exists rather than only
+those parsed in the same run — the run that writes a lesson normally leaves the curriculum untouched.
+A tag naming something that does not exist leaves the lesson unfiled with a warning; it never creates
+a skill, because a skill invented by one lesson has exactly one possible source of evidence and no way
+to be wrong.
 
 **Parse defensively.** The `teach` skill's formats are a contract you don't control; a format change must degrade to "file stored, partially indexed", never "run failed" and never "content lost". Every parser returns `{ parsed, warnings[] }` and warnings surface in the run result.
 

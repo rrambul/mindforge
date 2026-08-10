@@ -5,6 +5,7 @@ import type {
   IndexedLesson,
   IndexedRecord,
   IndexedReferenceDoc,
+  IndexedTrack,
   WorkspaceIndexRepository,
 } from "../application/index.port.js";
 
@@ -27,29 +28,159 @@ import type {
 export class PrismaWorkspaceIndexRepository implements WorkspaceIndexRepository {
   constructor(@Inject(USER_SCOPED_DB) private readonly db: UserScopedDb) {}
 
+  async saveTracks(
+    userId: string,
+    missionId: string,
+    tracks: readonly IndexedTrack[],
+  ): Promise<ReadonlyMap<string, string>> {
+    const idBySlug = new Map<string, string>();
+
+    await this.db.run(userId, async (tx) => {
+      for (const track of tracks) {
+        const rows = await tx.$queryRawUnsafe<{ id: string }[]>(
+          // `status` is written on insert only, except to revive a dropped track.
+          // `CURRICULUM.md` has no status column — the same shape as `RESOURCES.md`
+          // having no status column — so echoing one back would reset the module
+          // the learner currently has open, on every run, forever.
+          `insert into tracks (id, user_id, mission_id, slug, name, outcome, position,
+             created_at, updated_at)
+           values (gen_random_uuid(), $1::uuid, $2::uuid, $3, $4, $5, $6::int, now(), now())
+           on conflict (mission_id, slug) do update
+             set name = excluded.name,
+                 outcome = excluded.outcome,
+                 position = excluded.position,
+                 status = case when tracks.status = 'dropped' then 'proposed'
+                               else tracks.status end,
+                 updated_at = now()
+           returning id`,
+          userId,
+          missionId,
+          track.slug,
+          track.name,
+          track.outcome,
+          track.position,
+        );
+        idBySlug.set(track.slug, rows[0]!.id);
+      }
+
+      const present = tracks.map((track) => track.slug);
+
+      // Marked, never deleted — and only when the file listed something, so an
+      // empty parse cannot wipe a curriculum.
+      if (present.length > 0) {
+        await tx.$executeRawUnsafe(
+          `update tracks set status = 'dropped', updated_at = now()
+            where mission_id = $1::uuid and slug <> all($2::text[]) and status <> 'dropped'`,
+          missionId,
+          present,
+        );
+      }
+
+      // Edges and skill links are rebuilt rather than upserted: unlike a track,
+      // neither carries state the file does not have, and a prerequisite the
+      // curriculum removed has to actually go.
+      const ids = [...idBySlug.values()];
+      if (ids.length > 0) {
+        await tx.$executeRawUnsafe(`delete from track_edges where track_id = any($1::uuid[])`, ids);
+        await tx.$executeRawUnsafe(
+          `delete from track_skills where track_id = any($1::uuid[])`,
+          ids,
+        );
+      }
+
+      for (const track of tracks) {
+        const trackId = idBySlug.get(track.slug)!;
+
+        for (const prereqSlug of track.prerequisiteSlugs) {
+          const prereqId = idBySlug.get(prereqSlug);
+          // Resolved after every track exists, for the same reason `saveRecords`
+          // needs two passes: a track may require one listed below it, and the
+          // order column is a reading recommendation rather than a sort.
+          if (prereqId === undefined || prereqId === trackId) continue;
+          await tx.$executeRawUnsafe(
+            `insert into track_edges (user_id, track_id, prereq_id)
+             values ($1::uuid, $2::uuid, $3::uuid) on conflict do nothing`,
+            userId,
+            trackId,
+            prereqId,
+          );
+        }
+
+        for (const skillId of track.skillIds) {
+          await tx.$executeRawUnsafe(
+            `insert into track_skills (user_id, track_id, skill_id)
+             values ($1::uuid, $2::uuid, $3::uuid) on conflict do nothing`,
+            userId,
+            trackId,
+            skillId,
+          );
+        }
+      }
+    });
+
+    return idBySlug;
+  }
+
+  async trackIdsBySlug(userId: string, missionId: string): Promise<ReadonlyMap<string, string>> {
+    const rows = await this.db.run(userId, (tx) =>
+      tx.$queryRawUnsafe<{ id: string; slug: string }[]>(
+        `select id, slug from tracks where mission_id = $1::uuid`,
+        missionId,
+      ),
+    );
+
+    return new Map(rows.map((row) => [row.slug, row.id]));
+  }
+
   async saveLessons(userId: string, lessons: readonly IndexedLesson[]): Promise<void> {
     if (lessons.length === 0) return;
 
     await this.db.run(userId, async (tx) => {
       for (const lesson of lessons) {
-        await tx.$executeRawUnsafe(
-          `insert into lessons (id, user_id, mission_id, seq, slug, title, storage_path,
+        const rows = await tx.$queryRawUnsafe<{ id: string }[]>(
+          `insert into lessons (id, user_id, mission_id, track_id, seq, slug, title, storage_path,
              content_hash, created_at, updated_at)
-           values (gen_random_uuid(), $1::uuid, $2::uuid, $3::int, $4, $5, $6, $7, now(), now())
+           values (gen_random_uuid(), $1::uuid, $2::uuid, $3::uuid, $4::int, $5, $6, $7, $8,
+                   now(), now())
            on conflict (mission_id, seq) do update
-             set slug = excluded.slug,
+             set track_id = excluded.track_id,
+                 slug = excluded.slug,
                  title = excluded.title,
                  storage_path = excluded.storage_path,
                  content_hash = excluded.content_hash,
-                 updated_at = now()`,
+                 updated_at = now()
+           returning id`,
           userId,
           lesson.missionId,
+          lesson.trackId,
           lesson.seq,
           lesson.slug,
           lesson.title,
           lesson.storagePath,
           lesson.contentHash,
         );
+
+        const lessonId = rows[0]!.id;
+
+        // Rebuilt from the file, because the file is the only thing that says it.
+        // A lesson the agent revised to teach something else must not keep
+        // crediting the skill it used to teach — `lessons.outcome` becomes
+        // evidence through this join, so a stale row here is evidence attributed
+        // to the wrong skill.
+        await tx.$executeRawUnsafe(
+          `delete from lesson_skills where lesson_id = $1::uuid`,
+          lessonId,
+        );
+
+        for (const skillId of lesson.skillIds) {
+          await tx.$executeRawUnsafe(
+            `insert into lesson_skills (user_id, lesson_id, skill_id)
+             values ($1::uuid, $2::uuid, $3::uuid) on conflict do nothing`,
+            userId,
+            lessonId,
+            skillId,
+          );
+        }
       }
     });
   }

@@ -39,6 +39,18 @@ export const TEACH_PLUGIN_NAME = "mindforge-teach";
  */
 export const TEACH_SKILL_REF = `${TEACH_PLUGIN_NAME}:teach`;
 
+/**
+ * The `curriculum` skill, which maps a subject into subtopics and writes
+ * `CURRICULUM.md`.
+ *
+ * Its own plugin rather than a second skill inside `mindforge-teach`, because a
+ * run loads exactly one of them: producing structure and producing material are
+ * separate jobs, and a teach run that could reach for `curriculum` would rewrite
+ * the plan it was supposed to be working through.
+ */
+export const CURRICULUM_PLUGIN_NAME = "mindforge-curriculum";
+export const CURRICULUM_SKILL_REF = `${CURRICULUM_PLUGIN_NAME}:curriculum`;
+
 /** The frontmatter key that would leave the skill loaded and uninvokable. */
 const MODEL_INVOCATION_GUARD = "disable-model-invocation";
 
@@ -137,7 +149,7 @@ export interface TeachPluginSources {
   readonly skill: string;
   /** `skills/UNATTENDED.md` — Mindforge's overrides for a run with no human. */
   readonly addendum: string;
-  /** The three format docs, keyed by filename. Copied beside the skill so its relative links resolve. */
+  /** The format docs, keyed by filename. Copied beside the skill so its relative links resolve. */
   readonly formatDocs: Readonly<Record<string, string>>;
 }
 
@@ -148,6 +160,12 @@ export interface TeachPlugin {
   readonly skillRef: string;
 }
 
+interface PluginShape {
+  readonly pluginName: string;
+  readonly skillRef: string;
+  readonly description: string;
+}
+
 /**
  * The plugin directory, as data.
  *
@@ -155,40 +173,76 @@ export interface TeachPlugin {
  * it is written anyway, because `init.plugins[].name` is what the run asserts on
  * and leaving the name to directory-basename inference makes that assertion
  * depend on where the directory happened to be created.
+ *
+ * Shared by both skills because every rule in this file's header applies to both
+ * equally: neither can be loaded by copying `SKILL.md` into `cwd`, both declare
+ * the model-invocation guard, and both were written for a human sitting there.
  */
-export function buildTeachPlugin(sources: TeachPluginSources): TeachPlugin {
+function buildPlugin(shape: PluginShape, sources: TeachPluginSources): TeachPlugin {
   const declared = skillName(sources.skill);
-  if (`${TEACH_PLUGIN_NAME}:${declared}` !== TEACH_SKILL_REF) {
+  const skillDir = shape.skillRef.split(":")[1]!;
+
+  if (`${shape.pluginName}:${declared}` !== shape.skillRef) {
     throw new SkillCompositionError(
       `SKILL.md declares name "${declared}", so it would load as ` +
-        `"${TEACH_PLUGIN_NAME}:${declared}" and not as "${TEACH_SKILL_REF}".`,
+        `"${shape.pluginName}:${declared}" and not as "${shape.skillRef}".`,
     );
   }
 
   const { text, stripped } = stripModelInvocationGuard(sources.skill);
   if (!stripped) {
     throw new SkillCompositionError(
-      `Upstream SKILL.md no longer declares \`${MODEL_INVOCATION_GUARD}\`. That is good news, but ` +
-        "this check exists so the removal is noticed rather than silently becoming a no-op — drop it here.",
+      `${shape.skillRef}'s SKILL.md no longer declares \`${MODEL_INVOCATION_GUARD}\`. That is good ` +
+        "news, but this check exists so the removal is noticed rather than silently becoming a " +
+        "no-op — drop it here.",
     );
   }
 
   const files: Record<string, string> = {
     ".claude-plugin/plugin.json": `${JSON.stringify(
-      {
-        name: TEACH_PLUGIN_NAME,
-        description: "The teach skill, composed for an unattended Mindforge run.",
-        version: "1.0.0",
-      },
+      { name: shape.pluginName, description: shape.description, version: "1.0.0" },
       null,
       2,
     )}\n`,
-    "skills/teach/SKILL.md": `${text.trimEnd()}\n\n${sources.addendum.trimStart()}`,
+    [`skills/${skillDir}/SKILL.md`]: `${text.trimEnd()}\n\n${sources.addendum.trimStart()}`,
   };
 
   for (const [name, contents] of Object.entries(sources.formatDocs)) {
-    files[`skills/teach/${name}`] = contents;
+    files[`skills/${skillDir}/${name}`] = contents;
   }
 
-  return { files, skillRef: TEACH_SKILL_REF };
+  return { files, skillRef: shape.skillRef };
+}
+
+export function buildTeachPlugin(sources: TeachPluginSources): TeachPlugin {
+  return buildPlugin(
+    {
+      pluginName: TEACH_PLUGIN_NAME,
+      skillRef: TEACH_SKILL_REF,
+      description: "The teach skill, composed for an unattended Mindforge run.",
+    },
+    sources,
+  );
+}
+
+/**
+ * The `curriculum` skill, composed the same way.
+ *
+ * Mindforge's own rather than vendored, so the `diff -r` argument in
+ * `skills/README.md` does not apply — but everything else does, and the addendum
+ * is still separate rather than merged. The skill tells a human it will show them
+ * the proposed track list and let them cut and reorder it before writing, which
+ * is right and impossible on a server; the addendum is where that becomes "write
+ * it and let them edit it afterwards" instead of a run that stalls having
+ * produced nothing.
+ */
+export function buildCurriculumPlugin(sources: TeachPluginSources): TeachPlugin {
+  return buildPlugin(
+    {
+      pluginName: CURRICULUM_PLUGIN_NAME,
+      skillRef: CURRICULUM_SKILL_REF,
+      description: "The curriculum skill, composed for an unattended Mindforge run.",
+    },
+    sources,
+  );
 }

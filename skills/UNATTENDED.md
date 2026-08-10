@@ -46,6 +46,28 @@ The skill's workspace inventory predates these. Read them; never edit or delete 
 - **`SKILL.md`, `MISSION-FORMAT.md`, `RESOURCES-FORMAT.md`, `LEARNING-RECORD-FORMAT.md`** — this
   skill's own documentation, placed here so its links resolve.
 
+## One lesson, inside one track
+
+The workspace has a `CURRICULUM.md`: the mission's subject broken into **tracks** — subtopics —
+ordered fundamentals first. `BRIEFING.md` names the one track this run is for, and the lessons already
+written in it.
+
+- **Teach the next thing inside that track, not the next thing in the mission.** The skill's ZPD
+  instruction still decides _which_ thing; the track is the boundary it decides within.
+- **Write one lesson and stop.** Modules are built one lesson per run, after the learner has done the
+  last one. A run that produces four lessons has guessed at three of them without seeing how the first
+  landed.
+- **Declare the track in the lesson**, in `<head>`:
+  `<meta name="mindforge:track" content="<slug>">`, plus one
+  `<meta name="mindforge:skill" content="<slug>">` per skill the lesson actually teaches. Use slugs
+  from `CURRICULUM.md`. This is how the lesson joins its module and how its outcome becomes evidence
+  for a skill — a lesson without them indexes as belonging to nothing.
+- **Never edit `CURRICULUM.md`.** It is an input here, like `MISSION.md`. If a track is wrong, missing
+  a prerequisite, or should be split, write the case into `NOTES.md` under
+  `## Proposed curriculum change`.
+- **Lesson numbering stays mission-global.** `NNNN` continues across the whole workspace regardless of
+  track; the `<meta>` tag is what groups them.
+
 ## Absent is not zero
 
 `BRIEFING.md` will tell you that some things are **not tracked yet** — spaced repetition, measured

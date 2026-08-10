@@ -3,6 +3,7 @@ import { Module } from "@nestjs/common";
 import { ENV, type Env } from "../../../shared/config/env.js";
 import { MissionsModule } from "../../missions/presentation/missions.module.js";
 import { ResourcesModule } from "../../resources/presentation/resources.module.js";
+import { SkillsModule } from "../../skills/presentation/skills.module.js";
 import { BRIEFING_READER } from "../application/briefing.port.js";
 import { WORKSPACE_INDEX_REPOSITORY } from "../application/index.port.js";
 import { LearnerMemories } from "../application/learner-memories.js";
@@ -45,10 +46,11 @@ import { LearnerMemoryController, TeachController } from "./teach.controller.js"
  * without naming what it binds to.
  */
 @Module({
-  // The one `imports` this module has, and it is the rule working rather than an
-  // exception to it: reindexing MISSION.md must go through the module that owns
-  // `missions`, so it needs that module's exported use case.
-  imports: [MissionsModule, ResourcesModule],
+  // The rule working rather than an exception to it: reindexing `MISSION.md`,
+  // `RESOURCES.md` and `CURRICULUM.md` must each go through the module that owns
+  // the table, so this module imports their exported use cases rather than
+  // writing three tables it does not own.
+  imports: [MissionsModule, ResourcesModule, SkillsModule],
   controllers: [TeachController, LearnerMemoryController],
   providers: [
     TeachRuns,

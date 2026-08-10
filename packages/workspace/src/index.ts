@@ -22,9 +22,12 @@
  */
 
 export {
+  CURRICULUM_PLUGIN_NAME,
+  CURRICULUM_SKILL_REF,
   SkillCompositionError,
   TEACH_PLUGIN_NAME,
   TEACH_SKILL_REF,
+  buildCurriculumPlugin,
   buildTeachPlugin,
   skillName,
   stripModelInvocationGuard,
@@ -36,6 +39,7 @@ export {
   ASSETS_DIR,
   BRIEFING_FILE,
   CONFLICT_SUFFIX,
+  CURRICULUM_FILE,
   LESSONS_DIR,
   MEMORY_ROOT,
   MISSION_FILE,
@@ -59,12 +63,15 @@ export { etagsMatch, normalizeEtag, sha256, storageEtag } from "./hash.js";
 
 export {
   M3_ABSENCES,
+  NO_TRACK,
   notTracked,
   renderBriefing,
   type BriefingInput,
+  type CurrentTrack,
   type FrictionSummary,
   type NotTracked,
   type SelfReportedSkill,
+  type TrackLesson,
   type Tracked,
   type ZpdCandidate,
 } from "./briefing.js";
@@ -90,6 +97,22 @@ export {
   type Document,
   type Section,
 } from "./markdown/sections.js";
+
+export {
+  bindColumns,
+  normalizeHeader,
+  parseLink,
+  parseTable,
+  type BoundTable,
+  type Table,
+} from "./markdown/table.js";
+
+export {
+  parseCurriculum,
+  type ParsedCurriculum,
+  type ParsedTrack,
+  type ParsedTrackSkill,
+} from "./parse/curriculum.js";
 
 export {
   checkReferences,

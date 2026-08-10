@@ -33,7 +33,9 @@
     "sequence_mismatch": "Two files both claim number {seq}. {kept} was used.",
     "title_missing": "No title, so one was taken from the {source}.",
     "title_ambiguous": "This document has {count} top-level headings; the first was used as the title.",
-    "link_unresolved": "{from} links to {to}, which isn't there."
+    "link_unresolved": "{from} links to {to}, which isn't there.",
+    "value_duplicated": "This appears twice and only the first was kept: {value}",
+    "edge_cycle": "A prerequisite loop was removed here, so the order still makes sense: {track}"
   },
   "error": {
     "run_already_active": "This mission is already being taught. Watch that run, or wait for it to finish.",

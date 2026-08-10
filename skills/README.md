@@ -8,7 +8,12 @@ argument only holds while these bytes match.
 `UNATTENDED.md` is Mindforge's own. The skill was written for a human sitting at a terminal, and a
 server run has no human: it cannot answer a question, confirm a mission change, or run a CLI command
 to open a file. Rather than fork `SKILL.md` — which would break the paragraph above — the addendum is
-appended at build time.
+appended at build time. It also carries the parts of the track model `teach` cannot know about,
+for the same reason: the upstream skill has no concept of a curriculum.
+
+`curriculum/` is Mindforge's own skill, not vendored. It maps a subject into ordered subtopics and
+writes `CURRICULUM.md`; it writes no lessons. Structure and material are produced by separate skills
+so the structure can be revised without discarding the material.
 
 Neither directory is what the agent reads. `buildTeachPlugin()`
 (`packages/workspace/src/skill/plugin.ts`) composes them into a Claude Code **plugin** directory,

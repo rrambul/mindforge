@@ -1,11 +1,14 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  buildTeachPlugin,
+  CURRICULUM_PLUGIN_NAME,
+  CURRICULUM_SKILL_REF,
   SkillCompositionError,
+  TEACH_SKILL_REF,
+  buildCurriculumPlugin,
+  buildTeachPlugin,
   skillName,
   stripModelInvocationGuard,
-  TEACH_SKILL_REF,
 } from "./plugin.js";
 
 const UPSTREAM = [
@@ -142,5 +145,60 @@ describe("buildTeachPlugin", () => {
     expect(() => buildTeachPlugin({ ...SOURCES, skill: renamed })).toThrow(
       /mindforge-teach:tutor/u,
     );
+  });
+});
+
+describe("buildCurriculumPlugin", () => {
+  const SKILL = `---
+name: curriculum
+description: Map a subject into subtopics.
+disable-model-invocation: true
+---
+
+Body.
+`;
+
+  it("namespaces the skill under its own plugin, not under teach's", () => {
+    // Two plugins because a run loads exactly one of them. A teach run able to
+    // reach for `curriculum` would rewrite the plan it was working through; a
+    // curriculum run able to reach for `teach` would generate a whole module at
+    // the moment it knew least about the learner.
+    const plugin = buildCurriculumPlugin({
+      skill: SKILL,
+      addendum: "# Running inside Mindforge",
+      formatDocs: { "CURRICULUM-FORMAT.md": "# Format" },
+    });
+
+    expect(plugin.skillRef).toBe(CURRICULUM_SKILL_REF);
+    expect(plugin.skillRef).not.toBe(TEACH_SKILL_REF);
+    expect(Object.keys(plugin.files)).toContain("skills/curriculum/SKILL.md");
+    expect(Object.keys(plugin.files)).toContain("skills/curriculum/CURRICULUM-FORMAT.md");
+  });
+
+  it("strips the guard that would leave it loaded and uninvokable", () => {
+    const plugin = buildCurriculumPlugin({
+      skill: SKILL,
+      addendum: "# Running inside Mindforge",
+      formatDocs: {},
+    });
+
+    expect(plugin.files["skills/curriculum/SKILL.md"]).not.toContain("disable-model-invocation");
+    expect(plugin.files["skills/curriculum/SKILL.md"]).toContain("Running inside Mindforge");
+  });
+
+  it("refuses a skill whose declared name would not namespace as expected", () => {
+    expect(() =>
+      buildCurriculumPlugin({
+        skill: SKILL.replace("name: curriculum", "name: syllabus"),
+        addendum: "x",
+        formatDocs: {},
+      }),
+    ).toThrow(SkillCompositionError);
+  });
+
+  it("declares its own plugin name, which init.plugins is asserted against", () => {
+    const plugin = buildCurriculumPlugin({ skill: SKILL, addendum: "x", formatDocs: {} });
+
+    expect(plugin.files[".claude-plugin/plugin.json"]).toContain(CURRICULUM_PLUGIN_NAME);
   });
 });

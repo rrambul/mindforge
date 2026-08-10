@@ -32,6 +32,9 @@ export type WarningCode =
   | "value_unknown"
   | "value_coerced"
   | "value_malformed"
+  | "value_duplicated"
+  // Graphs
+  | "edge_cycle"
   // Files
   | "filename_unnumbered"
   | "filename_slug_normalized"
