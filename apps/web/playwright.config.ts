@@ -57,7 +57,7 @@ export default defineConfig({
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
 
   /**
-   * Both servers, started by Playwright.
+   * All three servers, started by Playwright.
    *
    * `reuseExistingServer` is set explicitly even though its documented default is `!process.env.CI`.
    * Leaving it off was tried and refused to reuse a running dev server with `CI` unset — so the
@@ -78,6 +78,22 @@ export default defineConfig({
     {
       command: "pnpm --filter @mindforge/web dev",
       url: "http://localhost:5173",
+      cwd: "../..",
+      reuseExistingServer: !process.env["CI"],
+      timeout: 120_000,
+      stdout: "pipe",
+      stderr: "pipe",
+    },
+    /**
+     * The lessons origin (M5, §7.5). Without it the reader renders an empty frame
+     * and every assertion about lesson content fails with no clue why — which is
+     * also exactly what a deployment that forgot this service would look like.
+     *
+     * It runs on Bun, so this job needs Bun as well as Node.
+     */
+    {
+      command: "pnpm --filter @mindforge/lessons start",
+      url: "http://localhost:3001/health",
       cwd: "../..",
       reuseExistingServer: !process.env["CI"],
       timeout: 120_000,

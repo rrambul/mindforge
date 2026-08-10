@@ -7,17 +7,31 @@ supabase start
 pnpm --filter @mindforge/web test:e2e
 ```
 
-Playwright starts the API and the web dev server itself, and reuses them if you already have
-`pnpm dev` open.
+Playwright starts the API, the web dev server **and the lessons origin** itself, and reuses them if
+you already have `pnpm dev` open. The lessons origin runs on Bun; without it the reader renders an
+empty frame, which is also what a deployment that forgot the service looks like.
+
+`lesson.spec.ts` signs in as the seeded developer rather than creating an account, because the
+reader needs content — a lesson row _and_ a file in Storage behind it — and only `seed:rich`
+produces that without a paid agent run:
+
+```sh
+pnpm --filter @mindforge/db seed:rich
+```
+
+CI runs it for the same reason, which also makes the seed something the pipeline proves rather than
+something that rots quietly between milestones.
 
 ## What is covered
 
-| Flow                                                       | File                      |
-| ---------------------------------------------------------- | ------------------------- |
-| Sign up → sign in → sign out                               | `auth.spec.ts`            |
-| A new account is seeded from the browser it signed up in   | `signup-calendar.spec.ts` |
-| Create a mission → teach it → a run is queued and reported | `teach.spec.ts`           |
-| A mission card → its curriculum, empty state and all       | `curriculum.spec.ts`      |
+| Flow                                                                  | File                      |
+| --------------------------------------------------------------------- | ------------------------- |
+| Sign up → sign in → sign out                                          | `auth.spec.ts`            |
+| A new account is seeded from the browser it signed up in              | `signup-calendar.spec.ts` |
+| Create a mission → teach it → a run is queued and reported            | `teach.spec.ts`           |
+| A mission card → its curriculum, empty state and all                  | `curriculum.spec.ts`      |
+| Read a lesson in the sandbox → record an outcome → the fraction moves | `lesson.spec.ts`          |
+| The reference shelf and the learning records                          | `lesson.spec.ts`          |
 
 ## What is not, yet
 
@@ -25,11 +39,11 @@ These flows are still missing, listed here so the gap is a known one rather than
 rediscovered later:
 
 - The capture loop: start focus → stop → debrief → appears on Today
-- Generate a lesson → **run completes** → renders in the sandbox → mark outcome (M5, model stubbed).
-  `teach.spec.ts` covers the first half of this: the button, the 202, and the card reporting a
-  queued run. It stops there on purpose — the worker is not started by this config, and
-  non-negotiable 8 forbids live API calls in the suite. The completion half needs a stubbed agent
-  gateway, which arrives with M5's reader.
+- Generate a lesson → **run completes** → renders in the sandbox. The two halves are covered
+  separately and the join is not: `teach.spec.ts` proves the button, the 202 and the card reporting
+  a queued run, and `lesson.spec.ts` proves the reader against a lesson that already exists. What
+  is missing between them is a run that finishes, which needs a stubbed agent gateway — the worker
+  is not started by this config, and non-negotiable 8 forbids live API calls in the suite.
 - Offline: go offline → start a session → reconnect → session persists exactly once
 - A keyboard-only pass through the capture loop
 
@@ -53,6 +67,23 @@ unit test can assert what the client _sent_ and not what an account ends up hold
 It waits for the PATCH rather than for the sign-out button. `onAuthStateChange` fires inside
 `signUp`, so the shell is on screen while the seed is still in flight — waiting on that alone raced
 the write, passed because the server happened to finish first, and aborted the request mid-flight.
+
+## What `lesson.spec.ts` proves that nothing else can
+
+Four processes have to agree for a lesson to appear: the API mints a grant, a **separate Bun service
+on another origin** verifies it and serves the file, the browser renders it in a frame with
+`allow-scripts` and no `allow-same-origin`, and the outcome written from that page moves a
+fraction on the screen before it. A wrong Storage prefix, a missing service, a `frame-ancestors`
+that does not name the app, and a CSP that blocks the lesson's own inline script all produce the
+same empty box — and no unit test on either side can tell them apart.
+
+It also asserts the sandbox attribute directly. That assertion exists to be _in the way_: one day a
+lesson will not render and `allow-same-origin` will look like the fix, and it is the combination
+that lets the frame delete its own sandbox attribute (§7.5).
+
+The assertions are in pt-BR, because the seeded profile is `locale: pt-BR` with English lesson
+content — §5.2's three independent axes, and the check that the reader's own chrome translates while
+the agent's HTML does not.
 
 ## What `teach.spec.ts` proves that nothing else can
 

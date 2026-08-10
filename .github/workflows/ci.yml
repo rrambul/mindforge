@@ -80,6 +80,13 @@ jobs:
           node-version-file: .nvmrc
           cache: pnpm
 
+      # The lessons origin runs on Bun, and Playwright starts it for the E2E suite.
+      # Without this the reader renders an empty frame and the spec fails with no
+      # clue why — which is also what a deployment missing the service looks like.
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
       - uses: supabase/setup-cli@v1
         with:
           version: latest
@@ -170,6 +177,13 @@ jobs:
 
       # Chromium only. A second engine doubles the slowest gate in the pipeline to catch rendering
       # differences this suite does not assert on — see playwright.config.ts.
+      # The reader has nothing to show without content, and content means a lesson
+      # row *and* a file in Storage behind it. `seed:rich` writes both, which also
+      # makes the seed itself something CI proves rather than something that quietly
+      # rots between milestones.
+      - name: Seed the development dataset
+        run: pnpm --filter @mindforge/db seed:rich
+
       - name: Install Chromium
         run: pnpm --filter @mindforge/web exec playwright install --with-deps chromium
 

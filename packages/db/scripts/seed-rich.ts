@@ -10,6 +10,12 @@ import {
   wipeUser,
   type Random,
 } from "./seed-support.js";
+import {
+  lessonHtml,
+  referenceHtml,
+  workspaceUploader,
+  type WorkspaceUploader,
+} from "./seed-workspace.js";
 
 /**
  * `seed:rich` — six months of history, so the trackers can be designed against something.
@@ -213,7 +219,14 @@ async function main(): Promise<void> {
     const { timezone: tz, today } = options;
     const from = addDays(today, -(DAYS - 1));
 
+    // Best effort: the seed's one requirement is a database. Without Storage
+    // credentials the rows are still written and the summary says which screen
+    // will be empty, because a reader whose every lesson 404s looks broken while
+    // the data is perfectly correct.
+    const files = workspaceUploader();
+
     const missions = await seedMissions(prisma, userId, from);
+    const finishedByMission = new Map<string, FinishedLesson[]>();
     const lessons = {
       count: 0,
       completed: 0,
@@ -230,6 +243,8 @@ async function main(): Promise<void> {
         10,
         tz,
         lessons,
+        files,
+        finishedByMission,
       )) +
       (await seedCurriculum(
         prisma,
@@ -241,10 +256,20 @@ async function main(): Promise<void> {
         40,
         tz,
         lessons,
+        files,
+        finishedByMission,
       ));
 
     const activeDays = chooseActiveDays(from, today, r);
-    const sessionCount = await seedSessions(prisma, userId, activeDays, missions, tz, r);
+    const sessionCount = await seedSessions(
+      prisma,
+      userId,
+      activeDays,
+      missions,
+      tz,
+      r,
+      finishedByMission,
+    );
 
     const rollup = await rebuildDailyActivity(
       prisma,
@@ -259,7 +284,10 @@ async function main(): Promise<void> {
         `  ${DAYS} days from ${from} to ${today}\n` +
         `  ${missions.length} missions, ${trackCount} tracks, ${lessons.count} lessons ` +
         `(${lessons.completed} completed, ${lessons.planned} planned, not yet written)\n` +
-        `  ${sessionCount} sessions on ${activeDays.length} days, ${rollup.daysWritten} rollup rows\n`,
+        `  ${sessionCount} sessions on ${activeDays.length} days, ${rollup.daysWritten} rollup rows\n` +
+        (files === null
+          ? `  no SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY — no files written, so every lesson will 404 in the reader\n`
+          : `  ${files.written} workspace files in Storage, so the reader has something to show\n`),
     );
   } finally {
     await prisma.$disconnect();
@@ -339,6 +367,8 @@ async function seedCurriculum(
   startOffset: number,
   tz: string,
   tally: { count: number; completed: number; planned: number },
+  files: WorkspaceUploader | null,
+  finishedByMission: Map<string, FinishedLesson[]>,
 ): Promise<number> {
   const bySlug = new Map<string, string>();
 
@@ -366,6 +396,7 @@ async function seedCurriculum(
     }
   }
 
+  const written: FinishedLesson[] = [];
   let seq = 0;
   let day = addDays(from, startOffset);
   for (const spec of tracks) {
@@ -377,7 +408,17 @@ async function seedCurriculum(
       const completedAt = outcome === null ? null : at(day, 21, 30, tz);
       if (outcome !== null) tally.completed += 1;
 
-      await prisma.lesson.create({
+      const storagePath = `workspaces/${userId}/${workspaceKey}/lessons/${String(seq).padStart(4, "0")}-${slug}.html`;
+      const intent = `What ${title.toLowerCase()} buys you.`;
+
+      // The file first, so a row never points at a path that was never written.
+      await files?.put(
+        storagePath,
+        lessonHtml({ title, trackSlug: spec.slug, lessonSlug: slug, intent }),
+        "text/html; charset=utf-8",
+      );
+
+      const lesson = await prisma.lesson.create({
         data: {
           userId,
           missionId: mission.id,
@@ -390,22 +431,101 @@ async function seedCurriculum(
           // reads difficulty and depth on every lesson, not only the pending ones.
           // Derived from where it sits rather than listed per lesson — a module
           // that starts easy and deepens is the shape being imitated.
-          intent: `What ${title.toLowerCase()} buys you.`,
+          intent,
           difficulty: Math.min(5, index + 1),
           depth: index === 0 ? "overview" : "working",
           position: index + 1,
-          storagePath: `workspaces/${userId}/${workspaceKey}/lessons/${String(seq).padStart(4, "0")}-${slug}.html`,
+          storagePath,
           contentHash: `seed-${workspaceKey}-${seq}`,
           completedAt,
           outcome,
         },
+        select: { id: true },
       });
+
+      // A record for every lesson that was actually finished, because that is when
+      // the agent writes one — and a library with records for unread lessons would
+      // be a library claiming work that never happened.
+      if (outcome !== null) written.push({ id: lesson.id, title, outcome, day });
     }
   }
+
+  finishedByMission.set(mission.id, written);
+  await seedLibrary(prisma, userId, mission, workspaceKey, written, tz, files);
 
   await seedPlan(prisma, userId, mission, tracks, bySlug, tally);
 
   return tracks.length;
+}
+
+interface FinishedLesson {
+  readonly id: string;
+  readonly title: string;
+  readonly outcome: "understood" | "shaky" | "lost";
+  readonly day: IsoDate;
+}
+
+/**
+ * What a mission leaves behind: one reference document, and a record per lesson
+ * you actually finished (FR-T6).
+ *
+ * **Records only for finished lessons.** The agent writes one at the end of a
+ * lesson, from what happened — a library holding records for lessons nobody opened
+ * would be claiming work that never took place, which is the exact failure mode
+ * non-negotiable 10 is about.
+ *
+ * **The struggles field is filled in for the shaky and lost ones.** A seed where
+ * every record reads like a success is a seed that never shows the screen the case
+ * it exists to render honestly.
+ */
+async function seedLibrary(
+  prisma: ReturnType<typeof connect>,
+  userId: string,
+  mission: Named,
+  workspaceKey: string,
+  finished: readonly FinishedLesson[],
+  tz: string,
+  files: WorkspaceUploader | null,
+): Promise<void> {
+  const title = `${workspaceKey.replace(/-/gu, " ")} — the page to come back to`;
+  const storagePath = `workspaces/${userId}/${workspaceKey}/reference/quick-reference.html`;
+
+  await files?.put(storagePath, referenceHtml(title, workspaceKey), "text/html; charset=utf-8");
+
+  await prisma.referenceDoc.create({
+    data: {
+      userId,
+      missionId: mission.id,
+      slug: "quick-reference",
+      title,
+      storagePath,
+      contentHash: `seed-${workspaceKey}-reference`,
+    },
+  });
+
+  // Mission-global sequence, like the filenames the skill writes.
+  let seq = 0;
+  for (const lesson of finished) {
+    seq += 1;
+    await prisma.learningRecord.create({
+      data: {
+        userId,
+        missionId: mission.id,
+        lessonId: lesson.id,
+        seq,
+        title: `${lesson.title} — what stuck`,
+        whatLearned: `The part of "${lesson.title}" that actually landed, in your own words.`,
+        evidence:
+          lesson.outcome === "understood" ? "Rewrote it from scratch without looking." : null,
+        keyInsight: lesson.outcome === "lost" ? null : "The rule underneath the rule.",
+        struggles: lesson.outcome === "understood" ? null : "Could follow it reading, not writing.",
+        next: `Redo this one before moving past it.`,
+        storagePath: `workspaces/${userId}/${workspaceKey}/learning-records/${String(seq).padStart(4, "0")}-record.md`,
+        contentHash: `seed-${workspaceKey}-record-${seq}`,
+        recordedAt: at(lesson.day, 22, 0, tz),
+      },
+    });
+  }
 }
 
 /**
@@ -500,6 +620,7 @@ async function seedSessions(
   missions: readonly Named[],
   tz: string,
   r: Random,
+  finishedByMission: ReadonlyMap<string, FinishedLesson[]>,
 ): Promise<number> {
   // The parked mission stops receiving sessions, which is what makes it look
   // parked in the history rather than merely flagged as such.
@@ -512,11 +633,13 @@ async function seedSessions(
       const hour = block === 0 ? r.between(8, 11) : r.between(19, 21);
       const minutes = r.pick([25, 30, 40, 45, 50, 60, 75, 90]);
       const startedAt = at(day, hour, r.pick([0, 15, 30]), tz);
+      const mission = r.pick(workedOn);
 
       await prisma.focusSession.create({
         data: {
           userId,
-          missionId: r.pick(workedOn).id,
+          missionId: mission.id,
+          lessonId: boughtLesson(finishedByMission.get(mission.id) ?? [], day, r),
           intention: r.pick(INTENTIONS),
           startedAt,
           endedAt: new Date(startedAt.getTime() + minutes * 60_000),
@@ -534,6 +657,20 @@ async function seedSessions(
     }
   }
   return count;
+}
+
+/**
+ * What a block of attention bought (FR-F3).
+ *
+ * A session binds to a lesson finished within the next few days, which is the shape
+ * a real one has: you spend the time, then you finish the thing. Most sessions bind
+ * to nothing, and that is also real — the timer is started from Today more often
+ * than from the reader, and binding is optional and never asked twice.
+ */
+function boughtLesson(finished: readonly FinishedLesson[], day: IsoDate, r: Random): string | null {
+  const soon = finished.filter((lesson) => lesson.day >= day && lesson.day <= addDays(day, 3));
+  if (soon.length === 0 || !r.chance(0.7)) return null;
+  return r.pick(soon).id;
 }
 
 await main();
