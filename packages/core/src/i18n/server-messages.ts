@@ -96,6 +96,16 @@ const EN = {
   "error.teach.run_transition_invalid": "That run has already finished.",
   "error.teach.workspace_key_unavailable":
     "This mission's topic can't be turned into a workspace name. Give it a title with some letters or numbers in it.",
+
+  "error.focus.lesson_missing": "That lesson no longer exists, so the session was not bound to it.",
+  "error.focus.lesson_mission_mismatch": "That lesson belongs to a different mission.",
+
+  "error.lesson.not_found": "That lesson no longer exists.",
+  /**
+   * A planned lesson has no file yet, so there is nothing to open and nothing to
+   * have understood. The copy names the way out rather than the rule.
+   */
+  "error.lesson.not_written": "This lesson hasn't been written yet. Ask for it to be taught first.",
 } as const;
 
 export type ServerMessageKey = keyof typeof EN;
@@ -163,6 +173,13 @@ const PT_BR: Readonly<Record<ServerMessageKey, string>> = {
   "error.teach.run_transition_invalid": "Essa execução já terminou.",
   "error.teach.workspace_key_unavailable":
     "O tema desta missão não pode virar um nome de workspace. Dê a ela um título com letras ou números.",
+
+  "error.focus.lesson_missing":
+    "Essa lição não existe mais, então a sessão não foi vinculada a ela.",
+  "error.focus.lesson_mission_mismatch": "Essa lição pertence a outra missão.",
+
+  "error.lesson.not_found": "Essa lição não existe mais.",
+  "error.lesson.not_written": "Esta lição ainda não foi escrita. Peça para ensiná-la primeiro.",
 };
 
 const CATALOG: Readonly<Record<Locale, Readonly<Record<ServerMessageKey, string>>>> = {

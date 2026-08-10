@@ -4,6 +4,7 @@ import { AccountModule } from "./modules/account/presentation/account.module.js"
 import { CurriculumModule } from "./modules/curriculum/presentation/curriculum.module.js";
 import { FocusModule } from "./modules/focus/presentation/focus.module.js";
 import { InsightsModule } from "./modules/insights/presentation/insights.module.js";
+import { LessonsModule } from "./modules/lessons/presentation/lessons.module.js";
 import { MissionsModule } from "./modules/missions/presentation/missions.module.js";
 import { TeachModule } from "./modules/teach/presentation/teach.module.js";
 import { SharedModule } from "./shared/shared.module.js";
@@ -16,6 +17,7 @@ import { SharedModule } from "./shared/shared.module.js";
     FocusModule,
     InsightsModule,
     CurriculumModule,
+    LessonsModule,
     TeachModule,
   ],
   controllers: [HealthController],

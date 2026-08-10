@@ -7,6 +7,10 @@ const MINIMAL = {
   // Required since M3: deleting a learner memory has to delete its file, and the
   // workspace bucket has no policies, so only the service role can reach it.
   SUPABASE_SERVICE_ROLE_KEY: "service-role-key",
+  // Required since M5: the API signs the grants apps/lessons verifies (FR-T5),
+  // and a default here would be a secret in the repository that every deployment
+  // forgetting to set one would silently share.
+  LESSONS_TOKEN_SECRET: "lessons-token-secret",
 } satisfies NodeJS.ProcessEnv;
 
 describe("loadEnv", () => {
@@ -14,6 +18,7 @@ describe("loadEnv", () => {
     const env = loadEnv(MINIMAL);
     expect(env.PORT).toBe(3000);
     expect(env.APP_ORIGIN).toBe("http://localhost:5173");
+    expect(env.LESSONS_ORIGIN).toBe("http://localhost:3001");
     expect(env.NODE_ENV).toBe("development");
   });
 
@@ -38,6 +43,15 @@ describe("loadEnv", () => {
     expect(message).toContain("SUPABASE_URL");
     expect(message).not.toContain("hunter2");
     expect(message).not.toContain("not-a-url");
+  });
+
+  it("refuses to boot without the secret the lessons origin verifies", () => {
+    // A lessons service with the wrong secret 404s every lesson and looks, in the
+    // logs, exactly like a learner whose content has gone missing.
+    const withoutSecret: NodeJS.ProcessEnv = { ...MINIMAL };
+    delete withoutSecret["LESSONS_TOKEN_SECRET"];
+
+    expect(() => loadEnv(withoutSecret)).toThrow(/LESSONS_TOKEN_SECRET/);
   });
 
   it("rejects a port that cannot be one", () => {

@@ -127,6 +127,11 @@ jobs:
             echo "DIRECT_URL=$DB_URL"
             echo "APP_ORIGIN=http://localhost:5173"
             echo "API_ORIGIN=http://localhost:3000"
+            echo "LESSONS_ORIGIN=http://localhost:3001"
+            # The API signs view grants with this and apps/lessons verifies them (FR-T5). A
+            # fixed value is right here: both halves are in this job, nothing is deployed,
+            # and the suites assert on refusals rather than on the secret being unguessable.
+            echo "LESSONS_TOKEN_SECRET=ci-lessons-token-secret"
             # Only `VITE_*` reaches the browser bundle, which is the guardrail keeping the
             # service-role key out of it — so the web app needs its own copies under those names.
             echo "VITE_API_ORIGIN=http://localhost:3000"

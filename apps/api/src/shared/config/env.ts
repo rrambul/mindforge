@@ -28,6 +28,27 @@ const EnvSchema = z.object({
   /** The SPA's origin, for CORS. */
   APP_ORIGIN: z.url().default("http://localhost:5173"),
 
+  /**
+   * Where lesson HTML is served from, and it **must** be a different host from
+   * `APP_ORIGIN` or the isolation in §7.5 is decorative — a same-origin frame can
+   * reach the app's Supabase session whatever the sandbox attribute says.
+   *
+   * Not asserted here: on one machine both are `localhost` on different ports,
+   * which is a different origin and a perfectly good local setup, while in a
+   * deployment they are different hosts. A check strict enough to catch the real
+   * mistake would refuse the local one.
+   */
+  LESSONS_ORIGIN: z.url().default("http://localhost:3001"),
+
+  /**
+   * Shared with `apps/lessons`, which verifies the grants this signs (FR-T5).
+   *
+   * Required, with no development default. A default would be a secret in the
+   * repository that every deployment forgetting to set one would silently share —
+   * and holding it is enough to read any workspace by signing its prefix.
+   */
+  LESSONS_TOKEN_SECRET: z.string().min(1),
+
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
 });
 

@@ -176,10 +176,12 @@ model FocusSession {
   userId         String    @map("user_id") @db.Uuid
   missionId      String?   @map("mission_id") @db.Uuid
   /// What the time bought (FR-F3). Set by starting the timer from the reader,
-  /// never by a picker — binding is optional and never asked twice. Implies
-  /// `missionId`, enforced by `focus_sessions_lesson_implies_mission`: a session
-  /// with a lesson and no mission would vanish from every per-mission total
-  /// while still counting in the global one.
+  /// never by a picker — binding is optional and never asked twice.
+  ///
+  /// Implies `missionId`, and the application is what keeps that true:
+  /// `ResolveSessionSubject` reads the lesson and takes the mission from it. The
+  /// migration explains at length why neither a CHECK nor a MATCH FULL composite
+  /// key can hold the rule — both were tried, and both break deleting a mission.
   lessonId       String?   @map("lesson_id") @db.Uuid
   /// "What does done look like for this block?" — one field, asked at start.
   intention      String?

@@ -56,6 +56,50 @@ export class FocusSessionNotStopped extends DomainError {
 }
 
 /**
+ * The lesson a session claims to be about is not one of yours (FR-F3).
+ *
+ * `invalid` with a field violation rather than `not_found`, because the *session*
+ * is fine and one field of it is not — the SPA marks the field rather than showing
+ * a page-level error over a timer that is otherwise ready to start.
+ *
+ * Refused rather than dropped. Silently starting an unbound session would mean the
+ * reader's "start focus on this lesson" quietly recorded time against nothing, and
+ * the learner would only find out in M6 when the lesson showed zero minutes.
+ */
+export class FocusSessionLessonMissing extends DomainError {
+  readonly kind: DomainErrorKind = "invalid";
+  readonly slug = "focus-session-lesson-missing";
+  readonly detailKey: ServerMessageKey = "error.focus.lesson_missing";
+  override readonly violations: readonly FieldViolation[];
+
+  constructor(lessonId: string) {
+    super(`Lesson ${lessonId} not found`);
+    this.violations = [{ field: "lessonId", code: "not_found", message: this.message }];
+  }
+}
+
+/**
+ * A session naming both a lesson and a mission the lesson is not in.
+ *
+ * Reachable from a replayed offline capture whose mission has since changed, and
+ * from nothing the reader sends today. Refused rather than resolved in either
+ * direction: picking the lesson's mission would silently move the block's
+ * attribution, and picking the sent mission would store a pair the time views then
+ * disagree about.
+ */
+export class FocusSessionLessonMismatch extends DomainError {
+  readonly kind: DomainErrorKind = "invalid";
+  readonly slug = "focus-session-lesson-mismatch";
+  readonly detailKey: ServerMessageKey = "error.focus.lesson_mission_mismatch";
+  override readonly violations: readonly FieldViolation[];
+
+  constructor(lessonId: string, missionId: string) {
+    super(`Lesson ${lessonId} does not belong to mission ${missionId}`);
+    this.violations = [{ field: "lessonId", code: "mission_mismatch", message: this.message }];
+  }
+}
+
+/**
  * A session dated in the future.
  *
  * A device with a skewed clock — or a hand-typed date — otherwise produces a block that sorts to the

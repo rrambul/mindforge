@@ -617,15 +617,17 @@ describe("lesson_edges", () => {
 /**
  * Binding a focus session to a lesson (FR-F3).
  *
- * Two rules, and both of them are about a number that would otherwise be wrong
- * without anything failing:
+ * The rule that matters is the one about deletion: **the time survives whatever
+ * happens to what it was about.** A lesson deleted, a mission deleted, a whole
+ * account emptied — the minutes were still spent and the frequency tracker still
+ * has to count the day, so every path clears the binding and keeps the session.
  *
- * - **A lesson binding implies a mission.** A session with a lesson and no
- *   mission vanishes from every per-mission total while still counting in the
- *   global one, and the two figures disagree with nobody able to say why.
- * - **Deleting a lesson never deletes the time.** The minutes were still spent
- *   and the frequency tracker still has to count the day; SET NULL is the same
- *   choice `lessons.track_id` makes one table over.
+ * Two invariants this table deliberately does not enforce are documented in
+ * `20260810180000_focus_session_lesson`, and the first of them is why the last
+ * test here exists: written as a CHECK, "a lesson binding implies a mission" made
+ * every mission delete fail, because dropping a mission clears `mission_id` and
+ * `lesson_id` through two separate referential actions and a CHECK cannot be
+ * deferred across them.
  */
 describe("focus sessions bind to a lesson without owning it", () => {
   async function seedSession(
@@ -646,21 +648,29 @@ describe("focus sessions bind to a lesson without owning it", () => {
     return rows[0]!.id;
   }
 
+  async function bindingOf(sessionId: string): Promise<{
+    mission_id: string | null;
+    lesson_id: string | null;
+  } | null> {
+    const rows = await admin.$queryRawUnsafe<
+      { mission_id: string | null; lesson_id: string | null }[]
+    >(`select mission_id, lesson_id from focus_sessions where id = $1::uuid`, sessionId);
+    return rows[0] ?? null;
+  }
+
   it("accepts a session with a lesson and its mission", async () => {
     const lesson = await seedLesson(ALICE, 70, trackOf[ALICE]!);
     await expect(seedSession(ALICE, missionOf[ALICE]!, lesson)).resolves.toBeTruthy();
   });
 
-  it("accepts a session bound to nothing at all", async () => {
-    // Binding is optional and never asked twice — most sessions have neither.
-    await expect(seedSession(ALICE, null, null)).resolves.toBeTruthy();
+  it("accepts a session bound to a mission and no lesson, which is most of them", async () => {
+    // The ordinary case, and the reason a MATCH FULL composite key could not carry
+    // the "lesson implies mission" rule: it forbids mixing null and non-null.
+    await expect(seedSession(ALICE, missionOf[ALICE]!, null)).resolves.toBeTruthy();
   });
 
-  it("refuses a lesson with no mission behind it", async () => {
-    const lesson = await seedLesson(ALICE, 71, trackOf[ALICE]!);
-    await expect(seedSession(ALICE, null, lesson)).rejects.toThrow(
-      /focus_sessions_lesson_implies_mission/u,
-    );
+  it("accepts a session bound to nothing at all", async () => {
+    await expect(seedSession(ALICE, null, null)).resolves.toBeTruthy();
   });
 
   it("keeps the session and clears the binding when the lesson is deleted", async () => {
@@ -669,12 +679,24 @@ describe("focus sessions bind to a lesson without owning it", () => {
 
     await admin.$executeRawUnsafe(`delete from lessons where id = $1::uuid`, lesson);
 
-    const rows = await admin.$queryRawUnsafe<{ lesson_id: string | null; ended_at: Date }[]>(
-      `select lesson_id, ended_at from focus_sessions where id = $1::uuid`,
-      session,
-    );
-    expect(rows).toHaveLength(1);
-    expect(rows[0]!.lesson_id).toBeNull();
-    expect(rows[0]!.ended_at).not.toBeNull();
+    expect(await bindingOf(session)).toEqual({
+      mission_id: missionOf[ALICE]!,
+      lesson_id: null,
+    });
+  });
+
+  it("keeps the session when the whole mission goes, binding and all", async () => {
+    // The regression: with a CHECK enforcing "lesson implies mission" this delete
+    // failed with 23514, because clearing `mission_id` and clearing `lesson_id`
+    // are two separate referential actions and the row is half-cleared between
+    // them. Every mission delete broke, including the one behind account deletion.
+    const mission = await seedMission(ALICE, "doomed-mission");
+    const track = await seedTrack(ALICE, "doomed-track", 90, "active", mission);
+    const lesson = await seedPlanned(ALICE, "doomed-lesson", track, mission);
+    const session = await seedSession(ALICE, mission, lesson);
+
+    await admin.$executeRawUnsafe(`delete from missions where id = $1::uuid`, mission);
+
+    expect(await bindingOf(session)).toEqual({ mission_id: null, lesson_id: null });
   });
 });

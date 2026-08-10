@@ -9,6 +9,17 @@ import { FocusSessionNotRunning, FocusSessionNotStopped, SessionInFuture } from 
 
 export interface FocusSessionAttachments {
   readonly missionId: string | null;
+  /**
+   * The lesson the block was spent on (FR-F3).
+   *
+   * Implies the mission, and the database says so too
+   * (`focus_sessions_lesson_implies_mission`): a session with a lesson and no
+   * mission vanishes from every per-mission total while still counting in the
+   * global one, and the two figures disagree with nobody able to say why. The
+   * pair is resolved in the use case, because a lesson's mission is a fact about
+   * another row and nothing in here can read one.
+   */
+  readonly lessonId: string | null;
 }
 
 export interface FocusSessionDebrief {
@@ -139,7 +150,7 @@ export class FocusSession {
         energy: snapshot.energy,
         note: snapshot.note,
       },
-      { missionId: snapshot.missionId },
+      { missionId: snapshot.missionId, lessonId: snapshot.lessonId },
       snapshot.entryMode,
       snapshot.createdAt,
     );

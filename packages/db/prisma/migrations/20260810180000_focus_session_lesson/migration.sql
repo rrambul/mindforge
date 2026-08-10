@@ -21,25 +21,38 @@ COMMENT ON COLUMN "focus_sessions"."lesson_id" IS
 ALTER TABLE "focus_sessions" ADD CONSTRAINT "focus_sessions_lesson_id_fkey"
   FOREIGN KEY ("lesson_id") REFERENCES "lessons"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
--- A lesson belongs to a mission, so a session bound to one is bound to that
--- mission too. Enforced here rather than left to the writer, because the failure is
--- silent: a session with a lesson and no mission disappears from every per-mission
--- total while still being counted in the global one, and the two figures disagree
--- with nobody able to say why.
---
--- That the lesson belongs to *that* mission is checked by the use case. Expressing
--- it here would need a composite foreign key over `(mission_id, lesson_id)`, whose
--- SET NULL would then race the one above on the same rows.
-ALTER TABLE "focus_sessions" ADD CONSTRAINT "focus_sessions_lesson_implies_mission"
-  CHECK ("lesson_id" IS NULL OR "mission_id" IS NOT NULL);
-
 -- "How long did this lesson take" is the question M6's time views ask of it, and
 -- it is asked per user because every read in this product is.
 CREATE INDEX "focus_sessions_user_id_lesson_id_idx"
   ON "focus_sessions"("user_id", "lesson_id");
 
--- No new policy: `focus_sessions` already has one, and RLS is per row rather than
--- per column. What this column *can* leak is a lesson id that is not yours, which
--- RLS cannot catch — the row is still your own. `BindFocusSessionToLesson` in the
--- API checks ownership before writing, and apps/api/test/capture-loop.test.ts
--- proves it with two real users.
+-- ============================================================================
+-- Two invariants this migration deliberately does NOT enforce, and why.
+--
+-- Both are real, both hold, and both are the application's to keep —
+-- `ResolveSessionSubject` reads the lesson and takes the mission from it, so a
+-- bound session is complete and consistent by construction, and
+-- apps/api/test/lessons.test.ts proves it over HTTP with two users.
+--
+-- **"A lesson binding implies a mission."** Written first as
+-- `CHECK (lesson_id IS NULL OR mission_id IS NOT NULL)`, and it broke deleting a
+-- mission. Dropping a mission fires two referential actions on this table —
+-- `mission_id` to NULL from the mission's own foreign key, and `lesson_id` to
+-- NULL as the mission's lessons cascade away — and a CHECK is evaluated per row
+-- update, immediately, with no way to defer it (Postgres allows DEFERRABLE on
+-- UNIQUE, PRIMARY KEY, EXCLUDE and FOREIGN KEY, never on CHECK). Whichever action
+-- runs first, the row is momentarily half-cleared and the constraint fires. The
+-- symptom was every mission delete failing with 23514, including the one behind
+-- account deletion (FR-A4).
+--
+-- **"The lesson belongs to that mission."** The natural expression is a composite
+-- foreign key over `(mission_id, lesson_id)`, and MATCH FULL would carry the first
+-- invariant along with it. It cannot be used: MATCH FULL forbids mixing null and
+-- non-null key values, and a session bound to a mission with no particular lesson
+-- is the ordinary case — most sessions are exactly that. Probed against the real
+-- table before being ruled out, not reasoned about.
+-- ============================================================================
+
+-- No new policy either: `focus_sessions` already has one, and RLS is per row
+-- rather than per column. What this column *can* leak is a lesson id that is not
+-- yours, which RLS cannot catch — the row being written is still your own.

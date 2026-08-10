@@ -46,7 +46,8 @@ export interface FocusSessionView {
   readonly energy: number | null;
   readonly note: string | null;
   readonly missionId: string | null;
-  /** What the block was about, when it was a skill. Measured against a skill allocation (FR-F5). */
+  /** The lesson the time was spent on, when the block was started from the reader (FR-F3). */
+  readonly lessonId: string | null;
 }
 
 export function toFocusSessionView(session: FocusSession): FocusSessionView {
@@ -65,6 +66,7 @@ export function toFocusSessionView(session: FocusSession): FocusSessionView {
     energy: s.energy,
     note: s.note,
     missionId: s.missionId,
+    lessonId: s.lessonId,
   };
 }
 

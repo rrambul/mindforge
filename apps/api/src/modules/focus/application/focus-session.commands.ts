@@ -12,6 +12,7 @@ import {
   FOCUS_SESSION_REPOSITORY,
   type FocusSessionRepository,
 } from "../domain/focus-session.repository.js";
+import { ResolveSessionSubject } from "./session-subject.js";
 
 /**
  * FR-F3, and the tightest capture path in the product: one field, one tap.
@@ -27,6 +28,7 @@ export class StartFocusSession {
     @Inject(FOCUS_SESSION_REPOSITORY) private readonly sessions: FocusSessionRepository,
     @Inject(CLOCK) private readonly clock: Clock,
     @Inject(ID_GENERATOR) private readonly ids: IdGenerator,
+    private readonly subject: ResolveSessionSubject,
   ) {}
 
   async execute(userId: string, input: StartFocusSessionInput): Promise<FocusSession> {
@@ -34,6 +36,10 @@ export class StartFocusSession {
       const existing = await this.sessions.findById(userId, input.id);
       if (existing) return existing;
     }
+
+    // Before the running-session check, so an unstartable session is refused for
+    // the reason the caller can fix rather than for the one they cannot.
+    const attachments = await this.subject.execute(userId, input);
 
     // Two concurrent sessions has no meaning — a session is a bounded block of attention.
     // Refused rather than auto-stopping the other, so a block never ends without the chance
@@ -46,9 +52,7 @@ export class StartFocusSession {
       userId,
       intention: input.intention ?? null,
       plannedMinutes: input.plannedMinutes ?? null,
-      attachments: {
-        missionId: input.missionId ?? null,
-      },
+      attachments,
       now: this.clock.now(),
     });
 
@@ -125,6 +129,7 @@ export class RecordFocusSession {
     @Inject(FOCUS_SESSION_REPOSITORY) private readonly sessions: FocusSessionRepository,
     @Inject(CLOCK) private readonly clock: Clock,
     @Inject(ID_GENERATOR) private readonly ids: IdGenerator,
+    private readonly subject: ResolveSessionSubject,
   ) {}
 
   /**
@@ -157,9 +162,7 @@ export class RecordFocusSession {
         energy: input.energy ?? null,
         note: input.note ?? null,
       },
-      attachments: {
-        missionId: input.missionId ?? null,
-      },
+      attachments: await this.subject.execute(userId, input),
       now: this.clock.now(),
       timeZone,
     });

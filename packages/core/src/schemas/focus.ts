@@ -48,6 +48,16 @@ export const StartFocusSessionSchema = z.object({
   id: UuidSchema.optional(),
   intention: intention.optional(),
   missionId: UuidSchema.nullable().optional(),
+  /**
+   * What the time is being spent on (FR-F3). Sent by the lesson reader and by
+   * nothing else — binding is optional and never asked twice, so there is no
+   * picker anywhere and no prompt at the end.
+   *
+   * The mission comes with it: a lesson knows which mission it belongs to, so
+   * sending both is redundant and sending a mismatched pair is a mistake the use
+   * case refuses rather than quietly resolves.
+   */
+  lessonId: UuidSchema.nullable().optional(),
   /** Optional Pomodoro-style target. FR-F1: intervals are optional, never mandatory. */
   plannedMinutes: z.coerce.number().int().min(1).max(600).nullable().optional(),
 });
@@ -88,6 +98,8 @@ export const CreateFocusSessionSchema = z
     endedAt: z.coerce.date(),
     intention: intention.optional(),
     missionId: UuidSchema.nullable().optional(),
+    /** As above (FR-F3) — a block you are entering after the fact had a subject too. */
+    lessonId: UuidSchema.nullable().optional(),
     hitIntention: IntentionOutcomeSchema.optional(),
     focusQuality: rating.optional(),
     energy: rating.optional(),

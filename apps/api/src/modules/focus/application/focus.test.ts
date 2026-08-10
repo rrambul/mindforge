@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { SequentialIdGenerator } from "../../../shared/ids/id-generator.js";
 import { FixedClock } from "../../../shared/time/clock.js";
+import type { LessonRecord, LessonRepository } from "../../lessons/domain/lesson.repository.js";
 import {
   FocusSessionAlreadyRunning,
   FocusSessionNotFound,
@@ -18,6 +19,7 @@ import {
   StopFocusSession,
 } from "./focus-session.commands.js";
 import { GetRunningFocusSession, ListFocusSessions } from "./read-focus-sessions.js";
+import { ResolveSessionSubject } from "./session-subject.js";
 
 const ALICE = "11111111-1111-4111-8111-111111111111";
 const BOB = "22222222-2222-4222-8222-222222222222";
@@ -61,6 +63,56 @@ class InMemorySessions implements FocusSessionRepository {
   }
 }
 
+/**
+ * The lessons a session may bind to (FR-F3).
+ *
+ * Keyed by user for the same reason the sessions are: a resolver that dropped
+ * `userId` would happily attach Bob's lesson to Alice's afternoon, and RLS cannot
+ * see that mistake because the row it writes is Alice's own.
+ */
+const ALICE_LESSON = "88888888-8888-4888-8888-888888888888";
+const BOB_LESSON = "99999999-9999-4999-8999-999999999999";
+const ALICE_MISSION = "55555555-5555-4555-8555-555555555555";
+
+class InMemoryLessons implements LessonRepository {
+  private readonly rows = new Map<string, LessonRecord>([
+    [`${ALICE}:${ALICE_LESSON}`, lessonRecord(ALICE_LESSON, ALICE_MISSION)],
+    [`${BOB}:${BOB_LESSON}`, lessonRecord(BOB_LESSON, "66666666-6666-4666-8666-666666666666")],
+  ]);
+
+  findById(userId: string, id: string): Promise<LessonRecord | null> {
+    return Promise.resolve(this.rows.get(`${userId}:${id}`) ?? null);
+  }
+
+  setCompletion(): Promise<void> {
+    return Promise.resolve();
+  }
+}
+
+function lessonRecord(id: string, missionId: string): LessonRecord {
+  return {
+    id,
+    missionId,
+    trackId: null,
+    moduleName: null,
+    slug: "borrow-checker",
+    title: "Borrow checker errors",
+    intent: null,
+    status: "generated",
+    difficulty: null,
+    depth: null,
+    seq: 7,
+    storagePath: "workspaces/u/k/lessons/0007-borrow-checker.html",
+    workspaceKey: "k",
+    completedAt: null,
+    outcome: null,
+  };
+}
+
+function subject(): ResolveSessionSubject {
+  return new ResolveSessionSubject(new InMemoryLessons());
+}
+
 describe("StartFocusSession", () => {
   let sessions: InMemorySessions;
   let clock: FixedClock;
@@ -69,7 +121,7 @@ describe("StartFocusSession", () => {
   beforeEach(() => {
     sessions = new InMemorySessions();
     clock = new FixedClock(NOW);
-    start = new StartFocusSession(sessions, clock, new SequentialIdGenerator());
+    start = new StartFocusSession(sessions, clock, new SequentialIdGenerator(), subject());
   });
 
   it("starts a running session from nothing", async () => {
@@ -159,6 +211,7 @@ describe("StopFocusSession", () => {
       sessions,
       clock,
       new SequentialIdGenerator(),
+      subject(),
     ).execute(ALICE, {});
 
     clock.advance(40 * 60_000);
@@ -173,6 +226,7 @@ describe("StopFocusSession", () => {
       sessions,
       clock,
       new SequentialIdGenerator(),
+      subject(),
     ).execute(ALICE, {});
     clock.advance(60_000);
 
@@ -191,10 +245,12 @@ describe("StopFocusSession", () => {
   });
 
   it("rejects another user's session as not found", async () => {
-    const bobs = await new StartFocusSession(sessions, clock, new SequentialIdGenerator()).execute(
-      BOB,
-      {},
-    );
+    const bobs = await new StartFocusSession(
+      sessions,
+      clock,
+      new SequentialIdGenerator(),
+      subject(),
+    ).execute(BOB, {});
     await expect(stop.execute(ALICE, bobs.id)).rejects.toBeInstanceOf(FocusSessionNotFound);
   });
 });
@@ -215,6 +271,7 @@ describe("DebriefFocusSession", () => {
       sessions,
       clock,
       new SequentialIdGenerator(),
+      subject(),
     ).execute(ALICE, {});
     clock.advance(40 * 60_000);
     return new StopFocusSession(sessions, clock).execute(ALICE, started.id);
@@ -250,6 +307,7 @@ describe("DebriefFocusSession", () => {
       sessions,
       clock,
       new SequentialIdGenerator(),
+      subject(),
     ).execute(ALICE, {});
 
     await expect(
@@ -275,6 +333,7 @@ describe("RecordFocusSession", () => {
       sessions,
       new FixedClock(new Date("2026-08-05T22:00:00Z")),
       new SequentialIdGenerator(),
+      subject(),
     );
   });
 
@@ -302,6 +361,7 @@ describe("RecordFocusSession", () => {
       sessions,
       new FixedClock(new Date("2026-08-05T21:00:00Z")),
       new SequentialIdGenerator(),
+      subject(),
     ).execute(ALICE, {});
 
     await expect(
@@ -342,17 +402,23 @@ describe("reads", () => {
     const running = new GetRunningFocusSession(sessions);
     await expect(running.execute(ALICE)).resolves.toBeNull();
 
-    await new StartFocusSession(sessions, clock, new SequentialIdGenerator()).execute(ALICE, {});
+    await new StartFocusSession(sessions, clock, new SequentialIdGenerator(), subject()).execute(
+      ALICE,
+      {},
+    );
     await expect(running.execute(ALICE)).resolves.not.toBeNull();
   });
 
   it("never reports another user's running session", async () => {
-    await new StartFocusSession(sessions, clock, new SequentialIdGenerator()).execute(BOB, {});
+    await new StartFocusSession(sessions, clock, new SequentialIdGenerator(), subject()).execute(
+      BOB,
+      {},
+    );
     await expect(new GetRunningFocusSession(sessions).execute(ALICE)).resolves.toBeNull();
   });
 
   it("caps the list, because sessions are the one M1 list that grows without bound", async () => {
-    const start = new StartFocusSession(sessions, clock, new SequentialIdGenerator());
+    const start = new StartFocusSession(sessions, clock, new SequentialIdGenerator(), subject());
     const stop = new StopFocusSession(sessions, clock);
     for (let i = 0; i < 60; i += 1) {
       const session = await start.execute(ALICE, {});
@@ -366,7 +432,7 @@ describe("reads", () => {
 
   it("filters by mission", async () => {
     const mission = "55555555-5555-4555-8555-555555555555";
-    const start = new StartFocusSession(sessions, clock, new SequentialIdGenerator());
+    const start = new StartFocusSession(sessions, clock, new SequentialIdGenerator(), subject());
     const stop = new StopFocusSession(sessions, clock);
 
     const first = await start.execute(ALICE, { missionId: mission });
@@ -380,5 +446,93 @@ describe("reads", () => {
     const listed = await new ListFocusSessions(sessions).execute(ALICE, { missionId: mission });
     expect(listed).toHaveLength(1);
     expect(listed[0]?.attachments.missionId).toBe(mission);
+  });
+});
+
+/**
+ * Binding a block of attention to the lesson it was spent on (FR-F3).
+ *
+ * "Optional and never asked twice" is the requirement, and the shape below is what
+ * it means in practice: the reader sends one id, the mission comes with it, and
+ * nothing anywhere prompts for either.
+ */
+describe("what a session was about", () => {
+  let sessions: InMemorySessions;
+  let start: StartFocusSession;
+
+  beforeEach(() => {
+    sessions = new InMemorySessions();
+    start = new StartFocusSession(
+      sessions,
+      new FixedClock(NOW),
+      new SequentialIdGenerator(),
+      subject(),
+    );
+  });
+
+  it("takes the mission from the lesson, so the reader sends one id", async () => {
+    const session = await start.execute(ALICE, { lessonId: ALICE_LESSON });
+
+    expect(session.attachments).toEqual({ missionId: ALICE_MISSION, lessonId: ALICE_LESSON });
+  });
+
+  it("leaves both unset when nothing was named", async () => {
+    // Most sessions. A timer started from Today is about the day, not a lesson.
+    expect((await start.execute(ALICE, {})).attachments).toEqual({
+      missionId: null,
+      lessonId: null,
+    });
+  });
+
+  it("refuses a lesson that is not yours", async () => {
+    // RLS cannot catch this: the *session* is Alice's, and only the id is Bob's.
+    // Silently dropping the binding would record her time against nothing, and
+    // she would find out in M6 when the lesson showed zero minutes.
+    await expect(start.execute(ALICE, { lessonId: BOB_LESSON })).rejects.toMatchObject({
+      slug: "focus-session-lesson-missing",
+      violations: [{ field: "lessonId", code: "not_found" }],
+    });
+  });
+
+  it("refuses a lesson and a mission that disagree", async () => {
+    // A replayed offline capture can produce this. Resolved either way it is a
+    // silent move: to the lesson's mission, or to a pair the time views argue about.
+    await expect(
+      start.execute(ALICE, {
+        lessonId: ALICE_LESSON,
+        missionId: "77777777-7777-4777-8777-777777777777",
+      }),
+    ).rejects.toMatchObject({ slug: "focus-session-lesson-mismatch" });
+  });
+
+  it("refuses before it refuses a second running session", async () => {
+    // The caller can fix a bad lesson id; they cannot fix "something else is
+    // running" without abandoning what they asked for.
+    await start.execute(ALICE, {});
+
+    await expect(start.execute(ALICE, { lessonId: BOB_LESSON })).rejects.toMatchObject({
+      slug: "focus-session-lesson-missing",
+    });
+  });
+
+  it("binds a backfilled session too — a block you enter later had a subject", async () => {
+    const record = new RecordFocusSession(
+      sessions,
+      new FixedClock(new Date("2026-08-05T22:00:00Z")),
+      new SequentialIdGenerator(),
+      subject(),
+    );
+
+    const session = await record.execute(
+      ALICE,
+      {
+        startedAt: new Date("2026-08-05T19:00:00Z"),
+        endedAt: new Date("2026-08-05T20:00:00Z"),
+        lessonId: ALICE_LESSON,
+      },
+      "UTC",
+    );
+
+    expect(session.attachments.lessonId).toBe(ALICE_LESSON);
   });
 });
