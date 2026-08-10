@@ -4,7 +4,7 @@
 .mf-command-backdrop {
   position: fixed;
   inset: 0;
-  background: color-mix(in oklab, var(--mf-bg) 70%, transparent);
+  background: color-mix(in oklab, var(--mf-ground) 70%, transparent);
   display: flex;
   align-items: flex-start;
   justify-content: center;

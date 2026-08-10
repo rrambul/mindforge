@@ -19,11 +19,11 @@
   width: 100%;
   min-height: 24rem;
   height: calc(100dvh - 22rem);
-  border: 1px solid var(--mf-border);
-  border-radius: var(--mf-radius-sm, 4px);
+  border: 1px solid var(--mf-scale);
+  border-radius: var(--mf-r);
   /* Untrusted content: a white page on a dark theme is jarring, but forcing a
      background here would fight lessons that set their own. Left to the lesson. */
-  background: var(--mf-surface, #fff);
+  background: var(--mf-surface);
 }
 
 /**
@@ -37,9 +37,15 @@
   position: sticky;
   bottom: 0;
   z-index: 1;
-  padding: var(--mf-space-2) 0;
-  background: var(--mf-bg, transparent);
-  border-top: 1px solid var(--mf-border);
+  padding: var(--mf-space-3) 0;
+  /* Opaque, and `--mf-ground` because that is the page rather than a card. A
+     translucent bar over a lesson is two documents' text in the same pixels, which
+     is what the first version of this did — the tokens it named did not exist and
+     the fallback was `transparent`. */
+  background: var(--mf-ground);
+  border-top: 1px solid var(--mf-scale);
+  /* Clears the notch on a phone held in a case, like the shell's own bars. */
+  padding-bottom: max(var(--mf-space-3), env(safe-area-inset-bottom));
 }
 
 @media (min-width: 48rem) {

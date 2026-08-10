@@ -22,7 +22,7 @@
   flex-direction: column;
   gap: var(--mf-space-1);
   padding: var(--mf-space-2) 0 var(--mf-space-2) var(--mf-space-3);
-  border-left: 3px solid var(--mf-border);
+  border-left: 3px solid var(--mf-scale);
 }
 
 .mf-lesson-line__head {
@@ -48,11 +48,11 @@
 }
 
 .mf-lesson-line[data-state="completed"] {
-  border-left-color: var(--mf-success, var(--mf-accent));
+  border-left-color: var(--mf-ok);
 }
 
 /* The one lesson the plan would have you do next, findable in a long module. */
 .mf-lesson-line[data-next] {
-  background: var(--mf-surface-raised, transparent);
-  border-radius: var(--mf-radius-sm, 4px);
+  background: var(--mf-surface);
+  border-radius: var(--mf-r);
 }
