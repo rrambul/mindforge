@@ -5,6 +5,10 @@ import { describe, expect, test } from "bun:test";
  * §7.5. Lesson HTML is LLM-authored JavaScript; if these headers weaken, a
  * generated lesson gains the ability to reach the network or be framed by an
  * arbitrary origin. Failing this test means the sandbox is decorative.
+ *
+ * `handler.test.ts` covers what the origin refuses and why, against a fake
+ * Storage. This one boots the real process, so it is also the test that fails if
+ * `index.ts` ever wires the handler up without those headers reaching the socket.
  */
 
 const PORT = 3987;
@@ -12,7 +16,16 @@ const PORT = 3987;
 async function startServer(): Promise<{ url: string; stop: () => void }> {
   const proc = Bun.spawn(["bun", "src/index.ts"], {
     cwd: import.meta.dir + "/..",
-    env: { ...Bun.env, PORT: String(PORT), APP_ORIGIN: "https://app.example" },
+    env: {
+      ...Bun.env,
+      PORT: String(PORT),
+      APP_ORIGIN: "https://app.example",
+      // Enough to boot. Nothing here reaches Storage — every request below is
+      // refused before a bucket would be touched.
+      SUPABASE_URL: "https://stack.example",
+      SUPABASE_SERVICE_ROLE_KEY: "service-role",
+      LESSONS_TOKEN_SECRET: "test-secret",
+    },
     stdout: "pipe",
     stderr: "pipe",
   });

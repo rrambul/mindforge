@@ -126,6 +126,9 @@ importers:
 
   apps/lessons:
     dependencies:
+      '@mindforge/core':
+        specifier: workspace:*
+        version: link:../../packages/core
       '@supabase/supabase-js':
         specifier: ^2.112.1
         version: 2.112.1

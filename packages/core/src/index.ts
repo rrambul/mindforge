@@ -3,6 +3,7 @@ export * from "./errors/domain-error.js";
 export * from "./i18n/locales.js";
 export * from "./i18n/server-messages.js";
 export * from "./insights/activity-grid.js";
+export * from "./lessons/content-type.js";
 export * from "./lessons/view-token.js";
 export * from "./schemas/common.js";
 export * from "./schemas/focus.js";

@@ -9,68 +9,39 @@
  * Lesson HTML is LLM-authored JavaScript. It is untrusted. This process exists
  * so that content runs on an origin that has NO access to the app's cookies,
  * localStorage, or Supabase session. Do not merge it into the API to save a
- * deployment, and do not relax the headers below to make something work.
+ * deployment, and do not relax the headers in `handler.ts` to make something work.
+ *
+ * The routing, the grant check and those headers live in `handler.ts`, which takes
+ * its Storage as a port — so the tests that matter here (what it refuses to serve)
+ * run against a map of bytes rather than a live bucket.
  */
-
-const PORT = Number(Bun.env.PORT ?? 3001);
-const APP_ORIGIN = Bun.env.APP_ORIGIN ?? "http://localhost:5173";
-const API_ORIGIN = Bun.env.API_ORIGIN ?? "http://localhost:3000";
+import { loadEnv } from "./env.js";
+import { createHandler } from "./handler.js";
+import { SupabaseWorkspaceObjects } from "./objects.js";
 
 /**
- * `connect-src 'none'` is the load-bearing directive: a lesson cannot phone
- * home, so even a malicious or confused generation cannot exfiltrate anything
- * it can see. `frame-ancestors` restricts who may embed us to the app itself.
+ * `.env.local` is loaded by `--env-file` in this package's scripts rather than in
+ * code. Bun has no `process.loadEnvFile` — the trick `apps/api` and `apps/worker`
+ * use — and it ignores the flag silently when the file is absent, which is the
+ * behaviour their try/catch was written to get. In CI and on Railway the
+ * environment is already populated and no file exists, which is not an error.
  */
-const CSP = [
-  "default-src 'none'",
-  "script-src 'unsafe-inline' 'self'",
-  "style-src 'unsafe-inline' 'self'",
-  "img-src 'self' data:",
-  "font-src 'self' data:",
-  "connect-src 'none'",
-  "form-action 'none'",
-  "base-uri 'none'",
-  `frame-ancestors ${APP_ORIGIN}`,
-].join("; ");
-
-const SECURITY_HEADERS: Record<string, string> = {
-  "Content-Security-Policy": CSP,
-  "X-Content-Type-Options": "nosniff",
-  "Referrer-Policy": "no-referrer",
-  "Cross-Origin-Resource-Policy": "same-site",
-  "Permissions-Policy": "geolocation=(), microphone=(), camera=(), payment=()",
-};
+const env = loadEnv(Bun.env);
 
 const server = Bun.serve({
-  port: PORT,
-  // Not async yet: becomes async when Storage streaming lands, and lint should
-  // tell us the day it doesn't need to be.
-  fetch(req) {
-    const url = new URL(req.url);
-
-    if (url.pathname === "/health") {
-      return Response.json({
-        status: "ok",
-        service: "lessons",
-        version: Bun.env.APP_VERSION ?? "0.0.0",
-        commit: Bun.env.GIT_SHA ?? "dev",
-      });
-    }
-
-    // Everything else requires a signed token minted by the API after an
-    // RLS-checked ownership test. This service never trusts a client path.
-    return new Response("Not implemented", {
-      status: 501,
-      headers: { ...SECURITY_HEADERS, "Content-Type": "text/plain" },
-    });
-  },
+  port: env.port,
+  fetch: createHandler({
+    env,
+    objects: new SupabaseWorkspaceObjects(env.supabaseUrl, env.serviceRoleKey),
+    // Seconds, because that is what a grant's expiry is measured in.
+    now: () => Math.floor(Date.now() / 1000),
+  }),
 });
 
 console.log(
   JSON.stringify({
     msg: "lessons origin listening",
     port: server.port,
-    appOrigin: APP_ORIGIN,
-    apiOrigin: API_ORIGIN,
+    appOrigin: env.appOrigin,
   }),
 );

@@ -5,14 +5,15 @@
   "type": "module",
   "scripts": {
     "build": "bun build ./src/index.ts --target=bun --outdir=./dist",
-    "dev": "bun --watch src/index.ts",
-    "start": "bun src/index.ts",
+    "dev": "bun --env-file=../../.env.local --watch src/index.ts",
+    "start": "bun --env-file=../../.env.local src/index.ts",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test:unit": "bun test",
     "test:coverage": "bun test --coverage"
   },
   "dependencies": {
+    "@mindforge/core": "workspace:*",
     "@supabase/supabase-js": "^2.112.1"
   },
   "devDependencies": {

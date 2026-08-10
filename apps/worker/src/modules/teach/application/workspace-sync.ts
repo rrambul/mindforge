@@ -1,3 +1,4 @@
+import { contentTypeFor } from "@mindforge/core";
 import { Inject, Injectable } from "@nestjs/common";
 
 import {
@@ -50,25 +51,6 @@ export interface SyncResult {
   readonly conflicts: readonly Conflict[];
   /** What the ledger now says, which is what the next run will diff against. */
   readonly ledger: readonly FileState[];
-}
-
-/** Enough for what a workspace contains; anything else is served as a download. */
-const CONTENT_TYPES: Readonly<Record<string, string>> = {
-  html: "text/html; charset=utf-8",
-  css: "text/css; charset=utf-8",
-  js: "text/javascript; charset=utf-8",
-  md: "text/markdown; charset=utf-8",
-  json: "application/json; charset=utf-8",
-  svg: "image/svg+xml",
-  png: "image/png",
-  jpg: "image/jpeg",
-  jpeg: "image/jpeg",
-  webp: "image/webp",
-};
-
-function contentTypeFor(path: string): string {
-  const extension = path.split(".").pop()?.toLowerCase() ?? "";
-  return CONTENT_TYPES[extension] ?? "application/octet-stream";
 }
 
 @Injectable()
