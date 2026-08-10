@@ -41,12 +41,13 @@ export function createHandler(deps: HandlerDeps): (request: Request) => Promise<
   return async function handle(request: Request): Promise<Response> {
     const url = new URL(request.url);
 
-    if (url.pathname === "/health") return health(deps.env);
-
-    // Not 405 for the rest: a method this service does not implement is not a hint
-    // that the path exists. GET is the only verb a read-only origin needs, and HEAD
-    // is not used by anything that frames a lesson.
+    // Before the routing, not after: a method this service does not implement is
+    // not a hint that a path exists, and `/health` is not a write endpoint either.
+    // GET is the only verb a read-only origin needs, and HEAD is not used by
+    // anything that frames a lesson. 404 rather than 405, for the same reason.
     if (request.method !== "GET") return notFound(headers);
+
+    if (url.pathname === "/health") return health(deps.env, headers);
     if (!url.pathname.startsWith(VIEW_PREFIX)) return notFound(headers);
 
     const [token, ...encoded] = url.pathname.slice(VIEW_PREFIX.length).split("/");
@@ -109,13 +110,24 @@ function notFound(headers: Record<string, string>): Response {
   });
 }
 
-function health(env: LessonsEnv): Response {
-  return Response.json({
-    status: "ok",
-    service: "lessons",
-    version: env.version,
-    commit: env.commit,
-  });
+/**
+ * The headers go on this one too.
+ *
+ * A JSON body cannot execute anything, so this is belt-and-braces rather than a
+ * hole being closed — but "every response from this origin carries them" is a rule
+ * that can be checked, and "every response except the one we decided was harmless"
+ * is a judgement that has to be made again by whoever adds the next route.
+ */
+function health(env: LessonsEnv, headers: Record<string, string>): Response {
+  return Response.json(
+    {
+      status: "ok",
+      service: "lessons",
+      version: env.version,
+      commit: env.commit,
+    },
+    { headers },
+  );
 }
 
 /**

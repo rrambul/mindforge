@@ -243,3 +243,24 @@ describe("the environment", () => {
     ).toThrow("PORT");
   });
 });
+
+describe("health", () => {
+  test("answers GET with the running build, carrying the same headers", async () => {
+    const res = await handler()(new Request("https://lessons.example/health"));
+
+    expect(res.status).toBe(200);
+    expect((await res.json()) as Record<string, string>).toMatchObject({
+      status: "ok",
+      service: "lessons",
+    });
+    expect(res.headers.get("x-content-type-options")).toBe("nosniff");
+  });
+
+  test("is not a write endpoint either", async () => {
+    // The method check runs before the routing, so nothing on this origin answers
+    // a verb it does not implement — including the one route that is not a lesson.
+    const res = await handler()(new Request("https://lessons.example/health", { method: "POST" }));
+
+    expect(res.status).toBe(404);
+  });
+});

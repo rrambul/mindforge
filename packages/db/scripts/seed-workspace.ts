@@ -88,8 +88,8 @@ export function lessonHtml(input: {
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="mindforge:track" content="${input.trackSlug}" />
-    <meta name="mindforge:lesson" content="${input.lessonSlug}" />
+    <meta name="mindforge:track" content="${escapeHtml(input.trackSlug)}" />
+    <meta name="mindforge:lesson" content="${escapeHtml(input.lessonSlug)}" />
     <title>${escapeHtml(input.title)}</title>
     <style>
       body { font: 16px/1.6 system-ui, sans-serif; margin: 0; padding: 2rem; max-width: 42rem; }
