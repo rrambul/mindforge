@@ -24,6 +24,10 @@
  *    is decided only by whether every prerequisite is finished (FR-K7).
  */
 
+// Type-only, so the graph stays free of zod: it runs in the SPA bundle, and the
+// outcome's *shape* is what the tally needs, not its validator.
+import type { LessonOutcome } from "../schemas/lesson.js";
+
 /** How far down a lesson goes. Stored as these keys; the UI translates them. */
 export type LessonDepth = "overview" | "working" | "deep_dive";
 
@@ -67,6 +71,28 @@ export interface DerivedLesson {
 export interface ModuleProgress {
   readonly completed: number;
   readonly total: number;
+}
+
+/**
+ * How the finished lessons of a module landed (FR-P4).
+ *
+ * The four counts sum to the module's `completed`, and that is the property that
+ * makes them honest: a distribution that quietly dropped the lessons finished
+ * before an outcome could be recorded would show three understood out of five
+ * completed and leave the reader to guess at the other two.
+ */
+export interface OutcomeCounts {
+  readonly understood: number;
+  readonly shaky: number;
+  readonly lost: number;
+  /** Completed with no outcome — an M4 row, or a completion made before M5. */
+  readonly unrecorded: number;
+}
+
+/** As much of a lesson as the outcome tally needs. */
+export interface LessonOutcomeNode {
+  readonly completed: boolean;
+  readonly outcome: LessonOutcome | null;
 }
 
 /**
@@ -151,6 +177,33 @@ export function moduleProgress(lessons: readonly LessonNode[]): ModuleProgress |
     completed: lessons.filter((lesson) => lesson.completed).length,
     total: lessons.length,
   };
+}
+
+/**
+ * The outcome distribution of a module's finished lessons (FR-P4).
+ *
+ * **Null when the module has no lessons at all**, for the same reason
+ * `moduleProgress` returns null: there is nothing to distribute, and four zeros
+ * would read as "you got none of them" rather than "there is nothing here yet".
+ * A module that *has* lessons and has finished none is a different thing — those
+ * zeros are measured, and they are returned.
+ *
+ * A `shaky` lesson is counted as completed and stays visibly shaky; nothing here
+ * blends it towards `understood`, and nothing decays it with time
+ * (non-negotiable 10).
+ */
+export function moduleOutcomes(lessons: readonly LessonOutcomeNode[]): OutcomeCounts | null {
+  if (lessons.length === 0) return null;
+
+  const counts = { understood: 0, shaky: 0, lost: 0, unrecorded: 0 };
+
+  for (const lesson of lessons) {
+    if (!lesson.completed) continue;
+    if (lesson.outcome === null) counts.unrecorded += 1;
+    else counts[lesson.outcome] += 1;
+  }
+
+  return counts;
 }
 
 /**

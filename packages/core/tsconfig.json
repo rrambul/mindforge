@@ -1,5 +1,14 @@
 {
   "extends": "../../tsconfig.base.json",
-  "compilerOptions": { "outDir": "./dist", "rootDir": "./src" },
+  "compilerOptions": {
+    "outDir": "./dist",
+    "rootDir": "./src",
+    // For the tests, which run in Node and reach for `Buffer` and `crypto` to
+    // forge the inputs `lessons/view-token.ts` has to refuse. The shipped code
+    // gets none of it: `tsconfig.build.json` sets `types: []`, so a Node global
+    // that creeps into `src/` typechecks here and then fails the build — which is
+    // the guard that matters, since this package is bundled into the browser.
+    "types": ["node"]
+  },
   "include": ["src/**/*", "test/**/*"]
 }

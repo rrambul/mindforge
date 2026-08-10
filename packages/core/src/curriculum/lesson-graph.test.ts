@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   deriveLessons,
+  moduleOutcomes,
   moduleProgress,
   nextLesson,
   orderModule,
@@ -236,5 +237,52 @@ describe("nextLesson", () => {
 
   it("returns null when there is nothing at all", () => {
     expect(nextLesson([], [])).toBeNull();
+  });
+});
+
+describe("moduleOutcomes", () => {
+  it("counts how the finished lessons landed", () => {
+    expect(
+      moduleOutcomes([
+        { completed: true, outcome: "understood" },
+        { completed: true, outcome: "understood" },
+        { completed: true, outcome: "shaky" },
+        { completed: true, outcome: "lost" },
+        { completed: false, outcome: null },
+      ]),
+    ).toEqual({ understood: 2, shaky: 1, lost: 1, unrecorded: 0 });
+  });
+
+  it("counts a completion with no outcome rather than dropping it", () => {
+    // The four counts have to sum to the module's `completed`, or the screen shows
+    // three outcomes out of five finished and leaves the other two to guesswork.
+    const counts = moduleOutcomes([
+      { completed: true, outcome: "understood" },
+      { completed: true, outcome: null },
+    ]);
+
+    expect(counts).toEqual({ understood: 1, shaky: 0, lost: 0, unrecorded: 1 });
+  });
+
+  it("ignores an outcome on a lesson that is not completed", () => {
+    // Not a state the constraints allow, but the tally must not invent a finished
+    // lesson from a stale column if one ever appears.
+    expect(moduleOutcomes([{ completed: false, outcome: "shaky" }])).toEqual({
+      understood: 0,
+      shaky: 0,
+      lost: 0,
+      unrecorded: 0,
+    });
+  });
+
+  it("returns null for a module with no lessons, and zeros for one with none finished", () => {
+    // Null is "not planned yet". Zeros are a measurement: five planned, none done.
+    expect(moduleOutcomes([])).toBeNull();
+    expect(moduleOutcomes([{ completed: false, outcome: null }])).toEqual({
+      understood: 0,
+      shaky: 0,
+      lost: 0,
+      unrecorded: 0,
+    });
   });
 });

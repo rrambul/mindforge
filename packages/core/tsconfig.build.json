@@ -2,6 +2,12 @@
   "extends": "./tsconfig.json",
   "compilerOptions": {
     "noEmit": false,
+    // Nothing from Node reaches the emitted package. `packages/core` is imported
+    // by the SPA, the API, the worker and the Bun lessons origin, so the only
+    // platform it may assume is the one all four share — see the `Platform`
+    // interface in `lessons/view-token.ts`, which names the five globals it needs
+    // rather than pulling in a `lib` wide enough to type `document`.
+    "types": [],
     // Inside dist on purpose. With the build info at the package root, an
     // `rm -rf dist` leaves tsc believing everything is up to date, and the next
     // build emits nothing while reporting success — which then fails at runtime
