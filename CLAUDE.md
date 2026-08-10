@@ -48,8 +48,9 @@ Two consequences of the refocus worth knowing when reading older comments:
 - **`RESOURCES.md` is a workspace file only** (FR-K4). The agent still maintains it for grounding
   and it still syncs to Storage, but nothing parses it into the app — there is no resources table.
 - **The briefing shrank to what is real**: mission, curriculum position, learning records' `Next`,
-  and a typed `NotTracked` for lesson outcomes until the reader ships. Skills and friction sections
-  are gone with their features.
+  and — since M5 — how the finished lessons landed. That last one carried a typed `NotTracked` until
+  the reader shipped, and §7.3b promised the day it became real would be a deletion; it was. Skills
+  and friction sections are gone with their features.
 
 **M3 — the teach pipeline — works end to end.** Press "Teach me the next thing" on a mission and: a
 run queues, the dispatcher claims it, a briefing is rendered from what Mindforge actually knows, the
@@ -92,19 +93,54 @@ Three things about the plan that are easy to get wrong when changing it:
   module the parse never reached is left alone, because a run that stopped halfway has decided
   nothing about it.
 
+**M5 — lessons in the product — is built and proven end to end.** A written lesson opens at
+`/missions/$missionId/lessons/$lessonId` in a sandboxed frame served by `apps/lessons` on its own
+origin; three chips under it record understood / shaky / lost, which moves the module's fraction on
+the curriculum screen; the reference shelf and the learning records live at
+`/missions/$missionId/library`; and the timer inside the reader binds a focus session to the lesson
+it was spent on. `apps/web/e2e/lesson.spec.ts` walks all of it against the real four processes.
+
+Four things about the reader that are easy to get wrong:
+
+- **The grant is a path segment covering a whole workspace, not a file.** A lesson links sideways to
+  `../reference/x.html` and `../assets/y.png`, and a relative URL carries the path and drops
+  everything else — so a query parameter is lost by the first `../` and a per-file grant would
+  serve the document and 404 every image in it. `TECH-DESIGN.md` §7.5 has the whole design.
+- **`allow-scripts` and `allow-same-origin` must never both appear.** Together they let the frame
+  delete its own sandbox attribute. One day a lesson will not render and adding it will look like the
+  fix; the first test in `LessonRoute.test.tsx` and one in the E2E spec exist to be in the way.
+- **The content type comes from the filename, never from Storage.** Storage records a mimetype only
+  when the uploader said so, and with `nosniff` set a wrong one is a lesson the browser offers to
+  download. `contentTypeFor` in `packages/core` is the single map, used by the worker at upload
+  and the lessons origin at read.
+- **The reader owns exactly two columns**, `completed_at` and `outcome`. Everything else about a
+  lesson comes from the file through the reindexer, because files are canonical.
+
+**What M5 has not done is the sentence in `NORTHSTAR.md` M5 taken literally** — a module planned
+and then taught lesson by lesson, start to finish, on one real curriculum. Curricula are still
+authored from a terminal (M4's gap, above), and the reader has been proven against seeded content
+rather than against a lesson a real run wrote. Neither is missing code; both are the closing rule
+that a milestone ends with you using it.
+
 `pnpm dev` gives you a sign-in screen, then four screens: **Today** (the focus timer),
 **Missions** (cards with the teach button), **Insights** (the activity grid), and **Settings**
 (profile, learner memory, changelog). ⌘K opens the command palette anywhere and reads its list from
-the same route table the nav does. A fifth screen, **the curriculum** (`/missions/$missionId`), is
-reached from a mission card rather than the nav — it belongs to a mission, and a nav item would have
-to guess which one.
+the same route table the nav does. Three more belong to a mission rather than to the nav, and are
+reached from its card: **the curriculum** (`/missions/$missionId`), **a lesson**
+(`…/lessons/$lessonId`) and **the library** (`…/library`). A nav item for any of them would have
+to guess which mission you meant.
 
 `pnpm --filter @mindforge/db seed:rich` gives you six months of history for `dev@mindforge.local` /
 `mindforge-dev` — two curricula with modules in every state, lessons in three outcome states, seven
 lessons planned and not yet written (so the curriculum screen has locks and a next lesson to show),
 ~90 sessions shaped so every derived signal fires (never a Saturday, one dead fortnight, a parked
-mission). `seed:report` prints what the tracker functions actually say about it. Use it before
-designing anything that reads `daily_activity` or module progress.
+mission). Since M5 it also **writes the files behind those rows** — real lesson HTML with inline
+script, a reference document, a learning record per finished lesson, and some sessions bound to the
+lesson they bought. Without them the reader is a curriculum whose every lesson 404s, which looks
+broken while the data is perfectly correct. It needs `SUPABASE_URL` and
+`SUPABASE_SERVICE_ROLE_KEY`; without those the rows still land and the summary says so in one line.
+`seed:report` prints what the tracker functions actually say about it. Use it before designing
+anything that reads `daily_activity` or module progress.
 
 Deferred deliberately, still: **Railway is not provisioned** and there is no cloud Supabase project
 (the org is at its 2-project free limit; local is sufficient until M6's deploy). **SSE is not
@@ -129,11 +165,19 @@ Three ideas run through everything, and they are the ones to preserve when chang
 supabase start                                # local Postgres + Auth + Storage
 pnpm install                                  # postinstall runs prisma generate
 pnpm --filter @mindforge/db exec prisma migrate deploy
-pnpm dev                                      # api on :3000, web on :5173
+pnpm dev                                      # api :3000, web :5173, lessons :3001
 ```
 
+Without that third service every lesson renders an empty frame — which is also what a deployment
+that forgot it looks like.
+
 `.env.local` holds the local connection strings and is gitignored; `packages/db/.env` is a copy the
-Prisma CLI reads. `.env.example` documents the shape.
+Prisma CLI reads. `.env.example` documents the shape. **`LESSONS_TOKEN_SECRET` is required by both
+`api` and `lessons`** and has no development default: it is the whole of the ownership check once
+the API has done its RLS test, and a default would be a secret in the repository that every
+deployment forgetting to set one would silently share. Both processes refuse to boot without it,
+deliberately — one that started anyway would answer 404 to every lesson and look, in the logs,
+exactly like a learner whose content had gone missing.
 
 ## Commands
 
@@ -181,6 +225,17 @@ pnpm --filter @mindforge/db generate           # regenerate the Prisma client
   editing a package needs no rebuild; `build` and `typecheck` read `dist`, which is why `turbo`
   declares them `dependsOn: ["^build"]`. Running `tsc --noEmit` in one app directly, without
   building packages first, reports the packages as missing — use `pnpm typecheck`.
+
+  `@mindforge/core` has a third condition, **`bun`, also pointing at source**, because `apps/lessons`
+  runs on Bun and shares the view-grant code with the API. Bun does not match `development`, so
+  without it the lessons origin would need core built before it could start — and the two halves of
+  one security primitive would be separated by a build step.
+
+- **`packages/core` compiles with `types: ["node"]` for its tests and `types: []` for its build.**
+  It is bundled into the browser, so the shipped code may assume only what every runtime has: the
+  five WHATWG globals `lessons/view-token.ts` names by hand rather than pulling in a `lib` wide
+  enough to type `document`. A Node global that creeps into `src/` typechecks and then fails the
+  build, which is the guard that matters.
 
 - **Nest apps run through `@swc-node/register`, not `nest start`.** SWC is the only fast transpiler
   that emits `emitDecoratorMetadata`, which Nest's DI needs; esbuild and tsx silently do not, and
@@ -244,7 +299,8 @@ eslint rewrites source.
    next lesson). The API and the SPA import the same functions — never reimplement, never
    approximate.
 
-4. **Capture paths stay ≤5s and ≤2 taps.** The focus timer and (in M5) the lesson outcome. Mobile
+4. **Capture paths stay ≤5s and ≤2 taps.** The focus timer and the lesson outcome — the outcome
+   tray is three chips under the frame with no confirmation, and it uses one of its two taps. Mobile
    first: ≥44px touch targets, thumb-zone actions, `dvh` not `vh`, test at 375px. (`TECH-DESIGN.md`
    §5.1)
 

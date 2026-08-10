@@ -131,21 +131,42 @@ The in-flight curriculum work lands here, reshaped: `CURRICULUM.md` stays canoni
 **Done when:** you press one button on a fresh mission and get a curriculum you'd actually follow,
 every lesson placed, levelled, and wired to its prerequisites.
 
-### M5 — Lessons in the product
+### M5 — Lessons in the product — **built**
 
 **Goal:** read, finish, and move through lessons entirely in the app.
 
-- Sandboxed lesson reader: separate origin, `sandbox="allow-scripts"` without `allow-same-origin`,
-  strict CSP — lesson HTML is untrusted, always
-- Completion + outcome (understood / shaky / lost) written from the reader; progress becomes
-  completed-over-planned per module, and honest about plan revisions
-- "Next lesson" honours dependencies and difficulty ordering; generating it is one press
-- Reference-doc library (the documents you revisit), learning records browsable
-- Focus sessions can bind to the lesson you were doing, so the time tracker knows what the time
-  bought
+- ✅ Sandboxed lesson reader: separate origin, `sandbox="allow-scripts allow-popups"` without
+  `allow-same-origin`, strict CSP — lesson HTML is untrusted, always. The grant that opens one is a
+  path segment covering a workspace prefix, because a relative link inside a lesson carries the path
+  and drops everything else (`TECH-DESIGN.md` §7.5)
+- ✅ Completion + outcome (understood / shaky / lost) written from the reader, one tap, no
+  confirmation; the module fraction is completed-over-everything-the-module-now-has, and an undo
+  exists for the mis-tap a three-button tray on a phone earns
+- ✅ "Next lesson" honours dependencies and difficulty ordering — read from the curriculum, because
+  the graph crosses modules — and offers the teach button when the next one is not written yet
+- ✅ Reference-doc library and browsable learning records, linked from the lesson they came out of
+- ✅ Focus sessions bind to the lesson you were doing: the reader sends one id and the mission comes
+  with it
 
 **Done when:** you complete a full module — planned in M4, taught lesson by lesson — without
 touching a terminal.
+
+**Where that stands.** Every screen and endpoint exists and the whole path is proven end to end by
+`apps/web/e2e/lesson.spec.ts`: the API mints a grant, the Bun service on the other origin serves the
+file, the browser runs the lesson's own JavaScript inside the sandbox, and the outcome moves the
+fraction on the screen before it. What has **not** happened is the sentence taken literally — a
+module planned and then taught lesson by lesson, start to finish, on one real curriculum. Two things
+stand between:
+
+1. **Curricula are still authored from a terminal** (M4's own gap, above). Until `generate_curriculum`
+   is dispatched from the app, "without touching a terminal" is not true of the first step.
+2. **The reader has been proven against seeded content, not against a lesson a real run wrote.**
+   `seed:rich` now writes real HTML into Storage precisely so the reader is testable without a $1.47
+   run each time — which is right for the suite and is not the same thing as the loop having been
+   walked once for real.
+
+Neither is code that is missing. Both are the milestone's own closing rule (§6.4): a milestone ends
+with you using it.
 
 ### M6 — The trackers, finished
 
@@ -204,6 +225,10 @@ felt there — not because the code was fun to write.
 - **M4:** does the agent plan good lesson lists up front, or do plans need heavy revision by M5?
   (The revision rate is measurable: plan-entry churn per module.)
 - **M5:** does completed-over-planned stay honest, or does plan churn make the fraction feel
-  rigged? If the latter, show both numbers rather than blending them.
+  rigged? If the latter, show both numbers rather than blending them. **Still open, and now
+  answerable:** the fraction is on screen and the outcomes behind it are recorded, so the next real
+  curriculum tells you. The denominator is deliberately "every lesson the module now has" rather
+  than "every lesson it was planned with", which is what makes a revision visible as a moved
+  fraction instead of a silently rebased one.
 - **M6:** which tracker do you actually open? The other two must not grow features until the
   answer is known.

@@ -200,3 +200,76 @@ describe("the plan in the briefing", () => {
     expect(briefing).toContain("This module has no planned lessons yet");
   });
 });
+
+/**
+ * How the finished lessons landed (FR-P1, FR-T3).
+ *
+ * Real data since M5. Until the in-app reader shipped this section carried a
+ * sentence saying no completion signal existed, and §7.3b promised the day it
+ * became real would be a deletion — these are the tests that hold what replaced
+ * it. The failure they rule out is the one that section was written against: a
+ * briefing that implies the learner has completed nothing when the truth is that
+ * nobody looked.
+ */
+describe("what the briefing says about finished lessons", () => {
+  async function finish(slug: string, seq: number, outcome: string | null): Promise<void> {
+    await db.$executeRawUnsafe(
+      `update lessons set status = 'generated', seq = $3::int,
+         storage_path = 'lessons/000' || $3 || '-x.html', content_hash = 'sha',
+         completed_at = now() - ($3::int || ' hours')::interval, outcome = $4
+       where mission_id = $1::uuid and slug = $2`,
+      missionId,
+      slug,
+      seq,
+      outcome,
+    );
+  }
+
+  it("says nothing is finished, in words rather than as a zero", async () => {
+    await open("pg-basics");
+
+    const briefing = renderBriefing(await gather());
+    expect(briefing).toContain("No lesson has been marked finished yet");
+    expect(briefing).toContain("empty result rather than a missing signal");
+  });
+
+  it("lists each finished lesson with how it landed, newest first", async () => {
+    await open("pg-basics");
+    await finish("query-plans", 1, "understood");
+    await finish("indexes", 2, "shaky");
+
+    const briefing = renderBriefing(await gather());
+
+    expect(briefing).toContain("0001 Query plans — understood");
+    expect(briefing).toContain("0002 Indexes — shaky");
+    // Newest first: `query-plans` was completed one hour ago and `indexes` two.
+    expect(briefing.indexOf("Query plans — understood")).toBeLessThan(
+      briefing.indexOf("Indexes — shaky"),
+    );
+  });
+
+  it("says a completion with no outcome was not recorded rather than dropping it", async () => {
+    // M4 wrote rows like this, and the reader cannot retroactively ask how they
+    // went. Dropping them would understate what the learner has done; guessing an
+    // outcome would be worse.
+    await open("pg-basics");
+    await finish("query-plans", 1, null);
+
+    expect(renderBriefing(await gather())).toContain(
+      "0001 Query plans — finished, outcome not recorded",
+    );
+  });
+
+  it("does not list a lesson that was never finished", async () => {
+    await open("pg-basics");
+    await db.$executeRawUnsafe(
+      `update lessons set status = 'generated', seq = 1, storage_path = 'lessons/0001-q.html',
+         content_hash = 'sha'
+       where mission_id = $1::uuid and slug = 'query-plans'`,
+      missionId,
+    );
+
+    const briefing = renderBriefing(await gather());
+    expect(briefing).toContain("No lesson has been marked finished yet");
+  });
+});

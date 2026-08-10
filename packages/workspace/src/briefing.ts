@@ -131,18 +131,26 @@ export interface BriefingInput {
   readonly zpdCandidates: readonly ZpdCandidate[];
 
   /**
-   * `NotTracked` until the in-app reader ships (M5), and the type is what
-   * keeps it that way. Turning it into data means deleting its `NotTracked`
-   * from this union, which is a visible change.
+   * How the finished lessons landed, newest first (FR-P1).
+   *
+   * **Real data since M5, and it used to be a `NotTracked`.** The type carried
+   * the absence until the in-app reader shipped — no reader, no completion
+   * signal, and an empty list would have rendered as a measurement. The reader
+   * ships, so the union is gone and this is a list: empty now means "nothing has
+   * been marked finished", which is a fact rather than a gap.
+   *
+   * Newest first and bounded by the caller, because the agent is being told what
+   * the learner just did — a mission with sixty finished lessons should not spend
+   * the briefing listing all of them.
    */
-  readonly lessonOutcomes: Tracked<readonly string[]>;
+  readonly lessonOutcomes: readonly string[];
 }
 
 /**
  * The two reasons a run has no module, phrased so the agent does the right and
  * different thing in each.
  *
- * Kept beside `BRIEFING_ABSENCES` because they are the same kind of statement:
+ * Kept beside `NO_OUTCOMES_YET` because they are the same kind of statement:
  * a fact about Mindforge that the agent must not read as a fact about the
  * learner.
  */
@@ -162,15 +170,20 @@ export const NO_TRACK = {
 } as const;
 
 /**
- * The absences this release ships with, in one place so a caller cannot phrase
- * them differently and so the day one becomes real is a deletion here.
+ * What the briefing says when a section has nothing in it, as opposed to nothing
+ * behind it.
+ *
+ * `BRIEFING_ABSENCES` used to live here holding `lessonOutcomes`, and it was
+ * deleted when the reader shipped in M5 — which was always the plan (§7.3b: "the
+ * day one becomes real is a deletion here"). What replaced it is not a sentence
+ * about Mindforge but a sentence about the learner, and the difference is the
+ * whole point: "no signal exists" and "the signal exists and is empty" call for
+ * different teaching.
  */
-export const BRIEFING_ABSENCES = {
-  lessonOutcomes: notTracked(
-    "The in-app reader is not shipped, so no completion or understood/shaky/lost signal exists. " +
-      "Past lessons may or may not have been read.",
-  ),
-} as const satisfies Pick<BriefingInput, "lessonOutcomes">;
+export const NO_OUTCOMES_YET =
+  "No lesson has been marked finished yet. The reader records understood/shaky/lost, " +
+  "so this is an empty result rather than a missing signal — teach as though nothing " +
+  "has been completed, because nothing has.";
 
 function section(heading: string, body: string): string {
   return `## ${heading}\n\n${body.trim()}\n`;
@@ -378,7 +391,7 @@ export function renderBriefing(input: BriefingInput): string {
   parts.push(
     section(
       "Past lesson outcomes",
-      isNotTracked(input.lessonOutcomes) ? input.lessonOutcomes.reason : list(input.lessonOutcomes),
+      input.lessonOutcomes.length === 0 ? NO_OUTCOMES_YET : list(input.lessonOutcomes),
     ),
   );
 

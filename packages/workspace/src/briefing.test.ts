@@ -1,9 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  BRIEFING_ABSENCES,
   NO_TRACK,
-  notTracked,
   renderBriefing,
   type BriefingInput,
   type CurrentTrack,
@@ -70,7 +68,7 @@ const EMPTY: BriefingInput = {
   recordCount: 0,
   currentTrack: NO_TRACK.noCurriculum,
   zpdCandidates: [],
-  ...BRIEFING_ABSENCES,
+  lessonOutcomes: [],
 };
 
 const RICH: BriefingInput = {
@@ -82,7 +80,7 @@ const RICH: BriefingInput = {
     { next: "How SET LOCAL interacts with a connection pool.", fromRecord: "0007-rls-basics.md" },
     { next: "Writing a policy for a join table.", fromRecord: "0008-policies.md" },
   ],
-  ...BRIEFING_ABSENCES,
+  lessonOutcomes: [],
 };
 
 describe("renderBriefing", () => {
@@ -103,11 +101,15 @@ describe("renderBriefing", () => {
   });
 
   describe("what it must never say", () => {
-    it("does not claim past lessons were read", () => {
+    it("never states a count for something it did not count", () => {
+      // The failure this rules out: a fabricated "0 lessons completed" produces
+      // teaching that repeats ground on false evidence. Since M5 the outcomes
+      // section is real data, and the honest empty case says so in words rather
+      // than in a number.
       const briefing = renderBriefing(RICH);
 
-      expect(briefing).toContain("Past lessons may or may not have been read");
       expect(briefing).not.toMatch(/0 lessons completed/iu);
+      expect(briefing).toContain("No lesson has been marked finished yet");
     });
 
     it("carries an explicit warning against inferring zero from silence", () => {
@@ -150,25 +152,27 @@ describe("renderBriefing", () => {
     });
   });
 
-  it("renders a tracked signal once one exists, without changing shape", () => {
-    // Proof the union is a real seam rather than decoration: the day the in-app
-    // reader ships, deleting `BRIEFING_ABSENCES.lessonOutcomes` is the whole change.
+  it("lists how the finished lessons landed", () => {
+    // Real data since M5. It was a `NotTracked` until the in-app reader shipped,
+    // and §7.3b said the day it became real would be a deletion — this is what is
+    // left after it.
     const briefing = renderBriefing({
       ...RICH,
       lessonOutcomes: ["0007 Policies and roles — understood", "0008 Joins — shaky"],
     });
 
     expect(briefing).toContain("- 0007 Policies and roles — understood");
-    expect(briefing).not.toContain("The in-app reader is not shipped");
+    expect(briefing).toContain("- 0008 Joins — shaky");
   });
 
-  it("accepts a bespoke absence, for a signal that is missing for a different reason", () => {
-    const briefing = renderBriefing({
-      ...RICH,
-      lessonOutcomes: notTracked("The learner has hidden lesson outcomes from runs."),
-    });
+  it("says nothing is finished rather than leaving the section blank", () => {
+    // An empty section reads as a gap in the briefing; this one is a measurement,
+    // and the sentence is careful to say which — "an empty result rather than a
+    // missing signal".
+    const briefing = renderBriefing({ ...RICH, lessonOutcomes: [] });
 
-    expect(briefing).toContain("The learner has hidden lesson outcomes from runs.");
+    expect(briefing).toContain("No lesson has been marked finished yet");
+    expect(briefing).toContain("empty result rather than a missing signal");
   });
 });
 
@@ -207,9 +211,9 @@ describe("the module a run is teaching in", () => {
   });
 
   it("does not claim a prerequisite module was learnt, only worked through", () => {
-    // Nothing measures it. `lessonOutcomes` is a NotTracked a section down, and
-    // a briefing that says "the learner knows Postgres fundamentals" contradicts
-    // it in the same file.
+    // Nothing measures it. Outcomes are per lesson, not per module, and a
+    // briefing that says "the learner knows Postgres fundamentals" would be
+    // claiming something no column holds.
     const briefing = renderBriefing(RICH);
 
     expect(briefing).toContain("Built on: Postgres fundamentals");

@@ -62,7 +62,7 @@ export {
 export { etagsMatch, normalizeEtag, sha256, storageEtag } from "./hash.js";
 
 export {
-  BRIEFING_ABSENCES,
+  NO_OUTCOMES_YET,
   NO_TRACK,
   notTracked,
   renderBriefing,

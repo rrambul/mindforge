@@ -6,7 +6,6 @@ import {
   type LessonNode,
 } from "@mindforge/core";
 import {
-  BRIEFING_ABSENCES,
   NO_TRACK,
   type BriefingInput,
   type CurrentTrack,
@@ -21,14 +20,25 @@ import type { BriefingReader } from "../application/briefing.port.js";
 /**
  * What Mindforge actually knows about a mission, for the briefing.
  *
- * The input it does not have is not queried at all — lesson outcomes have no
- * source until the in-app reader ships, and `BRIEFING_ABSENCES` says so in words
- * the agent reads. Writing a query that returns an empty list for it would be
- * worse than not writing one: an empty list renders as a measurement.
+ * Every section here is queried, and that is new: until M5 lesson outcomes had no
+ * source at all, so the reader deliberately did not query them and handed over a
+ * sentence saying why — an empty list would have rendered as a measurement of a
+ * learner who had completed nothing. The in-app reader ships in M5, so the signal
+ * exists and an empty result now means what it says (§7.3b).
  */
 
 /** The `## Next` sections the what-next section reads, newest first. */
 const ZPD_LIMIT = 8;
+
+/**
+ * How many finished lessons the briefing names, newest first.
+ *
+ * Bounded because the briefing is read by a model with a context window and a
+ * mission can accumulate sixty of them; newest first because what the learner did
+ * last week is what a run should be reacting to. The count of everything is
+ * already in the header, so nothing is hidden by the cut.
+ */
+const OUTCOME_LIMIT = 12;
 
 @Injectable()
 export class PrismaBriefingReader implements BriefingReader {
@@ -46,6 +56,17 @@ export class PrismaBriefingReader implements BriefingReader {
            (select count(*) from lessons where mission_id = $1::uuid) as lessons,
            (select count(*) from learning_records where mission_id = $1::uuid) as records`,
         missionId,
+      );
+
+      const outcomes = await tx.$queryRawUnsafe<
+        { seq: number | null; title: string; outcome: string | null }[]
+      >(
+        `select seq, title, outcome from lessons
+          where mission_id = $1::uuid and completed_at is not null
+          order by completed_at desc
+          limit $2`,
+        missionId,
+        OUTCOME_LIMIT,
       );
 
       const records = await tx.$queryRawUnsafe<{ next: string; storage_path: string }[]>(
@@ -66,12 +87,27 @@ export class PrismaBriefingReader implements BriefingReader {
           next: record.next,
           fromRecord: record.storage_path.split("/").pop() ?? record.storage_path,
         })),
-        // Not queried, because there is nothing to query. It carries the
-        // sentence the agent must read instead of a zero.
-        ...BRIEFING_ABSENCES,
+        lessonOutcomes: outcomes.map(describeOutcome),
       } satisfies BriefingInput;
     });
   }
+}
+
+/**
+ * One finished lesson, as a line the agent reads.
+ *
+ * A completion with no outcome says so rather than being dropped or guessed at:
+ * M4 rows exist that were finished before the reader could ask how it went, and
+ * "finished, outcome not recorded" is the true statement about them.
+ */
+function describeOutcome(row: {
+  seq: number | null;
+  title: string;
+  outcome: string | null;
+}): string {
+  const number = row.seq === null ? "" : `${String(row.seq).padStart(4, "0")} `;
+  const outcome = row.outcome ?? "finished, outcome not recorded";
+  return `${number}${row.title} — ${outcome}`;
 }
 
 /** The transaction handle `UserScopedDb.run` hands its callback. */

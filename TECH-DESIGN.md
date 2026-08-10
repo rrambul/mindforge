@@ -482,9 +482,28 @@ create table focus_sessions (create table focus_sessions (
 **Index note:** `focus_sessions` is the analytics hot path. Index `(user_id, started_at desc)`
 and `(user_id, mission_id, started_at desc)`.
 
-**M5 adds `focus_sessions.lesson_id`** — once lessons render in-app, a session can bind to the
-lesson it was spent on, and the time tracker can answer per-module. Added with the reader, not
-before, for the write-path reason §3.2b states.
+**`focus_sessions.lesson_id` arrived in M5** (`20260810180000_focus_session_lesson`), with the
+reader that writes it and not before, for the write-path reason §3.2b states. `on delete set null`,
+like `mission_id`: the session is the expensive artifact and the binding is the cheap one, and a
+deleted lesson must not take an hour of recorded attention with it.
+
+Two invariants around it are the **application's**, not the schema's, and both were tried in SQL
+first:
+
+- **"A lesson binding implies a mission."** As `check (lesson_id is null or mission_id is not null)`
+  it broke every mission delete with a 23514, including the one behind account deletion (FR-A4):
+  dropping a mission clears the two columns through two separate referential actions, and a CHECK is
+  evaluated per row update with no way to defer it — Postgres allows `deferrable` on unique, primary
+  key, exclusion and foreign key constraints, never on a check.
+- **"The lesson belongs to _that_ mission."** The natural expression is a composite foreign key over
+  `(mission_id, lesson_id)`, and `match full` would have carried the first invariant with it. It
+  cannot be used: `match full` forbids mixing null and non-null key values, and a session bound to a
+  mission with no particular lesson is the ordinary case.
+
+`ResolveSessionSubject` keeps both by construction — it reads the lesson and takes the mission from
+it, so the reader sends one id and the pair comes back complete. Binding is optional and never asked
+twice (FR-F3), which is also why there is no picker: the only thing that sets this is the timer
+button inside the reader.
 
 ### 3.5 Operational tables
 
@@ -816,16 +835,23 @@ the teach button, and still counts in the activity grid — history is history.
 
 NestJS modules, one per bounded context. REST with Zod-validated DTOs from `packages/core`.
 
-| Module     | Key routes                                                                                                             |
-| ---------- | ---------------------------------------------------------------------------------------------------------------------- |
-| `missions` | `GET/POST /missions`, `PATCH /missions/:id` (revision recorded on mission-field change), `POST /missions/:id/park`     |
-| `focus`    | `POST /focus/sessions/start`, `POST /:id/stop`, `POST /:id/debrief`, `POST /focus/sessions` (manual/backfill)          |
-| `teach`    | `POST /missions/:id/teach` → 202, `GET /agent-runs/:id`, `GET /missions/:id/agent-runs`, `GET/POST/DELETE /me/memory…` |
-| `insights` | `GET /insights/activity`                                                                                               |
-| `account`  | `GET/PATCH /me`, `POST /me/changelog-seen`, `POST /account/export` (planned), `DELETE /account` (planned)              |
+| Module       | Key routes                                                                                                                                                  |
+| ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `missions`   | `GET/POST /missions`, `PATCH /missions/:id` (revision recorded on mission-field change), `POST /missions/:id/park`                                          |
+| `focus`      | `POST /focus/sessions/start`, `POST /:id/stop`, `POST /:id/debrief`, `POST /focus/sessions` (manual/backfill)                                               |
+| `teach`      | `POST /missions/:id/teach` → 202, `GET /agent-runs/:id`, `GET /missions/:id/agent-runs`, `GET/POST/DELETE /me/memory…`                                      |
+| `insights`   | `GET /insights/activity`                                                                                                                                    |
+| `curriculum` | `GET /missions/:id/curriculum` — modules, their planned lessons, and every state derived from the graph (FR-K5)                                             |
+| `lessons`    | `GET /lessons/:id` (mints the view grant), `PUT`/`DELETE /lessons/:id/completion`, `GET /missions/:id/reference-docs`, `GET /missions/:id/learning-records` |
+| `account`    | `GET/PATCH /me`, `POST /me/changelog-seen`, `POST /account/export` (planned), `DELETE /account` (planned)                                                   |
 
-M4/M5 add the curriculum and lesson surface: modules with their planned lessons, the lesson reader's
-signed URL, and `POST /lessons/:id/complete` for the outcome (FR-P1).
+**`GET /lessons/:id` mints a credential, so it answers `Cache-Control: no-store`** — and so does the
+reference list, whose URLs are signed by one grant and expire together. A cached response outliving
+its grant is a reader showing a blank frame with nothing to say about why.
+
+**Completion is a `PUT`, not a `POST`.** Marking the same lesson understood twice is the same lesson
+understood once, which is what lets the SPA retry without asking whether the first attempt landed.
+`DELETE` clears it — a correction for a mis-tap, not a way to reset progress (FR-P1).
 
 **Long operations never block a request.** Anything touching the LLM returns `202` with an `agent_run_id`; the SPA subscribes to `GET /agent-runs/:id/stream` (SSE) for progress and the terminal result.
 
@@ -1075,14 +1101,29 @@ ordered by how likely it is to end a run having produced nothing:
 never rendered as zero"_ — is load-bearing here in a way it is not on a screen a human can squint at: a
 fabricated "0 lessons completed" produces teaching that repeats ground on false evidence.
 
-| Section         | Needs                            | Arrives | Renders as                                                                |
-| --------------- | -------------------------------- | ------- | ------------------------------------------------------------------------- |
-| Lesson outcomes | `lessons.completed_at`/`outcome` | M5      | "no completion signal exists; past lessons may or may not have been read" |
-| What next       | records' `## Next` only, today   | partial | labelled as records-only, not as "your ZPD"                               |
+| Section             | Needs                            | Arrives      | Renders as                                             |
+| ------------------- | -------------------------------- | ------------ | ------------------------------------------------------ |
+| ~~Lesson outcomes~~ | `lessons.completed_at`/`outcome` | **M5, done** | the finished lessons and how each landed, newest first |
+| What next           | records' `## Next` only, today   | partial      | labelled as records-only, not as "your ZPD"            |
 
 **Enforced by types, not by discipline.** `renderBriefing()` takes a `BriefingInput` whose unavailable
 fields are `{ status: "not-tracked"; reason: string }` rather than `number | null`. A number is not
 constructible for a section with no source table, so a later edit cannot accidentally render zero.
+
+**Lesson outcomes were the worked example, and M5 spent it.** The section said the day the signal
+became real would be a deletion here, and it was: `BRIEFING_ABSENCES` is gone, `lessonOutcomes` is a
+plain list, and `PrismaBriefingReader` queries the column it previously refused to. Two things about
+what replaced it:
+
+- **An empty list is now a measurement, and says so.** `NO_OUTCOMES_YET` reads "an empty result
+  rather than a missing signal", because "nothing is finished" and "nothing was ever recorded" call
+  for different teaching and the agent has no way to tell them apart from a blank section.
+- **A completion with no outcome renders as one.** M4 wrote rows finished before the reader could ask
+  how it went; dropping them would understate what the learner has done, and guessing would be
+  worse, so the line says "finished, outcome not recorded".
+
+The `NotTracked` machinery stays — `NO_TRACK` still uses it, and the next section that outruns its
+source will need it.
 
 ### 7.4 Sync protocol (files ↔ Postgres)
 
@@ -1176,9 +1217,43 @@ Lessons are **LLM-authored HTML with inline JavaScript** (quizzes, simulators). 
 - Served from a **separate origin** (`lessons.<domain>`) by the tiny `lessons` service. Different origin means a lesson can't touch the app's cookies, `localStorage`, or Supabase session even if everything else fails.
 - Rendered in `<iframe sandbox="allow-scripts allow-popups">`. **Never add `allow-same-origin`** — combined with `allow-scripts` it lets the frame remove its own sandbox attribute and defeats the whole mechanism.
 - Response CSP on the lessons origin: `default-src 'none'; script-src 'unsafe-inline' 'self'; style-src 'unsafe-inline' 'self'; img-src 'self' data:; connect-src 'none'; frame-ancestors https://<app-domain>`. `connect-src 'none'` means a lesson cannot exfiltrate anything.
-- The lessons service authenticates via short-lived signed URLs minted by the API after an RLS-checked ownership test. It never trusts a path from the client — the path is resolved from the lesson row.
-- Lesson → app communication (completion, quiz results) goes over `postMessage` with a strict `origin` check on the parent side and a schema check on the payload. Never `eval` or trust structure.
+- The lessons service authenticates via short-lived grants minted by the API after an RLS-checked ownership test. It never trusts a path from the client — the path is resolved from the lesson row.
 - Relative links (`../reference/x.html`, `./assets/style.css`) work because the service serves the whole workspace tree — which is exactly why per-request ownership checks on the path prefix are non-negotiable.
+
+**The grant, as built in M5** (`packages/core/src/lessons/view-token.ts`):
+
+- **It is a path segment, not a query parameter.** `/v/<grant>/<path inside the workspace>`. That is
+  forced by the relative links above: a relative URL carries the path and drops everything else, so a
+  grant in a query string is lost by the first `../`. A cookie would need the two origins to be
+  same-site, which is the isolation this whole design exists to create.
+- **It covers a workspace prefix, not a file.** A per-file grant would serve the document and 404
+  every image in it. So the ownership test is per mission, and the second half of the check is
+  `resolveGrantedPath`, which decides whether the requested path stays underneath — every segment
+  vetted against what a segment may contain rather than normalised and hoped over.
+- **HMAC-SHA256, not a JWT.** No algorithm field to confuse, no library, no `alg: none`. It lives in
+  `packages/core` because the API signs and the lessons service verifies: a second implementation of
+  the verifying half is how a signature check becomes a string comparison that happens to return
+  true. `apps/lessons` runs on Bun and reads core from source through a `bun` export condition, so
+  no build step stands between the two halves of one security primitive.
+- **Thirty minutes, and never refreshed in place.** Long enough to read a lesson without its images
+  dying, short enough that a pasted URL has stopped working by lunchtime. Swapping the `iframe`'s
+  `src` mid-lesson would reload the document and throw away whatever state the lesson's JavaScript
+  was holding, which for a simulator is the entire lesson.
+- **`Referrer-Policy: no-referrer` is load-bearing, not hygiene.** The grant is in the URL, so a
+  lesson linking out to real documentation would otherwise hand that site a working token.
+- **Content types come from the filename** (`contentTypeFor`, also in `packages/core`, also used by
+  the worker at upload). Storage records a mimetype only when the uploader said so — anything
+  restored by hand comes back `application/octet-stream`, and with `nosniff` set that is a lesson the
+  browser offers to download instead of rendering. Measured against local Storage, not assumed.
+- **Every failure is a 404**: expired, forged, malformed, traversing, missing. Distinguishing them
+  tells a prober which half of the token to keep working on.
+
+**No `postMessage` channel, and deliberately not.** Earlier drafts of this section had lesson → app
+communication for completion and quiz results. Nothing emits it: the outcome is captured by the app's
+own chrome under the frame, which is a tighter capture path than anything the lesson could offer, and
+a listener with no sender is the "column nothing writes" mistake this project has already made twice.
+It arrives with the first lesson that has something to say — with a strict `origin` check on the
+parent side and a schema check on the payload, never `eval` and never trusted structure.
 
 ### 7.6 Per-user memory (cross-mission)
 
@@ -1311,17 +1386,24 @@ nextLesson     = first unblocked, incomplete planned lesson,
                  module order then difficulty ascending
 ```
 
+`moduleOutcomes` sits beside it (FR-P4) and returns four counts — understood, shaky, lost, and
+**unrecorded**. The fourth is the one that keeps the other three honest: they have to sum to the
+module's `completed`, or the screen shows three outcomes out of five finished lessons and leaves
+the rest to guesswork. A completion with no outcome is a real row — M4 wrote some, and the reader
+cannot retroactively ask how they went.
+
 "Unknown is never rendered as zero": a module with no plan yet returns null with a reason, and the
-UI says which — it does not show 0%.
+UI says which — it does not show 0%. A module that _has_ lessons and has finished none returns
+zeros, because those are measured.
 
 ### 9.2 The lesson dependency graph
 
 Cycle detection and edge resolution live in `packages/workspace/src/parse/curriculum.ts` today
-(for `track_edges`) and extend to `lesson_edges` in M4 — the parser breaks cycles with a warning
+(for `track_edges`) and extended to `lesson_edges` in M4 — the parser breaks cycles with a warning
 rather than failing the file (a curriculum with one bad edge is still 14 good subtopics), and the
 first path found wins, so the file's own reading order is the tie-break. The unblocked/fundamental
-derivations land in `packages/core` with M4, next to the module-progress maths that read the same
-edges.
+derivations live in `packages/core/src/curriculum/lesson-graph.ts`, next to the module-progress
+maths that read the same edges.
 
 ### 9.3 The frequency figures
 
@@ -1534,9 +1616,9 @@ Entries are written for a reader, not derived raw from commit subjects: `release
 
 ## 15. Build phases
 
-**`NORTHSTAR.md` §4 is the authority on sequencing.** M0–M3 are built; M4 is the curriculum
-(§3.2b), M5 is lessons in the product (the sandboxed reader, completion, `focus_sessions.lesson_id`),
-M6 finishes the three trackers and deploys.
+**`NORTHSTAR.md` §4 is the authority on sequencing.** M0–M5 are built: M4 is the curriculum
+(§3.2b) and M5 is lessons in the product — the sandboxed reader (§7.5), completion with an outcome,
+the reference library, and `focus_sessions.lesson_id`. M6 finishes the three trackers and deploys.
 
 ---
 
