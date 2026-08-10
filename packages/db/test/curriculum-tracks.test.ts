@@ -613,3 +613,68 @@ describe("lesson_edges", () => {
     expect(Number(rows[0]!.n)).toBe(0);
   });
 });
+
+/**
+ * Binding a focus session to a lesson (FR-F3).
+ *
+ * Two rules, and both of them are about a number that would otherwise be wrong
+ * without anything failing:
+ *
+ * - **A lesson binding implies a mission.** A session with a lesson and no
+ *   mission vanishes from every per-mission total while still counting in the
+ *   global one, and the two figures disagree with nobody able to say why.
+ * - **Deleting a lesson never deletes the time.** The minutes were still spent
+ *   and the frequency tracker still has to count the day; SET NULL is the same
+ *   choice `lessons.track_id` makes one table over.
+ */
+describe("focus sessions bind to a lesson without owning it", () => {
+  async function seedSession(
+    userId: string,
+    missionId: string | null,
+    lessonId: string | null,
+  ): Promise<string> {
+    const rows = await admin.$queryRawUnsafe<{ id: string }[]>(
+      `insert into focus_sessions (id, user_id, mission_id, lesson_id, started_at, ended_at,
+         entry_mode, created_at)
+       values (gen_random_uuid(), $1::uuid, $2::uuid, $3::uuid,
+         now() - interval '30 minutes', now(), 'timer', now())
+       returning id`,
+      userId,
+      missionId,
+      lessonId,
+    );
+    return rows[0]!.id;
+  }
+
+  it("accepts a session with a lesson and its mission", async () => {
+    const lesson = await seedLesson(ALICE, 70, trackOf[ALICE]!);
+    await expect(seedSession(ALICE, missionOf[ALICE]!, lesson)).resolves.toBeTruthy();
+  });
+
+  it("accepts a session bound to nothing at all", async () => {
+    // Binding is optional and never asked twice — most sessions have neither.
+    await expect(seedSession(ALICE, null, null)).resolves.toBeTruthy();
+  });
+
+  it("refuses a lesson with no mission behind it", async () => {
+    const lesson = await seedLesson(ALICE, 71, trackOf[ALICE]!);
+    await expect(seedSession(ALICE, null, lesson)).rejects.toThrow(
+      /focus_sessions_lesson_implies_mission/u,
+    );
+  });
+
+  it("keeps the session and clears the binding when the lesson is deleted", async () => {
+    const lesson = await seedLesson(ALICE, 72, trackOf[ALICE]!);
+    const session = await seedSession(ALICE, missionOf[ALICE]!, lesson);
+
+    await admin.$executeRawUnsafe(`delete from lessons where id = $1::uuid`, lesson);
+
+    const rows = await admin.$queryRawUnsafe<{ lesson_id: string | null; ended_at: Date }[]>(
+      `select lesson_id, ended_at from focus_sessions where id = $1::uuid`,
+      session,
+    );
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.lesson_id).toBeNull();
+    expect(rows[0]!.ended_at).not.toBeNull();
+  });
+});

@@ -170,12 +170,17 @@ model TrackEdge {
 }
 
 /// The time tracker's row (FR-F1..F3): a bounded block of attention, usually
-/// on a mission's curriculum. M5 adds lesson binding once lessons render
-/// in-app.
+/// on a mission's curriculum, and since M5 often on one lesson of it.
 model FocusSession {
   id             String    @id @default(uuid()) @db.Uuid
   userId         String    @map("user_id") @db.Uuid
   missionId      String?   @map("mission_id") @db.Uuid
+  /// What the time bought (FR-F3). Set by starting the timer from the reader,
+  /// never by a picker — binding is optional and never asked twice. Implies
+  /// `missionId`, enforced by `focus_sessions_lesson_implies_mission`: a session
+  /// with a lesson and no mission would vanish from every per-mission total
+  /// while still counting in the global one.
+  lessonId       String?   @map("lesson_id") @db.Uuid
   /// "What does done look like for this block?" — one field, asked at start.
   intention      String?
   startedAt      DateTime  @map("started_at") @db.Timestamptz(6)
@@ -193,9 +198,14 @@ model FocusSession {
 
   profile Profile  @relation(fields: [userId], references: [id], onDelete: Cascade)
   mission Mission? @relation(fields: [missionId], references: [id], onDelete: SetNull)
+  /// SetNull, like the mission: the session is the expensive artifact and the
+  /// binding is the cheap one. A deleted lesson must not take an hour of recorded
+  /// attention with it — the minutes were still spent.
+  lesson  Lesson?  @relation(fields: [lessonId], references: [id], onDelete: SetNull)
 
   @@index([userId, startedAt])
   @@index([userId, missionId, startedAt])
+  @@index([userId, lessonId])
   @@map("focus_sessions")
 }
 
@@ -306,6 +316,8 @@ model Lesson {
   /// backwards, `prereqOf` is the fundamental count (FR-K6).
   prereqOf LessonEdge[] @relation("lesson")
   requires LessonEdge[] @relation("lessonPrereq")
+  /// The blocks of attention spent on it (FR-F3). M6's time views read these.
+  focusSessions FocusSession[]
 
   @@unique([missionId, seq])
   @@index([userId, missionId])
