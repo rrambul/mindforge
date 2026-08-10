@@ -13,6 +13,7 @@ import {
 import {
   lessonHtml,
   referenceHtml,
+  stylesheet,
   workspaceUploader,
   type WorkspaceUploader,
 } from "./seed-workspace.js";
@@ -395,6 +396,15 @@ async function seedCurriculum(
       });
     }
   }
+
+  // Before any lesson, because every lesson links it — a workspace whose first
+  // file is a lesson pointing at a stylesheet that is not there yet renders
+  // unstyled for as long as the seed takes to finish.
+  await files?.put(
+    `workspaces/${userId}/${workspaceKey}/assets/lesson.css`,
+    stylesheet(),
+    "text/css; charset=utf-8",
+  );
 
   const written: FinishedLesson[] = [];
   let seq = 0;

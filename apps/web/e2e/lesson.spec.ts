@@ -16,11 +16,11 @@ import { expect, test, type Page } from "@playwright/test";
  * makes the seed something CI proves rather than something that rots quietly
  * between milestones.
  *
- * **The assertions are in pt-BR, and that is deliberate.** The seeded profile is
- * `locale: pt-BR` with English lesson content (§5.2's three independent axes), so
- * this run is also the check that the reader's own chrome translates while the
- * agent's HTML does not. The sign-in form is English because the profile's locale
- * is not known until after it is used.
+ * The assertions are in English because `seed:rich` writes an English profile.
+ * They were in pt-BR while the seed pinned that locale; the split combination —
+ * Portuguese interface, English lesson content, §5.2's independent axes — is now
+ * `seed:rich --locale=pt-BR`, and is covered at the unit level by the three
+ * screens that render with `locale: "pt-BR"`.
  */
 
 const DEV = { email: "dev@mindforge.local", password: "mindforge-dev" };
@@ -31,23 +31,23 @@ async function signIn(page: Page): Promise<void> {
   await page.getByLabel("Password").fill(DEV.password);
   await page.getByRole("button", { name: "Sign in" }).click();
 
-  // The profile's locale lands with the session, so the bar is the first thing in
-  // Portuguese — and the first proof that we are signed in as the seeded user.
-  await expect(page.getByRole("button", { name: "Sair" })).toBeVisible();
+  // The shell only appears once the session is real, so this is also the proof
+  // that we are signed in as the seeded user rather than looking at the form.
+  await expect(page.getByRole("button", { name: "Sign out" })).toBeVisible();
 }
 
 async function openFirstCurriculum(page: Page): Promise<void> {
-  await page.getByRole("link", { name: "Missões" }).click();
-  await page.getByRole("link", { name: "Currículo" }).first().click();
+  await page.getByRole("link", { name: "Missions" }).click();
+  await page.getByRole("link", { name: "Curriculum" }).first().click();
   await expect(page).toHaveURL(/\/missions\/[0-9a-f-]{36}$/u);
-  await expect(page.getByText("Carregando")).toHaveCount(0);
+  await expect(page.getByText("Loading")).toHaveCount(0);
 }
 
 test("a written lesson opens in a sandboxed frame on the lessons origin", async ({ page }) => {
   await signIn(page);
   await openFirstCurriculum(page);
 
-  await page.getByRole("link", { name: /^Ler/u }).first().click();
+  await page.getByRole("link", { name: /^Read/u }).first().click();
   await expect(page).toHaveURL(/\/missions\/[0-9a-f-]{36}\/lessons\/[0-9a-f-]{36}$/u);
 
   const frame = page.locator("iframe");
@@ -80,7 +80,7 @@ test("the lesson's own JavaScript runs, and cannot reach the network", async ({ 
 
   await signIn(page);
   await openFirstCurriculum(page);
-  await page.getByRole("link", { name: /^Ler/u }).first().click();
+  await page.getByRole("link", { name: /^Read/u }).first().click();
 
   const lesson = page.frameLocator("iframe");
   await lesson.getByRole("button", { name: "It should" }).click();
@@ -97,7 +97,7 @@ test("recording an outcome moves the module's fraction, and undoing moves it bac
 
   const holding = page
     .locator("section.mf-card")
-    .filter({ has: page.getByRole("link", { name: /^Ler/u }) })
+    .filter({ has: page.getByRole("link", { name: /^Read/u }) })
     .first();
 
   // Pinned by name before anything changes. The filter above is written in terms of
@@ -106,10 +106,10 @@ test("recording an outcome moves the module's fraction, and undoing moves it bac
   // pass.
   const moduleName = await holding.getByRole("heading", { level: 2 }).innerText();
   const panel = page.getByRole("region", { name: moduleName });
-  const fraction = panel.getByText(/lições concluídas/u);
+  const fraction = panel.getByText(/lessons done/u);
 
   const before = completedIn(await fraction.innerText());
-  await holding.getByRole("link", { name: /^Ler/u }).first().click();
+  await holding.getByRole("link", { name: /^Read/u }).first().click();
   const lessonUrl = page.url();
 
   // Which outcome the seed left, so this run puts it back. The suite shares one
@@ -118,49 +118,49 @@ test("recording an outcome moves the module's fraction, and undoing moves it bac
   // After the tray is on screen, not before: the chips do not exist while the
   // lesson is loading, and reading them then returns "nothing recorded" for a
   // lesson that is finished — which is the answer that makes the rest pass wrongly.
-  await expect(page.getByRole("button", { name: "Inseguro" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Shaky" })).toBeVisible();
   const original = await pressedOutcome(page);
 
   // Down first: a completion cleared has to leave the fraction lower, or "undo" is
   // a button that changes a chip and nothing else.
   if (original !== null) {
-    await page.getByRole("button", { name: "Desfazer" }).click();
-    await page.getByRole("link", { name: "Voltar ao currículo" }).click();
-    await expect(fraction).toHaveText(new RegExp(`^${String(before - 1)} de `, "u"));
+    await page.getByRole("button", { name: "Undo" }).click();
+    await page.getByRole("link", { name: "Back to the curriculum" }).click();
+    await expect(fraction).toHaveText(new RegExp(`^${String(before - 1)} of `, "u"));
     await page.goto(lessonUrl);
   }
 
   // And up: two taps at most, and no dialog in the way (§7.1).
-  await page.getByRole("button", { name: "Inseguro" }).click();
-  await expect(page.getByText("Registrado como Inseguro.")).toBeVisible();
-  await page.getByRole("link", { name: "Voltar ao currículo" }).click();
+  await page.getByRole("button", { name: "Shaky" }).click();
+  await expect(page.getByText("Recorded as Shaky.")).toBeVisible();
+  await page.getByRole("link", { name: "Back to the curriculum" }).click();
 
   // The fraction is what the outcome is *for*. A reader that recorded one and left
   // the plan claiming otherwise would be two screens disagreeing about one row.
   const raised = original === null ? before + 1 : before;
-  await expect(fraction).toHaveText(new RegExp(`^${String(raised)} de `, "u"));
+  await expect(fraction).toHaveText(new RegExp(`^${String(raised)} of `, "u"));
   // `.first()`: the seeded module already holds a shaky lesson, which is the point
   // of it — a module where one lesson stays shaky is a state the screen must render.
-  await expect(panel.getByText("Inseguro").first()).toBeVisible();
+  await expect(panel.getByText("Shaky").first()).toBeVisible();
 
   await page.goto(lessonUrl);
-  if (original === null) await page.getByRole("button", { name: "Desfazer" }).click();
+  if (original === null) await page.getByRole("button", { name: "Undo" }).click();
   else await page.getByRole("button", { name: original }).click();
 
-  await page.getByRole("link", { name: "Voltar ao currículo" }).click();
-  await expect(fraction).toHaveText(new RegExp(`^${String(before)} de `, "u"));
+  await page.getByRole("link", { name: "Back to the curriculum" }).click();
+  await expect(fraction).toHaveText(new RegExp(`^${String(before)} of `, "u"));
 });
 
-/** The numerator of "2 de 7 lições concluídas". */
+/** The numerator of "2 of 7 lessons done". */
 function completedIn(text: string): number {
-  const match = /^(\d+) de/u.exec(text);
+  const match = /^(\d+) of/u.exec(text);
   if (match === null) throw new Error(`No fraction in ${JSON.stringify(text)}`);
   return Number(match[1]);
 }
 
 /** Which of the three chips is pressed, or null when nothing was recorded. */
 async function pressedOutcome(page: Page): Promise<string | null> {
-  for (const name of ["Entendi", "Inseguro", "Me perdi"]) {
+  for (const name of ["Understood", "Shaky", "Lost"]) {
     if ((await page.getByRole("button", { name, pressed: true }).count()) > 0) return name;
   }
   return null;
@@ -170,14 +170,14 @@ test("the library lists the reference shelf and what was written down", async ({
   await signIn(page);
   await openFirstCurriculum(page);
 
-  await page.getByRole("link", { name: "Biblioteca" }).click();
+  await page.getByRole("link", { name: "Library" }).click();
   await expect(page).toHaveURL(/\/missions\/[0-9a-f-]{36}\/library$/u);
 
   // Served from the lessons origin like a lesson, and opened beside the work
   // rather than inside a frame you cannot leave open.
-  const open = page.getByRole("link", { name: "Abrir" }).first();
+  const open = page.getByRole("link", { name: "Open" }).first();
   await expect(open).toHaveAttribute("href", /^http:\/\/localhost:3001\/v\//u);
   await expect(open).toHaveAttribute("rel", "noreferrer");
 
-  await expect(page.getByText("O que você aprendeu").first()).toBeVisible();
+  await expect(page.getByText("What you learned").first()).toBeVisible();
 });

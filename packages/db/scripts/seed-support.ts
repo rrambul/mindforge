@@ -62,6 +62,19 @@ export interface SeedOptions {
   readonly email: string;
   readonly password: string;
   readonly timezone: string;
+  /**
+   * Interface language for the seeded profile (FR-L1).
+   *
+   * `en` by default because this account is the one its operator reads. It used
+   * to be pinned to `pt-BR` to exercise §5.2's "interface and content language are
+   * independent" — that property is worth having and is now where it belongs, in
+   * the three unit tests that render screens with `locale: "pt-BR"`, rather than
+   * in the dataset somebody actually uses.
+   *
+   * `contentLanguage` stays `en` either way, so `--locale=pt-BR` still gives you
+   * the split combination on demand.
+   */
+  readonly locale: "en" | "pt-BR";
   /** The last day the seed generates. Defaults to today in `timezone`. */
   readonly today: IsoDate;
 }
@@ -84,6 +97,7 @@ export function parseOptions(argv: readonly string[]): SeedOptions {
     email: flags.get("email") ?? "dev@mindforge.local",
     password: flags.get("password") ?? "mindforge-dev",
     timezone,
+    locale: flags.get("locale") === "pt-BR" ? "pt-BR" : "en",
     // `Date.now()` rather than a bare `new Date()`: the repo-wide lint rule bans the argless form
     // because it makes timezone-derived code untestable, and a seed is the one place that genuinely
     // means "right now".
@@ -174,9 +188,10 @@ export async function configureProfile(
     where: { id: userId },
     data: {
       timezone: options.timezone,
-      // pt-BR interface, English lessons — the combination §5.2 says is legitimate and likely, and
-      // the one that would expose a screen that assumed the two move together.
-      locale: "pt-BR",
+      // Two settings, not one (§5.2): `--locale=pt-BR` gives you the split
+      // combination — Portuguese interface, English lessons — which is the one that
+      // exposes a screen assuming the two move together.
+      locale: options.locale,
       contentLanguage: "en",
       weekStartsOn: 0,
     },

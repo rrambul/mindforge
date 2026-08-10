@@ -91,13 +91,14 @@ export function lessonHtml(input: {
     <meta name="mindforge:track" content="${escapeHtml(input.trackSlug)}" />
     <meta name="mindforge:lesson" content="${escapeHtml(input.lessonSlug)}" />
     <title>${escapeHtml(input.title)}</title>
-    <style>
-      body { font: 16px/1.6 system-ui, sans-serif; margin: 0; padding: 2rem; max-width: 42rem; }
-      h1 { font-size: 1.5rem; margin: 0 0 0.5rem; }
-      .intent { color: #555; margin: 0 0 1.5rem; }
-      button { font: inherit; padding: 0.5rem 0.9rem; }
-      output { display: block; margin-top: 0.75rem; min-height: 1.6em; }
-    </style>
+    <!--
+      The shared stylesheet, linked the way a real lesson links it: the skill calls
+      it "the first component every workspace earns", so every lesson wears the
+      same clothes rather than inventing its own. It is also the reason the grant
+      covers a workspace and not a file — this relative link resolves back inside
+      the same grant, and if it did not, every seeded lesson would render unstyled.
+    -->
+    <link rel="stylesheet" href="../assets/lesson.css" />
   </head>
   <body>
     <h1>${escapeHtml(input.title)}</h1>
@@ -124,6 +125,109 @@ export function lessonHtml(input: {
 `;
 }
 
+/**
+ * The shared stylesheet every lesson links (§5.1).
+ *
+ * **Responsive is the requirement, not a nicety.** §5.1 makes this file one of the
+ * two enforcement points for it: fluid type, a measure in `ch`, and code blocks
+ * and tables in their own `overflow-x: auto` container so a lesson never scrolls
+ * the document sideways on a 375px screen.
+ *
+ * It also respects the reader's colour scheme. A lesson is framed inside an app
+ * that has a dark theme, and a permanently white document inside it is the kind of
+ * thing you only notice at night.
+ */
+export function stylesheet(): string {
+  return `:root {
+  color-scheme: light dark;
+  --ink: #161d22;
+  --paper: #fdfdfc;
+  --muted: #5d6a72;
+  --rule: #d8dee2;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --ink: #e6ecef;
+    --paper: #12171a;
+    --muted: #9aa7ae;
+    --rule: #2b3439;
+  }
+}
+
+body {
+  margin: 0 auto;
+  padding: clamp(1rem, 4vw, 2.5rem);
+  /* A measure, not a pixel width: readable whatever type size the reader runs. */
+  max-width: 68ch;
+  background: var(--paper);
+  color: var(--ink);
+  font: clamp(15px, 0.95rem + 0.2vw, 18px) / 1.65 ui-sans-serif, system-ui, sans-serif;
+}
+
+h1 {
+  margin: 0 0 0.25em;
+  font-size: clamp(1.5rem, 1.2rem + 1.2vw, 2rem);
+  line-height: 1.2;
+}
+
+h2 {
+  margin: 2em 0 0.5em;
+  font-size: 1.25rem;
+  padding-bottom: 0.3em;
+  border-bottom: 1px solid var(--rule);
+}
+
+p {
+  margin: 0 0 1em;
+}
+
+.intent {
+  color: var(--muted);
+  margin-bottom: 2em;
+}
+
+/* Their own scroll container, so a wide one never moves the document sideways. */
+pre,
+.scroller {
+  overflow-x: auto;
+  padding: 0.9em 1em;
+  background: color-mix(in oklab, var(--ink) 6%, transparent);
+  border-radius: 6px;
+}
+
+code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.92em;
+}
+
+img,
+svg,
+table {
+  max-width: 100%;
+}
+
+button {
+  font: inherit;
+  /* 44px is the touch minimum §5.1 names; a quiz button below it is unusable. */
+  min-height: 44px;
+  padding: 0.5em 1em;
+  color: var(--ink);
+  background: color-mix(in oklab, var(--ink) 8%, transparent);
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+output {
+  display: block;
+  margin-top: 0.9em;
+  min-height: 1.65em;
+  color: var(--muted);
+}
+`;
+}
+
 /** A reference document — the kind of thing the skill says you come back to. */
 export function referenceHtml(title: string, mission: string): string {
   return `<!doctype html>
@@ -132,10 +236,7 @@ export function referenceHtml(title: string, mission: string): string {
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>${escapeHtml(title)}</title>
-    <style>
-      body { font: 16px/1.6 system-ui, sans-serif; margin: 0; padding: 2rem; max-width: 42rem; }
-      dt { font-weight: 600; margin-top: 1rem; }
-    </style>
+    <link rel="stylesheet" href="../assets/lesson.css" />
   </head>
   <body>
     <h1>${escapeHtml(title)}</h1>

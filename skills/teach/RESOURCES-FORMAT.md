@@ -5,15 +5,15 @@
 
 ## Primary Sources
 
-| Resource     | Type                         | Trust         | Why it's here |
-| ------------ | ---------------------------- | ------------- | ------------- |
-| [Title](url) | book / video / course / docs | high / medium | <one line>    |
+| Resource | Type | Trust | Why it's here |
+| -------- | ---- | ----- | ------------- |
+| [Title](url) | book / video / course / docs | high / medium | <one line> |
 
 ## Communities
 
-| Community   | Where                           | Why it's here |
-| ----------- | ------------------------------- | ------------- |
-| [Name](url) | forum / subreddit / local group | <one line>    |
+| Community | Where | Why it's here |
+| --------- | ----- | ------------- |
+| [Name](url) | forum / subreddit / local group | <one line> |
 
 ## Explored But Rejected
 

@@ -3,3 +3,10 @@ coverage
 dist
 build
 .turbo
+
+# A verbatim copy of the upstream Claude Code skill. `skills/README.md` rests the
+# whole argument for the Agent SDK on `diff -r skills/teach ~/.claude/skills/teach`
+# being empty — and prettier had already broken it, by re-padding the Markdown
+# tables in RESOURCES-FORMAT.md. Mindforge's own additions to the skill live in
+# UNATTENDED.md and are appended at build time, precisely so this stays untouched.
+skills/teach

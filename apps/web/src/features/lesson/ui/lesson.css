@@ -16,14 +16,30 @@
  */
 .mf-lesson-frame {
   display: block;
-  width: 100%;
-  min-height: 24rem;
-  height: calc(100dvh - 22rem);
+  min-height: 32rem;
+  height: calc(100dvh - 18rem);
   border: 1px solid var(--mf-scale);
   border-radius: var(--mf-r);
   /* Untrusted content: a white page on a dark theme is jarring, but forcing a
      background here would fight lessons that set their own. Left to the lesson. */
   background: var(--mf-surface);
+
+  /**
+   * Out of the reading column, and this is the one element on the page that
+   * should be.
+   *
+   * `.mf-main` caps at `62ch` because that is where *prose* stops being
+   * comfortable — and the title, the meta line and the outcome tray are this
+   * page's prose, so they stay in it. The lesson is not: it is a whole document
+   * with its own measure, its own code blocks and its own diagrams, and squeezing
+   * it into ours makes every one of them wrap at a width its author never chose.
+   *
+   * The margin is negative only when the target is wider than the column, so this
+   * collapses to nothing on a phone rather than needing a media query — at 375px
+   * both halves of the subtraction are the same number.
+   */
+  width: min(100vw - 2 * var(--mf-space-4), 76rem);
+  margin-inline: calc(50% - min(50vw - var(--mf-space-4), 38rem));
 }
 
 /**
