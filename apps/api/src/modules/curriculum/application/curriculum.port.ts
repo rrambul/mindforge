@@ -1,4 +1,4 @@
-import type { LessonDepth, LessonStatus } from "@mindforge/core";
+import type { LessonDepth, LessonOutcome, LessonStatus } from "@mindforge/core";
 
 export const CURRICULUM_READER = Symbol("CurriculumReader");
 
@@ -27,7 +27,7 @@ export interface LessonRow {
   readonly position: number | null;
   readonly seq: number | null;
   readonly completedAt: Date | null;
-  readonly outcome: string | null;
+  readonly outcome: LessonOutcome | null;
   readonly prerequisiteIds: readonly string[];
 }
 

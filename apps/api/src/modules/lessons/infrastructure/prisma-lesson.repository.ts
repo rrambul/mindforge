@@ -1,4 +1,4 @@
-import type { LessonDepth, LessonOutcome } from "@mindforge/core";
+import { asLessonOutcome, type LessonDepth, type LessonOutcome } from "@mindforge/core";
 import { Inject, Injectable } from "@nestjs/common";
 
 import { USER_SCOPED_DB, type UserScopedDb } from "../../../shared/persistence/user-scoped-db.js";
@@ -85,15 +85,6 @@ function toRecord(row: LessonQueryRow): LessonRecord {
     storagePath: row.storage_path,
     workspaceKey: row.workspace_key,
     completedAt: row.completed_at,
-    outcome: toOutcome(row.outcome),
+    outcome: asLessonOutcome(row.outcome),
   };
-}
-
-/**
- * The column is CHECKed to the three, so anything else is a row written around the
- * constraint — read as "no outcome recorded" rather than passed through, because a
- * fourth value reaching the SPA is a translation key that does not exist.
- */
-function toOutcome(value: string | null): LessonOutcome | null {
-  return value === "understood" || value === "shaky" || value === "lost" ? value : null;
 }

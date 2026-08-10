@@ -1,12 +1,15 @@
 import {
   deriveLessons,
+  moduleOutcomes,
   moduleProgress,
   nextLesson,
   orderModule,
   type LessonDepth,
   type LessonNode,
+  type LessonOutcome,
   type LessonStatus,
   type ModuleProgress,
+  type OutcomeCounts,
 } from "@mindforge/core";
 import { Inject, Injectable, NotFoundException } from "@nestjs/common";
 
@@ -41,8 +44,8 @@ export interface LessonView {
   readonly difficulty: number | null;
   readonly depth: LessonDepth | null;
   readonly completed: boolean;
-  /** understood | shaky | lost, once the reader can write one (M5). */
-  readonly outcome: string | null;
+  /** understood | shaky | lost, written by the reader (FR-P1). */
+  readonly outcome: LessonOutcome | null;
   readonly unblocked: boolean;
   /** Titles of the prerequisites still unfinished, so the lock has a reason. */
   readonly blockedBy: readonly string[];
@@ -59,6 +62,15 @@ export interface ModuleView {
   readonly prerequisites: readonly string[];
   /** Null when the module has no lessons at all: not planned yet, never 0%. */
   readonly progress: ModuleProgress | null;
+  /**
+   * How the finished ones landed (FR-P4). Null for the same reason `progress` is.
+   *
+   * Includes `unrecorded`, so the four sum to `progress.completed` — a
+   * distribution that dropped the completions made before an outcome could be
+   * recorded would show three outcomes out of five finished lessons and leave the
+   * reader to guess at the other two.
+   */
+  readonly outcomes: OutcomeCounts | null;
   readonly lessons: readonly LessonView[];
 }
 
@@ -96,6 +108,12 @@ export class GetCurriculum {
         status: track.status,
         prerequisites: track.prerequisites,
         progress: moduleProgress(inModule),
+        outcomes: moduleOutcomes(
+          inModule.map((node) => ({
+            completed: node.completed,
+            outcome: byId.get(node.id)!.outcome,
+          })),
+        ),
         lessons: orderModule(inModule).map((node) => {
           const row = byId.get(node.id)!;
           const state = derived.get(node.id)!;

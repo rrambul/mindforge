@@ -1,7 +1,9 @@
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
+import type { OutcomeCounts } from "@mindforge/core";
 import { Card, Heading, Spread, Stack, StatusChip, Text } from "../../../shared/ui/index.js";
+
 import type { CurriculumLesson, CurriculumModule } from "../api/use-curriculum.js";
 import { LessonLine } from "./LessonLine.js";
 import "./curriculum.css";
@@ -60,6 +62,8 @@ export function ModulePanel({ module, nextLessonId, lessonLink }: ModulePanelPro
               })}
         </Text>
 
+        <Outcomes outcomes={module.outcomes} />
+
         {module.lessons.length > 0 ? (
           <ul className="mf-lesson-list" aria-label={t("module.lessons", { module: module.name })}>
             {module.lessons.map((lesson) => (
@@ -75,4 +79,38 @@ export function ModulePanel({ module, nextLessonId, lessonLink }: ModulePanelPro
       </Stack>
     </Card>
   );
+}
+
+/**
+ * How the module's finished lessons landed (FR-P4).
+ *
+ * **Only once something is finished.** A distribution of four zeros under every
+ * module you have not started is furniture: the fraction above already says
+ * "0 of 5 lessons done", and repeating it as three named zeros adds nothing and
+ * makes the panel harder to scan.
+ *
+ * **`shaky` is stated plainly and never softened.** A module that is four
+ * understood and two shaky is a different module from one that is six
+ * understood, and the whole reason the outcome exists is that the second is not
+ * a rounding of the first (non-negotiable 10).
+ *
+ * **Completions with no outcome are counted, not dropped.** They are M4 rows,
+ * finished before the reader could ask, and leaving them out would show three
+ * outcomes against a fraction that says five.
+ */
+function Outcomes({ outcomes }: { readonly outcomes: OutcomeCounts | null }) {
+  const { t } = useTranslation("curriculum");
+
+  if (outcomes === null) return null;
+
+  const parts = [
+    outcomes.understood > 0 ? t("outcomes.understood", { count: outcomes.understood }) : null,
+    outcomes.shaky > 0 ? t("outcomes.shaky", { count: outcomes.shaky }) : null,
+    outcomes.lost > 0 ? t("outcomes.lost", { count: outcomes.lost }) : null,
+    outcomes.unrecorded > 0 ? t("outcomes.unrecorded", { count: outcomes.unrecorded }) : null,
+  ].filter((part): part is string => part !== null);
+
+  if (parts.length === 0) return null;
+
+  return <Text tone="hint">{parts.join(" · ")}</Text>;
 }

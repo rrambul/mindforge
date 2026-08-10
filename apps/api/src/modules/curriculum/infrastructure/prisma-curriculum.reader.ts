@@ -1,4 +1,4 @@
-import type { LessonDepth } from "@mindforge/core";
+import { asLessonOutcome, type LessonDepth } from "@mindforge/core";
 import { Inject, Injectable } from "@nestjs/common";
 
 import { USER_SCOPED_DB, type UserScopedDb } from "../../../shared/persistence/user-scoped-db.js";
@@ -107,7 +107,7 @@ export class PrismaCurriculumReader implements CurriculumReader {
           position: lesson.position,
           seq: lesson.seq,
           completedAt: lesson.completed_at,
-          outcome: lesson.outcome,
+          outcome: asLessonOutcome(lesson.outcome),
           prerequisiteIds: lessonPrereqs.get(lesson.id) ?? [],
         })),
       };

@@ -1,4 +1,10 @@
-import type { LessonDepth, LessonStatus, ModuleProgress } from "@mindforge/core";
+import type {
+  LessonDepth,
+  LessonOutcome,
+  LessonStatus,
+  ModuleProgress,
+  OutcomeCounts,
+} from "@mindforge/core";
 import { useQuery, type UseQueryResult } from "@tanstack/react-query";
 
 import { api } from "../../../shared/api/http.js";
@@ -26,7 +32,7 @@ export interface CurriculumLesson {
   readonly difficulty: number | null;
   readonly depth: LessonDepth | null;
   readonly completed: boolean;
-  readonly outcome: string | null;
+  readonly outcome: LessonOutcome | null;
   readonly unblocked: boolean;
   /** Titles of the prerequisites still unfinished, so the lock reads as a sentence. */
   readonly blockedBy: readonly string[];
@@ -44,6 +50,8 @@ export interface CurriculumModule {
   readonly prerequisites: readonly string[];
   /** Null when the module has no lessons at all. Not a zero — see the panel. */
   readonly progress: ModuleProgress | null;
+  /** How the finished ones landed (FR-P4). The four counts sum to `progress.completed`. */
+  readonly outcomes: OutcomeCounts | null;
   readonly lessons: readonly CurriculumLesson[];
 }
 

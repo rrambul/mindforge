@@ -246,3 +246,38 @@ describe("reading a curriculum", () => {
     expect((await get(`/v1/missions/${missionId}/curriculum`, null)).statusCode).toBe(401);
   });
 });
+
+/**
+ * How a module's finished lessons landed (FR-P4).
+ *
+ * Derived on read like everything else on this route, and asserted here because
+ * the failure is a plausible wrong number: a distribution that quietly dropped
+ * the completions made before an outcome could be recorded would show three
+ * outcomes against a fraction that says four, and nothing would look broken.
+ */
+describe("the outcome distribution", () => {
+  it("counts each outcome, and counts a completion that has none", async () => {
+    await complete("query-plans");
+    await db.$executeRawUnsafe(
+      `update lessons set status = 'generated', seq = 9, storage_path = 'lessons/0009-x.html',
+         content_hash = 'sha', completed_at = now(), outcome = null
+       where mission_id = $1::uuid and slug = 'indexes'`,
+      missionId,
+    );
+
+    const module = moduleNamed(await curriculum(), "pg-basics");
+
+    expect(module.progress).toEqual({ completed: 2, total: 2 });
+    // The four sum to `completed`, which is the property that keeps them honest.
+    expect(module.outcomes).toEqual({ understood: 1, shaky: 0, lost: 0, unrecorded: 1 });
+  });
+
+  it("returns measured zeros for a module with lessons and nothing finished", async () => {
+    expect(moduleNamed(await curriculum(), "pg-basics").outcomes).toEqual({
+      understood: 0,
+      shaky: 0,
+      lost: 0,
+      unrecorded: 0,
+    });
+  });
+});

@@ -28,3 +28,21 @@ export const CompleteLessonSchema = z.object({
   outcome: LessonOutcomeSchema,
 });
 export type CompleteLessonInput = z.infer<typeof CompleteLessonSchema>;
+
+/**
+ * A raw `lessons.outcome` column value, narrowed at the boundary where a row
+ * becomes a view.
+ *
+ * The column is CHECKed to the three, so anything else is a row written around
+ * the constraint — read as "no outcome recorded" rather than passed through,
+ * because a fourth value reaching the SPA is a translation key that does not
+ * exist and renders as the raw string.
+ *
+ * Here rather than in each Prisma reader: two copies of this is two answers to
+ * what the column may hold, and the one that gets updated is never both.
+ */
+export function asLessonOutcome(value: string | null): LessonOutcome | null {
+  return (LESSON_OUTCOMES as readonly string[]).includes(value ?? "")
+    ? (value as LessonOutcome)
+    : null;
+}

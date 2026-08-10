@@ -39,5 +39,11 @@
     "shaky": "Shaky",
     "lost": "Lost"
   },
-  "library": "Library"
+  "library": "Library",
+  "outcomes": {
+    "understood": "{count} understood",
+    "shaky": "{count} shaky",
+    "lost": "{count} lost",
+    "unrecorded": "{count, plural, one {# finished with no outcome} other {# finished with no outcome}}"
+  }
 }

@@ -50,6 +50,7 @@ function module(over: Partial<CurriculumModule> = {}): CurriculumModule {
     status: "active",
     prerequisites: [],
     progress: { completed: 0, total: 1 },
+    outcomes: { understood: 0, shaky: 0, lost: 0, unrecorded: 0 },
     lessons: [lesson()],
     ...over,
   };
@@ -232,5 +233,62 @@ describe("in Portuguese", () => {
 
     expect(await screen.findByText("1 lição se apoia nesta")).toBeInTheDocument();
     expect(screen.getByText("0 de 1 lições concluídas")).toBeInTheDocument();
+  });
+});
+
+/**
+ * How a module's finished lessons landed (FR-P4).
+ *
+ * The wrong answers this rules out are both about softening: a distribution that
+ * hid the shaky ones, and one that dropped the completions made before an outcome
+ * could be recorded — which would show three outcomes against a fraction saying
+ * five, with nothing on screen to explain the gap.
+ */
+describe("the outcome distribution", () => {
+  it("names each outcome the module actually has", () => {
+    returns({
+      modules: [
+        module({
+          progress: { completed: 4, total: 6 },
+          outcomes: { understood: 2, shaky: 1, lost: 1, unrecorded: 0 },
+        }),
+      ],
+    });
+    render();
+
+    return screen.findByText("2 understood · 1 shaky · 1 lost").then((line) => {
+      expect(line).toBeInTheDocument();
+    });
+  });
+
+  it("counts a completion with no outcome rather than dropping it", async () => {
+    returns({
+      modules: [
+        module({
+          progress: { completed: 3, total: 6 },
+          outcomes: { understood: 2, shaky: 0, lost: 0, unrecorded: 1 },
+        }),
+      ],
+    });
+    render();
+
+    expect(await screen.findByText(/1 finished with no outcome/u)).toBeInTheDocument();
+  });
+
+  it("says nothing at all for a module with nothing finished", async () => {
+    // Four named zeros under an unstarted module is furniture: the fraction above
+    // already says "0 of 1 lessons done".
+    returns({ modules: [module()] });
+    render();
+
+    await screen.findByText("0 of 1 lessons done");
+    expect(screen.queryByText(/understood/u)).not.toBeInTheDocument();
+  });
+
+  it("says nothing for a module with no plan, where there is no denominator either", async () => {
+    returns({ modules: [module({ progress: null, outcomes: null, lessons: [] })] });
+    render();
+
+    expect(await screen.findByText("No lessons planned here yet.")).toBeInTheDocument();
   });
 });

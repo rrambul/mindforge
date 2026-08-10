@@ -39,5 +39,11 @@
     "shaky": "Inseguro",
     "lost": "Perdido"
   },
-  "library": "Biblioteca"
+  "library": "Biblioteca",
+  "outcomes": {
+    "understood": "{count} entendidas",
+    "shaky": "{count} inseguras",
+    "lost": "{count} perdidas",
+    "unrecorded": "{count, plural, one {# concluída sem resultado} other {# concluídas sem resultado}}"
+  }
 }
