@@ -381,7 +381,7 @@ describe("llm_calls", () => {
   it("lets two runs report the same call key", async () => {
     const other = await admin.$queryRawUnsafe<{ id: string }[]>(
       `insert into agent_runs (id, user_id, mission_id, kind, status)
-       values (gen_random_uuid(), $1::uuid, null, 'weekly_digest', 'succeeded') returning id`,
+       values (gen_random_uuid(), $1::uuid, null, 'sync_workspace', 'succeeded') returning id`,
       ALICE,
     );
     await expect(
@@ -407,7 +407,7 @@ describe("llm_calls", () => {
     // that understates.
     const doomed = await admin.$queryRawUnsafe<{ id: string }[]>(
       `insert into agent_runs (id, user_id, mission_id, kind, status)
-       values (gen_random_uuid(), $1::uuid, null, 'generate_plan', 'succeeded') returning id`,
+       values (gen_random_uuid(), $1::uuid, null, 'sync_workspace', 'succeeded') returning id`,
       ALICE,
     );
     await admin.$executeRawUnsafe(

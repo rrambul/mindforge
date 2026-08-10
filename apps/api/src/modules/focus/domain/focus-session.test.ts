@@ -7,7 +7,7 @@ const ID = "22222222-2222-4222-8222-222222222222";
 const START = new Date("2026-08-05T09:00:00Z");
 const LATER = new Date("2026-08-05T09:40:00Z");
 
-const NO_ATTACHMENTS = { missionId: null, resourceId: null, skillId: null, taskId: null };
+const NO_ATTACHMENTS = { missionId: null };
 const NO_DEBRIEF = { hitIntention: null, focusQuality: null, energy: null, note: null };
 
 function started(intention: string | null = "get the parser handling nested groups"): FocusSession {
@@ -144,28 +144,6 @@ describe("writeDebrief", () => {
   });
 });
 
-describe("producedLearning", () => {
-  it("is true for a block that arrived somewhere", () => {
-    const session = started();
-    session.stop(LATER);
-    session.writeDebrief({ hitIntention: "partly" });
-    expect(session.producedLearning).toBe(true);
-  });
-
-  it("is false for a block that went nowhere, and for one never debriefed", () => {
-    // The second half matters: counting an unanswered debrief as productive would let the ember
-    // share drift upward simply because you stopped filling it in.
-    const missed = started();
-    missed.stop(LATER);
-    missed.writeDebrief({ hitIntention: "no" });
-    expect(missed.producedLearning).toBe(false);
-
-    const silent = started();
-    silent.stop(LATER);
-    expect(silent.producedLearning).toBe(false);
-  });
-});
-
 describe("record", () => {
   it("labels by the user's day, not by UTC's", () => {
     // A São Paulo user at 21:30 recording work that finished at 20:00 the same evening. It is already
@@ -178,7 +156,7 @@ describe("record", () => {
       startedAt: new Date("2026-08-05T22:00:00Z"), // 19:00 in São Paulo
       endedAt: new Date("2026-08-05T23:00:00Z"), // 20:00
       debrief: { hitIntention: null, focusQuality: null, energy: null, note: null },
-      attachments: { missionId: null, resourceId: null, skillId: null, taskId: null },
+      attachments: NO_ATTACHMENTS,
       now: new Date("2026-08-06T00:30:00Z"), // 21:30 the same evening, local
       timeZone: "America/Sao_Paulo",
     });
@@ -192,7 +170,7 @@ describe("record", () => {
       startedAt: new Date("2026-08-05T22:00:00Z"),
       endedAt: new Date("2026-08-05T23:00:00Z"),
       debrief: { hitIntention: null, focusQuality: null, energy: null, note: null },
-      attachments: { missionId: null, resourceId: null, skillId: null, taskId: null },
+      attachments: NO_ATTACHMENTS,
       now: new Date("2026-08-06T00:30:00Z"),
       timeZone: "UTC",
     });
@@ -306,7 +284,7 @@ describe("record", () => {
     });
 
     expect(session.debrief.focusQuality).toBe(5);
-    expect(session.producedLearning).toBe(true);
+    expect(session.debrief.hitIntention).toBe("yes");
   });
 
   it("refuses a session that ends before it starts", () => {

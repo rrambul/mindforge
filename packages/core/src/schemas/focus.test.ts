@@ -8,7 +8,6 @@ import {
   ListFocusSessionsQuerySchema,
   StartFocusSessionSchema,
   elapsedMinutes,
-  producedLearning,
 } from "./focus.js";
 
 const UUID = "11111111-1111-4111-8111-111111111111";
@@ -147,22 +146,5 @@ describe("elapsedMinutes", () => {
     // it landed in rather than being visibly wrong.
     const start = new Date("2026-08-05T09:00:00.000Z");
     expect(elapsedMinutes(start, new Date("2026-08-05T08:00:00.000Z"))).toBe(0);
-  });
-});
-
-describe("producedLearning", () => {
-  it("counts a block that arrived somewhere, fully or partly", () => {
-    expect(producedLearning("yes")).toBe(true);
-    expect(producedLearning("partly")).toBe(true);
-  });
-
-  it("does not count a block that went nowhere", () => {
-    expect(producedLearning("no")).toBe(false);
-  });
-
-  it("does not count an unanswered debrief as productive", () => {
-    // Otherwise the ember share drifts upward simply because you stopped filling the
-    // debrief in — which is precisely the flattery this product exists to avoid.
-    expect(producedLearning(null)).toBe(false);
   });
 });

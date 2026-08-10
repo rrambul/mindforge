@@ -24,14 +24,6 @@ Amazon Web Services, for someone who owns a production VPC
 | 2     | vpc-networking | VPC networking     | Trace a packet through your own VPC     | —             |
 | 3     | iam-authoring  | Writing IAM policy | Write a least-privilege policy          | iam-basics    |
 
-## Skills
-
-| Track          | Skill slug          | Skill                                    |
-| -------------- | ------------------- | ---------------------------------------- |
-| iam-basics     | iam-read-policy     | Read an IAM policy and predict its effect |
-| iam-basics     | iam-principal-model | Explain users, roles and assume-role      |
-| iam-authoring  | iam-least-privilege | Write a least-privilege policy            |
-
 ## Sources
 
 - [AWS IAM User Guide](https://docs.aws.amazon.com/iam/) — the primary reference
@@ -46,7 +38,7 @@ function codes(warnings: readonly { code: WarningCode }[]): WarningCode[] {
 }
 
 describe("parseCurriculum", () => {
-  it("reads the subject, the tracks and their skills", () => {
+  it("reads the subject and the tracks", () => {
     const { parsed } = parseCurriculum(FULL);
 
     expect(parsed.subject).toBe("Amazon Web Services, for someone who owns a production VPC");
@@ -62,12 +54,6 @@ describe("parseCurriculum", () => {
       position: 3,
       prerequisites: ["iam-basics"],
     });
-    expect(parsed.skills).toHaveLength(3);
-    expect(parsed.skills[0]).toEqual({
-      trackSlug: "iam-basics",
-      skillSlug: "iam-read-policy",
-      name: "Read an IAM policy and predict its effect",
-    });
   });
 
   it("treats the em dash as no prerequisites rather than as one", () => {
@@ -77,15 +63,38 @@ describe("parseCurriculum", () => {
   });
 
   it("retains Sources and History without indexing them", () => {
-    // `## Sources` belongs to RESOURCES.md, which owns the library and has the
-    // type and trust columns this section does not. Writing resources through a
-    // second path is the doubling problem with the safeguards removed.
+    // `## Sources` belongs to RESOURCES.md, which stays a workspace file the
+    // agent grounds itself in (FR-K4). Indexing this section would write the same
+    // facts through a second path.
     const { parsed, unmapped, warnings } = parseCurriculum(FULL);
 
     expect(unmapped["Sources"]).toContain("AWS IAM User Guide");
     expect(unmapped["History"]).toContain("2026-08-09");
     expect(codes(warnings)).toContain("section_unknown");
     expect(JSON.stringify(parsed)).not.toContain("docs.aws.amazon.com");
+  });
+
+  it("retains a legacy Skills section as an unknown section", () => {
+    // Curricula written before the v0.2 refocus carried a `## Skills` table.
+    // Nothing indexes it now; the content is kept rather than dropped.
+    const { parsed, unmapped, warnings } = parseCurriculum(`# Curriculum
+
+## Tracks
+
+| Order | Slug | Track |
+| ----- | ---- | ----- |
+| 1     | a    | A     |
+
+## Skills
+
+| Track | Skill slug | Skill |
+| ----- | ---------- | ----- |
+| a     | s          | S     |
+`);
+
+    expect(unmapped["Skills"]).toContain("Skill slug");
+    expect(codes(warnings)).toContain("section_unknown");
+    expect(JSON.stringify(parsed)).not.toContain("skillSlug");
   });
 
   it("binds columns by name, so a reordered or added column changes nothing", () => {
@@ -274,73 +283,6 @@ describe("parseCurriculum", () => {
     expect(edges).toHaveLength(2);
   });
 
-  it("drops a skill whose track does not exist", () => {
-    // `track_skills` is keyed on the pair, so a skill belonging to no track has
-    // nowhere to go. Attaching it to an arbitrary track would be a guess written
-    // into the graph the product scores from.
-    const { parsed, warnings } = parseCurriculum(`# Curriculum
-
-## Tracks
-
-| Order | Slug | Track |
-| ----- | ---- | ----- |
-| 1     | a    | A     |
-
-## Skills
-
-| Track     | Skill slug | Skill      |
-| --------- | ---------- | ---------- |
-| imaginary | ghost      | A ghost    |
-`);
-
-    expect(parsed.skills).toEqual([]);
-    expect(codes(warnings)).toContain("value_unknown");
-  });
-
-  it("keeps one row when a skill is listed twice under the same track", () => {
-    const { parsed, warnings } = parseCurriculum(`# Curriculum
-
-## Tracks
-
-| Order | Slug | Track |
-| ----- | ---- | ----- |
-| 1     | a    | A     |
-
-## Skills
-
-| Track | Skill slug | Skill |
-| ----- | ---------- | ----- |
-| a     | s          | S     |
-| a     | s          | S again |
-`);
-
-    expect(parsed.skills).toHaveLength(1);
-    expect(codes(warnings)).toContain("value_duplicated");
-  });
-
-  it("lets one skill belong to two tracks", () => {
-    // The primary key is the pair, and reusing a skill across tracks is the point:
-    // `skills.slug` is unique per user, so the learner learns a thing once.
-    const { parsed } = parseCurriculum(`# Curriculum
-
-## Tracks
-
-| Order | Slug | Track |
-| ----- | ---- | ----- |
-| 1     | a    | A     |
-| 2     | b    | B     |
-
-## Skills
-
-| Track | Skill slug | Skill |
-| ----- | ---------- | ----- |
-| a     | shared     | Shared |
-| b     | shared     | Shared |
-`);
-
-    expect(parsed.skills).toHaveLength(2);
-  });
-
   it("returns nothing and warns when Tracks is missing entirely", () => {
     const { parsed, warnings } = parseCurriculum(`# Curriculum
 
@@ -405,7 +347,7 @@ Rust
 
   it("survives an empty file", () => {
     const { parsed, warnings } = parseCurriculum("");
-    expect(parsed).toEqual({ subject: null, tracks: [], skills: [] });
+    expect(parsed).toEqual({ subject: null, tracks: [] });
     expect(warnings.length).toBeGreaterThan(0);
   });
 
@@ -458,87 +400,6 @@ describe("rows that cannot become anything", () => {
 `);
 
     expect(parsed.tracks[0]).toMatchObject({ slug: "iam-basics", name: "Iam Basics" });
-  });
-
-  it("names a skill from its slug when the table has no name column", () => {
-    const { parsed } = parseCurriculum(`# Curriculum
-
-## Tracks
-
-| Order | Slug |
-| ----- | ---- |
-| 1     | a    |
-
-## Skills
-
-| Track | Skill slug      |
-| ----- | --------------- |
-| a     | iam-read-policy |
-`);
-
-    expect(parsed.skills[0]).toMatchObject({
-      skillSlug: "iam-read-policy",
-      name: "Iam Read Policy",
-    });
-  });
-
-  it("drops a skill whose slug and name both slugify to nothing", () => {
-    const { parsed, warnings } = parseCurriculum(`# Curriculum
-
-## Tracks
-
-| Order | Slug |
-| ----- | ---- |
-| 1     | a    |
-
-## Skills
-
-| Track | Skill |
-| ----- | ----- |
-| a     | ???   |
-`);
-
-    expect(parsed.skills).toEqual([]);
-    expect(codes(warnings)).toContain("value_malformed");
-  });
-
-  it("does not read a skills header row as data when the delimiter is missing", () => {
-    const { parsed, warnings } = parseCurriculum(`# Curriculum
-
-## Tracks
-
-| Order | Slug |
-| ----- | ---- |
-| 1     | a    |
-
-## Skills
-
-| Track | Skill |
-| a     | S     |
-`);
-
-    expect(parsed.skills).toEqual([]);
-    expect(codes(warnings)).toContain("value_malformed");
-  });
-
-  it("refuses a skills table with neither a name nor a slug column", () => {
-    const { parsed, warnings } = parseCurriculum(`# Curriculum
-
-## Tracks
-
-| Order | Slug |
-| ----- | ---- |
-| 1     | a    |
-
-## Skills
-
-| Track | Notes |
-| ----- | ----- |
-| a     | hmm   |
-`);
-
-    expect(parsed.skills).toEqual([]);
-    expect(codes(warnings)).toContain("value_malformed");
   });
 
   it("collapses a prerequisite listed twice in one cell", () => {

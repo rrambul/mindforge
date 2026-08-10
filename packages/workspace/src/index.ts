@@ -62,15 +62,13 @@ export {
 export { etagsMatch, normalizeEtag, sha256, storageEtag } from "./hash.js";
 
 export {
-  M3_ABSENCES,
+  BRIEFING_ABSENCES,
   NO_TRACK,
   notTracked,
   renderBriefing,
   type BriefingInput,
   type CurrentTrack,
-  type FrictionSummary,
   type NotTracked,
-  type SelfReportedSkill,
   type TrackLesson,
   type Tracked,
   type ZpdCandidate,
@@ -107,12 +105,7 @@ export {
   type Table,
 } from "./markdown/table.js";
 
-export {
-  parseCurriculum,
-  type ParsedCurriculum,
-  type ParsedTrack,
-  type ParsedTrackSkill,
-} from "./parse/curriculum.js";
+export { parseCurriculum, type ParsedCurriculum, type ParsedTrack } from "./parse/curriculum.js";
 
 export {
   checkReferences,
@@ -123,12 +116,4 @@ export {
 export { parseLearnerMemory, type MemoryKind, type ParsedMemory } from "./parse/memory.js";
 export { parseMission, type MissionHistoryEntry, type ParsedMission } from "./parse/mission.js";
 export { parseLearningRecord, type ParsedRecord } from "./parse/record.js";
-export {
-  parseResources,
-  type ParsedRejection,
-  type ParsedResource,
-  type ParsedResources,
-  type ResourceType,
-  type TrustLevel,
-} from "./parse/resources.js";
 export { warn, type ParseWarning, type Parsed, type WarningCode } from "./parse/result.js";

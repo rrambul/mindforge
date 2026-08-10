@@ -1,70 +1,12 @@
 {
-  "ember": "Ember",
-  "slag": "Slag",
-  "temper": "Temper",
-  "frontier": "Frontier",
   "mission": "Mission",
   "mission_plural": "Missions",
-  "skill": "Skill",
-  "skill_plural": "Skills",
   "focusSession": "Focus session",
-  "band": {
-    "aware": "Aware",
-    "assisted": "Assisted",
-    "working": "Working",
-    "fluent": "Fluent",
-    "teaching": "Teaching"
-  },
   "missionStatus": {
     "active": "Active",
     "parked": "Parked",
     "completed": "Completed",
     "abandoned": "Abandoned"
-  },
-  "noteSubject": {
-    "mission": "Mission",
-    "goal": "Goal",
-    "skill": "Skill",
-    "resource": "Resource",
-    "lesson": "Lesson",
-    "reference_doc": "Reference",
-    "learning_record": "Learning record",
-    "focus_session": "Focus session",
-    "assessment": "Assessment",
-    "artifact": "Artifact",
-    "standalone": "Unfiled"
-  },
-  "resourceType": {
-    "book": "Book",
-    "podcast": "Podcast",
-    "article": "Article",
-    "video": "Video",
-    "course": "Course",
-    "docs": "Documentation",
-    "paper": "Paper"
-  },
-  "resourceStatus": {
-    "inbox": "Inbox",
-    "queued": "Queued",
-    "active": "Reading",
-    "finished": "Finished",
-    "abandoned": "Stopped",
-    "reference": "Reference"
-  },
-  "goalStatus": {
-    "active": "Active",
-    "met": "Met",
-    "missed": "Missed",
-    "abandoned": "Dropped"
-  },
-  "targetKind": {
-    "resource_progress": "Resource progress",
-    "skill_band": "Skill band",
-    "artifact": "Artifact",
-    "focus_hours": "Focus hours",
-    "review_accuracy": "Review accuracy",
-    "lessons_completed": "Lessons completed",
-    "manual": "You decide"
   },
   "memoryKind": {
     "background": "Background",

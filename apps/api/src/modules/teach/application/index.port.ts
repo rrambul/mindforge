@@ -15,8 +15,6 @@ export interface IndexedLesson {
    * warning; the repository cannot, and must not invent a module either way.
    */
   readonly trackId: string | null;
-  /** Skills the lesson claims to teach, resolved to ids. */
-  readonly skillIds: readonly string[];
 }
 
 /**
@@ -32,7 +30,6 @@ export interface IndexedTrack {
   readonly outcome: string | null;
   readonly position: number;
   readonly prerequisiteSlugs: readonly string[];
-  readonly skillIds: readonly string[];
 }
 
 export interface IndexedReferenceDoc {
@@ -63,14 +60,14 @@ export interface IndexedRecord {
 /**
  * The tables the teach module owns outright.
  *
- * `missions`, `resources` and `skills` are absent on purpose: they belong to
- * other modules, and §2.1 decision 2 says whoever owns the table owns the write.
- * The reindexer routes those through their own use cases. `tracks` is here
- * because nothing but a workspace has ever created one.
+ * `missions` is absent on purpose: it belongs to its own module, and §2.1
+ * decision 2 says whoever owns the table owns the write — the reindexer routes
+ * it through `UpdateMission`. `tracks` is here because nothing but a workspace
+ * has ever created one.
  */
 export interface WorkspaceIndexRepository {
   /**
-   * Upsert `tracks` on `(mission_id, slug)`, then rebuild their edges and skills.
+   * Upsert `tracks` on `(mission_id, slug)`, then rebuild their edges.
    *
    * **Upsert and never delete.** The agent rewrites `CURRICULUM.md` wholesale, so
    * a track missing from one regeneration is far more likely to be a model

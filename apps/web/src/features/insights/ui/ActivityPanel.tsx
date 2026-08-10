@@ -15,7 +15,7 @@ interface ActivityPanelProps {
 /**
  * The grid, the figure that stands beside it, and at most one sentence.
  *
- * The figure is **active days in the last 28**, never a streak (FR-N5). A counter that resets to
+ * The figure is **active days in the last 28**, never a streak (FR-Q1). A counter that resets to
  * zero is a punishment, punishment produces gaming, and gaming corrupts the one dataset this product
  * exists to collect — so there is no counter here that one bad week can break.
  */
@@ -30,8 +30,8 @@ export function ActivityPanel({ grid, weekStartsOn, timezone }: ActivityPanelPro
       </Spread>
       <Text tone="hint">{t("grid.activeDaysHint")}</Text>
 
-      <ActivityHeatmap cells={grid.cells} layer={grid.layer} weekStartsOn={weekStartsOn} />
-      <HeatmapLegend layer={grid.layer} />
+      <ActivityHeatmap cells={grid.cells} weekStartsOn={weekStartsOn} />
+      <HeatmapLegend />
 
       <GridSignalLine signal={grid.signal} />
 
@@ -63,14 +63,9 @@ function GridSignalLine({ signal }: { readonly signal: GridSignal }) {
   return (
     <Callout>
       <Text>
-        {signal.kind === "never_on_weekday"
-          ? t("grid.signal.neverOnWeekday", {
-              weekday: formatWeekday(signal.weekday, i18n.language),
-            })
-          : t("grid.signal.paceBelowPlan", {
-              average: signal.averageActiveDays,
-              planned: signal.plannedDays,
-            })}
+        {t("grid.signal.neverOnWeekday", {
+          weekday: formatWeekday(signal.weekday, i18n.language),
+        })}
       </Text>
     </Callout>
   );

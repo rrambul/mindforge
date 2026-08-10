@@ -9,9 +9,7 @@
     "subjectHint": "Optional. It is what lets the week's plan and what you actually did be compared.",
     "subjectNone": "Not saying",
     "subjectGroup": {
-      "mission": "Mission",
-      "skill": "Skill",
-      "resource": "Reading"
+      "mission": "Mission"
     }
   },
   "running": {

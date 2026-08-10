@@ -205,16 +205,13 @@ describe("the module a lesson declares", () => {
   <body><h1>Reading a policy</h1><p>Words.</p></body>
 </html>`;
 
-  it("reads the track and the skills the lesson claims to teach", () => {
+  it("reads the track the lesson declares", () => {
     const { parsed } = parseLessonHtml(
       "0007-reading-a-policy.html",
-      withMeta(`<meta name="mindforge:track" content="iam-basics" />
-      <meta name="mindforge:skill" content="iam-read-policy" />
-      <meta name="mindforge:skill" content="iam-principal-model" />`),
+      withMeta(`<meta name="mindforge:track" content="iam-basics" />`),
     );
 
     expect(parsed.trackSlug).toBe("iam-basics");
-    expect(parsed.skillSlugs).toEqual(["iam-read-policy", "iam-principal-model"]);
   });
 
   it("leaves the track null when the lesson declares none, without warning", () => {
@@ -224,7 +221,6 @@ describe("the module a lesson declares", () => {
     const { parsed, warnings } = parseLessonHtml("0007-x.html", withMeta(""));
 
     expect(parsed.trackSlug).toBeNull();
-    expect(parsed.skillSlugs).toEqual([]);
     expect(codes({ warnings })).not.toContain("value_duplicated");
   });
 
@@ -253,25 +249,13 @@ describe("the module a lesson declares", () => {
     expect(codes({ warnings })).toContain("value_duplicated");
   });
 
-  it("deduplicates repeated skill tags", () => {
-    const { parsed } = parseLessonHtml(
-      "0007-x.html",
-      withMeta(`<meta name="mindforge:skill" content="iam-read-policy" />
-      <meta name="mindforge:skill" content="IAM read policy" />`),
-    );
-
-    expect(parsed.skillSlugs).toEqual(["iam-read-policy"]);
-  });
-
   it("ignores a tag with an empty or whitespace content attribute", () => {
     const { parsed } = parseLessonHtml(
       "0007-x.html",
-      withMeta(`<meta name="mindforge:track" content="  " />
-      <meta name="mindforge:skill" content="" />`),
+      withMeta(`<meta name="mindforge:track" content="  " />`),
     );
 
     expect(parsed.trackSlug).toBeNull();
-    expect(parsed.skillSlugs).toEqual([]);
   });
 
   it("still parses the tag on a reference doc, which the caller then ignores", () => {

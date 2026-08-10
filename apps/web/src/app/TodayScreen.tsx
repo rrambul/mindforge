@@ -1,4 +1,4 @@
-import type { DebriefFocusSessionInput, FrictionType } from "@mindforge/core";
+import type { DebriefFocusSessionInput } from "@mindforge/core";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
@@ -13,50 +13,30 @@ import { LogPastSession } from "../features/focus/ui/LogPastSession.js";
 import { RunningSession } from "../features/focus/ui/RunningSession.js";
 import { StartFocus } from "../features/focus/ui/StartFocus.js";
 import type { SessionSubject } from "../features/focus/ui/SubjectPicker.js";
-import {
-  frictionBody,
-  useAttributeFriction,
-  useFrictionChips,
-  useLogFriction,
-  useSessionFriction,
-} from "../features/friction/api/use-friction.js";
-import { FrictionAttribution } from "../features/friction/ui/FrictionAttribution.js";
-import { FrictionChips } from "../features/friction/ui/FrictionChips.js";
 import { useMissions } from "../features/missions/api/use-missions.js";
-import { noteBody, useWriteNote } from "../features/notes/api/use-notes.js";
-import { NoteComposer } from "../features/notes/ui/NoteComposer.js";
-import { useResources } from "../features/resources/api/use-resources.js";
-import { useSkills } from "../features/skills/api/use-skills.js";
 import { ApiError, NetworkError, PROBLEM, isProblemOfType } from "../shared/api/problem.js";
 import { Button, Callout, Heading, Row, Stack, Text } from "../shared/ui/index.js";
 import { FirstRun } from "./FirstRun.js";
-import { TodayThisWeek } from "./WeekScreen.js";
 
 /**
  * Today (§5.3). One job: get you into a focus session in one tap, or tell you why you shouldn't.
  *
- * Composed here, in the app layer, rather than inside a feature — `focus` and `friction` are
+ * Composed here, in the app layer, rather than inside a feature — `focus` and `missions` are
  * separate features and §2.2 rule 6 forbids one importing the other, so the route is what joins
- * them. That is also why the friction chips arrive as a `capture` prop rather than being reached
- * for from inside the running-session component.
+ * them.
  *
  * The vertical order is fixed and each block hides entirely when it has nothing to say. No
- * greeting, no date header, no motivational copy: the first pixel is information. `DUE NOW`,
- * `THIS WEEK`, and `ONE THING` are absent rather than empty — reviews arrive in M5 and the
- * weekly figures in M2, and a block manufactured to fill space trains you to stop reading it.
+ * greeting, no date header, no motivational copy: the first pixel is information.
  */
 export function TodayScreen() {
   const { t } = useTranslation("focus");
   const { t: common } = useTranslation("common");
 
   const running = useRunningSession(true);
-  const chips = useFrictionChips(true);
   const start = useStartSession();
   const stop = useStopSession();
   const debrief = useDebriefSession();
   const record = useRecordSession();
-  const logFriction = useLogFriction();
-  const writeNote = useWriteNote();
 
   /**
    * The session just stopped, awaiting its debrief. Local state rather than derived, because
@@ -65,55 +45,26 @@ export function TodayScreen() {
    */
   const [awaitingDebrief, setAwaitingDebrief] = useState<string | null>(null);
 
-  // Only fetched once a debrief is open, and only the things attribution can point at. Composed here
-  // because §2.2 rule 6 keeps `focus` and `friction` from importing skills and resources themselves.
-  const sessionFriction = useSessionFriction(awaitingDebrief);
-  // Missions are what the weekly grid plans against, so the picker needs them most.
+  // Missions are the only subject a block can be filed under now, and asked for active only —
+  // a parked mission is a statement that you are not working on it.
   const missions = useMissions("active");
-  const skills = useSkills({});
-  const resources = useResources({});
-  const attribute = useAttributeFriction();
   const [loggingPast, setLoggingPast] = useState(false);
 
   const session = running.data?.session ?? null;
 
-  /**
-   * What a block can be filed under, composed here because §2.2 rule 6 keeps `focus` from importing
-   * missions, skills and resources itself.
-   *
-   * Missions first, since they are what the weekly grid's primary rows are; then skills, which is
-   * what `focus_sessions.skill_id` was added for; then only the resources you are part-way through,
-   * because a picker listing your whole library is a picker nobody scrolls.
-   */
-  const subjects: SessionSubject[] = [
-    // Asked for active only — a parked mission is a statement that you are not working on it, and
-    // §5.3 excludes them from allocation for the same reason.
-    ...(missions.data?.missions ?? []).map((mission) => ({
-      kind: "mission" as const,
-      id: mission.id,
-      label: mission.topic,
-    })),
-    ...(skills.data?.skills ?? []).map((skill) => ({
-      kind: "skill" as const,
-      id: skill.id,
-      label: skill.name,
-    })),
-    ...(resources.data?.resources ?? [])
-      .filter((resource) => resource.status === "active")
-      .map((resource) => ({ kind: "resource" as const, id: resource.id, label: resource.title })),
-  ];
+  const subjects: SessionSubject[] = (missions.data?.missions ?? []).map((mission) => ({
+    kind: "mission" as const,
+    id: mission.id,
+    label: mission.topic,
+  }));
 
   function onStart(intention: string | null, subject: SessionSubject | null): void {
     // The client mints the id so the optimistic row and the persisted one are the same row, and
     // a retry is a replay rather than a second session (§6.1).
-    //
-    // The subject is what makes plan-vs-actual possible at all: before this, every session started
-    // from Today carried no mission and no skill, so a week's allocations had nothing to be compared
-    // against and the review reported 0m however much you had worked.
     start.mutate({
       id: crypto.randomUUID(),
       ...(intention === null ? {} : { intention }),
-      ...(subject === null ? {} : { [`${subject.kind}Id`]: subject.id }),
+      ...(subject === null ? {} : { missionId: subject.id }),
     });
   }
 
@@ -126,13 +77,8 @@ export function TodayScreen() {
       {
         onSuccess: () => setAwaitingDebrief(stopped),
         // A stop that never reached the server has been *queued*, and the block did end — so the
-        // debrief has to be offered anyway. It was only offered on success, which meant every session
-        // stopped offline lost its ≤30s debrief (FR-F3) with no other way back to it.
-        //
-        // That is not only a missing prompt: with `hitIntention` left null, `producedLearning` is
-        // false, so every `too_hard` and `missing_prerequisite` event in that block is classified as
-        // wasteful friction. The subway sessions the queue exists to protect were the ones skewing the
-        // ember/slag split.
+        // debrief has to be offered anyway. It was only offered on success once, which meant every
+        // session stopped offline lost its ≤30s debrief (FR-F1) with no other way back to it.
         //
         // A refusal is different and still hides the form: a 404 means there is no session to debrief.
         onError: (error) => {
@@ -148,10 +94,6 @@ export function TodayScreen() {
       { id: awaitingDebrief, debrief: answers },
       { onSuccess: () => setAwaitingDebrief(null) },
     );
-  }
-
-  function onLogFriction(type: FrictionType): void {
-    logFriction.mutate(frictionBody(type, session?.id ?? null));
   }
 
   if (running.isPending) {
@@ -185,31 +127,7 @@ export function TodayScreen() {
       ) : null}
 
       {session ? (
-        <RunningSession
-          session={session}
-          onStop={onStop}
-          stopping={stop.isPending}
-          capture={
-            <Stack gap="tight">
-              <FrictionChips
-                inline={chips.data?.inline ?? []}
-                overflow={chips.data?.overflow ?? []}
-                onLog={onLogFriction}
-              />
-              {/* FR-N3: one tap, and the subject comes from here rather than a picker — the note
-                  attaches to the session and, through it, to the task and mission. */}
-              <NoteComposer
-                compact
-                pending={writeNote.isPending}
-                onWrite={(body) =>
-                  writeNote.mutate(
-                    noteBody({ body, subjectType: "focus_session", subjectId: session.id }),
-                  )
-                }
-              />
-            </Stack>
-          }
-        />
+        <RunningSession session={session} onStop={onStop} stopping={stop.isPending} />
       ) : awaitingDebrief ? (
         <>
           {debrief.isError ? (
@@ -221,26 +139,6 @@ export function TodayScreen() {
             onSubmit={onDebrief}
             onSkip={() => setAwaitingDebrief(null)}
             pending={debrief.isPending}
-            // §5.3 puts friction detail here, "where you have the time" — the chip tap stays one tap.
-            // Below the three questions and never required, so the ≤30s budget is unaffected.
-            attribution={
-              <FrictionAttribution
-                events={sessionFriction.data?.events ?? []}
-                skills={(skills.data?.skills ?? []).map((skill) => ({
-                  id: skill.id,
-                  name: skill.name,
-                }))}
-                resources={(resources.data?.resources ?? []).map((resource) => ({
-                  id: resource.id,
-                  name: resource.title,
-                }))}
-                pending={attribute.isPending}
-                error={attribute.error === null ? null : describe(attribute.error, common)}
-                onAttribute={(eventId, attribution) =>
-                  attribute.mutate({ id: eventId, attribution })
-                }
-              />
-            }
           />
         </>
       ) : (
@@ -276,11 +174,6 @@ export function TodayScreen() {
           )}
         </Stack>
       )}
-
-      {/* THIS WEEK — the block §5.3 reserves at the foot of Today: planned versus actual as one bar,
-          the ember/slag split as another. It renders null when there is nothing true to say, which
-          is why it needs no conditional here: an empty section is worse than no section. */}
-      <TodayThisWeek />
     </Stack>
   );
 }

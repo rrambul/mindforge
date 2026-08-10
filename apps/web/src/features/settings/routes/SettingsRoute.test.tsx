@@ -37,7 +37,6 @@ function settingsServer(profile: Profile = STORED, releases: Release[] = RELEASE
   // is not callable, so recording the body would not type-check.
   const sent = {
     profile: vi.fn<(patch: Partial<Profile>) => void>(),
-    prefs: vi.fn<(body: object) => void>(),
     seen: vi.fn<(body: unknown) => void>(),
   };
   let current = profile;
@@ -53,19 +52,6 @@ function settingsServer(profile: Profile = STORED, releases: Release[] = RELEASE
     http.post(`${API}/me/changelog-seen`, async ({ request }) => {
       sent.seen(await request.json());
       return HttpResponse.json(current);
-    }),
-    http.get(`${API}/me/notification-prefs`, () =>
-      HttpResponse.json({
-        prefs: [
-          { kind: "weekly_review", enabled: true, config: { weekday: 0, hour: 18 } },
-          { kind: "stall", enabled: true, config: { afterDays: 12 } },
-        ],
-      }),
-    ),
-    http.put(`${API}/me/notification-prefs`, async ({ request }) => {
-      const body = (await request.json()) as object;
-      sent.prefs(body);
-      return HttpResponse.json(body);
     }),
     // Same origin as the SPA, not the API — it is a build artifact, not an endpoint.
     http.get("*/changelog.json", () => HttpResponse.json(releases)),
@@ -191,65 +177,6 @@ describe("the theme", () => {
   });
 });
 
-describe("nudges (FR-N4)", () => {
-  it("says what 'quiet' actually means rather than implying a push channel", async () => {
-    settingsServer();
-    renderWithProviders(<SettingsRoute />);
-
-    expect(
-      await screen.findByText(/no push, no email, no sound, and nothing that can interrupt/i),
-    ).toBeVisible();
-  });
-
-  it("ships both kinds switched on, because off-by-default would ship the feature dead", async () => {
-    settingsServer();
-    renderWithProviders(<SettingsRoute />);
-
-    expect(await screen.findByLabelText("Remind me to review the week")).toBeChecked();
-    expect(screen.getByLabelText("Ask about a mission that has gone quiet")).toBeChecked();
-  });
-
-  it("writes both kinds as whole rows", async () => {
-    const sent = settingsServer();
-    renderWithProviders(<SettingsRoute />);
-
-    await userEvent.click(await screen.findByLabelText("Ask about a mission that has gone quiet"));
-    const nudges = screen.getByRole("region", { name: "Nudges" });
-    await userEvent.click(within(nudges).getByRole("button", { name: "Save" }));
-
-    await waitFor(() =>
-      expect(sent.prefs).toHaveBeenCalledWith({
-        prefs: [
-          { kind: "weekly_review", enabled: true, config: { weekday: 0, hour: 18 } },
-          { kind: "stall", enabled: false, config: { afterDays: 12 } },
-        ],
-      }),
-    );
-  });
-
-  it("names the weekday from Intl, so 0 is Sunday in both languages", async () => {
-    settingsServer();
-    renderWithProviders(<SettingsRoute />);
-
-    const day = await screen.findByLabelText("Day");
-    expect(within(day).getByRole("option", { name: "Sunday" })).toHaveValue("0");
-  });
-
-  it("will not send a stall window outside what the schema accepts", async () => {
-    const sent = settingsServer();
-    renderWithProviders(<SettingsRoute />);
-
-    const days = await screen.findByLabelText("After");
-    const nudges = screen.getByRole("region", { name: "Nudges" });
-    await userEvent.clear(days);
-    await userEvent.type(days, "200");
-    await userEvent.click(within(nudges).getByRole("button", { name: "Save" }));
-
-    expect(await within(nudges).findByText("Between 3 and 90 days.")).toBeVisible();
-    expect(sent.prefs).not.toHaveBeenCalled();
-  });
-});
-
 describe("what's new (§14.1)", () => {
   it("renders the entry as prose rather than as raw Markdown", async () => {
     settingsServer();
@@ -287,13 +214,10 @@ describe("what's new (§14.1)", () => {
 });
 
 describe("pt-BR", () => {
-  it("renders the screen and the platform's own weekday names in Portuguese", async () => {
+  it("renders the screen in Portuguese", async () => {
     settingsServer();
     renderWithProviders(<SettingsRoute />, { locale: "pt-BR" });
 
     expect(await screen.findByText("Configurações")).toBeVisible();
-    const day = await screen.findByLabelText("Dia");
-    // From Intl, not from the bundle — seven weekday names per locale is not translation work.
-    expect(within(day).getByRole("option", { name: /domingo/iu })).toHaveValue("0");
   });
 });

@@ -6,21 +6,19 @@
  * browser's onboarding, not about the account, and a column for it would still be there in five years
  * describing something that happened once.
  *
- * The ids of what has been created so far are part of the state, because each step *builds on the last*
- * — the goal hangs off the mission, the session runs against it. Losing them mid-way would mean a
- * resumed tour creating a second mission, which is exactly the demo-data mess §5.3 rules out.
+ * The mission id is part of the state because the second step *builds on the first* — the session
+ * runs against the mission. Losing it mid-way would mean a resumed tour creating a second mission,
+ * which is exactly the demo-data mess §5.3 rules out.
  */
 
 const STORAGE_KEY = "mindforge.first-run";
 
-export const FIRST_RUN_STEPS = ["mission", "goal", "resource", "focus", "done"] as const;
+export const FIRST_RUN_STEPS = ["mission", "focus", "done"] as const;
 export type FirstRunStep = (typeof FIRST_RUN_STEPS)[number];
 
 export interface FirstRunState {
   readonly step: FirstRunStep;
   readonly missionId?: string;
-  readonly goalId?: string;
-  readonly resourceId?: string;
   /** Set when the user says "not now". Distinct from finishing. */
   readonly dismissed?: boolean;
 }
@@ -50,8 +48,6 @@ export function readFirstRun(storage: Pick<Storage, "getItem"> = localStorage): 
       // a step this build does not have.
       step: isStep(step) ? step : "mission",
       ...(typeof record["missionId"] === "string" ? { missionId: record["missionId"] } : {}),
-      ...(typeof record["goalId"] === "string" ? { goalId: record["goalId"] } : {}),
-      ...(typeof record["resourceId"] === "string" ? { resourceId: record["resourceId"] } : {}),
       ...(record["dismissed"] === true ? { dismissed: true } : {}),
     };
   } catch {
@@ -83,10 +79,10 @@ function isStep(value: unknown): value is FirstRunStep {
   return typeof value === "string" && (FIRST_RUN_STEPS as readonly string[]).includes(value);
 }
 
-/** 1-based, for display. `done` reports 4, because there is no fifth step to be on. */
+/** 1-based, for display. `done` reports 2, because there is no third step to be on. */
 export function stepNumber(step: FirstRunStep): number {
   const index = FIRST_RUN_STEPS.indexOf(step);
-  return Math.min(index + 1, 4);
+  return Math.min(index + 1, 2);
 }
 
 /**

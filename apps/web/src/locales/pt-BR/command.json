@@ -10,8 +10,6 @@
   },
   "action": {
     "stopFocus": "Parar o foco",
-    "logFriction": "Registrar atrito: {type}",
-    "captureUrl": "Capturar o link da área de transferência",
     "goTo": "{screen}"
   },
   "unavailable": {

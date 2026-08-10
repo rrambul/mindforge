@@ -17,9 +17,8 @@ structure has to be revisable without throwing away the material.
 
 One file: `CURRICULUM.md`, in the format in [CURRICULUM-FORMAT.md](./CURRICULUM-FORMAT.md).
 
-It lists **tracks** — subtopics — each with a slug, a one-line outcome, its prerequisite tracks, and
-the skills it intends to build. Ordered so that a track with no prerequisites comes first and the
-advanced ones come last.
+It lists **tracks** — subtopics — each with a slug, a one-line outcome, and its prerequisite tracks.
+Ordered so that a track with no prerequisites comes first and the advanced ones come last.
 
 ## Ground it, or don't write it
 
@@ -58,19 +57,15 @@ what the user has actually proved. Where the two disagree, the disagreement is i
 A track with no prerequisites is a fundamental. There should be more than one, and they should be
 genuinely enterable by someone at the mission's `Current Level`.
 
-## Skills
+## Outcomes, not inventories
 
-Each track names the skills it intends to build. A skill is something a person can be **tested on** —
-"write an IAM policy that grants least privilege", not "IAM". If you cannot imagine a question that
-would prove it, it is a topic, not a skill; fold it into the track's outcome line instead.
+A track's `Outcome` line says what the user can **do** afterwards, observably — "write an IAM policy
+that grants least privilege", not "understand IAM". If you cannot imagine watching someone do it, it
+is a topic description, not an outcome; sharpen it.
 
-Reuse skill slugs across tracks and across missions where the skill is genuinely the same one. The
-user learns a thing once.
-
-**Never assign a score, a band, or a level to anything.** Not to a skill, not to a track, not to the
-subject. You are proposing what exists and what it depends on. What the user can actually do is
-measured from evidence elsewhere, and a number from you would be a guess that looks like a
-measurement.
+**Never assign a score, a band, or a level to anything.** Not to a track, not to the subject. You are
+proposing what exists and what it depends on, and a number from you would be a guess that looks like
+a measurement.
 
 ## Revising
 

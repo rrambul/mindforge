@@ -2,8 +2,6 @@ import { FixedClock } from "@mindforge/core";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { UpdateMission } from "../../missions/application/update-mission.js";
-import type { SyncWorkspaceResources } from "../../resources/application/workspace-resources.js";
-import type { SyncCurriculumSkills } from "../../skills/application/workspace-skills.js";
 import type {
   IndexedLesson,
   IndexedRecord,
@@ -43,8 +41,6 @@ function harness() {
 
   /** Track slugs the mission already has, for the run that writes no curriculum. */
   const existingTracks = new Map<string, string>();
-  /** Normalised skill slug → id, standing in for the skills module's own table. */
-  const existingSkills = new Map<string, string>();
 
   const index: WorkspaceIndexRepository = {
     saveTracks: (_u, _m, tracks) => {
@@ -76,36 +72,10 @@ function harness() {
   >(() => Promise.resolve({} as never));
   const missions = { execute: update } as unknown as UpdateMission;
 
-  // A double: the upsert key and the columns it may not touch are the resources
-  // module's decisions, and its own suite proves them. What this file needs is
-  // that the reindexer hands the parsed file over at all.
-  const syncResources = vi.fn<
-    (input: { primary: unknown[]; rejected: unknown[] }) => Promise<unknown>
-  >(() => Promise.resolve({ created: 0, updated: 0 }));
-  const resources = { execute: syncResources } as unknown as SyncWorkspaceResources;
-
-  // The same shape of double, for the same reason: which skills are created and
-  // which are adopted is the skills module's decision, proven by its own suite.
-  // What this file needs is that a skill named in the file becomes resolvable, so
-  // a lesson's `<meta name="mindforge:skill">` has something to point at.
-  const syncSkills = vi.fn<
-    (input: { skills: readonly { skillSlug: string }[] }) => Promise<unknown>
-  >((input) => {
-    for (const skill of input.skills)
-      existingSkills.set(skill.skillSlug, `skill-${skill.skillSlug}`);
-    return Promise.resolve({ idBySlug: new Map(existingSkills), created: 0, adopted: 0 });
-  });
-  const skills = {
-    execute: syncSkills,
-    allBySlug: () => Promise.resolve(new Map(existingSkills)),
-  } as unknown as SyncCurriculumSkills;
-
   return {
     saved,
     update,
-    syncResources,
-    syncSkills,
-    reindex: new ReindexWorkspace(index, new FixedClock(NOW), missions, resources, skills),
+    reindex: new ReindexWorkspace(index, new FixedClock(NOW), missions),
   };
 }
 
@@ -292,27 +262,6 @@ describe("MISSION.md", () => {
   });
 });
 
-describe("RESOURCES.md", () => {
-  it("hands the parsed library to the module that owns it", async () => {
-    await run({
-      "RESOURCES.md":
-        "# Resources\n\n## Primary Sources\n\n| Resource | Type | Trust |\n| - | - | - |\n| [The Rust Book](https://doc.rust-lang.org/book/) | docs | high |\n",
-    });
-
-    expect(h.syncResources).toHaveBeenCalledTimes(1);
-    const [input] = h.syncResources.mock.calls[0]!;
-    expect(input.primary).toEqual([
-      expect.objectContaining({ title: "The Rust Book", type: "docs", trust: "high" }),
-    ]);
-  });
-
-  it("does nothing when the workspace has no RESOURCES.md", async () => {
-    await run({ "lessons/0007-rls.html": LESSON });
-
-    expect(h.syncResources).not.toHaveBeenCalled();
-  });
-});
-
 describe("parse warnings", () => {
   it("collects them rather than throwing, so the run survives a format change", async () => {
     const result = await run({
@@ -342,12 +291,6 @@ AWS
 | ----- | ---------- | ---------------- | -------------- | ------------- |
 | 1     | iam-basics | IAM fundamentals | Read a policy  | —             |
 | 2     | iam-deep   | IAM in anger     | Write a policy | iam-basics    |
-
-## Skills
-
-| Track      | Skill slug      | Skill                |
-| ---------- | --------------- | -------------------- |
-| iam-basics | iam-read-policy | Read an IAM policy   |
 `;
 
   it("turns the file into tracks, their order and their prerequisites", async () => {
@@ -363,31 +306,15 @@ AWS
     });
   });
 
-  it("hands the skills to the module that owns them, not to the index", async () => {
-    // §2.1 decision 2. The reindexer must not write `skills` itself: the writer
-    // it goes through cannot express `score`, `band` or `perceived_level`, which
-    // is what stops a generated curriculum having an opinion about how good
-    // somebody is.
-    await run({ "CURRICULUM.md": CURRICULUM });
-
-    expect(h.syncSkills).toHaveBeenCalledOnce();
-    expect(h.saved.tracks[0]!.skillIds).toEqual(["skill-iam-read-policy"]);
-    expect(h.saved.tracks[1]!.skillIds).toEqual([]);
-  });
-
   it("files a lesson under the track its own meta tag names", async () => {
     const result = await run({
       "CURRICULUM.md": CURRICULUM,
       "lessons/0001-policies.html": `<title>Policies</title>
         <meta name="mindforge:track" content="iam-basics" />
-        <meta name="mindforge:skill" content="iam-read-policy" />
         <body><p>x</p></body>`,
     });
 
-    expect(h.saved.lessons[0]).toMatchObject({
-      trackId: "track-iam-basics",
-      skillIds: ["skill-iam-read-policy"],
-    });
+    expect(h.saved.lessons[0]).toMatchObject({ trackId: "track-iam-basics" });
     expect(result.warnings.map((w) => w.code)).not.toContain("value_unknown");
   });
 
@@ -402,14 +329,10 @@ AWS
     await run({
       "lessons/0002-more.html": `<title>More</title>
         <meta name="mindforge:track" content="iam-deep" />
-        <meta name="mindforge:skill" content="iam-read-policy" />
         <body><p>x</p></body>`,
     });
 
-    expect(h.saved.lessons[0]).toMatchObject({
-      trackId: "track-iam-deep",
-      skillIds: ["skill-iam-read-policy"],
-    });
+    expect(h.saved.lessons[0]).toMatchObject({ trackId: "track-iam-deep" });
   });
 
   it("leaves a lesson unfiled and warns when it names a track that does not exist", async () => {
@@ -423,22 +346,6 @@ AWS
     });
 
     expect(h.saved.lessons[0]!.trackId).toBeNull();
-    expect(result.warnings.map((w) => w.code)).toContain("value_unknown");
-  });
-
-  it("never invents a skill from a lesson's meta tag", async () => {
-    // A lesson may say what it taught; it may not add to the graph the product
-    // scores from. A skill created because one lesson mentioned it would have
-    // exactly one possible source of evidence and no way to be wrong.
-    const result = await run({
-      "CURRICULUM.md": CURRICULUM,
-      "lessons/0001-x.html": `<title>X</title>
-        <meta name="mindforge:track" content="iam-basics" />
-        <meta name="mindforge:skill" content="invented-on-the-spot" />
-        <body><p>x</p></body>`,
-    });
-
-    expect(h.saved.lessons[0]!.skillIds).toEqual([]);
     expect(result.warnings.map((w) => w.code)).toContain("value_unknown");
   });
 
@@ -460,7 +367,6 @@ AWS
     await run({ "lessons/0001-x.html": LESSON });
 
     expect(h.saved.tracks).toEqual([]);
-    expect(h.syncSkills).not.toHaveBeenCalled();
   });
 
   it("keeps indexing lessons when the curriculum will not parse", async () => {

@@ -3,7 +3,7 @@ import { Select } from "../../../shared/ui/index.js";
 
 /** What a block can be about. One of these, or nothing. */
 export interface SessionSubject {
-  readonly kind: "mission" | "skill" | "resource";
+  readonly kind: "mission";
   readonly id: string;
   readonly label: string;
 }
@@ -22,22 +22,15 @@ interface SubjectPickerProps {
 }
 
 /**
- * What a session was about — the control that makes plan-vs-actual possible.
+ * What a session was about — the control that makes the time tracker mean something.
  *
- * Shared by both capture paths, and it has to be: `focus_sessions.mission_id` and `skill_id` were
- * written by nothing until M2 was reviewed, so a user could allocate four hours to a mission on the
- * weekly grid, log every one of them, and watch the review report 0m. Fixing only the timer would
- * have left the same hole on retroactive entry, which is the path FR-F2 exists for — "you *will*
- * forget the timer", and work done away from the app arrives that way or not at all.
+ * Shared by both capture paths, and it has to be: `focus_sessions.mission_id` was written by
+ * nothing until M2 was reviewed, so a user could log every session and watch every mission report
+ * 0m. Fixing only the timer would have left the same hole on retroactive entry, which is the path
+ * FR-F2 exists for — "you *will* forget the timer", and work done away from the app arrives that
+ * way or not at all.
  *
- * **One control, not three.** A mission select beside a skill select beside a resource select is a
- * form, and both callers have a budget: §7.1 gives the timer ≤5s and ≤2 taps, and FR-F2 says that if
- * backfilling is painful the data dies within two weeks. Pre-selected to nothing, so neither path
- * costs an extra tap unless you want one.
- *
- * Flat rather than grouped, with the kind spelled out per option: `Select` takes options rather than
- * children so `<optgroup>` is unavailable — and the kind belongs in the label anyway, because a
- * mission and a skill can carry the same name.
+ * Pre-selected to nothing, so neither path costs an extra tap unless you want one (§7.1).
  */
 export function SubjectPicker({
   subjects,
@@ -83,10 +76,6 @@ export function findSubject(
 }
 
 /** The request fields a subject contributes, or nothing when none was chosen. */
-export function subjectFields(subject: SessionSubject | null): {
-  missionId?: string;
-  skillId?: string;
-  resourceId?: string;
-} {
-  return subject === null ? {} : { [`${subject.kind}Id`]: subject.id };
+export function subjectFields(subject: SessionSubject | null): { missionId?: string } {
+  return subject === null ? {} : { missionId: subject.id };
 }

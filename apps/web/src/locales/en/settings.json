@@ -30,25 +30,6 @@
     "label": "Theme",
     "hint": "Saved to your account, so it follows you to another device. Applied as soon as you pick it."
   },
-  "nudges": {
-    "heading": "Nudges",
-    "quiet": "These appear as a marker and a line inside the app. There is no push, no email, no sound, and nothing that can interrupt a focus session.",
-    "saving": "Saving",
-    "weeklyReview": {
-      "label": "Weekly review",
-      "enabled": "Remind me to review the week",
-      "hint": "Asked about the week that just ended, so the end of it is a better time than the start of the next one.",
-      "weekday": "Day",
-      "hour": "Time"
-    },
-    "stall": {
-      "label": "Quiet missions",
-      "enabled": "Ask about a mission that has gone quiet",
-      "afterDays": "After",
-      "hint": "Days with no focus session. The question is whether to park it, not whether you should feel bad.",
-      "range": "Between 3 and 90 days."
-    }
-  },
   "notifications": {
     "heading": "Nudges",
     "marker": "{count, plural, one {# nudge} other {# nudges}}",

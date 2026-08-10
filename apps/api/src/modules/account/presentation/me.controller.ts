@@ -1,23 +1,18 @@
 import {
   SeenChangelogSchema,
-  UpdateNotificationPrefsSchema,
   UpdateProfileSchema,
   type Locale,
-  type NotificationPref,
   type SeenChangelogInput,
-  type UpdateNotificationPrefsInput,
   type UpdateProfileInput,
   type WeekStart,
 } from "@mindforge/core";
-import { Body, Controller, Get, HttpCode, Patch, Post, Put } from "@nestjs/common";
+import { Body, Controller, Get, HttpCode, Patch, Post } from "@nestjs/common";
 import { CurrentUser } from "../../../shared/auth/current-user.decorator.js";
 import type { RequestContext } from "../../../shared/auth/request-context.js";
 import { zodPipe } from "../../../shared/validation/zod-validation.pipe.js";
 import {
   MarkChangelogSeen,
-  ReadNotificationPrefs,
   ReadProfile,
-  SaveNotificationPrefs,
   UpdateSettings,
 } from "../application/account.use-cases.js";
 import type { Profile, Theme } from "../domain/profile.js";
@@ -66,8 +61,6 @@ export class MeController {
     private readonly profile: ReadProfile,
     private readonly settings: UpdateSettings,
     private readonly changelog: MarkChangelogSeen,
-    private readonly readPrefs: ReadNotificationPrefs,
-    private readonly writePrefs: SaveNotificationPrefs,
   ) {}
 
   /**
@@ -117,39 +110,5 @@ export class MeController {
     @Body(zodPipe(SeenChangelogSchema)) body: SeenChangelogInput,
   ): Promise<MeView> {
     return toMeView(await this.changelog.execute(user.userId, body));
-  }
-
-  /**
-   * The effective preferences: stored rows merged over `defaultNotificationPrefs()`.
-   *
-   * A user with no rows gets every kind at its defaults rather than an empty list — "quiet by
-   * default" is a delivery decision, not an off switch (FR-N4), so nothing is off until it is
-   * switched off. Nothing is seeded on this read: a seeded row would freeze today's defaults into
-   * an account forever.
-   */
-  @Get("notification-prefs")
-  async notificationPrefs(
-    @CurrentUser() user: RequestContext,
-  ): Promise<{ prefs: readonly NotificationPref[] }> {
-    return { prefs: await this.readPrefs.execute(user.userId) };
-  }
-
-  /**
-   * `PUT` because each named pref row is replaced whole — `kind` is the key and `config` is a whole
-   * object, so sending it twice leaves the same state.
-   *
-   * Kinds the body does not name are left alone rather than deleted. Deleting them would mean "reset
-   * to default", which is a different thing from "I did not send it" — and it is the same silent
-   * revert `UpdateProfileSchema` refuses to build into the profile patch.
-   *
-   * Returns the full effective set, not an echo, so the response answers the question the next GET
-   * would.
-   */
-  @Put("notification-prefs")
-  async updateNotificationPrefs(
-    @CurrentUser() user: RequestContext,
-    @Body(zodPipe(UpdateNotificationPrefsSchema)) body: UpdateNotificationPrefsInput,
-  ): Promise<{ prefs: readonly NotificationPref[] }> {
-    return { prefs: await this.writePrefs.execute(user.userId, body) };
   }
 }

@@ -35,7 +35,7 @@ describe("readFirstRun", () => {
 
   it("round-trips through writeFirstRun", () => {
     const storage = fakeStorage();
-    const state: FirstRunState = { step: "goal", missionId: "m1" };
+    const state: FirstRunState = { step: "focus", missionId: "m1" };
 
     writeFirstRun(state, storage);
     expect(readFirstRun(storage)).toEqual(state);
@@ -45,12 +45,10 @@ describe("readFirstRun", () => {
     // Each step builds on the last. Losing the mission id mid-way would mean a resumed tour creating a
     // second mission, which is the demo-data mess §5.3 rules out.
     const storage = fakeStorage();
-    writeFirstRun({ step: "focus", missionId: "m1", goalId: "g1", resourceId: "r1" }, storage);
+    writeFirstRun({ step: "focus", missionId: "m1" }, storage);
 
     expect(readFirstRun(storage)).toMatchObject({
       missionId: "m1",
-      goalId: "g1",
-      resourceId: "r1",
     });
   });
 
@@ -62,7 +60,7 @@ describe("readFirstRun", () => {
     });
 
     it("starts fresh on a value that is not an object", () => {
-      expect(readFirstRun(fakeStorage('"goal"'))).toEqual({ step: "mission" });
+      expect(readFirstRun(fakeStorage('"focus"'))).toEqual({ step: "mission" });
       expect(readFirstRun(fakeStorage("null"))).toEqual({ step: "mission" });
     });
 
@@ -73,7 +71,7 @@ describe("readFirstRun", () => {
     });
 
     it("ignores ids of the wrong type", () => {
-      const state = readFirstRun(fakeStorage('{"step":"goal","missionId":42}'));
+      const state = readFirstRun(fakeStorage('{"step":"focus","missionId":42}'));
       expect(state.missionId).toBeUndefined();
     });
 
@@ -86,19 +84,19 @@ describe("readFirstRun", () => {
   it("does not throw when a write fails", () => {
     // A full quota must not turn into an exception on every keystroke; a restarted tour is a much
     // better failure.
-    expect(() => writeFirstRun({ step: "goal" }, fakeStorage(null, true))).not.toThrow();
+    expect(() => writeFirstRun({ step: "focus" }, fakeStorage(null, true))).not.toThrow();
   });
 });
 
 describe("stepNumber", () => {
   it("counts from one", () => {
     expect(stepNumber("mission")).toBe(1);
-    expect(stepNumber("focus")).toBe(4);
+    expect(stepNumber("focus")).toBe(2);
   });
 
   it("does not report a fifth step", () => {
     // `done` is a state, not a step — "Step 5 of 4" is nonsense.
-    expect(stepNumber("done")).toBe(4);
+    expect(stepNumber("done")).toBe(2);
   });
 });
 
@@ -114,7 +112,7 @@ describe("shouldOfferFirstRun", () => {
 
   it("still offers to resume mid-tour, even though a mission now exists", () => {
     // The tour created that mission. Counting it as "already set up" would abandon the user at step 2.
-    expect(shouldOfferFirstRun({ step: "goal", missionId: "m1" }, 1)).toBe(true);
+    expect(shouldOfferFirstRun({ step: "focus", missionId: "m1" }, 1)).toBe(true);
   });
 
   it("stops offering once it is finished", () => {

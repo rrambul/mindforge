@@ -14,34 +14,22 @@ import enCommand from "../../locales/en/command.json";
 import enCommon from "../../locales/en/common.json";
 import enFirstRun from "../../locales/en/firstRun.json";
 import enFocus from "../../locales/en/focus.json";
-import enFriction from "../../locales/en/friction.json";
 import enGlossary from "../../locales/en/glossary.json";
-import enGoals from "../../locales/en/goals.json";
 import enInsights from "../../locales/en/insights.json";
 import enMemory from "../../locales/en/memory.json";
 import enMissions from "../../locales/en/missions.json";
-import enNotes from "../../locales/en/notes.json";
-import enPlanning from "../../locales/en/planning.json";
-import enResources from "../../locales/en/resources.json";
 import enSettings from "../../locales/en/settings.json";
-import enSkills from "../../locales/en/skills.json";
 import enTeach from "../../locales/en/teach.json";
 import ptAuth from "../../locales/pt-BR/auth.json";
 import ptCommand from "../../locales/pt-BR/command.json";
 import ptCommon from "../../locales/pt-BR/common.json";
 import ptFirstRun from "../../locales/pt-BR/firstRun.json";
 import ptFocus from "../../locales/pt-BR/focus.json";
-import ptFriction from "../../locales/pt-BR/friction.json";
 import ptGlossary from "../../locales/pt-BR/glossary.json";
-import ptGoals from "../../locales/pt-BR/goals.json";
 import ptInsights from "../../locales/pt-BR/insights.json";
 import ptMemory from "../../locales/pt-BR/memory.json";
 import ptMissions from "../../locales/pt-BR/missions.json";
-import ptNotes from "../../locales/pt-BR/notes.json";
-import ptPlanning from "../../locales/pt-BR/planning.json";
-import ptResources from "../../locales/pt-BR/resources.json";
 import ptSettings from "../../locales/pt-BR/settings.json";
-import ptSkills from "../../locales/pt-BR/skills.json";
 import ptTeach from "../../locales/pt-BR/teach.json";
 
 /**
@@ -61,14 +49,8 @@ export const NAMESPACES = [
   "auth",
   "missions",
   "focus",
-  "friction",
-  "goals",
   "command",
   "firstRun",
-  "notes",
-  "skills",
-  "resources",
-  "planning",
   "insights",
   "settings",
   "teach",
@@ -82,14 +64,8 @@ const resources = {
     auth: enAuth,
     missions: enMissions,
     focus: enFocus,
-    friction: enFriction,
-    goals: enGoals,
     command: enCommand,
     firstRun: enFirstRun,
-    notes: enNotes,
-    skills: enSkills,
-    resources: enResources,
-    planning: enPlanning,
     insights: enInsights,
     settings: enSettings,
     teach: enTeach,
@@ -101,14 +77,8 @@ const resources = {
     auth: ptAuth,
     missions: ptMissions,
     focus: ptFocus,
-    friction: ptFriction,
-    goals: ptGoals,
     command: ptCommand,
     firstRun: ptFirstRun,
-    notes: ptNotes,
-    skills: ptSkills,
-    resources: ptResources,
-    planning: ptPlanning,
     insights: ptInsights,
     settings: ptSettings,
     teach: ptTeach,

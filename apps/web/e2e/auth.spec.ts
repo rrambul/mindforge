@@ -109,13 +109,13 @@ test.describe("the front door", () => {
     await page.getByRole("button", { name: "Create account" }).click();
     await expect(signedIn(page)).toBeVisible();
 
-    // The library is empty for a new account, and its empty state is server-confirmed: rendering it
-    // means `GET /v1/resources` answered 200 rather than 401.
-    await page.getByRole("link", { name: "Library" }).click();
+    // Insights is empty for a new account, and its empty state is server-confirmed: rendering it
+    // means `GET /v1/insights/activity` answered 200 rather than 401.
+    await page.getByRole("link", { name: "Insights" }).click();
     // The URL changing is the other half of what the route tree bought: before M2 this screen could
     // not be linked to, bookmarked, or reached with Back.
-    await expect(page).toHaveURL(/\/library$/u);
-    await expect(page.getByText(/Paste a link to anything/)).toBeVisible();
+    await expect(page).toHaveURL(/\/insights$/u);
+    await expect(page.getByText("Active days in the last 28")).toBeVisible();
   });
 
   test("refuses a wrong password without saying which part was wrong", async ({ page }) => {

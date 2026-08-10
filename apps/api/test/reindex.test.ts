@@ -75,11 +75,7 @@ afterAll(async () => {
 });
 
 beforeEach(async () => {
-  // Resources too. They belong to the user rather than the mission, so deleting
-  // missions leaves them behind — and a title left over from an earlier test then
-  // matches the upsert key, turning a create into an update.
   await db.$executeRawUnsafe(`delete from missions where user_id = $1::uuid`, alice.id);
-  await db.$executeRawUnsafe(`delete from resources where user_id = $1::uuid`, alice.id);
   const rows = await db.$queryRawUnsafe<{ id: string }[]>(
     `insert into missions (id, user_id, topic, status, workspace_key, created_at, updated_at)
      values (gen_random_uuid(), $1::uuid, 'Postgres RLS', 'active', 'postgres-rls', now(), now())
@@ -252,118 +248,6 @@ describe("MISSION.md", () => {
   });
 });
 
-describe("RESOURCES.md", () => {
-  const RESOURCES = `# Resources
-
-## Primary Sources
-
-| Resource | Type | Trust | Why it's here |
-| -------- | ---- | ----- | ------------- |
-| [The Rust Book](https://doc.rust-lang.org/book/) | docs | high | Canonical |
-
-## Explored But Rejected
-
-- [Rust in 5 Minutes](https://example.com/quick) — Too shallow
-`;
-
-  it("adds what the agent found to the library", async () => {
-    const result = await run({ "RESOURCES.md": RESOURCES });
-
-    expect(result.resources).toBe(2);
-    const rows = await db.$queryRawUnsafe<
-      { title: string; trust: string | null; status: string }[]
-    >(
-      `select title, trust, status from resources where user_id = $1::uuid order by title`,
-      alice.id,
-    );
-    expect(rows).toEqual([
-      { title: "Rust in 5 Minutes", trust: null, status: "reference" },
-      { title: "The Rust Book", trust: "high", status: "inbox" },
-    ]);
-  });
-
-  it("does not double the library on a second run", async () => {
-    // The defect this whole path was deferred a commit to avoid. `resources` has
-    // no natural unique constraint and the agent rewrites the file wholesale, so
-    // without an upsert key the library doubles every run.
-    await run({ "RESOURCES.md": RESOURCES });
-    await run({ "RESOURCES.md": RESOURCES });
-
-    const rows = await db.$queryRawUnsafe<{ n: bigint }[]>(
-      `select count(*) as n from resources where user_id = $1::uuid`,
-      alice.id,
-    );
-    expect(Number(rows[0]!.n)).toBe(2);
-  });
-
-  it("does not reset a book the learner marked finished", async () => {
-    // The most damaging thing this path could do. `RESOURCES.md` has no status
-    // column and the database defaults to `inbox`, so a naive write undoes the
-    // learner's own record of having read something — on every run, forever.
-    await run({ "RESOURCES.md": RESOURCES });
-    await db.$executeRawUnsafe(
-      `update resources set status = 'finished', finished_at = now(),
-         progress = '{"unit":"percent","current":100}'::jsonb
-        where user_id = $1::uuid and title = 'The Rust Book'`,
-      alice.id,
-    );
-
-    await run({ "RESOURCES.md": RESOURCES });
-
-    const rows = await db.$queryRawUnsafe<
-      { status: string; finished_at: Date | null; progress: unknown }[]
-    >(
-      `select status, finished_at, progress from resources
-        where user_id = $1::uuid and title = 'The Rust Book'`,
-      alice.id,
-    );
-    expect(rows[0]).toMatchObject({ status: "finished" });
-    expect(rows[0]!.finished_at).not.toBeNull();
-    expect(rows[0]!.progress).toEqual({ unit: "percent", current: 100 });
-  });
-
-  it("updates the fields the file does represent", async () => {
-    await run({ "RESOURCES.md": RESOURCES });
-    await run({
-      "RESOURCES.md": RESOURCES.replace("| docs | high |", "| book | medium |"),
-    });
-
-    const rows = await db.$queryRawUnsafe<{ type: string; trust: string }[]>(
-      `select type, trust from resources where user_id = $1::uuid and title = 'The Rust Book'`,
-      alice.id,
-    );
-    expect(rows[0]).toMatchObject({ type: "book", trust: "medium" });
-  });
-
-  it("links what it creates to the mission that found it", async () => {
-    // FR-T8: sources the agent finds appear in your library, and the library is
-    // scoped by mission.
-    await run({ "RESOURCES.md": RESOURCES });
-
-    const rows = await db.$queryRawUnsafe<{ n: bigint }[]>(
-      `select count(*) as n from resource_links where mission_id = $1::uuid`,
-      missionId,
-    );
-    expect(Number(rows[0]!.n)).toBe(2);
-  });
-
-  it("writes the rejected reason and never the abandon reason", async () => {
-    // Two columns for two different events. The agent's verdict on something
-    // nobody started is not the learner's guilt-free quit (FR-R5), and conflating
-    // them invents an abandonment that never happened.
-    await run({ "RESOURCES.md": RESOURCES });
-
-    const rows = await db.$queryRawUnsafe<
-      { rejected_reason: string | null; abandon_reason: string | null }[]
-    >(
-      `select rejected_reason, abandon_reason from resources
-        where user_id = $1::uuid and title = 'Rust in 5 Minutes'`,
-      alice.id,
-    );
-    expect(rows[0]).toEqual({ rejected_reason: "Too shallow", abandon_reason: null });
-  });
-});
-
 describe("a record's date", () => {
   it("resolves in the learner's timezone, not the server's", async () => {
     // 2026-08-08 in São Paulo (UTC−3) begins at 03:00 UTC. Resolved as
@@ -422,17 +306,10 @@ Postgres row-level security
 | ----- | ---------- | ---------------- | -------------------------- | ------------- |
 | 1     | pg-basics  | Postgres basics  | Read a query plan          | —             |
 | 2     | rls-basics | RLS fundamentals | Read a policy              | pg-basics     |
-
-## Skills
-
-| Track      | Skill slug      | Skill                 |
-| ---------- | --------------- | --------------------- |
-| rls-basics | rls-read-policy | Read an RLS policy    |
 `;
 
   const TAGGED = `<html><head><title>Policies</title>
     <meta name="mindforge:track" content="rls-basics" />
-    <meta name="mindforge:skill" content="rls-read-policy" />
     </head><body><p>Hi</p></body></html>`;
 
   async function tracks() {
@@ -442,15 +319,7 @@ Postgres row-level security
     );
   }
 
-  beforeEach(async () => {
-    // Skills belong to the user rather than the mission, so deleting missions
-    // leaves them behind — and a slug left over from an earlier test is then
-    // adopted rather than created, which is correct behaviour and the wrong
-    // starting state for a test about creation.
-    await db.$executeRawUnsafe(`delete from skills where user_id = $1::uuid`, alice.id);
-  });
-
-  it("writes tracks, their prerequisites and their skills", async () => {
+  it("writes tracks and their prerequisites", async () => {
     const result = await run({ "CURRICULUM.md": CURRICULUM });
 
     expect(result.tracks).toBe(2);
@@ -467,34 +336,6 @@ Postgres row-level security
       missionId,
     );
     expect(edge).toEqual({ track: "rls-basics", prereq: "pg-basics" });
-
-    const [link] = await db.$queryRawUnsafe<{ track: string; skill: string }[]>(
-      `select t.slug as track, s.slug as skill from track_skills ts
-         join tracks t on t.id = ts.track_id
-         join skills s on s.id = ts.skill_id
-        where t.mission_id = $1::uuid`,
-      missionId,
-    );
-    expect(link).toEqual({ track: "rls-basics", skill: "rls-read-policy" });
-  });
-
-  it("creates the skill unproven — no score, no band above the default", async () => {
-    // The interface `SyncCurriculumSkills` writes through cannot express these,
-    // and this is where that stops being a claim about a type. A generated
-    // curriculum asserting a score would make FR-S5's calibration gap measure a
-    // model's guess against the learner's, which is not what it means.
-    await run({ "CURRICULUM.md": CURRICULUM });
-
-    const [skill] = await db.$queryRawUnsafe<
-      { score: string | null; band: string; perceived_level: string | null }[]
-    >(
-      `select score::text, band, perceived_level::text from skills
-        where user_id = $1::uuid and slug = 'rls-read-policy'`,
-      alice.id,
-    );
-
-    // Null, not zero: unproven is a different and truer claim than "scored zero".
-    expect(skill).toEqual({ score: null, band: "aware", perceived_level: null });
   });
 
   it("revises rather than doubles on a second run", async () => {
@@ -569,72 +410,17 @@ Postgres row-level security
     expect(rows.find((t) => t.slug === "pg-basics")!.status).toBe("proposed");
   });
 
-  it("files a lesson under its module and credits the skill it names", async () => {
-    // The join `lessons.outcome` has been waiting for since M0. Without it, FR-T9's
-    // "first automatic skill evidence" has no target — the column exists, the
-    // evidence kind exists, and nothing connects a lesson to a skill.
+  it("files a lesson under the module its own meta tag names", async () => {
     await run({ "CURRICULUM.md": CURRICULUM, "lessons/0001-policies.html": TAGGED });
 
-    const [row] = await db.$queryRawUnsafe<{ track: string; skill: string }[]>(
-      `select t.slug as track, s.slug as skill from lessons l
+    const [row] = await db.$queryRawUnsafe<{ track: string }[]>(
+      `select t.slug as track from lessons l
          join tracks t on t.id = l.track_id
-         join lesson_skills ls on ls.lesson_id = l.id
-         join skills s on s.id = ls.skill_id
         where l.mission_id = $1::uuid`,
       missionId,
     );
 
-    expect(row).toEqual({ track: "rls-basics", skill: "rls-read-policy" });
-  });
-
-  it("re-files a lesson that changed which skill it teaches", async () => {
-    // Rebuilt from the file rather than added to. A lesson the agent revised must
-    // not keep crediting the skill it used to teach: the outcome becomes evidence
-    // through this join, so a stale row is evidence attributed to the wrong skill.
-    const withSecondSkill = CURRICULUM.replace(
-      "| rls-basics | rls-read-policy | Read an RLS policy    |\n",
-      "| rls-basics | rls-read-policy | Read an RLS policy    |\n" +
-        "| rls-basics | rls-write-policy | Write an RLS policy  |\n",
-    );
-    await run({ "CURRICULUM.md": withSecondSkill, "lessons/0001-policies.html": TAGGED });
-
-    await run({
-      "CURRICULUM.md": withSecondSkill,
-      "lessons/0001-policies.html": TAGGED.replace("rls-read-policy", "rls-write-policy"),
-    });
-
-    const rows = await db.$queryRawUnsafe<{ skill: string }[]>(
-      `select s.slug as skill from lessons l
-         join lesson_skills ls on ls.lesson_id = l.id
-         join skills s on s.id = ls.skill_id
-        where l.mission_id = $1::uuid`,
-      missionId,
-    );
-
-    expect(rows.map((r) => r.skill)).toEqual(["rls-write-policy"]);
-  });
-
-  it("adopts a skill the learner already has rather than forking it", async () => {
-    // `skills` is unique on `(user_id, slug)`, not on `(mission_id, slug)`. You
-    // learn a thing once — a second row would dilute one skill's evidence across
-    // two, silently and in the direction of a lower score.
-    await db.$executeRawUnsafe(
-      `insert into skills (id, user_id, name, slug, band, score)
-       values (gen_random_uuid(), $1::uuid, 'Reading policies', 'rls-read-policy', 'working', 61)`,
-      alice.id,
-    );
-
-    await run({ "CURRICULUM.md": CURRICULUM });
-
-    const rows = await db.$queryRawUnsafe<{ name: string; score: string | null }[]>(
-      `select name, score::text from skills where user_id = $1::uuid and slug = 'rls-read-policy'`,
-      alice.id,
-    );
-
-    expect(rows).toHaveLength(1);
-    // Renamed, because the curriculum's wording is the newer one — and the score
-    // untouched, because nothing about a curriculum is evidence.
-    expect(rows[0]).toEqual({ name: "Read an RLS policy", score: "61.00" });
+    expect(row).toEqual({ track: "rls-basics" });
   });
 
   it("resolves a lesson's module on a run that carried no curriculum", async () => {

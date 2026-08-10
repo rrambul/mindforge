@@ -1,4 +1,3 @@
-import { COLD_START_CHIPS } from "@mindforge/core";
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
@@ -64,13 +63,8 @@ function runningUntilStopped() {
   );
 }
 
-function chipsReturn(inline: readonly string[], overflow: readonly string[] = []) {
-  server.use(http.get(`${API}/friction/chips`, () => HttpResponse.json({ inline, overflow })));
-}
-
 beforeEach(() => {
   vi.clearAllMocks();
-  chipsReturn(COLD_START_CHIPS);
 });
 
 describe("nothing running", () => {
@@ -286,15 +280,13 @@ describe("a session running", () => {
     expect(await screen.findByText("No intention set for this block.")).toBeVisible();
   });
 
-  it("puts stop and the friction chips together, in one reachable block", async () => {
-    // §5.1: on mobile this block is the persistent bottom bar, and both are things you do
-    // mid-session without navigating.
+  it("puts stop in one reachable block", async () => {
+    // §5.1: on mobile this block is the persistent bottom bar.
     runningReturns(session());
     renderWithProviders(<TodayScreen />);
 
     const block = await screen.findByRole("region", { name: "Running focus session" });
     expect(within(block).getByRole("button", { name: "Stop" })).toBeVisible();
-    expect(within(block).getByTestId("friction-chips")).toBeVisible();
   });
 
   it("offers the debrief after stopping, and only then", async () => {
@@ -305,100 +297,6 @@ describe("a session running", () => {
 
     await userEvent.click(await screen.findByRole("button", { name: "Stop" }));
     expect(await screen.findByText("How did that go?")).toBeVisible();
-  });
-});
-
-describe("friction chips (§5.3)", () => {
-  it("shows four inline — eleven is not a one-tap UI at 375px", async () => {
-    runningReturns(session());
-    renderWithProviders(<TodayScreen />);
-
-    const chips = await screen.findByTestId("friction-chips");
-    for (const label of ["Interruption", "Tooling", "Too hard", "Productive struggle"]) {
-      expect(within(chips).getByRole("button", { name: label })).toBeVisible();
-    }
-    // Not inline; behind More.
-    expect(within(chips).queryByRole("button", { name: "Physical" })).not.toBeInTheDocument();
-  });
-
-  it("logs in one tap, with no intensity prompt", async () => {
-    // Intensity defaults to 3 and is never asked inline: the answer you would give while
-    // annoyed is not better than 3.
-    runningReturns(session());
-    const sent = vi.fn();
-    server.use(
-      http.post(`${API}/friction`, async ({ request }) => {
-        sent(await request.json());
-        return HttpResponse.json({ id: "x", type: "tooling", intensity: 3 }, { status: 201 });
-      }),
-    );
-
-    renderWithProviders(<TodayScreen />);
-    await userEvent.click(await screen.findByRole("button", { name: "Tooling" }));
-
-    await waitFor(() => expect(sent).toHaveBeenCalled());
-    const body = sent.mock.calls[0]?.[0] as Record<string, unknown>;
-    expect(body.type).toBe("tooling");
-    expect(body.intensity).toBe(3);
-    // Attached to the running session, and carrying its own timestamp so a queued tap records
-    // when the friction happened rather than when it uploaded.
-    expect(body.sessionId).toBe(SESSION_ID);
-    expect(body.occurredAt).toBeTruthy();
-    expect(body.id).toMatch(/^[0-9a-f-]{36}$/);
-  });
-
-  it("reaches the tail in two taps, then closes", async () => {
-    runningReturns(session());
-    chipsReturn(COLD_START_CHIPS, ["physical", "avoidance"]);
-    const sent = vi.fn();
-    server.use(
-      http.post(`${API}/friction`, async ({ request }) => {
-        sent(await request.json());
-        return HttpResponse.json({ id: "x" }, { status: 201 });
-      }),
-    );
-
-    renderWithProviders(<TodayScreen />);
-    await userEvent.click(await screen.findByRole("button", { name: "More" }));
-    await userEvent.click(screen.getByRole("button", { name: "Physical" }));
-
-    await waitFor(() => expect(sent).toHaveBeenCalled());
-    expect((sent.mock.calls[0]?.[0] as { type: string }).type).toBe("physical");
-    // Leaving eleven chips open would push the four you actually use off the screen.
-    await waitFor(() =>
-      expect(screen.queryByRole("button", { name: "Physical" })).not.toBeInTheDocument(),
-    );
-  });
-
-  it("falls back to the cold-start four while the ranking loads", async () => {
-    // A control that appears a moment after you reached for it is one you stop reaching for.
-    runningReturns(session());
-    server.use(
-      http.get(`${API}/friction/chips`, async () => {
-        await new Promise((resolve) => setTimeout(resolve, 500));
-        return HttpResponse.json({ inline: [], overflow: [] });
-      }),
-    );
-
-    renderWithProviders(<TodayScreen />);
-    expect(await screen.findByRole("button", { name: "Productive struggle" })).toBeVisible();
-  });
-
-  it("logs without a session, because friction happens outside blocks too", async () => {
-    runningReturns(null);
-    const sent = vi.fn();
-    server.use(
-      http.post(`${API}/friction`, async ({ request }) => {
-        sent(await request.json());
-        return HttpResponse.json({ id: "x" }, { status: 201 });
-      }),
-    );
-
-    renderWithProviders(<TodayScreen />);
-    // No running block, so no chips on screen — this asserts the shape the route sends when it
-    // does appear, via the debrief-less path.
-    expect(await screen.findByRole("button", { name: "Start focus" })).toBeVisible();
-    expect(sent).not.toHaveBeenCalled();
   });
 });
 
@@ -460,9 +358,6 @@ describe("pt-BR", () => {
     renderWithProviders(<TodayScreen />, { locale: "pt-BR" });
 
     expect(await screen.findByRole("button", { name: "Parar" })).toBeVisible();
-    expect(screen.getByRole("button", { name: "Ferramentas" })).toBeVisible();
-    // The friction glossary is translated once and derived everywhere (§5.2).
-    expect(screen.getByRole("button", { name: "Esforço produtivo" })).toBeVisible();
   });
 });
 

@@ -1,6 +1,6 @@
 import type { GridCell } from "@mindforge/core";
 import { describe, expect, it } from "vitest";
-import { intensityOpacity, leadingOffset, monthMarkers, temperColour } from "./heatmap.js";
+import { intensityOpacity, leadingOffset, monthMarkers } from "./heatmap.js";
 
 function cells(from: string, count: number): GridCell[] {
   const start = new Date(`${from}T00:00:00Z`).getTime();
@@ -63,22 +63,5 @@ describe("intensityOpacity", () => {
 
   it("draws nothing for an empty day", () => {
     expect(intensityOpacity(0)).toBe(0);
-  });
-});
-
-describe("temperColour", () => {
-  it("is pure ember when every logged minute was productive", () => {
-    expect(temperColour(1)).toBe("color-mix(in oklab, var(--mf-ember) 100%, var(--mf-slag))");
-  });
-
-  it("is pure slag when none of it was", () => {
-    // Zero is a real measurement here — the day *was* annotated and none of it was productive.
-    // The absence case never reaches this function; it is `emberShare: null` and gets no hue.
-    expect(temperColour(0)).toBe("color-mix(in oklab, var(--mf-ember) 0%, var(--mf-slag))");
-  });
-
-  it("reads only from the tokens, never from a literal colour", () => {
-    expect(temperColour(0.5)).toContain("var(--mf-ember)");
-    expect(temperColour(0.5)).toContain("var(--mf-slag)");
   });
 });

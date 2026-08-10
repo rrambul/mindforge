@@ -1,24 +1,13 @@
 import {
   ActivityGridQuerySchema,
-  BacklogQuerySchema,
-  FrictionSummaryQuerySchema,
   type ActivityGrid,
   type ActivityGridQuery,
-  type BacklogQuery,
-  type FrictionSummaryQuery,
 } from "@mindforge/core";
 import { Controller, Get, Query, UseInterceptors } from "@nestjs/common";
 import { CurrentUser } from "../../../shared/auth/current-user.decorator.js";
 import type { RequestContext } from "../../../shared/auth/request-context.js";
 import { zodPipe } from "../../../shared/validation/zod-validation.pipe.js";
-import {
-  GetActivityGrid,
-  GetBacklogHealth,
-  GetFrictionAnalytics,
-  type ActivityGridResult,
-  type BacklogInsight,
-  type FrictionAnalytics,
-} from "../application/insights.use-cases.js";
+import { GetActivityGrid, type ActivityGridResult } from "../application/insights.use-cases.js";
 import { ETagInterceptor } from "./etag.interceptor.js";
 
 /**
@@ -44,56 +33,23 @@ export function toActivityGridView(result: ActivityGridResult): ActivityGridView
 }
 
 /**
- * `/v1/insights` (§6) — the read-only dashboard.
+ * `/v1/insights` (§6) — the frequency tracker's read side.
  *
- * Every route here is a `GET` over rollups that change once a night, which is why §6.1 singles this
- * module out for `ETag` + `If-None-Match`. The interceptor is applied to the controller rather than
- * per route, so a fourth insight cannot be added without it.
- *
- * The other three routes §6's table lists — `/focus`, `/learning`, `/consumption-vs-retention` —
- * are absent rather than stubbed. Retention and lessons have no source table until M4–M6, and an
- * endpoint that could only answer zero is the failure mode the grid's layer list already avoids.
+ * A `GET` over a rollup that changes once a night, which is why §6.1 singles this module out for
+ * `ETag` + `If-None-Match`. The interceptor is applied to the controller rather than per route, so
+ * a second insight cannot be added without it.
  */
 @UseInterceptors(ETagInterceptor)
 @Controller("insights")
 export class InsightsController {
-  constructor(
-    private readonly grid: GetActivityGrid,
-    private readonly backlog: GetBacklogHealth,
-    private readonly friction: GetFrictionAnalytics,
-  ) {}
+  constructor(private readonly grid: GetActivityGrid) {}
 
-  /** FR-I6b, §3.9. */
+  /** FR-Q1. */
   @Get("activity")
   async activity(
     @CurrentUser() user: RequestContext,
     @Query(zodPipe(ActivityGridQuerySchema)) query: ActivityGridQuery,
   ): Promise<ActivityGridView> {
-    return toActivityGridView(await this.grid.execute(user.userId, query, user));
-  }
-
-  /** FR-I7, FR-R6. */
-  @Get("backlog")
-  backlogHealth(
-    @CurrentUser() user: RequestContext,
-    @Query(zodPipe(BacklogQuerySchema)) query: BacklogQuery,
-  ): Promise<BacklogInsight> {
-    return this.backlog.execute(user.userId, query, user);
-  }
-
-  /**
-   * The friction lists the weekly review needs (§6, FR-I6b).
-   *
-   * Shares `FrictionSummaryQuerySchema` with `/friction/summary` deliberately: the two answer the
-   * same window over the same rows, and a second window schema is a second thing to keep in step.
-   * `missionId` narrows through the session join, so setting it empties `unattributed` by
-   * construction — a standalone tap has no mission to match.
-   */
-  @Get("friction")
-  frictionAnalytics(
-    @CurrentUser() user: RequestContext,
-    @Query(zodPipe(FrictionSummaryQuerySchema)) query: FrictionSummaryQuery,
-  ): Promise<FrictionAnalytics> {
-    return this.friction.execute(user.userId, query);
+    return toActivityGridView(await this.grid.execute(user.userId, query));
   }
 }

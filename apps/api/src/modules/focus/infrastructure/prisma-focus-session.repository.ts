@@ -20,9 +20,6 @@ interface FocusSessionRow {
   note: string | null;
   entryMode: string;
   missionId: string | null;
-  resourceId: string | null;
-  skillId: string | null;
-  taskId: string | null;
   createdAt: Date;
 }
 
@@ -39,9 +36,6 @@ const COLUMNS = {
   note: true,
   entryMode: true,
   missionId: true,
-  resourceId: true,
-  skillId: true,
-  taskId: true,
   createdAt: true,
 } as const;
 
@@ -113,9 +107,6 @@ export class PrismaFocusSessionRepository implements FocusSessionRepository {
       energy: s.energy,
       note: s.note,
       missionId: s.missionId,
-      resourceId: s.resourceId,
-      skillId: s.skillId,
-      taskId: s.taskId,
     };
 
     await this.db.run(userId, (tx) =>
@@ -157,9 +148,6 @@ function toSnapshot(row: FocusSessionRow): FocusSessionSnapshot {
     note: row.note,
     entryMode: narrow(row.entryMode, ENTRY_MODES, "entry_mode") ?? "timer",
     missionId: row.missionId,
-    resourceId: row.resourceId,
-    skillId: row.skillId,
-    taskId: row.taskId,
     createdAt: row.createdAt,
   };
 }

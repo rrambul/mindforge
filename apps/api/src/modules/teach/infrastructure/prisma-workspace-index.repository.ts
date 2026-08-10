@@ -76,16 +76,12 @@ export class PrismaWorkspaceIndexRepository implements WorkspaceIndexRepository 
         );
       }
 
-      // Edges and skill links are rebuilt rather than upserted: unlike a track,
-      // neither carries state the file does not have, and a prerequisite the
-      // curriculum removed has to actually go.
+      // Edges are rebuilt rather than upserted: unlike a track, an edge carries
+      // no state the file does not have, and a prerequisite the curriculum
+      // removed has to actually go.
       const ids = [...idBySlug.values()];
       if (ids.length > 0) {
         await tx.$executeRawUnsafe(`delete from track_edges where track_id = any($1::uuid[])`, ids);
-        await tx.$executeRawUnsafe(
-          `delete from track_skills where track_id = any($1::uuid[])`,
-          ids,
-        );
       }
 
       for (const track of tracks) {
@@ -103,16 +99,6 @@ export class PrismaWorkspaceIndexRepository implements WorkspaceIndexRepository 
             userId,
             trackId,
             prereqId,
-          );
-        }
-
-        for (const skillId of track.skillIds) {
-          await tx.$executeRawUnsafe(
-            `insert into track_skills (user_id, track_id, skill_id)
-             values ($1::uuid, $2::uuid, $3::uuid) on conflict do nothing`,
-            userId,
-            trackId,
-            skillId,
           );
         }
       }
@@ -137,7 +123,7 @@ export class PrismaWorkspaceIndexRepository implements WorkspaceIndexRepository 
 
     await this.db.run(userId, async (tx) => {
       for (const lesson of lessons) {
-        const rows = await tx.$queryRawUnsafe<{ id: string }[]>(
+        await tx.$executeRawUnsafe(
           `insert into lessons (id, user_id, mission_id, track_id, seq, slug, title, storage_path,
              content_hash, created_at, updated_at)
            values (gen_random_uuid(), $1::uuid, $2::uuid, $3::uuid, $4::int, $5, $6, $7, $8,
@@ -148,8 +134,7 @@ export class PrismaWorkspaceIndexRepository implements WorkspaceIndexRepository 
                  title = excluded.title,
                  storage_path = excluded.storage_path,
                  content_hash = excluded.content_hash,
-                 updated_at = now()
-           returning id`,
+                 updated_at = now()`,
           userId,
           lesson.missionId,
           lesson.trackId,
@@ -159,28 +144,6 @@ export class PrismaWorkspaceIndexRepository implements WorkspaceIndexRepository 
           lesson.storagePath,
           lesson.contentHash,
         );
-
-        const lessonId = rows[0]!.id;
-
-        // Rebuilt from the file, because the file is the only thing that says it.
-        // A lesson the agent revised to teach something else must not keep
-        // crediting the skill it used to teach — `lessons.outcome` becomes
-        // evidence through this join, so a stale row here is evidence attributed
-        // to the wrong skill.
-        await tx.$executeRawUnsafe(
-          `delete from lesson_skills where lesson_id = $1::uuid`,
-          lessonId,
-        );
-
-        for (const skillId of lesson.skillIds) {
-          await tx.$executeRawUnsafe(
-            `insert into lesson_skills (user_id, lesson_id, skill_id)
-             values ($1::uuid, $2::uuid, $3::uuid) on conflict do nothing`,
-            userId,
-            lessonId,
-            skillId,
-          );
-        }
       }
     });
   }

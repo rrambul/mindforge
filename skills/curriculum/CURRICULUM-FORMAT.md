@@ -15,15 +15,6 @@
 | 2     | vpc-networking | VPC networking     | Draw your own VPC and explain each hop            | —             |
 | 3     | iam-authoring  | Writing IAM policy | Write a least-privilege policy for a real service | iam-basics    |
 
-## Skills
-
-| Track          | Skill slug          | Skill                                               |
-| -------------- | ------------------- | --------------------------------------------------- |
-| iam-basics     | iam-read-policy     | Read an IAM policy and predict what it permits      |
-| iam-basics     | iam-principal-model | Explain users, roles, and assume-role               |
-| vpc-networking | vpc-subnet-routing  | Trace a packet through subnets and route tables     |
-| iam-authoring  | iam-least-privilege | Write a least-privilege policy for a given workload |
-
 ## Sources
 
 - <title> — <url> — <why it is trusted>
@@ -41,12 +32,8 @@
   prerequisites is a fundamental and takes `—`.
 - **`Outcome` says what the user can do afterwards**, in one line, observably. Not what the track
   "covers".
-- **Every skill belongs to exactly one track** in this table — the one that builds it. Other tracks
-  may use it; only one teaches it.
-- **A skill is something you could be tested on.** If you cannot write a question for it, it belongs
-  in the track's `Outcome` line, not in the skills table.
-- **No scores, bands, levels, percentages, or time estimates anywhere in this file.** Those are
-  measured from evidence, and a guess formatted as a number reads as a measurement.
+- **No scores, bands, levels, percentages, or time estimates anywhere in this file.** A guess
+  formatted as a number reads as a measurement.
 - Eight to fifteen tracks. If the subject needs more, the mission is too wide.
 
 ## What lives elsewhere

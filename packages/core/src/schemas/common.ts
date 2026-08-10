@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { isIsoDate } from "../time/calendar.js";
 
 /**
  * Shapes that belong to no single feature.
@@ -10,10 +11,13 @@ import { z } from "zod";
  */
 export const UuidSchema = z.uuid();
 
+/** A calendar date, `YYYY-MM-DD`, as `time/calendar.ts` defines one. */
+export const IsoDateSchema = z.string().refine(isIsoDate, { error: "Expected a date, YYYY-MM-DD" });
+
 /**
- * Cursor pagination for the unbounded lists — resources, notes, focus sessions
- * (§6.1). Offset pagination breaks the moment a nightly job inserts rows
- * mid-scroll, which for this product is every night.
+ * Cursor pagination for the unbounded lists — focus sessions, lessons (§6.1).
+ * Offset pagination breaks the moment a nightly job inserts rows mid-scroll,
+ * which for this product is every night.
  */
 export const PaginationSchema = z.object({
   cursor: z.string().min(1).optional(),

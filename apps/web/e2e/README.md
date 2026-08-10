@@ -15,24 +15,21 @@ Playwright starts the API and the web dev server itself, and reuses them if you 
 | Flow                                                       | File                      |
 | ---------------------------------------------------------- | ------------------------- |
 | Sign up → sign in → sign out                               | `auth.spec.ts`            |
-| Weekly plan → log a session → review shows plan vs actual  | `weekly-rhythm.spec.ts`   |
 | A new account is seeded from the browser it signed up in   | `signup-calendar.spec.ts` |
 | Create a mission → teach it → a run is queued and reported | `teach.spec.ts`           |
 
 ## What is not, yet
 
-§13.2 names eight flows. These are the six still missing, listed here so the gap is a known one
-rather than something rediscovered later:
+These flows are still missing, listed here so the gap is a known one rather than something
+rediscovered later:
 
-- The capture loop: start focus → log friction → stop → debrief → appears on Today
-- Add a resource by URL → update progress → abandon with reason
-- Generate a lesson → **run completes** → renders in the sandbox → mark outcome (M4, model stubbed).
+- The capture loop: start focus → stop → debrief → appears on Today
+- Generate a lesson → **run completes** → renders in the sandbox → mark outcome (M5, model stubbed).
   `teach.spec.ts` covers the first half of this: the button, the 202, and the card reporting a
   queued run. It stops there on purpose — the worker is not started by this config, and
   non-negotiable 8 forbids live API calls in the suite. The completion half needs a stubbed agent
-  gateway, which arrives with M4's reader.
-- Review queue: due items → answer → schedule moves (M5)
-- Offline: go offline → log friction → reconnect → event persists exactly once
+  gateway, which arrives with M5's reader.
+- Offline: go offline → start a session → reconnect → session persists exactly once
 - A keyboard-only pass through the capture loop
 
 The offline one is worth pulling forward: idempotency is easy to get wrong and silent when you do,
@@ -66,19 +63,6 @@ importing another. Every unit test on both sides passes with that thread cut.
 Confirmed to discriminate: deleting the `renderTeach` prop from `MissionsScreen` fails both of its
 tests.
 
-## Why `weekly-rhythm.spec.ts` uses the retroactive form
-
-A session started and stopped inside a test lasts zero minutes, so an assertion driven by the timer
-would read `0 min` whether or not the session was filed against anything — it would pass against the
-exact bug the file exists for. FR-F2's retroactive form takes a date, a start time and a duration,
-which is a real hour the review can be checked against.
-
-It is the one spec written from a defect rather than from a flow. Plan-vs-actual, the review screen
-and the grid were each correct and each proven by their own tests, while neither capture path wrote
-`focus_sessions.mission_id` — so a user could allocate two hours, log both, and read `0 min`. Every
-layer green, the path absent. Confirmed to discriminate: dropping the subject from the past-session
-submit fails it on the week screen.
-
 ## What this suite caught that 365 jsdom tests did not
 
 Worth recording, because it is the argument for the suite existing at all. M2 replaced the nav's
@@ -87,7 +71,7 @@ Playwright assertions failed immediately, on `getByRole("button", { name: "Today
 navigation genuinely no longer worked that way.
 
 They now assert on URLs as well as on roles. Before the route tree there were none to assert, which
-is exactly why `/library` could not be linked to, bookmarked, or reached with Back.
+is exactly why a screen could not be linked to, bookmarked, or reached with Back before the route tree.
 
 ## A known blind spot
 

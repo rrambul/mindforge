@@ -24,18 +24,8 @@ const STORED: Profile = {
   changelogSeenVersion: "0.1.0",
 };
 
-const NUDGE = {
-  id: "22222222-2222-4222-8222-222222222222",
-  kind: "stall",
-  payload: { missionTopic: "Rust ownership", days: 14 },
-  subjectType: "mission",
-  subjectId: "33333333-3333-4333-8333-333333333333",
-  createdAt: "2026-08-07T12:00:00.000Z",
-  dismissedAt: null,
-};
-
 /** Everything the composed screen reads. MSW errors on an unhandled request, so this is the list. */
-function settingsServer(nudges: object[] = [NUDGE]) {
+function settingsServer() {
   let current = STORED;
 
   server.use(
@@ -45,15 +35,7 @@ function settingsServer(nudges: object[] = [NUDGE]) {
       current = { ...current, ...patch };
       return HttpResponse.json(current);
     }),
-    http.get(`${API}/me/notification-prefs`, () =>
-      HttpResponse.json({
-        prefs: [
-          { kind: "weekly_review", enabled: true, config: { weekday: 0, hour: 18 } },
-          { kind: "stall", enabled: true, config: { afterDays: 12 } },
-        ],
-      }),
-    ),
-    http.get(`${API}/notifications`, () => HttpResponse.json({ notifications: nudges })),
+    http.get(`${API}/me/memory`, () => HttpResponse.json([])),
     http.get("*/changelog.json", () =>
       HttpResponse.json([
         { version: "0.1.0", date: "2026-08-07", body: "- **Settings.** Timezone." },
@@ -102,41 +84,5 @@ describe("one profile, two features reading it", () => {
     await waitFor(() => {
       expect(screen.getByText("shell locale: pt-BR")).toBeVisible();
     });
-  });
-});
-
-describe("the composition", () => {
-  it("shows the nudges you have beside the settings that schedule them", async () => {
-    // Why this wrapper exists: the preferences form is `features/settings` and the nudges are
-    // `features/notifications`, and neither may import the other. A schedule whose output you
-    // cannot see is a setting you cannot judge.
-    settingsServer();
-    renderWithProviders(<SettingsScreen />);
-
-    const nudges = await screen.findByRole("region", { name: "Nudges" });
-    expect(
-      await within(nudges).findByText(
-        "No focus session on Rust ownership in 14 days. Still active, or park it?",
-      ),
-    ).toBeVisible();
-  });
-
-  it("offers no link, because a mission has no page of its own yet", async () => {
-    // `SettingsScreen` passes no `hrefFor`. A link that landed on the missions list would be worse
-    // than none — this asserts the absence is the deliberate one, not a forgotten prop.
-    settingsServer();
-    renderWithProviders(<SettingsScreen />);
-
-    const nudges = await screen.findByRole("region", { name: "Nudges" });
-    await within(nudges).findByText(/Rust ownership/);
-    expect(within(nudges).queryByRole("link", { name: "Open" })).not.toBeInTheDocument();
-  });
-
-  it("says so when there is nothing waiting, rather than showing an empty box", async () => {
-    settingsServer([]);
-    renderWithProviders(<SettingsScreen />);
-
-    const nudges = await screen.findByRole("region", { name: "Nudges" });
-    expect(await within(nudges).findByText("Nothing to tell you.")).toBeVisible();
   });
 });

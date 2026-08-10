@@ -1,17 +1,15 @@
-import { COLD_START_CHIPS, PINNED_FRICTION_TYPE } from "@mindforge/core";
 import type { PrismaClient } from "@mindforge/db";
 import type { NestFastifyApplication } from "@nestjs/platform-fastify";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { adminDb, bearer, bootApp, deleteUsers, signUp, type TestUser } from "./support/stack.js";
 
 /**
- * The capture loop, end to end (§13.2 "API routes").
+ * The time tracker, end to end (§13.2 "API routes").
  *
- * This is the milestone's finish line — "ten real focus sessions logged without opening the
- * code" — so what it proves matters more than the count: that a session actually persists across
- * requests, that RLS isolates it, and that a replayed capture converges on one row rather than
- * two. The last one is the whole basis of the offline queue, and it is not observable at all in
- * a unit test against a fake repository.
+ * What it proves matters more than the count: that a session actually persists across requests,
+ * that RLS isolates it, and that a replayed capture converges on one row rather than two. The last
+ * one is the whole basis of the offline queue, and it is not observable at all in a unit test
+ * against a fake repository.
  */
 
 let app: NestFastifyApplication;
@@ -31,7 +29,6 @@ interface SessionResponse {
   focusQuality: number | null;
   energy: number | null;
   missionId: string | null;
-  skillId: string | null;
 }
 
 interface ProblemResponse {
@@ -72,12 +69,8 @@ afterAll(async () => {
 beforeEach(async () => {
   // A leftover running session would make an unrelated test fail with a 409.
   const ids = [alice.id, bob.id];
-  await db.$executeRawUnsafe(`delete from friction_events where user_id = any($1::uuid[])`, ids);
   await db.$executeRawUnsafe(`delete from focus_sessions where user_id = any($1::uuid[])`, ids);
   await db.$executeRawUnsafe(`delete from missions where user_id = any($1::uuid[])`, ids);
-  // Attribution targets. Friction cascades from both, so a leftover would surface in a later test.
-  await db.$executeRawUnsafe(`delete from skills where user_id = any($1::uuid[])`, ids);
-  await db.$executeRawUnsafe(`delete from resources where user_id = any($1::uuid[])`, ids);
 });
 
 describe("the loop", () => {
@@ -160,25 +153,6 @@ describe("the loop", () => {
     );
   });
 
-  it("binds a session to a skill, which is what a skill allocation is measured against", async () => {
-    // `focus_sessions.skill_id` was added in M2 so a skill's weekly plan would have an actual — and
-    // then no capture path wrote it, so the plan grid offered a Skills group whose every row read 0m
-    // forever. This pins the start endpoint accepting it, because the column existing and the API's
-    // own reader handling it were already true when the feature did not work.
-    const skill = JSON.parse(
-      (await post("/v1/skills", alice, { name: "Ownership and borrowing" })).body,
-    ) as { id: string };
-
-    const started = await startSession(alice, { skillId: skill.id });
-    expect(started.skillId).toBe(skill.id);
-
-    const rows = await db.$queryRawUnsafe<{ skill_id: string | null }[]>(
-      `select skill_id from focus_sessions where id = $1::uuid`,
-      started.id,
-    );
-    expect(rows[0]?.skill_id).toBe(skill.id);
-  });
-
   it("binds a session to a mission", async () => {
     const mission = JSON.parse(
       (await post("/v1/missions", alice, { topic: "Rust ownership" })).body,
@@ -226,289 +200,6 @@ describe("idempotency (§6.1)", () => {
     // however long the client was offline.
     expect(replay.endedAt).toBe(first.endedAt);
   });
-
-  it("converges on one friction event when a tap is replayed", async () => {
-    const id = "bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb";
-    await post("/v1/friction", alice, { id, type: "tooling" });
-    await post("/v1/friction", alice, { id, type: "tooling" });
-
-    const rows = await db.$queryRawUnsafe<{ count: bigint }[]>(
-      `select count(*) from friction_events where user_id = $1::uuid`,
-      alice.id,
-    );
-    expect(Number(rows[0]?.count)).toBe(1);
-  });
-});
-
-describe("friction (FR-C1, FR-C2)", () => {
-  it("logs from a type alone, defaulting intensity to 3", async () => {
-    const response = await post("/v1/friction", alice, { type: "tooling" });
-
-    expect(response.statusCode, response.body).toBe(201);
-    const event = JSON.parse(response.body) as { type: string; intensity: number };
-    expect(event.type).toBe("tooling");
-    // §5.3: never asked inline. The answer you would give while annoyed is not better than 3.
-    expect(event.intensity).toBe(3);
-  });
-
-  it("attaches to the running session", async () => {
-    const session = await startSession(alice);
-    const event = JSON.parse(
-      (await post("/v1/friction", alice, { type: "interruption", sessionId: session.id })).body,
-    ) as { sessionId: string | null };
-
-    expect(event.sessionId).toBe(session.id);
-  });
-
-  it("rejects a type outside the taxonomy", async () => {
-    const response = await post("/v1/friction", alice, { type: "annoyed" });
-    expect(response.statusCode).toBe(422);
-  });
-
-  it("serves the cold-start chips before there is any history", async () => {
-    const chips = JSON.parse((await get("/v1/friction/chips", alice)).body) as {
-      inline: string[];
-      overflow: string[];
-    };
-
-    expect(chips.inline).toEqual(COLD_START_CHIPS);
-    expect(chips.inline).toHaveLength(4);
-    expect(chips.inline.length + chips.overflow.length).toBe(11);
-  });
-
-  it("promotes what you actually log, and keeps the pinned type", async () => {
-    for (let i = 0; i < 4; i += 1) await post("/v1/friction", alice, { type: "physical" });
-    for (let i = 0; i < 2; i += 1) await post("/v1/friction", alice, { type: "avoidance" });
-
-    const chips = JSON.parse((await get("/v1/friction/chips", alice)).body) as { inline: string[] };
-    expect(chips.inline[0]).toBe("physical");
-    expect(chips.inline[1]).toBe("avoidance");
-    expect(chips.inline.at(-1)).toBe(PINNED_FRICTION_TYPE);
-  });
-
-  it("computes the ember share from the session's outcome, not from a stored column", async () => {
-    // The same type, opposite meanings, decided by whether the block arrived anywhere. This is
-    // the product's headline distinction and it is derived on every read.
-    //
-    // Backfilled rather than started-and-stopped, because since M2 the split divides the session's
-    // own minutes: a session that lasts no time attributes none, and the flip would be invisible.
-    const session = JSON.parse(
-      (
-        await post("/v1/focus/sessions", alice, {
-          startedAt: "2026-08-05T09:00:00.000Z",
-          endedAt: "2026-08-05T10:00:00.000Z",
-          hitIntention: "yes",
-        })
-      ).body,
-    ) as SessionResponse;
-    await post("/v1/friction", alice, { type: "too_hard", sessionId: session.id });
-
-    const productive = JSON.parse((await get("/v1/friction/summary", alice)).body) as {
-      emberShare: number | null;
-      emberMinutes: number;
-      eventCount: number;
-    };
-    expect(productive.emberShare).toBe(1);
-    expect(productive.emberMinutes).toBe(60);
-    expect(productive.eventCount).toBe(1);
-
-    // Now say the block went nowhere. The same event flips to slag.
-    await post(`/v1/focus/sessions/${session.id}/debrief`, alice, { hitIntention: "no" });
-    const wasted = JSON.parse((await get("/v1/friction/summary", alice)).body) as {
-      emberShare: number | null;
-      slagMinutes: number;
-    };
-    expect(wasted.emberShare).toBe(0);
-    expect(wasted.slagMinutes).toBe(60);
-  });
-
-  it("divides one session's minutes among its events by intensity", async () => {
-    // The M2 rule end to end: an hour with one shrugged-off interruption and one bruising stretch
-    // of productive struggle was mostly the second thing.
-    const session = JSON.parse(
-      (
-        await post("/v1/focus/sessions", alice, {
-          startedAt: "2026-08-05T09:00:00.000Z",
-          endedAt: "2026-08-05T10:00:00.000Z",
-        })
-      ).body,
-    ) as SessionResponse;
-    await post("/v1/friction", alice, {
-      type: "interruption",
-      intensity: 1,
-      sessionId: session.id,
-    });
-    await post("/v1/friction", alice, {
-      type: "productive_struggle",
-      intensity: 5,
-      sessionId: session.id,
-    });
-
-    const summary = JSON.parse((await get("/v1/friction/summary", alice)).body) as {
-      emberMinutes: number;
-      slagMinutes: number;
-    };
-    expect(summary).toMatchObject({ emberMinutes: 50, slagMinutes: 10 });
-  });
-
-  it("counts a standalone tap but gives it no minutes", async () => {
-    // No session means no duration to divide. It still shows up in the count and in the
-    // top-sources list, so the two numbers cannot silently disagree with each other.
-    await post("/v1/friction", alice, { type: "tooling" });
-
-    const summary = JSON.parse((await get("/v1/friction/summary", alice)).body) as {
-      eventCount: number;
-      unattributedEventCount: number;
-      emberShare: number | null;
-    };
-    expect(summary).toMatchObject({
-      eventCount: 1,
-      unattributedEventCount: 1,
-      emberShare: null,
-    });
-  });
-
-  it("closes the window at `until`, so an old week does not include what came after", async () => {
-    // The weekly review asks for one week. Without an exclusive upper bound, reviewing the week of
-    // the 6th counted every event since the 6th — and the screen carried a caption admitting it.
-    const inside = JSON.parse(
-      (
-        await post("/v1/focus/sessions", alice, {
-          startedAt: "2026-07-06T12:00:00.000Z",
-          endedAt: "2026-07-06T13:00:00.000Z",
-        })
-      ).body,
-    ) as SessionResponse;
-    const after = JSON.parse(
-      (
-        await post("/v1/focus/sessions", alice, {
-          startedAt: "2026-07-20T12:00:00.000Z",
-          endedAt: "2026-07-20T13:00:00.000Z",
-        })
-      ).body,
-    ) as SessionResponse;
-
-    await post("/v1/friction", alice, {
-      type: "tooling",
-      sessionId: inside.id,
-      occurredAt: "2026-07-06T12:30:00.000Z",
-    });
-    await post("/v1/friction", alice, {
-      type: "tooling",
-      sessionId: after.id,
-      occurredAt: "2026-07-20T12:30:00.000Z",
-    });
-
-    const open = JSON.parse(
-      (await get("/v1/friction/summary?since=2026-07-06T00:00:00.000Z", alice)).body,
-    ) as { eventCount: number };
-    expect(open.eventCount).toBe(2);
-
-    const closed = JSON.parse(
-      (
-        await get(
-          "/v1/friction/summary?since=2026-07-06T00:00:00.000Z&until=2026-07-13T00:00:00.000Z",
-          alice,
-        )
-      ).body,
-    ) as { eventCount: number };
-    expect(closed.eventCount).toBe(1);
-  });
-
-  it("treats `until` as exclusive, so adjacent weeks cannot both claim an event", async () => {
-    // An event at exactly the boundary belongs to the week beginning, not the one ending. `lte`
-    // would let two consecutive reviews each count it.
-    const session = JSON.parse(
-      (
-        await post("/v1/focus/sessions", alice, {
-          startedAt: "2026-07-13T00:00:00.000Z",
-          endedAt: "2026-07-13T01:00:00.000Z",
-        })
-      ).body,
-    ) as SessionResponse;
-    await post("/v1/friction", alice, {
-      type: "tooling",
-      sessionId: session.id,
-      occurredAt: "2026-07-13T00:00:00.000Z",
-    });
-
-    const ending = JSON.parse(
-      (
-        await get(
-          "/v1/friction/summary?since=2026-07-06T00:00:00.000Z&until=2026-07-13T00:00:00.000Z",
-          alice,
-        )
-      ).body,
-    ) as { eventCount: number };
-    const beginning = JSON.parse(
-      (
-        await get(
-          "/v1/friction/summary?since=2026-07-13T00:00:00.000Z&until=2026-07-20T00:00:00.000Z",
-          alice,
-        )
-      ).body,
-    ) as { eventCount: number };
-
-    expect(ending.eventCount).toBe(0);
-    expect(beginning.eventCount).toBe(1);
-  });
-
-  it("gives each week only the part of a straddling session that fell in it", async () => {
-    // Events are filtered by the window and then grouped by session, so a session spanning a week
-    // boundary handed its *whole* length to both weeks — the same double count the `until` bound was
-    // added to remove, one layer in. A two-hour block from 23:00 Sunday to 01:00 Monday is one hour
-    // of each week, not two hours of both.
-    const session = JSON.parse(
-      (
-        await post("/v1/focus/sessions", alice, {
-          startedAt: "2026-07-12T23:00:00.000Z",
-          endedAt: "2026-07-13T01:00:00.000Z",
-        })
-      ).body,
-    ) as SessionResponse;
-
-    // One tap on each side of midnight, so both weeks have an event to attribute against.
-    await post("/v1/friction", alice, {
-      type: "tooling",
-      sessionId: session.id,
-      occurredAt: "2026-07-12T23:30:00.000Z",
-    });
-    await post("/v1/friction", alice, {
-      type: "tooling",
-      sessionId: session.id,
-      occurredAt: "2026-07-13T00:30:00.000Z",
-    });
-
-    const ending = JSON.parse(
-      (
-        await get(
-          "/v1/friction/summary?since=2026-07-06T00:00:00.000Z&until=2026-07-13T00:00:00.000Z",
-          alice,
-        )
-      ).body,
-    ) as { slagMinutes: number };
-    const beginning = JSON.parse(
-      (
-        await get(
-          "/v1/friction/summary?since=2026-07-13T00:00:00.000Z&until=2026-07-20T00:00:00.000Z",
-          alice,
-        )
-      ).body,
-    ) as { slagMinutes: number };
-
-    expect(ending.slagMinutes).toBe(60);
-    expect(beginning.slagMinutes).toBe(60);
-    // And the two together are the session, not twice it.
-    expect(ending.slagMinutes + beginning.slagMinutes).toBe(120);
-  });
-
-  it("reports a null ember share when nothing has been logged", async () => {
-    // Not zero: "no friction logged" and "all of it was wasteful" are different claims.
-    const summary = JSON.parse((await get("/v1/friction/summary", alice)).body) as {
-      emberShare: number | null;
-    };
-    expect(summary.emberShare).toBeNull();
-  });
 });
 
 describe("manual entry (FR-F2)", () => {
@@ -547,7 +238,7 @@ describe("manual entry (FR-F2)", () => {
 
   it("refuses a session dated in the future, and says which field", async () => {
     // A skewed device clock or a mistyped year. Either way the block would sort to the top of every
-    // recent list permanently and count toward a `focus_hours` goal for work that has not happened.
+    // recent list permanently and count toward hours for work that has not happened.
     const nextYear = new Date(Date.now() + 365 * 86_400_000);
     const response = await post("/v1/focus/sessions", alice, {
       startedAt: nextYear.toISOString(),
@@ -571,139 +262,6 @@ describe("manual entry (FR-F2)", () => {
     expect((JSON.parse(response.body) as { errors: { field: string }[] }).errors[0]?.field).toBe(
       "endedAt",
     );
-  });
-});
-
-describe("friction attribution (§5.3)", () => {
-  /** A skill, written directly: `id` has no database default — Prisma generates it client-side. */
-  async function aSkill(user: TestUser): Promise<string> {
-    const rows = await db.$queryRawUnsafe<{ id: string }[]>(
-      `insert into skills (id, user_id, name, slug)
-       values (gen_random_uuid(), $1::uuid, 'Rust', 'rust-' || gen_random_uuid())
-       returning id`,
-      user.id,
-    );
-    return rows[0]!.id;
-  }
-
-  async function aResource(user: TestUser): Promise<string> {
-    const response = await post("/v1/resources", user, { type: "book", title: "Programming Rust" });
-    return (JSON.parse(response.body) as { id: string }).id;
-  }
-
-  it("lists a session's own friction, for the debrief", async () => {
-    const session = await startSession(alice);
-    await post("/v1/friction", alice, { type: "tooling", sessionId: session.id });
-    await post("/v1/friction", alice, { type: "too_hard", sessionId: session.id });
-    // Unattached, so it must not appear.
-    await post("/v1/friction", alice, { type: "avoidance" });
-
-    const response = await get(`/v1/friction/sessions/${session.id}`, alice);
-    expect(response.statusCode, response.body).toBe(200);
-
-    const { events } = JSON.parse(response.body) as { events: { type: string }[] };
-    expect(events.map((event) => event.type).sort()).toEqual(["too_hard", "tooling"]);
-  });
-
-  it("attributes an event to a skill and a resource", async () => {
-    // The columns have existed since M0 and nothing wrote them, so "your top friction source is
-    // tooling" was the most specific thing M2's review screen could have said.
-    const session = await startSession(alice);
-    const logged = JSON.parse(
-      (await post("/v1/friction", alice, { type: "tooling", sessionId: session.id })).body,
-    ) as { id: string };
-
-    const skillId = await aSkill(alice);
-    const resourceId = await aResource(alice);
-
-    const response = await app.inject({
-      method: "PATCH",
-      url: `/v1/friction/${logged.id}`,
-      headers: bearer(alice),
-      payload: { skillId, resourceId },
-    });
-    expect(response.statusCode, response.body).toBe(200);
-
-    const rows = await db.$queryRawUnsafe<{ skill_id: string; resource_id: string }[]>(
-      `select skill_id, resource_id from friction_events where id = $1::uuid`,
-      logged.id,
-    );
-    expect(rows[0]?.skill_id).toBe(skillId);
-    expect(rows[0]?.resource_id).toBe(resourceId);
-  });
-
-  it("retracts an attribution", async () => {
-    const logged = JSON.parse((await post("/v1/friction", alice, { type: "tooling" })).body) as {
-      id: string;
-    };
-    const skillId = await aSkill(alice);
-
-    await app.inject({
-      method: "PATCH",
-      url: `/v1/friction/${logged.id}`,
-      headers: bearer(alice),
-      payload: { skillId },
-    });
-    const cleared = await app.inject({
-      method: "PATCH",
-      url: `/v1/friction/${logged.id}`,
-      headers: bearer(alice),
-      payload: { skillId: null },
-    });
-
-    expect(cleared.statusCode).toBe(200);
-    const rows = await db.$queryRawUnsafe<{ skill_id: string | null }[]>(
-      `select skill_id from friction_events where id = $1::uuid`,
-      logged.id,
-    );
-    expect(rows[0]?.skill_id).toBeNull();
-  });
-
-  it("refuses another user's skill — RLS makes it the same answer as missing", async () => {
-    const logged = JSON.parse((await post("/v1/friction", alice, { type: "tooling" })).body) as {
-      id: string;
-    };
-    const bobsSkill = await aSkill(bob);
-
-    const response = await app.inject({
-      method: "PATCH",
-      url: `/v1/friction/${logged.id}`,
-      headers: bearer(alice),
-      payload: { skillId: bobsSkill },
-    });
-
-    expect(response.statusCode).toBe(422);
-    const problem = JSON.parse(response.body) as { errors: { field: string }[] };
-    expect(problem.errors[0]?.field).toBe("skillId");
-  });
-
-  it("cannot attribute another user's event", async () => {
-    const bobs = JSON.parse((await post("/v1/friction", bob, { type: "tooling" })).body) as {
-      id: string;
-    };
-    const skillId = await aSkill(alice);
-
-    const response = await app.inject({
-      method: "PATCH",
-      url: `/v1/friction/${bobs.id}`,
-      headers: bearer(alice),
-      payload: { skillId },
-    });
-    expect(response.statusCode).toBe(404);
-  });
-
-  it("refuses a body that names nothing", async () => {
-    const logged = JSON.parse((await post("/v1/friction", alice, { type: "tooling" })).body) as {
-      id: string;
-    };
-
-    const response = await app.inject({
-      method: "PATCH",
-      url: `/v1/friction/${logged.id}`,
-      headers: bearer(alice),
-      payload: {},
-    });
-    expect(response.statusCode).toBe(422);
   });
 });
 
@@ -732,19 +290,8 @@ describe("isolation (FR-A3)", () => {
     expect(rows[0]?.ended_at).toBeNull();
   });
 
-  it("keeps friction summaries separate", async () => {
-    for (let i = 0; i < 3; i += 1) await post("/v1/friction", bob, { type: "tooling" });
-    const summary = JSON.parse((await get("/v1/friction/summary", alice)).body) as {
-      eventCount: number;
-    };
-    expect(summary.eventCount).toBe(0);
-  });
-
   it("requires a token for every capture endpoint", async () => {
-    for (const url of ["/v1/focus/sessions/running", "/v1/friction/chips"]) {
-      expect((await get(url, null)).statusCode, url).toBe(401);
-    }
-    expect((await post("/v1/friction", null, { type: "tooling" })).statusCode).toBe(401);
+    expect((await get("/v1/focus/sessions/running", null)).statusCode).toBe(401);
     expect((await post("/v1/focus/sessions/start", null, {})).statusCode).toBe(401);
   });
 });

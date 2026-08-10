@@ -21,10 +21,6 @@
   "nav": {
     "today": "Today",
     "missions": "Missions",
-    "notes": "Notes",
-    "resources": "Library",
-    "goals": "Goals",
-    "skills": "Skills",
     "insights": "Insights",
     "settings": "Settings"
   },

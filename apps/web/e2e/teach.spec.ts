@@ -48,7 +48,7 @@ test("a mission can be sent to the teach agent", async ({ page }) => {
   await expect(page).toHaveURL(/\/missions$/u);
 
   // A fresh account's empty state names the action rather than offering a generic
-  // "New mission" — same as `weekly-rhythm.spec.ts`.
+  // "New mission".
   await page.getByRole("button", { name: "Start your first mission" }).click();
   await page.getByLabel("What do you want to get better at?").fill(TOPIC);
   await page.getByRole("button", { name: "Create mission" }).click();
@@ -75,10 +75,10 @@ test("a mission can be sent to the teach agent", async ({ page }) => {
 });
 
 test("a parked mission is not offered to the agent", async ({ page }) => {
-  // Parking is a statement that you are not working on something (FR-M4b), so
-  // offering to teach it is the contradiction `MissionParked` refuses for a
-  // weekly allocation. Asserted here because it is a composition decision — the
-  // card decides, and no API call is involved to catch it anywhere else.
+  // Parking is a statement that you are not working on something (FR-M3), so
+  // offering to teach it would be a contradiction. Asserted here because it is a
+  // composition decision — the card decides, and no API call is involved to
+  // catch it anywhere else.
   await signUp(page);
 
   await page.getByRole("link", { name: "Missions" }).click();

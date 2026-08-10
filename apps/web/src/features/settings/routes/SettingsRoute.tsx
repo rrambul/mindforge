@@ -3,7 +3,6 @@ import { useTranslation } from "react-i18next";
 import { ApiError, NetworkError } from "../../../shared/api/problem.js";
 import { Button, Callout, Card, Heading, Row, Stack, Text } from "../../../shared/ui/index.js";
 import { useChangelog, type Release } from "../api/use-changelog.js";
-import { useNotificationPrefs, useSaveNotificationPrefs } from "../api/use-notification-prefs.js";
 import {
   useMarkChangelogSeen,
   useProfile,
@@ -12,43 +11,31 @@ import {
 } from "../api/use-profile.js";
 import { unseenCount } from "../model/version.js";
 import { ChangelogPanel } from "../ui/ChangelogPanel.js";
-import { NotificationPrefsForm } from "../ui/NotificationPrefsForm.js";
 import { ProfileForm } from "../ui/ProfileForm.js";
 import { ThemeControl } from "../ui/ThemeControl.js";
 
 export interface SettingsRouteProps {
   /**
-   * The nudges you have right now, supplied by the app layer.
-   *
-   * A render prop because they belong to `features/notifications` and this feature may not import it
-   * (§2.2 rule 6). They are here rather than only behind the bar's marker because this is the screen
-   * that decides when they arrive, and a schedule you cannot see the output of is a setting you
-   * cannot judge.
-   */
-  readonly renderNudges?: () => ReactNode;
-  /**
    * What the agent has concluded about the learner (§7.6).
    *
-   * A render prop for the same reason the nudges are: it belongs to
-   * `features/memory` and this feature may not import another (§2.2 rule 6).
+   * A render prop because it belongs to `features/memory` and this feature may
+   * not import another (§2.2 rule 6).
    */
   readonly renderMemory?: () => ReactNode;
 }
 
 /**
- * Settings (FR-L3, FR-L5, FR-N4, §14.1).
+ * Settings (FR-L1..L5, §14.1).
  *
- * Four blocks, in the order they matter: the settings that change what every other screen *means*,
- * then appearance, then when the app is allowed to speak, then what changed since you last looked.
+ * Three blocks, in the order they matter: the settings that change what every other screen *means*,
+ * then appearance, then what changed since you last looked.
  */
-export function SettingsRoute({ renderNudges, renderMemory }: SettingsRouteProps) {
+export function SettingsRoute({ renderMemory }: SettingsRouteProps) {
   const { t } = useTranslation("settings");
   const { t: common } = useTranslation("common");
 
   const profile = useProfile();
   const update = useUpdateProfile();
-  const prefs = useNotificationPrefs();
-  const savePrefs = useSaveNotificationPrefs();
   const changelog = useChangelog();
   const markSeen = useMarkChangelogSeen();
 
@@ -94,31 +81,6 @@ export function SettingsRoute({ renderNudges, renderMemory }: SettingsRouteProps
         <Stack>
           <Heading level={2}>{t("theme.heading")}</Heading>
           <ThemeControl />
-        </Stack>
-      </Card>
-
-      <Card as="section" label={t("nudges.heading")}>
-        <Stack>
-          <Heading level={2}>{t("nudges.heading")}</Heading>
-          {savePrefs.error ? (
-            <Callout tone="danger" live>
-              {describe(savePrefs.error, common)}
-            </Callout>
-          ) : null}
-          {prefs.isPending ? <Text tone="muted">{common("state.loading")}</Text> : null}
-          {prefs.isError ? (
-            <Callout tone="danger" live>
-              {describe(prefs.error, common)}
-            </Callout>
-          ) : null}
-          {prefs.isSuccess ? (
-            <NotificationPrefsForm
-              prefs={prefs.data.prefs}
-              onSave={(body) => savePrefs.mutate(body)}
-              pending={savePrefs.isPending}
-            />
-          ) : null}
-          {renderNudges?.()}
         </Stack>
       </Card>
 

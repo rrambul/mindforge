@@ -33,9 +33,6 @@ import { type Parsed, type ParseWarning, warn } from "./result.js";
  */
 const TRACK_META = "mindforge:track";
 
-/** `<meta name="mindforge:skill">`, repeatable — what the lesson actually taught. */
-const SKILL_META = "mindforge:skill";
-
 export interface ParsedHtmlDoc {
   /** Never null: the fallback chain ends at the de-slugged filename. */
   readonly title: string;
@@ -50,8 +47,6 @@ export interface ParsedHtmlDoc {
    * not warned about on reference docs, and is only a soft signal on lessons.
    */
   readonly trackSlug: string | null;
-  /** Skill slugs the lesson claims to teach, deduplicated and in document order. */
-  readonly skillSlugs: readonly string[];
   /** Relative `./assets/…` references, deduplicated and in document order. */
   readonly assets: readonly string[];
   /** Relative links to other lessons and reference docs. */
@@ -162,7 +157,6 @@ function parseHtml(
       seq,
       slug,
       trackSlug: declared[0] ?? null,
-      skillSlugs: metaValues($, SKILL_META),
       assets: [...assets],
       crossLinks: [...crossLinks],
     },

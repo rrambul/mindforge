@@ -1,15 +1,15 @@
 /**
- * `BRIEFING.md` — the ZPD bridge (FR-T7), and the file where being honest is
- * load-bearing rather than principled.
+ * `BRIEFING.md` — what the agent knows before it teaches (FR-T3), and the file
+ * where being honest is load-bearing rather than principled.
  *
  * The briefing is read by a model that will treat a number as evidence and teach
  * from it. Non-negotiable 1 — "unknown is never rendered as zero" — matters
  * differently here than on a screen: a human squints at a suspicious 0%, and a
- * model plans a lesson around it. A fabricated "0 items due" produces teaching
- * that skips revision on the strength of a measurement nobody made.
+ * model plans a lesson around it. A fabricated "no lessons completed" produces
+ * teaching that repeats ground on the strength of a measurement nobody made.
  *
  * **So the absences are enforced by the type, not by discipline.** Every signal
- * that has no source table until M4, M5 or M6 is a `NotTracked`, which holds a
+ * that has no source until a later milestone is a `NotTracked`, which holds a
  * reason and cannot hold a number. `renderBriefing` has no branch that could
  * print a zero for one, because there is no zero to print — a later edit that
  * wanted to would have to change this file's types first, which is a decision
@@ -49,17 +49,6 @@ export interface ZpdCandidate {
   readonly fromRecord: string;
 }
 
-export interface SelfReportedSkill {
-  readonly name: string;
-  /** `perceived_level` — the learner's own estimate, never a measured score. */
-  readonly perceivedLevel: string | null;
-}
-
-export interface FrictionSummary {
-  readonly kind: string;
-  readonly occurrences: number;
-}
-
 /** One lesson already written into the open module, so the agent does not repeat it. */
 export interface TrackLesson {
   readonly seq: number;
@@ -73,10 +62,6 @@ export interface TrackLesson {
  * asks for the next — so a run's job is not "teach the next thing in this
  * mission" but "teach the next thing in **this track**". The boundary is what
  * makes a module cohere; the skill's own ZPD logic still decides what inside it.
- *
- * `remainingSkills` is intent from `CURRICULUM.md`, never a measurement: nothing
- * yet knows whether any of them were learnt, which is exactly what
- * `skillEvidence`'s `NotTracked` says two fields down.
  */
 export interface CurrentTrack {
   readonly slug: string;
@@ -87,8 +72,6 @@ export interface CurrentTrack {
   readonly totalTracks: number;
   /** Track names this one is built on, so the agent can assume that ground. */
   readonly prerequisites: readonly string[];
-  /** What the curriculum said this module should build. */
-  readonly skills: readonly string[];
   /** Already written, in order. The agent reads these before adding to them. */
   readonly lessons: readonly TrackLesson[];
 }
@@ -105,37 +88,24 @@ export interface BriefingInput {
    */
   readonly currentTrack: Tracked<CurrentTrack>;
 
-  /** Records' `## Next` sections. The only real ZPD input in M3. */
+  /** Records' `## Next` sections. The only real what-next input until lessons render in-app. */
   readonly zpdCandidates: readonly ZpdCandidate[];
 
-  /** Self-reported only, and labelled as such. Measured evidence is M4/M6. */
-  readonly skills: readonly SelfReportedSkill[];
-
-  /** Real since M1 — the one genuinely measured signal the briefing carries. */
-  readonly recentFriction: readonly FrictionSummary[];
-  readonly frictionWindowDays: number;
-
   /**
-   * Each of these is a `NotTracked` for the whole of M3, and the type is what
-   * keeps them that way. Turning one into a number means deleting its
-   * `NotTracked` from this union, which is a visible change.
+   * `NotTracked` until the in-app reader ships (M5), and the type is what
+   * keeps it that way. Turning it into data means deleting its `NotTracked`
+   * from this union, which is a visible change.
    */
-  readonly dueReviews: Tracked<readonly string[]>;
-  readonly skillEvidence: Tracked<readonly string[]>;
-  readonly reviewAccuracy: Tracked<number>;
   readonly lessonOutcomes: Tracked<readonly string[]>;
 }
 
 /**
- * The absences M3 ships with, in one place so a caller cannot phrase them
- * differently and so the day one becomes real is a deletion here.
- */
-/**
  * The two reasons a run has no module, phrased so the agent does the right and
  * different thing in each.
  *
- * Kept beside `M3_ABSENCES` because they are the same kind of statement: a fact
- * about Mindforge that the agent must not read as a fact about the learner.
+ * Kept beside `BRIEFING_ABSENCES` because they are the same kind of statement:
+ * a fact about Mindforge that the agent must not read as a fact about the
+ * learner.
  */
 export const NO_TRACK = {
   noCurriculum: notTracked(
@@ -152,24 +122,16 @@ export const NO_TRACK = {
   ),
 } as const;
 
-export const M3_ABSENCES = {
-  dueReviews: notTracked(
-    "Spaced repetition ships in a later release, so nothing schedules reviews yet. " +
-      "Do not assume the learner has or has not revised anything — this is unmeasured, not zero.",
-  ),
-  skillEvidence: notTracked(
-    "No measured skill evidence exists yet: lesson outcomes and assessments both arrive later. " +
-      "Any levels listed below are the learner's own estimate, not a score.",
-  ),
-  reviewAccuracy: notTracked("Unmeasured. There is no review history to compute accuracy from."),
+/**
+ * The absences this release ships with, in one place so a caller cannot phrase
+ * them differently and so the day one becomes real is a deletion here.
+ */
+export const BRIEFING_ABSENCES = {
   lessonOutcomes: notTracked(
     "The in-app reader is not shipped, so no completion or understood/shaky/lost signal exists. " +
       "Past lessons may or may not have been read.",
   ),
-} as const satisfies Pick<
-  BriefingInput,
-  "dueReviews" | "skillEvidence" | "reviewAccuracy" | "lessonOutcomes"
->;
+} as const satisfies Pick<BriefingInput, "lessonOutcomes">;
 
 function section(heading: string, body: string): string {
   return `## ${heading}\n\n${body.trim()}\n`;
@@ -204,9 +166,7 @@ function renderTrack(track: Tracked<CurrentTrack>): string {
     `<meta name="mindforge:track" content="${track.slug}">`,
     "```",
     "",
-    'plus one `<meta name="mindforge:skill" content="…">` per skill below that the lesson',
-    "actually teaches. Without them the lesson is filed under no module and its outcome",
-    "credits no skill.",
+    "Without it the lesson is filed under no module.",
   ];
 
   if (track.prerequisites.length > 0) {
@@ -218,16 +178,6 @@ function renderTrack(track: Tracked<CurrentTrack>): string {
   }
 
   lines.push(
-    "",
-    "### What this module is meant to build",
-    "",
-    track.skills.length === 0
-      ? "_The curriculum named no skills for this module._"
-      : list(track.skills),
-    "",
-    "These are the curriculum's **intent**, written before any of these lessons existed.",
-    "They are not a measurement and not a checklist — nothing here says which of them the",
-    "learner has actually acquired.",
     "",
     "### Lessons already in this module",
     "",
@@ -286,38 +236,11 @@ export function renderBriefing(input: BriefingInput): string {
         ? "No learning records yet, so there is nothing to derive a zone of proximal development " +
             "from. Start from the mission and the learner's stated current level."
         : [
-            "From learning records' `Next` sections **only**. Skill-graph gaps and due reviews are",
-            "not yet available as inputs, so treat this as a starting point rather than as a",
-            "complete picture of the learner's frontier.",
+            "From learning records' `Next` sections **only**. Treat this as a starting point",
+            "rather than as a complete picture of the learner's frontier.",
             "",
             list(input.zpdCandidates.map((c) => `${c.next}  _(${c.fromRecord})_`)),
           ].join("\n"),
-    ),
-  );
-
-  parts.push(
-    section(
-      "Skills",
-      isNotTracked(input.skillEvidence)
-        ? [
-            input.skillEvidence.reason,
-            "",
-            input.skills.length === 0
-              ? "_The learner has not rated any skills._"
-              : list(
-                  input.skills.map(
-                    (skill) => `${skill.name} — self-rated: ${skill.perceivedLevel ?? "not rated"}`,
-                  ),
-                ),
-          ].join("\n")
-        : list(input.skillEvidence),
-    ),
-  );
-
-  parts.push(
-    section(
-      "Due reviews",
-      isNotTracked(input.dueReviews) ? input.dueReviews.reason : list(input.dueReviews),
     ),
   );
 
@@ -330,30 +253,13 @@ export function renderBriefing(input: BriefingInput): string {
 
   parts.push(
     section(
-      "Recent friction",
-      input.recentFriction.length === 0
-        ? `No friction logged in the last ${input.frictionWindowDays} days.`
-        : [
-            `Logged by the learner in the last ${input.frictionWindowDays} days. This is measured,`,
-            "unlike most of the above — it is worth designing around.",
-            "",
-            list(
-              input.recentFriction.map((friction) => `${friction.kind} — ${friction.occurrences}×`),
-            ),
-          ].join("\n"),
-    ),
-  );
-
-  parts.push(
-    section(
       "A note on what is missing",
       [
-        "Several sections above say a signal is **not tracked yet**. That is a statement about",
+        "A section above may say a signal is **not tracked yet**. That is a statement about",
         "Mindforge, not about the learner.",
         "",
-        'Do not reason as if an untracked signal were an empty one. "No reviews due" and "reviews',
-        'are not tracked" are different facts, and teaching as though the learner has revised',
-        "nothing — or everything — is a guess dressed as evidence.",
+        "Do not reason as if an untracked signal were an empty one. Teaching as though the",
+        "learner has completed nothing — or everything — is a guess dressed as evidence.",
       ].join("\n"),
     ),
   );

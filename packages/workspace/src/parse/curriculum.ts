@@ -1,6 +1,6 @@
 /**
- * `CURRICULUM.md` → the subtopic level: tracks, their order, their prerequisites,
- * and the skills each intends to build (NORTHSTAR M4, TECH-DESIGN §3.2, §7.4).
+ * `CURRICULUM.md` → the subtopic level: tracks, their order and their
+ * prerequisites (NORTHSTAR M4, TECH-DESIGN §3.2, §7.4).
  *
  * A mission is a main topic; a track is a subtopic; a track's lessons are its
  * module. This file is what the `curriculum` skill writes, and it is an index of
@@ -41,7 +41,6 @@ import { type Parsed, type ParseWarning, warn } from "./result.js";
 
 const SUBJECT_HEADING = "Subject";
 const TRACKS_HEADING = "Tracks";
-const SKILLS_HEADING = "Skills";
 const SOURCES_HEADING = "Sources";
 const HISTORY_HEADING = "History";
 
@@ -69,20 +68,6 @@ const TRACK_COLUMNS: Readonly<Record<string, TrackField>> = {
   "depends on": "prerequisites",
 };
 
-type SkillField = "trackSlug" | "skillSlug" | "name";
-
-const SKILL_COLUMNS: Readonly<Record<string, SkillField>> = {
-  track: "trackSlug",
-  subtopic: "trackSlug",
-  "track slug": "trackSlug",
-  "skill slug": "skillSlug",
-  slug: "skillSlug",
-  "skill id": "skillSlug",
-  skill: "name",
-  name: "name",
-  "skill name": "name",
-};
-
 /** Cells that mean "no prerequisites", including the format doc's em dash. */
 const NONE_MARKERS = new Set(["—", "–", "-", "--", "none", "n/a", "na", "nenhum", "nenhuma"]);
 
@@ -98,18 +83,10 @@ export interface ParsedTrack {
   readonly prerequisites: readonly string[];
 }
 
-export interface ParsedTrackSkill {
-  readonly trackSlug: string;
-  readonly skillSlug: string;
-  readonly name: string;
-}
-
 export interface ParsedCurriculum {
   /** `## Subject`, one line. Null when unfilled — never defaulted to the topic. */
   readonly subject: string | null;
   readonly tracks: readonly ParsedTrack[];
-  /** Flat, and every entry's `trackSlug` is guaranteed to exist in `tracks`. */
-  readonly skills: readonly ParsedTrackSkill[];
 }
 
 export function parseCurriculum(source: string): Parsed<ParsedCurriculum> {
@@ -125,8 +102,6 @@ export function parseCurriculum(source: string): Parsed<ParsedCurriculum> {
     unmapped,
   );
 
-  const skills = parseSkills(readSection(doc, SKILLS_HEADING, warnings), tracks, warnings);
-
   // Retained rather than indexed. `## Sources` belongs to RESOURCES.md (rule 4),
   // and `## History` has no table: `mission_revisions` earns its ledger from
   // `applyEdit` diffing real changes, and re-parsing a section that only grows
@@ -140,9 +115,7 @@ export function parseCurriculum(source: string): Parsed<ParsedCurriculum> {
   }
 
   const known = new Set(
-    [SUBJECT_HEADING, TRACKS_HEADING, SKILLS_HEADING, SOURCES_HEADING, HISTORY_HEADING].map((h) =>
-      h.toLowerCase(),
-    ),
+    [SUBJECT_HEADING, TRACKS_HEADING, SOURCES_HEADING, HISTORY_HEADING].map((h) => h.toLowerCase()),
   );
   for (const [key, section] of doc.sections) {
     if (known.has(key)) continue;
@@ -150,7 +123,7 @@ export function parseCurriculum(source: string): Parsed<ParsedCurriculum> {
     warnings.push(warn("section_unknown", { heading: section.heading }));
   }
 
-  return { parsed: { subject, tracks, skills }, warnings, unmapped };
+  return { parsed: { subject, tracks }, warnings, unmapped };
 }
 
 function parseTracks(
@@ -340,66 +313,4 @@ function breakCycles(edges: Map<string, string[]>, warnings: ParseWarning[]): vo
   for (const slug of edges.keys()) {
     if (state.get(slug) === undefined) visit(slug);
   }
-}
-
-function parseSkills(
-  body: string | null,
-  tracks: readonly ParsedTrack[],
-  warnings: ParseWarning[],
-): readonly ParsedTrackSkill[] {
-  if (body === null) return [];
-
-  const table = parseTable(body);
-  if (!table) {
-    warnings.push(warn("value_malformed", { field: SKILLS_HEADING, reason: "not_a_table" }));
-    return [];
-  }
-
-  const bound = bindColumns(table, SKILL_COLUMNS, warnings);
-  if (!bound.has("name") && !bound.has("skillSlug")) {
-    warnings.push(warn("value_malformed", { field: SKILLS_HEADING, reason: "no_identity_column" }));
-    return [];
-  }
-
-  const trackSlugs = new Set(tracks.map((track) => track.slug));
-  const trackByName = new Map(tracks.map((track) => [slugify(track.name), track.slug]));
-
-  const seen = new Set<string>();
-  const skills: ParsedTrackSkill[] = [];
-
-  for (const row of bound.rows) {
-    const name = bound.cell(row, "name");
-    const declared = bound.cell(row, "skillSlug");
-    const label = name === null ? null : parseLink(name).title;
-    const skillSlug = slugify(declared ?? "") || slugify(label ?? "");
-
-    if (skillSlug === "") {
-      warnings.push(warn("value_malformed", { field: SKILLS_HEADING, reason: "no_slug" }));
-      continue;
-    }
-
-    const rawTrack = bound.cell(row, "trackSlug");
-    const candidate = slugify(parseLink(rawTrack ?? "").title.replace(/^#/u, ""));
-    const trackSlug = trackSlugs.has(candidate) ? candidate : trackByName.get(candidate);
-
-    if (trackSlug === undefined) {
-      // A skill belonging to no track has nowhere to go: `track_skills` is keyed
-      // on the pair. Dropped and named, rather than attached to an arbitrary track.
-      warnings.push(warn("value_unknown", { field: "track", value: rawTrack ?? "" }));
-      continue;
-    }
-
-    // `(track_id, skill_id)` is the primary key. A file that lists a skill twice
-    // under one track is describing one row, not two.
-    const key = `${trackSlug} ${skillSlug}`;
-    if (seen.has(key)) {
-      warnings.push(warn("value_duplicated", { field: "skill", value: skillSlug }));
-      continue;
-    }
-    seen.add(key);
-
-    skills.push({ trackSlug, skillSlug, name: label || deslugify(skillSlug) });
-  }
-
-  return skills;
 }

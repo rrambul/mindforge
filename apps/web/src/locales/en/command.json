@@ -10,8 +10,6 @@
   },
   "action": {
     "stopFocus": "Stop focus",
-    "logFriction": "Log friction: {type}",
-    "captureUrl": "Capture the link on your clipboard",
     "goTo": "{screen}"
   },
   "unavailable": {

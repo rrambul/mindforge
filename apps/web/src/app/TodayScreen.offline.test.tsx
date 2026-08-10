@@ -1,9 +1,9 @@
-import { COLD_START_CHIPS, DEFAULT_LOCALE } from "@mindforge/core";
+import { DEFAULT_LOCALE } from "@mindforge/core";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { QueuedRequest, QueueStorage } from "../shared/lib/offline-queue.js";
 import { OfflineQueueProvider } from "../shared/lib/queue-context.js";
 import { API, problemResponse, server } from "../test/msw.js";
@@ -24,8 +24,6 @@ vi.mock("../shared/api/supabase.js", () => ({
  * backwards is silent either way — a rolled-back tap looks like it never happened, and a queued
  * failure that should have been surfaced looks like success.
  */
-
-const SESSION_ID = "aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa";
 
 function memoryStorage(): QueueStorage & { readonly entries: QueuedRequest[] } {
   const state = { entries: [] as QueuedRequest[] };
@@ -72,104 +70,10 @@ function renderToday(storage: QueueStorage) {
   );
 }
 
-function session(overrides: Record<string, unknown> = {}) {
-  return {
-    id: SESSION_ID,
-    intention: "get the parser handling nested groups",
-    startedAt: "2026-08-05T12:00:00.000Z",
-    endedAt: null,
-    plannedMinutes: null,
-    minutes: null,
-    isRunning: true,
-    entryMode: "timer",
-    hitIntention: null,
-    focusQuality: null,
-    energy: null,
-    note: null,
-    missionId: null,
-    ...overrides,
-  };
-}
-
 /** A request that never reached the server, which is what the http client turns into NetworkError. */
 function offline() {
   return HttpResponse.error();
 }
-
-beforeEach(() => {
-  server.use(
-    http.get(`${API}/friction/chips`, () =>
-      HttpResponse.json({ inline: COLD_START_CHIPS, overflow: [] }),
-    ),
-  );
-});
-
-describe("friction logged offline", () => {
-  it("queues the tap, with its own id and timestamp", async () => {
-    // The case §5 calls the realistic one. Losing this event does not merely lose a row — it kills
-    // trust in the friction number, which is worse than having no number.
-    const storage = memoryStorage();
-    server.use(
-      http.get(`${API}/focus/sessions/running`, () => HttpResponse.json({ session: session() })),
-      http.post(`${API}/friction`, () => offline()),
-    );
-
-    renderToday(storage);
-    await userEvent.click(await screen.findByRole("button", { name: "Tooling" }));
-
-    await waitFor(() => expect(storage.entries).toHaveLength(1));
-
-    const queued = storage.entries[0]!;
-    expect(queued.path).toBe("/friction");
-    // Keyed on the event's own id, so a second tap of the same event replaces rather than appends.
-    expect(queued.key).toMatch(/^friction:[0-9a-f-]{36}$/);
-
-    const body = queued.body as Record<string, unknown>;
-    expect(body.type).toBe("tooling");
-    expect(body.sessionId).toBe(SESSION_ID);
-    // The timestamp is the moment of the tap, not of the eventual upload — otherwise an afternoon
-    // offline arrives as a burst of friction at reconnect.
-    expect(body.occurredAt).toBeTruthy();
-    expect(body.id).toMatch(/^[0-9a-f-]{36}$/);
-  });
-
-  it("shows how many captures are waiting rather than pretending all is well", async () => {
-    // The capture paths are optimistic, so a tap looks identical whether it saved or is sitting in
-    // IndexedDB. Silence would mean the app told you everything was fine while holding data it had
-    // not sent.
-    const storage = memoryStorage();
-    server.use(
-      http.get(`${API}/focus/sessions/running`, () => HttpResponse.json({ session: session() })),
-      http.post(`${API}/friction`, () => offline()),
-    );
-
-    const { container } = renderToday(storage);
-    await userEvent.click(await screen.findByRole("button", { name: "Tooling" }));
-    await waitFor(() => expect(storage.entries).toHaveLength(1));
-
-    // The indicator lives in the shell, which this test does not render — so assert the state it
-    // reads, and let the shell's own rendering be the E2E's business.
-    void container;
-    expect(storage.entries).toHaveLength(1);
-  });
-
-  it("does not queue a tap the server refused", async () => {
-    // A 422 will never succeed. Queueing it would retry until MAX_ATTEMPTS while blocking whatever
-    // is behind it in the queue.
-    const storage = memoryStorage();
-    server.use(
-      http.get(`${API}/focus/sessions/running`, () => HttpResponse.json({ session: session() })),
-      http.post(`${API}/friction`, () => problemResponse(422, "validation-failed", "Bad type.")),
-    );
-
-    renderToday(storage);
-    await userEvent.click(await screen.findByRole("button", { name: "Tooling" }));
-
-    // Given a moment to have queued it, if it were going to.
-    await new Promise((resolve) => setTimeout(resolve, 100));
-    expect(storage.entries).toHaveLength(0);
-  });
-});
 
 describe("the timer offline", () => {
   it("keeps the running timer and queues the start", async () => {

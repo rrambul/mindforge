@@ -1,4 +1,4 @@
-import { dayBounds, isIsoDate, resolveTimeZone, skillSlug } from "@mindforge/core";
+import { dayBounds, isIsoDate, resolveTimeZone } from "@mindforge/core";
 import {
   CURRICULUM_FILE,
   deslugify,
@@ -10,7 +10,6 @@ import {
   parseMission,
   parseNumberedFilename,
   parseReferenceHtml,
-  parseResources,
   RECORDS_DIR,
   REFERENCE_DIR,
   sha256,
@@ -21,11 +20,6 @@ import { Inject, Injectable } from "@nestjs/common";
 
 import { CLOCK, type Clock } from "../../../shared/time/clock.js";
 import { UpdateMission } from "../../missions/application/update-mission.js";
-import { SyncWorkspaceResources } from "../../resources/application/workspace-resources.js";
-import {
-  curriculumSkillSlug,
-  SyncCurriculumSkills,
-} from "../../skills/application/workspace-skills.js";
 import {
   WORKSPACE_INDEX_REPOSITORY,
   type IndexedLesson,
@@ -76,26 +70,22 @@ export interface ReindexInput {
 }
 
 /**
- * The lookups a lesson needs to resolve its own `<meta>` tags.
+ * The lookup a lesson needs to resolve its own `<meta>` tag.
  *
- * Both are keyed by slug and both are populated whether or not this run touched
- * `CURRICULUM.md`, because the run that writes a lesson is normally not the run
- * that wrote the curriculum.
+ * Keyed by slug and populated whether or not this run touched `CURRICULUM.md`,
+ * because the run that writes a lesson is normally not the run that wrote the
+ * curriculum.
  */
 interface Curriculum {
   /** Track slug → id, scoped to this mission. */
   readonly trackIds: ReadonlyMap<string, string>;
-  /** Normalised skill slug → id, scoped to the user — skills cross missions. */
-  readonly skillIds: ReadonlyMap<string, string>;
 }
 
 export interface ReindexResult {
   readonly lessons: number;
   readonly referenceDocs: number;
   readonly records: number;
-  readonly resources: number;
   readonly tracks: number;
-  readonly skills: number;
   readonly warnings: readonly ParseWarning[];
 }
 
@@ -105,8 +95,6 @@ export class ReindexWorkspace {
     @Inject(WORKSPACE_INDEX_REPOSITORY) private readonly index: WorkspaceIndexRepository,
     @Inject(CLOCK) private readonly clock: Clock,
     private readonly missions: UpdateMission,
-    private readonly resources: SyncWorkspaceResources,
-    private readonly skills: SyncCurriculumSkills,
   ) {}
 
   async execute(input: ReindexInput): Promise<ReindexResult> {
@@ -128,35 +116,18 @@ export class ReindexWorkspace {
     await this.index.forgetPaths(input.userId, input.missionId, input.deleted);
 
     await this.reindexMission(input, decoder, warnings);
-    const resources = await this.reindexResources(input, decoder, warnings);
 
     return {
       lessons: lessons.length,
       referenceDocs: referenceDocs.length,
       records: records.length,
-      resources,
       tracks: curriculum.trackIds.size,
-      skills: curriculum.skillIds.size,
       warnings,
     };
   }
 
   /**
-   * `CURRICULUM.md` → tracks, their edges, and the skills they intend to build.
-   *
-   * Skills go through the skills module rather than being written here (§2.1
-   * decision 2), and the interface they go through cannot express `score`,
-   * `band` or `perceived_level` — a generated curriculum with an opinion about
-   * how good somebody is would destroy the calibration gap FR-S5 measures.
-   *
-   * **Skill *edges* are deliberately not derived from track edges.** The obvious
-   * reading is that "track B requires track A" means every skill in B requires
-   * every skill in A, and that is wrong twice: it is quadratic in the size of two
-   * modules, and §9.4's readiness term is the *fraction* of prerequisites at
-   * `working` — so inventing twenty-five edges where the learner meant one
-   * pushes a genuinely reachable skill out of their zone of proximal development.
-   * Track-level order is what the curriculum knows; skill-level order is not, and
-   * pretending otherwise makes the recommender worse rather than better.
+   * `CURRICULUM.md` → tracks and their edges.
    */
   private async reindexCurriculum(
     input: ReindexInput,
@@ -169,33 +140,12 @@ export class ReindexWorkspace {
     // existing tracks are still read, because the lessons this run *did* write
     // need somewhere to resolve their `<meta>` tag against.
     if (!source) {
-      const [trackIds, skillIds] = await Promise.all([
-        this.index.trackIdsBySlug(input.userId, input.missionId),
-        this.skills.allBySlug(input.userId),
-      ]);
-      return { trackIds, skillIds };
+      const trackIds = await this.index.trackIdsBySlug(input.userId, input.missionId);
+      return { trackIds };
     }
 
     const { parsed, warnings: fileWarnings } = parseCurriculum(decoder.decode(source));
     warnings.push(...fileWarnings);
-
-    const { idBySlug: skillIds } = await this.skills.execute({
-      userId: input.userId,
-      skills: parsed.skills,
-    });
-
-    const skillsOf = new Map<string, string[]>();
-    for (const skill of parsed.skills) {
-      // Through the same normaliser the write used. The file's `Skill slug`
-      // column is the learner-facing identity; `skills.slug` is that identity put
-      // through the rule the rest of the product forms one by, and looking up the
-      // raw value would miss every skill whose slug the normaliser touched.
-      const id = skillIds.get(curriculumSkillSlug(skill.skillSlug, skill.name));
-      if (id === undefined) continue;
-      const bucket = skillsOf.get(skill.trackSlug) ?? [];
-      bucket.push(id);
-      skillsOf.set(skill.trackSlug, bucket);
-    }
 
     const tracks: IndexedTrack[] = parsed.tracks.map((track): IndexedTrack => ({
       slug: track.slug,
@@ -203,12 +153,11 @@ export class ReindexWorkspace {
       outcome: track.outcome,
       position: track.position,
       prerequisiteSlugs: track.prerequisites,
-      skillIds: skillsOf.get(track.slug) ?? [],
     }));
 
     const trackIds = await this.index.saveTracks(input.userId, input.missionId, tracks);
 
-    return { trackIds, skillIds };
+    return { trackIds };
   }
 
   /**
@@ -243,35 +192,6 @@ export class ReindexWorkspace {
       currentLevel: parsed.fields.currentLevel,
       reason: "Updated by a teach run",
     });
-  }
-
-  /**
-   * `RESOURCES.md` → the library (FR-T8), through the module that owns it.
-   *
-   * The upsert key and the columns this may not touch are decided in
-   * `SyncWorkspaceResources`, because both are resources decisions rather than
-   * teach ones — and because `resources` has no natural unique constraint, so
-   * getting it wrong doubles the library on the second run rather than failing.
-   */
-  private async reindexResources(
-    input: ReindexInput,
-    decoder: TextDecoder,
-    warnings: ParseWarning[],
-  ): Promise<number> {
-    const source = input.files.get("RESOURCES.md");
-    if (!source) return 0;
-
-    const { parsed, warnings: fileWarnings } = parseResources(decoder.decode(source));
-    warnings.push(...fileWarnings);
-
-    const { created, updated } = await this.resources.execute({
-      userId: input.userId,
-      missionId: input.missionId,
-      primary: parsed.primary,
-      rejected: parsed.rejected,
-    });
-
-    return created + updated;
   }
 
   private readLessons(
@@ -313,7 +233,6 @@ export class ReindexWorkspace {
         storagePath: path,
         contentHash: sha256(bytes),
         trackId: this.resolveTrack(parsed.trackSlug, curriculum, filename, warnings),
-        skillIds: this.resolveSkills(parsed.skillSlugs, curriculum, filename, warnings),
       });
     }
 
@@ -345,35 +264,6 @@ export class ReindexWorkspace {
       return null;
     }
     return id;
-  }
-
-  /**
-   * A lesson's declared skills → row ids.
-   *
-   * Resolved only against skills the curriculum named, never created here. A
-   * lesson is allowed to say what it taught; it is not allowed to invent an entry
-   * in the graph the product scores from — `lessons.outcome` becomes evidence
-   * through this join, and a skill that exists only because one lesson mentioned
-   * it would have exactly one possible source of evidence and no way to be wrong.
-   */
-  private resolveSkills(
-    slugs: readonly string[],
-    curriculum: Curriculum,
-    filename: string,
-    warnings: ParseWarning[],
-  ): readonly string[] {
-    const ids: string[] = [];
-
-    for (const slug of slugs) {
-      const id = curriculum.skillIds.get(skillSlug(slug));
-      if (id === undefined) {
-        warnings.push(warn("value_unknown", { field: "skill", value: slug, file: filename }));
-        continue;
-      }
-      if (!ids.includes(id)) ids.push(id);
-    }
-
-    return ids;
   }
 
   private readReferenceDocs(

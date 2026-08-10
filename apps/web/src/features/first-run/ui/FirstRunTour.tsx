@@ -14,23 +14,9 @@ import {
 import type { FirstRunState, FirstRunStep } from "../lib/first-run-state.js";
 
 export interface FirstRunHandlers {
-  /** Each returns the id of what it created, so the next step can hang off it. */
+  /** Returns the id of what it created, so the next step can hang off it. */
   readonly createMission: (input: { topic: string; why: string | null }) => Promise<string>;
-  readonly createGoal: (input: {
-    missionId: string;
-    title: string;
-    hours: number;
-  }) => Promise<string>;
-  readonly createResource: (input: {
-    url: string | null;
-    title: string | null;
-    missionId: string;
-  }) => Promise<string>;
-  readonly startFocus: (input: {
-    missionId: string;
-    resourceId: string | null;
-    intention: string;
-  }) => Promise<void>;
+  readonly startFocus: (input: { missionId: string; intention: string }) => Promise<void>;
 }
 
 interface FirstRunTourProps {
@@ -44,8 +30,7 @@ interface FirstRunTourProps {
 }
 
 /**
- * The guided first mission (§5.3) — four steps that produce a real mission, goal, resource, and focus
- * session.
+ * The guided first mission (§5.3) — two steps that produce a real mission and a real focus session.
  *
  * Not a tutorial and not demo data: every step writes through the same endpoints the rest of the app
  * uses, so what you are left with is yours to keep, edit, or delete. That is the whole design — a tour
@@ -70,11 +55,6 @@ export function FirstRunTour({
 
   const [topic, setTopic] = useState("");
   const [why, setWhy] = useState("");
-  const [goalTitle, setGoalTitle] = useState("");
-  const [hours, setHours] = useState("10");
-  const [url, setUrl] = useState("");
-  const [resourceName, setResourceName] = useState("");
-  const [manual, setManual] = useState(false);
   const [intention, setIntention] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -138,106 +118,11 @@ export function FirstRunTour({
                       topic: topic.trim(),
                       why: why.trim() === "" ? null : why.trim(),
                     });
-                    onAdvance({ step: "goal", missionId });
+                    onAdvance({ step: "focus", missionId });
                   })
                 }
               >
                 {t("next")}
-              </Button>
-              <Button variant="quiet" onClick={onSkip}>
-                {t("skip")}
-              </Button>
-            </Row>
-          </>
-        ) : null}
-
-        {state.step === "goal" ? (
-          <>
-            <Text>{t("step.goal.title")}</Text>
-            {/* Teaches the thing that makes goals here different: they are measured, not declared. */}
-            <Text tone="muted">{t("step.goal.why")}</Text>
-            <Field
-              label={t("step.goal.goalTitle")}
-              value={goalTitle}
-              onChange={(event) => setGoalTitle(event.target.value)}
-            />
-            {/* Focus hours, because it is the one target kind that measures itself from the very next
-                step — a resource target would sit unmeasurable until something was read, and a skill
-                target cannot be measured at all until M2. */}
-            <Field
-              label={t("step.goal.hours")}
-              type="number"
-              inputMode="numeric"
-              min={1}
-              value={hours}
-              onChange={(event) => setHours(event.target.value)}
-            />
-            <Row>
-              <Button
-                variant="primary"
-                disabled={goalTitle.trim() === "" || !isPositive(hours) || busy}
-                onClick={() =>
-                  void run(async () => {
-                    const goalId = await handlers.createGoal({
-                      missionId: state.missionId!,
-                      title: goalTitle.trim(),
-                      hours: Number.parseInt(hours, 10),
-                    });
-                    onAdvance({ step: "resource", goalId });
-                  })
-                }
-              >
-                {t("next")}
-              </Button>
-              <Button variant="quiet" onClick={onSkip}>
-                {t("skip")}
-              </Button>
-            </Row>
-          </>
-        ) : null}
-
-        {state.step === "resource" ? (
-          <>
-            <Text>{t("step.resource.title")}</Text>
-            <Text tone="muted">{t("step.resource.why")}</Text>
-
-            {manual ? (
-              <Field
-                label={t("step.resource.name")}
-                value={resourceName}
-                onChange={(event) => setResourceName(event.target.value)}
-              />
-            ) : (
-              <Field
-                label={t("step.resource.url")}
-                type="url"
-                inputMode="url"
-                value={url}
-                onChange={(event) => setUrl(event.target.value)}
-              />
-            )}
-
-            <Row>
-              <Button
-                variant="primary"
-                disabled={(manual ? resourceName.trim() === "" : url.trim() === "") || busy}
-                onClick={() =>
-                  void run(async () => {
-                    const resourceId = await handlers.createResource({
-                      url: manual ? null : url.trim(),
-                      title: manual ? resourceName.trim() : null,
-                      missionId: state.missionId!,
-                    });
-                    onAdvance({ step: "focus", resourceId });
-                  })
-                }
-              >
-                {t("next")}
-              </Button>
-              {/* Offered rather than assumed: "usually a paste of one URL" is not always, and a book has
-                  no link to paste. */}
-              <Button variant="quiet" onClick={() => setManual(!manual)}>
-                {t("step.resource.manual")}
               </Button>
               <Button variant="quiet" onClick={onSkip}>
                 {t("skip")}
@@ -264,7 +149,6 @@ export function FirstRunTour({
                   void run(async () => {
                     await handlers.startFocus({
                       missionId: state.missionId!,
-                      resourceId: state.resourceId ?? null,
                       intention: intention.trim(),
                     });
                     onAdvance({ step: "done" });
@@ -299,10 +183,5 @@ export function FirstRunTour({
 }
 
 function stepOf(step: FirstRunStep): number {
-  return ["mission", "goal", "resource", "focus"].indexOf(step) + 1;
-}
-
-function isPositive(value: string): boolean {
-  const parsed = Number.parseInt(value, 10);
-  return Number.isFinite(parsed) && parsed > 0;
+  return ["mission", "focus"].indexOf(step) + 1;
 }

@@ -1,70 +1,12 @@
 {
-  "ember": "Brasa",
-  "slag": "Escória",
-  "temper": "Têmpera",
-  "frontier": "Fronteira",
   "mission": "Missão",
   "mission_plural": "Missões",
-  "skill": "Habilidade",
-  "skill_plural": "Habilidades",
   "focusSession": "Sessão de foco",
-  "band": {
-    "aware": "Ciente",
-    "assisted": "Assistido",
-    "working": "Praticando",
-    "fluent": "Fluente",
-    "teaching": "Ensinando"
-  },
   "missionStatus": {
     "active": "Ativa",
     "parked": "Pausada",
     "completed": "Concluída",
     "abandoned": "Abandonada"
-  },
-  "noteSubject": {
-    "mission": "Missão",
-    "goal": "Meta",
-    "skill": "Habilidade",
-    "resource": "Recurso",
-    "lesson": "Lição",
-    "reference_doc": "Referência",
-    "learning_record": "Registro de aprendizado",
-    "focus_session": "Sessão de foco",
-    "assessment": "Avaliação",
-    "artifact": "Artefato",
-    "standalone": "Sem pasta"
-  },
-  "resourceType": {
-    "book": "Livro",
-    "podcast": "Podcast",
-    "article": "Artigo",
-    "video": "Vídeo",
-    "course": "Curso",
-    "docs": "Documentação",
-    "paper": "Artigo científico"
-  },
-  "resourceStatus": {
-    "inbox": "Entrada",
-    "queued": "Na fila",
-    "active": "Lendo",
-    "finished": "Concluído",
-    "abandoned": "Parado",
-    "reference": "Referência"
-  },
-  "goalStatus": {
-    "active": "Ativa",
-    "met": "Atingida",
-    "missed": "Não atingida",
-    "abandoned": "Abandonada"
-  },
-  "targetKind": {
-    "resource_progress": "Progresso no recurso",
-    "skill_band": "Faixa da habilidade",
-    "artifact": "Artefato",
-    "focus_hours": "Horas de foco",
-    "review_accuracy": "Precisão nas revisões",
-    "lessons_completed": "Lições concluídas",
-    "manual": "Você decide"
   },
   "memoryKind": {
     "background": "Contexto",

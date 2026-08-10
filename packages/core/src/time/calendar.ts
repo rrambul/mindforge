@@ -14,9 +14,9 @@
  * the wall calendar", so the dates are manipulated as dates and only converted to instants at the
  * edge, where a query needs a range.
  *
- * A date here is an `IsoDate`: `YYYY-MM-DD`, no time, no zone. It is what `daily_activity.day` and
- * `weekly_plans.week_start` store, and it is deliberately a plain string — a `Date` at midnight
- * carries a timezone it has no business carrying, and every bug in this area starts with one.
+ * A date here is an `IsoDate`: `YYYY-MM-DD`, no time, no zone. It is what `daily_activity.day`
+ * stores, and it is deliberately a plain string — a `Date` at midnight carries a timezone it has
+ * no business carrying, and every bug in this area starts with one.
  */
 
 import type { WeekStart } from "../i18n/locales.js";

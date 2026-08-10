@@ -1,15 +1,7 @@
 import { Module } from "@nestjs/common";
 import { ACTIVITY_GRID_READER } from "../application/activity-grid.port.js";
-import { BACKLOG_READER } from "../application/backlog.port.js";
-import { FRICTION_ANALYTICS_READER } from "../application/friction-analytics.port.js";
-import {
-  GetActivityGrid,
-  GetBacklogHealth,
-  GetFrictionAnalytics,
-} from "../application/insights.use-cases.js";
+import { GetActivityGrid } from "../application/insights.use-cases.js";
 import { PrismaActivityGridReader } from "../infrastructure/prisma-activity-grid.reader.js";
-import { PrismaBacklogReader } from "../infrastructure/prisma-backlog.reader.js";
-import { PrismaFrictionAnalyticsReader } from "../infrastructure/prisma-friction-analytics.reader.js";
 import { InsightsController } from "./insights.controller.js";
 
 /**
@@ -24,11 +16,7 @@ import { InsightsController } from "./insights.controller.js";
   controllers: [InsightsController],
   providers: [
     GetActivityGrid,
-    GetBacklogHealth,
-    GetFrictionAnalytics,
     { provide: ACTIVITY_GRID_READER, useClass: PrismaActivityGridReader },
-    { provide: BACKLOG_READER, useClass: PrismaBacklogReader },
-    { provide: FRICTION_ANALYTICS_READER, useClass: PrismaFrictionAnalyticsReader },
   ],
 })
 export class InsightsModule {}

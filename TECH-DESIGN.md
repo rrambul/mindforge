@@ -1,8 +1,14 @@
 # Mindforge — Technical Design
 
-**Status:** Draft v0.1
-**Date:** 2026-08-05
-**Companion doc:** [`REQUIREMENTS.md`](./REQUIREMENTS.md) — product requirements. Read that first; this document assumes its vocabulary (Mission, Skill, Resource, Lesson, Learning Record, Focus Session, Friction Event, Review Item, Artifact).
+**Status:** v0.2 — refocused on the curriculum flow
+**Date:** 2026-08-10
+**Companion doc:** [`REQUIREMENTS.md`](./REQUIREMENTS.md) — product requirements. Read that first; this document assumes its vocabulary (Mission, Curriculum, Module/Track, Lesson, Learning Record, Focus Session).
+
+> **v0.2 refocus.** The product is one flow now — curriculum → modules → lessons → progress · time ·
+> frequency — and this document was cut to match. Removed wholesale: goals, skills and scoring,
+> the resource library, notes, friction tracking, weekly planning and reviews, spaced repetition,
+> assessments, artifacts, notifications, and the analytics that read them. The v0.1 designs live in
+> git history.
 
 ---
 
@@ -70,7 +76,7 @@ Three architectural forks were open after the requirements doc. Resolved as foll
 | Frontend       | Vite + React + TypeScript                                                       | React over Lit here: the chart/dashboard ecosystem (Recharts/visx) and TanStack Query matter more than shadow-DOM encapsulation for a single-app product.                                                                                       |
 | Routing / data | TanStack Router + TanStack Query                                                | Query's cache + optimistic mutations are what make ≤5s capture actually feel instant.                                                                                                                                                           |
 | UI             | Tailwind + Radix primitives                                                     | Headless primitives, own the visual design (see `REQUIREMENTS.md` §7.6 — this app needs to feel calm, not templated).                                                                                                                           |
-| Charts         | Recharts (or visx if the friction/retention charts get custom)                  |                                                                                                                                                                                                                                                 |
+| Charts         | Recharts (little charting left; the grid is hand-rolled CSS)                    |                                                                                                                                                                                                                                                 |
 | API            | NestJS + Fastify adapter                                                        | Fastify over Express for throughput and better schema integration.                                                                                                                                                                              |
 | Validation     | Zod, shared via `packages/core`                                                 | One schema per DTO, reused for API validation, SPA forms, and LLM structured outputs.                                                                                                                                                           |
 | DB access      | Prisma ORM                                                                      | Mature migrations, strong TS inference, and the schema doubles as documentation. RLS needs an explicit transaction wrapper — `runAsUser` (§3.6). A Prisma Client extension looks like the right shape here and isolates nothing; §3.6 says why. |
@@ -127,33 +133,32 @@ apps/api/src/modules/<feature>/
 
 **Dependency rule:** `domain ← application ← {infrastructure, presentation}`. Domain imports nothing but itself and `packages/core`. Enforced with an ESLint boundary rule, not convention.
 
-**Modules:** `missions` · `goals` · `skills` · `resources` · `focus` · `friction` · `planning` · `teach` · `records` · `review` · `assessments` · `artifacts` · `insights` · `account`.
+**Modules:** `missions` · `focus` · `teach` · `insights` · `account`.
 
 ### Token + wiring convention
 
 ```ts
-// domain/skill.repository.ts
-export const SKILL_REPOSITORY = Symbol("SkillRepository");
+// domain/focus-session.repository.ts
+export const FOCUS_SESSION_REPOSITORY = Symbol("FocusSessionRepository");
 
-export interface SkillRepository {
-  findById(userId: UserId, id: SkillId): Promise<Skill | null>;
-  listForUser(userId: UserId): Promise<Skill[]>;
-  save(userId: UserId, skill: Skill): Promise<void>;
+export interface FocusSessionRepository {
+  findById(userId: UserId, id: SessionId): Promise<FocusSession | null>;
+  findRunning(userId: UserId): Promise<FocusSession | null>;
+  save(userId: UserId, session: FocusSession): Promise<void>;
 }
 ```
 
 ```ts
-// presentation/skills.module.ts
+// presentation/focus.module.ts
 @Module({
-  controllers: [SkillsController],
+  controllers: [FocusController],
   providers: [
-    RecordSkillEvidence,
-    GetSkillGraph,
-    { provide: SKILL_REPOSITORY, useClass: PrismaSkillRepository },
+    FocusSessionCommands,
+    { provide: FOCUS_SESSION_REPOSITORY, useClass: PrismaFocusSessionRepository },
   ],
-  exports: [RecordSkillEvidence], // the worker imports these
+  exports: [FocusSessionCommands], // the worker imports these
 })
-export class SkillsModule {}
+export class FocusModule {}
 ```
 
 ### Three decisions this structure forces, all of them good here
@@ -166,24 +171,19 @@ export class SkillsModule {}
 
 ### Where `packages/core` fits
 
-`packages/core` is **pure calculation with no domain identity** — skill decay curves, FSRS scheduling, calibration math, friction classification, temper-band thresholds. It's a package rather than a domain service because `apps/web` needs the same functions to render a gauge or preview a review schedule without a round trip.
+`packages/core` is **pure calculation with no domain identity** — the calendar maths, the activity
+grid, the dependency-graph helpers, the module-progress derivations. It's a package rather than a
+domain service because `apps/web` needs the same functions to render a fraction or a grid cell
+without a round trip.
 
 Domain entities _call_ `packages/core`; they don't duplicate it.
 
-```ts
-// domain/entities/skill.ts
-import { decayedScore, bandFor } from "@mindforge/core";
-
-export class Skill {
-  scoreAt(now: Date): Score {
-    return decayedScore(this.evidence, this.halfLifeDays, now);
-  }
-}
-```
-
 ### Pragmatism
 
-Not every module earns four layers. `artifacts` is close to CRUD — a controller, one use case file, and a repository is enough. **Add layers when there's an invariant to protect, not by default.** The modules that genuinely need the full structure are `skills` (evidence and scoring rules), `teach` (workspace sync and conflict handling), `review` (scheduling), and `assessments` (grading and calibration). Applying the full ceremony to every module turns a good pattern into overhead.
+Not every module earns four layers. **Add layers when there's an invariant to protect, not by
+default.** The modules that genuinely need the full structure are `teach` (workspace sync, conflict
+handling, the run state machine) and `focus` (the session lifecycle). Applying the full ceremony to
+every module turns a good pattern into overhead.
 
 > **ORM:** Prisma, matching the reference structure. It's confined to `infrastructure/persistence/` — domain and application layers never import `@prisma/client`, and mappers convert rows to entities at the boundary. The one place Prisma needs care is RLS (§3.6).
 
@@ -211,7 +211,7 @@ apps/web/src/
 └─ styles/tokens.css          the identity tokens, one source
 ```
 
-**Modules mirror the backend's** — `missions`, `skills`, `focus`, `friction`, `teach`, `review`, `assessments`, `insights` — so a change usually lands in one folder on each side.
+**Modules mirror the backend's** — `missions`, `focus`, `teach`, `insights`, `settings` — so a change usually lands in one folder on each side.
 
 ### The rules that keep it clean
 
@@ -219,43 +219,15 @@ apps/web/src/
 
 **2. Components never fetch.** Every request goes through a hook in `features/<x>/api/`. A component that imports the http client directly is a bug.
 
-```ts
-// features/friction/api/use-log-friction.ts
-export function useLogFriction() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (input: LogFrictionInput) => api.post("/friction", input),
-    onMutate: async (input) => {
-      // ≤5s capture means optimistic, always
-      await qc.cancelQueries({ queryKey: ["friction", "today"] });
-      const prev = qc.getQueryData(["friction", "today"]);
-      qc.setQueryData(["friction", "today"], (old) => [...old, optimistic(input)]);
-      return { prev };
-    },
-    onError: (_e, _v, ctx) => qc.setQueryData(["friction", "today"], ctx.prev),
-    onSettled: () => qc.invalidateQueries({ queryKey: ["friction"] }),
-  });
-}
-```
-
 **3. Types and validation come from `packages/core`.** The same Zod schemas the API validates with. No hand-written DTOs, no drift between client and server.
 
-**4. Domain math comes from `packages/core` too.** The temper gauge renders decay with the identical function the API scores with. If the gauge and the API ever disagree about a skill's score, the product's core promise is broken — so there is exactly one implementation.
-
-```tsx
-import { decayedScore, confidenceWidth } from "@mindforge/core";
-
-<TemperGauge
-  score={decayedScore(skill.evidence, skill.halfLifeDays, now)}
-  feather={confidenceWidth(skill.lastEvidenceAt, now)}
-/>;
-```
+**4. Domain math comes from `packages/core` too.** The activity grid buckets days with the identical function the API answers with. If the grid and the API ever disagree about a number, the product's core promise is broken — so there is exactly one implementation.
 
 **5. Routes are smart, components are dumb.** Route components fetch and compose; everything in `ui/` takes props and renders. Makes the UI layer trivially testable and storybook-able.
 
 **6. Features never import each other.** Cross-feature sharing goes through `shared/`, or is composed at the route level. This is the boundary that stops a 40-file refactor two years in — enforce it with the same ESLint rule as the backend.
 
-**7. `shared/ui` is the design system, not a junk drawer.** The temper gauge, the ratio bar, and the band chips are shared primitives because they appear in five features. Something used once lives in that feature's `ui/`.
+**7. `shared/ui` is the design system, not a junk drawer.** Something used once lives in that feature's `ui/`.
 
 ### Client state that isn't server state
 
@@ -268,20 +240,24 @@ Everything else is either server state (Query) or local component state (`useSta
 
 ### Forms
 
-`react-hook-form` + `@hookform/resolvers/zod`, with schemas imported from `packages/core`. The mission editor, the session debrief, and the assessment answer sheet are the only real forms — most capture is one tap and shouldn't be a form at all.
+`react-hook-form` + `@hookform/resolvers/zod`, with schemas imported from `packages/core`. The
+mission editor and the session debrief are the only real forms — most capture is one tap and
+shouldn't be a form at all.
 
 ### Offline queue
 
-Lives in `shared/lib/offline-queue.ts`, not in any feature. It wraps mutations for the three capture paths (session start/stop, friction, progress), persists to IndexedDB with client-generated UUIDs, and replays on reconnect. Idempotency is the server's job — the client just retries.
+Lives in `shared/lib/offline-queue.ts`, not in any feature. It wraps the timer's mutations,
+persists to IndexedDB with client-generated UUIDs, and replays on reconnect. Idempotency is the
+server's job — the client just retries.
 
 ### Testing
 
-| Layer              | Tool                     | What                                                                                       |
-| ------------------ | ------------------------ | ------------------------------------------------------------------------------------------ |
-| `shared/ui`        | Vitest + Testing Library | Rendering, states, a11y. The temper gauge gets its own suite — feathering is load-bearing. |
-| `features/*/api`   | Vitest + MSW             | Query keys, optimistic rollback, error mapping.                                            |
-| `features/*/model` | Vitest                   | Pure selectors and derivations.                                                            |
-| Routes             | Playwright               | The capture loop end to end.                                                               |
+| Layer              | Tool                     | What                                            |
+| ------------------ | ------------------------ | ----------------------------------------------- |
+| `shared/ui`        | Vitest + Testing Library | Rendering, states, a11y.                        |
+| `features/*/api`   | Vitest + MSW             | Query keys, optimistic rollback, error mapping. |
+| `features/*/model` | Vitest                   | Pure selectors and derivations.                 |
+| Routes             | Playwright               | The capture loop end to end.                    |
 
 ---
 
@@ -291,7 +267,7 @@ Postgres. Every user-owned table carries `user_id uuid not null references auth.
 
 ### 3.1 Core entities
 
-```sql
+````sql
 -- Missions --------------------------------------------------------------
 create table missions (
   id            uuid primary key default gen_random_uuid(),
@@ -318,148 +294,11 @@ create table mission_revisions (
   snapshot   jsonb not null            -- full mission fields at that point
 );
 
--- Goals -----------------------------------------------------------------
-create table goals (
-  id           uuid primary key default gen_random_uuid(),
-  user_id      uuid not null,
-  mission_id   uuid references missions(id) on delete set null,
-  title        text not null,
-  definition_of_done text,
-  target_date  date,
-  status       text not null default 'active'
-               check (status in ('active','met','missed','abandoned')),
-  outcome_note text,                   -- required when status != 'active'
-  created_at   timestamptz not null default now()
-);
-
--- A goal is met when all its targets are met. Progress is DERIVED from these,
--- never hand-entered — there is no percentage slider. See §3.8.
-create table goal_targets (
-  id         uuid primary key default gen_random_uuid(),
-  user_id    uuid not null,
-  goal_id    uuid not null references goals(id) on delete cascade,
-  kind       text not null check (kind in (
-               'resource_progress',  -- finish resource X to N%
-               'skill_band',         -- bring skill X to band Y
-               'artifact',           -- ship a thing (binary)
-               'focus_hours',        -- spend N hours on a mission/skill
-               'review_accuracy',    -- hold N% accuracy on skill X
-               'lessons_completed',  -- complete N lessons in a mission
-               'manual')),           -- you decide; the honest escape hatch
-  resource_id uuid references resources(id) on delete cascade,
-  skill_id    uuid references skills(id) on delete cascade,
-  mission_id  uuid references missions(id) on delete cascade,
-  target      jsonb not null,        -- {"percent":100} | {"band":"fluent"}
-                                     -- {"hours":40}    | {"accuracy":0.85,"window_days":30}
-  weight      numeric(4,2) not null default 1,
-  met_at      timestamptz
-);
-
-create index goal_targets_goal_idx on goal_targets (user_id, goal_id);
-
--- Skills ----------------------------------------------------------------
-create table skills (
-  id             uuid primary key default gen_random_uuid(),
-  user_id        uuid not null,
-  name           text not null,
-  slug           text not null,
-  description    text,
-  band           text not null default 'aware'
-                 check (band in ('aware','assisted','working','fluent','teaching')),
-  perceived_level numeric(5,2),        -- self-rating 0-100, stored separately (FR-S2)
-  score          numeric(5,2),         -- derived from evidence, NOT self-reported
-  score_stddev   numeric(5,2),         -- confidence: score ± ~2σ  (FR-S3)
-  half_life_days numeric(6,2) default 90,  -- decay parameter (FR-S4)
-  last_evidence_at timestamptz,
-  unique (user_id, slug)
-);
-
--- Prerequisite graph (FR-S1). DAG; cycle prevention enforced in app code.
-create table skill_edges (
-  user_id    uuid not null,
-  skill_id   uuid not null references skills(id) on delete cascade,
-  prereq_id  uuid not null references skills(id) on delete cascade,
-  primary key (skill_id, prereq_id),
-  check (skill_id <> prereq_id)
-);
-
--- Every score change traces to an evidence event. Scores are never hand-set.
-create table skill_evidence (
-  id          uuid primary key default gen_random_uuid(),
-  user_id     uuid not null,
-  skill_id    uuid not null references skills(id) on delete cascade,
-  kind        text not null check (kind in
-              ('assessment','review','lesson','artifact','teach_back','self_report')),
-  source_id   uuid,                    -- polymorphic; kind determines the table
-  raw_score   numeric(5,2) not null,   -- 0-100 for this single observation
-  weight      numeric(4,2) not null,   -- artifact 1.0 > teach_back 0.9 > assessment 0.8 …
-  occurred_at timestamptz not null default now()
-);
-```
-
-`skill_evidence` is the heart of scoring. `skills.score` / `score_stddev` are **materialized** from it (recomputed on write and by a nightly job), never edited directly. That single rule is what makes FR-S2 through FR-S5 hold.
-
-### 3.2 Resources, lessons, records
+### 3.2 The curriculum: tracks and lessons
 
 ```sql
-create table resources (
-  id          uuid primary key default gen_random_uuid(),
-  user_id     uuid not null,
-  type        text not null check (type in
-              ('book','podcast','article','video','course','docs','paper')),
-  title       text not null,
-  author      text,
-  url         text,
-  status      text not null default 'inbox' check (status in
-              ('inbox','queued','active','finished','abandoned','reference')),
-  abandon_reason text,                 -- guilt-free, and prime friction data (FR-R5)
-  -- Type-specific progress, one column, validated per type in app code
-  progress    jsonb not null default '{}'::jsonb,
-              -- book:    {"unit":"page","current":137,"total":590}
-              -- podcast: {"unit":"seconds","current":1420,"total":3900}
-              -- article: {"unit":"percent","current":100}
-  trust       text check (trust in ('high','medium','low')),  -- RESOURCES.md parity
-  rejected_reason text,                -- teach's "Explored But Rejected" list
-  added_at    timestamptz not null default now(),
-  finished_at timestamptz
-);
-
-create table resource_links (          -- resource ↔ mission / skill
-  resource_id uuid not null references resources(id) on delete cascade,
-  user_id     uuid not null,
-  mission_id  uuid references missions(id) on delete cascade,
-  skill_id    uuid references skills(id) on delete cascade
-);
-
--- Notes attach to anything. A highlight is just a note with a quote and a locator,
--- so there is one table, not two. See §3.7 for why this isn't a note-taking app.
-create table notes (
-  id           uuid primary key default gen_random_uuid(),
-  user_id      uuid not null,
-  subject_type text not null check (subject_type in (
-                 'mission','goal','skill','resource','lesson','reference_doc',
-                 'learning_record','focus_session','assessment','artifact','standalone')),
-  subject_id   uuid,                    -- null only when subject_type = 'standalone'
-  body         text not null,           -- markdown
-  quote        text,                    -- the excerpt this responds to → a highlight
-  locator      jsonb,                   -- {"page":204} | {"seconds":1420} | {"selector":"#h3"}
-  pinned       boolean not null default false,
-  promoted_review_item_id uuid references review_items(id) on delete set null,
-  -- Search stemming follows the CONTENT's language, not the UI locale (§5.2).
-  lang         text not null default 'english' check (lang in ('english','portuguese')),
-  search       tsvector generated always as (
-                 to_tsvector(
-                   case lang when 'portuguese' then 'portuguese'::regconfig
-                             else 'english'::regconfig end,
-                   coalesce(quote,'') || ' ' || body)) stored,
-  created_at   timestamptz not null default now(),
-  updated_at   timestamptz not null default now(),
-  check (subject_id is not null or subject_type = 'standalone')
-);
-
-create index notes_subject_idx on notes (user_id, subject_type, subject_id, created_at desc);
-create index notes_search_idx  on notes using gin (search);
-
+-- A subtopic — the module its lessons belong to. Display text ("module") is a
+-- glossary concern (§5.2), not a second table.
 -- A subtopic. M7 calls this an "arm"; it arrives at M4 because a module of
 -- lessons is a track's lessons, and one entity is enough for both. Display text
 -- ("subtopic") is a glossary concern (§5.2), not a second table.
@@ -470,9 +309,8 @@ create table tracks (
   slug        text not null,            -- stable; what a lesson's <meta> names
   name        text not null,
   outcome     text,                     -- one line: what you can do afterwards
-  -- The recommended reading order, fundamentals first. A PLAN, not the truth:
-  -- what to teach next is §9.4's ZPD score over skill_edges. If the two
-  -- disagree that is a signal (M8), not a bug to fix by trusting this column.
+  -- The recommended reading order, fundamentals first. A plan — hard
+  -- sequencing comes from track_edges.
   position    integer not null,
   status      text not null default 'proposed'
               check (status in ('proposed','active','done','dropped')),
@@ -480,8 +318,8 @@ create table tracks (
   unique (mission_id, slug)
 );
 
--- Prerequisites between tracks. Same shape as skill_edges, same cycle check in
--- app code — a DB constraint cannot express a DAG.
+-- Prerequisites between tracks. Cycle check in app code — a DB constraint
+-- cannot express a DAG.
 create table track_edges (
   user_id   uuid not null,
   track_id  uuid not null references tracks(id) on delete cascade,
@@ -490,16 +328,8 @@ create table track_edges (
   check (track_id <> prereq_id)
 );
 
--- What a track intends to teach. Written by `curriculum`, before any lesson for
--- the track exists — which is the whole point of generating lessons lazily.
-create table track_skills (
-  user_id  uuid not null,
-  track_id uuid not null references tracks(id) on delete cascade,
-  skill_id uuid not null references skills(id) on delete cascade,
-  primary key (track_id, skill_id)
-);
-
 -- Index over workspace files. Rebuildable — files in Storage are canonical.
+create table lessons (-- Index over workspace files. Rebuildable — files in Storage are canonical.
 create table lessons (
   id           uuid primary key default gen_random_uuid(),
   user_id      uuid not null,
@@ -519,18 +349,7 @@ create table lessons (
   unique (mission_id, seq)
 );
 
--- What a lesson actually taught. `lessons.outcome` has been documented as the
--- first automatic skill evidence since M0 and had nowhere to land: nothing
--- joined a lesson to a skill. A lesson teaches more than one, so this is a table
--- rather than a column.
-create table lesson_skills (
-  user_id   uuid not null,
-  lesson_id uuid not null references lessons(id) on delete cascade,
-  skill_id  uuid not null references skills(id) on delete cascade,
-  primary key (lesson_id, skill_id)
-);
-
-create table reference_docs (           -- teach's ./reference/*.html (FR-T5)
+create table reference_docs (create table reference_docs (           -- teach's ./reference/*.html (FR-T5)
   id           uuid primary key default gen_random_uuid(),
   user_id      uuid not null,
   mission_id   uuid not null references missions(id) on delete cascade,
@@ -553,35 +372,63 @@ create table learning_records (
   key_insight  text,
   storage_path text not null,
   struggles    text,
-  next         text,                    -- feeds the ZPD recommender (FR-T7)
+  next         text,                    -- feeds the briefing's what-next section
   supersedes_id uuid references learning_records(id),
   recorded_at  timestamptz not null default now(),
   unique (mission_id, seq)
 );
-```
+````
 
-### 3.3 Attention and friction
+### 3.2b The planned-lesson model (M4 — designed, not yet migrated)
+
+The refocused flow needs three things the schema does not have yet, and they arrive **with the
+parser and UI that write and read them** — a column nothing writes has burned this project twice
+(`focus_sessions.mission_id` in M2, `missions.workspace_key` in M3).
 
 ```sql
-create table tasks (
-  id          uuid primary key default gen_random_uuid(),
-  user_id     uuid not null,
-  title       text not null,
-  mission_id  uuid references missions(id) on delete set null,
-  goal_id     uuid references goals(id) on delete set null,
-  resource_id uuid references resources(id) on delete set null,
-  lesson_id   uuid references lessons(id) on delete set null,
-  status      text not null default 'todo'
-              check (status in ('todo','doing','done','dropped')),
-  estimate_minutes integer,
-  reschedule_count integer not null default 0,   -- avoidance signal (FR-C5)
-  created_at  timestamptz not null default now()
-);
+-- M4 migration, when the curriculum skill starts planning lessons:
 
-create table focus_sessions (
+alter table lessons add column status text not null default 'generated'
+  check (status in ('planned','generated'));   -- a planned lesson has no file yet
+alter table lessons add column intent text;     -- one line, from CURRICULUM.md
+alter table lessons add column difficulty smallint
+  check (difficulty between 1 and 5);           -- how hard, for YOU (FR-K2)
+alter table lessons add column depth text
+  check (depth in ('overview','working','deep_dive'));  -- how far down (FR-K2)
+
+-- "A depends on B". Read forward it locks A until B is completed; read backward
+-- it makes B fundamental for A. One edge, both readings (FR-K6, FR-K7).
+create table lesson_edges (
+  user_id   uuid not null,
+  lesson_id uuid not null references lessons(id) on delete cascade,
+  prereq_id uuid not null references lessons(id) on delete cascade,
+  primary key (lesson_id, prereq_id),
+  check (lesson_id <> prereq_id)
+);
+```
+
+Four rules that carry the design:
+
+1. **Planned lessons are rows without files.** `CURRICULUM.md` gains a per-module lesson table
+   (slug, title, intent, difficulty, depth, depends-on); the reindexer upserts them as
+   `status = 'planned'` with no `storage_path`. Generation attaches the file and flips the status —
+   the generated lesson claims its plan entry via `<meta name="mindforge:lesson">`.
+2. **Module progress = completed / planned** (FR-P2), computed on read in `packages/core`. The
+   denominator exists now because the plan does — which is what v0.1's "no fractions" rule was
+   actually about, and why it is retired rather than violated.
+3. **`fundamental` and `unblocked` are derived, never stored.** A lesson with dependents is
+   fundamental; a lesson whose prerequisites are all completed is unblocked. Both read off
+   `lesson_edges` in `packages/core` (M4, beside the module-progress maths); the parser breaks
+   cycles the way it already does for `track_edges`.
+4. **"Next lesson"** is the first unblocked, incomplete planned lesson in module order, difficulty
+   ascending within a module (FR-K7). The briefing names it; the agent still decides.
+
+### 3.3 The time tracker
+
+```sql
+create table focus_sessions (create table focus_sessions (
   id             uuid primary key default gen_random_uuid(),
   user_id        uuid not null,
-  task_id        uuid references tasks(id) on delete set null,
   mission_id     uuid references missions(id) on delete set null,
   intention      text,                  -- "what does done look like?" (FR-F3)
   started_at     timestamptz not null,
@@ -597,169 +444,14 @@ create table focus_sessions (
   created_at     timestamptz not null default now()
 );
 
-create table friction_events (
-  id          uuid primary key default gen_random_uuid(),
-  user_id     uuid not null,
-  session_id  uuid references focus_sessions(id) on delete cascade,
-  task_id     uuid references tasks(id) on delete set null,
-  skill_id    uuid references skills(id) on delete set null,
-  resource_id uuid references resources(id) on delete set null,
-  type        text not null check (type in (
-                'interruption','self_interruption','too_hard','too_easy',
-                'unclear_material','tooling','missing_prerequisite',
-                'decision_fatigue','avoidance','physical','productive_struggle')),
-  intensity   smallint not null check (intensity between 1 and 5),
-  note        text,
-  occurred_at timestamptz not null default now()
-);
-
--- Weekly allocation: planned hours per mission/skill (FR-F5)
-create table weekly_plans (
-  id         uuid primary key default gen_random_uuid(),
-  user_id    uuid not null,
-  -- The week's first day in the user's timezone, honouring profiles.week_starts_on:
-  -- Monday for en, Sunday for pt-BR (FR-L5). NOT always Monday.
-  week_start date not null,
-  unique (user_id, week_start)
-);
-
-create table weekly_allocations (
-  id         uuid primary key default gen_random_uuid(),
-  plan_id    uuid not null references weekly_plans(id) on delete cascade,
-  user_id    uuid not null,
-  mission_id uuid references missions(id) on delete cascade,
-  skill_id   uuid references skills(id) on delete cascade,
-  planned_minutes integer not null,
-
-  -- Exactly one subject. An allocation against both would be counted twice by
-  -- plan-vs-actual; against neither is a target with nothing to aim at.
-  constraint weekly_allocations_one_subject
-    check (num_nonnulls(mission_id, skill_id) = 1),
-  -- Zero is the absence of an allocation, not an allocation of nothing.
-  constraint weekly_allocations_minutes_positive check (planned_minutes > 0)
-);
-
--- At most one allocation per subject per week. Two partial indexes rather than one
--- unique constraint, because UNIQUE is NULLS DISTINCT by default and would accept
--- (plan, missionX, NULL) an unlimited number of times.
-create unique index weekly_allocations_plan_mission_key
-  on weekly_allocations (plan_id, mission_id) where skill_id is null;
-create unique index weekly_allocations_plan_skill_key
-  on weekly_allocations (plan_id, skill_id) where mission_id is null;
-
--- The ritual happened (FR-F6). §6 routes POST /reviews/weekly and this document
--- previously defined no table for it, so there was nowhere to record what you
--- decided — and M2's finish line is "three weekly reviews and changed one thing
--- because of one", which is not observable without one.
-create table weekly_reviews (
-  id           uuid primary key default gen_random_uuid(),
-  user_id      uuid not null,
-  week_start   date not null,
-  completed_at timestamptz not null default now(),
-  changed_one_thing text,          -- the finish line, as a column
-  note         text,
-  unique (user_id, week_start)
-);
 ```
 
-> **Corrected in M2.** `weekly_allocations` was specified with
-> `primary key (plan_id, mission_id, skill_id)` over two nullable columns, which Postgres rejects —
-> every primary-key column is implicitly `not null`, so the table either refuses to be created or
-> forces every allocation to name a mission _and_ a skill, the opposite of FR-F5. The row now carries
-> its own id and the invariant is a check plus two partial unique indexes.
+**Index note:** `focus_sessions` is the analytics hot path. Index `(user_id, started_at desc)`
+and `(user_id, mission_id, started_at desc)`.
 
-**Index note:** `friction_events` and `focus_sessions` are the analytics hot path. Index `(user_id, occurred_at desc)` and `(user_id, mission_id, occurred_at desc)` on both, plus `(user_id, type, occurred_at desc)` on friction.
-
-**`focus_sessions.skill_id` (added in M2).** Not in the table above as originally written, and added
-because FR-F5 allocates weekly minutes per mission _or skill_ while nothing recorded which skill a
-session was about — a skill allocation had a planned number and no actual to compare it against.
-`friction_events` has carried `skill_id` from the start, so the asymmetry read as an oversight. It is
-optional at capture time and set by the picker that already sets mission and resource, so the ≤5s
-budget is unchanged. In M4 lessons make session→skill derivable and this becomes the fallback.
-
-### 3.4 Retention and assessment
-
-```sql
-create table review_items (
-  id          uuid primary key default gen_random_uuid(),
-  user_id     uuid not null,
-  skill_id    uuid references skills(id) on delete set null,
-  mission_id  uuid references missions(id) on delete set null,
-  kind        text not null check (kind in ('cloze','recall','explain','task')),
-  front       text not null,
-  back        text,
-  source      text check (source in
-              ('lesson','highlight','learning_record','assessment','manual')),
-  source_id   uuid,
-  -- FSRS state
-  stability   numeric(8,3),
-  difficulty  numeric(6,3),
-  due_at      timestamptz not null default now(),
-  reps        integer not null default 0,
-  lapses      integer not null default 0,
-  suspended   boolean not null default false
-);
-
-create table review_logs (
-  id           uuid primary key default gen_random_uuid(),
-  user_id      uuid not null,
-  item_id      uuid not null references review_items(id) on delete cascade,
-  rating       smallint not null check (rating between 1 and 4),  -- again/hard/good/easy
-  elapsed_ms   integer,
-  reviewed_at  timestamptz not null default now(),
-  scheduled_days numeric(8,3),
-  prev_stability numeric(8,3)
-);
-
-create table assessments (
-  id          uuid primary key default gen_random_uuid(),
-  user_id     uuid not null,
-  skill_id    uuid not null references skills(id) on delete cascade,
-  target_band text not null,
-  kind        text not null check (kind in ('baseline','periodic','ad_hoc','teach_back')),
-  generated_by_model text,
-  status      text not null default 'draft'
-              check (status in ('draft','ready','in_progress','scored','discarded')),
-  score       numeric(5,2),
-  calibration_gap numeric(5,2),        -- mean(confidence) - mean(correctness)  (FR-X3)
-  created_at  timestamptz not null default now(),
-  completed_at timestamptz
-);
-
-create table assessment_questions (
-  id             uuid primary key default gen_random_uuid(),
-  assessment_id  uuid not null references assessments(id) on delete cascade,
-  user_id        uuid not null,
-  position       integer not null,
-  format         text not null check (format in
-                 ('mcq','short_answer','explain','applied','spot_the_bug','scenario')),
-  prompt         text not null,
-  options        jsonb,                 -- MCQ only; equal-length enforced (FR-X6)
-  correct        jsonb,
-  rationale      text,
-  cites          jsonb,                 -- lesson/reference/resource ids grounding it
-  -- Response
-  answer         jsonb,
-  confidence     smallint check (confidence between 1 and 5),  -- BEFORE reveal
-  correctness    numeric(4,3),          -- 0..1, graded (auto or model)
-  flagged        boolean not null default false,   -- bad question (FR-X7)
-  flag_reason    text
-);
-
-create table artifacts (               -- the "wisdom" pillar (FR-W1..W3)
-  id          uuid primary key default gen_random_uuid(),
-  user_id     uuid not null,
-  skill_id    uuid references skills(id) on delete set null,
-  mission_id  uuid references missions(id) on delete set null,
-  kind        text not null check (kind in
-              ('pr','project','talk','post','conversation','class','other')),
-  title       text not null,
-  url         text,
-  reflection  text,
-  occurred_at date not null,
-  created_at  timestamptz not null default now()
-);
-```
+**M5 adds `focus_sessions.lesson_id`** — once lessons render in-app, a session can bind to the
+lesson it was spent on, and the time tracker can answer per-module. Added with the reader, not
+before, for the write-path reason §3.2b states.
 
 ### 3.5 Operational tables
 
@@ -769,8 +461,7 @@ create table agent_runs (
   user_id     uuid not null,
   mission_id  uuid references missions(id) on delete cascade,
   kind        text not null check (kind in
-              ('generate_lesson','sync_workspace','generate_assessment',
-               'grade_teach_back','weekly_digest','generate_plan')),
+              ('generate_lesson','generate_curriculum','sync_workspace')),
   status      text not null default 'queued'
               check (status in ('queued','running','succeeded','failed','cancelled')),
   job_id      text,
@@ -781,7 +472,7 @@ create table agent_runs (
   finished_at timestamptz
 );
 
-create table llm_calls (               -- cost + cache-hit observability (§9.4)
+create table llm_calls (               -- cost + cache-hit observability (§8.5)
   id            uuid primary key default gen_random_uuid(),
   user_id       uuid,
   agent_run_id  uuid references agent_runs(id) on delete set null,
@@ -821,57 +512,13 @@ create table daily_activity (
   day              date not null,          -- in the user's timezone, not UTC
   focus_minutes    integer not null default 0,
   session_count    integer not null default 0,
-  -- Intensity-weighted minutes of the sessions that hit friction (§9.3b). These do
-  -- NOT sum to focus_minutes: a session with no friction contributes to focus and to
-  -- neither of these.
-  ember_minutes    integer not null default 0,
-  slag_minutes     integer not null default 0,
-  notes_captured   integer not null default 0,
-  -- Distinct resources held a focus session on. Resources keep a progress snapshot
-  -- rather than a progress log, so nothing else dated exists to count.
-  resources_touched integer not null default 0,
   -- A stale grid and an empty grid look identical without this, and a nightly job is
   -- the thing most likely to fail quietly.
   rebuilt_at       timestamptz not null default now(),
   primary key (user_id, day)
 );
 
--- Nudges (FR-N1, FR-N3, FR-N4). Added in M2; §10's job table named the jobs and
--- nothing defined where their output goes.
---
--- "Quiet by default" is a DELIVERY decision, not an off switch. Read as
--- off-until-enabled the feature ships dead — nobody turns on notifications they have
--- never seen. These are generated by default and surface as a marker and a line
--- inside the app: no push, no sound, nothing that can interrupt a focus session.
--- §14.1 makes the same argument about the changelog.
-create table notification_prefs (
-  user_id  uuid not null,
-  kind     text not null check (kind in ('weekly_review','stall')),
-  enabled  boolean not null default true,
-  config   jsonb not null default '{}',   -- {"weekday":0,"hour":18} | {"afterDays":12}
-  primary key (user_id, kind)
-);
-
-create table notifications (
-  id          uuid primary key default gen_random_uuid(),
-  user_id     uuid not null,
-  kind        text not null check (kind in ('weekly_review','stall')),
-  -- Stable per occurrence: "stall:<missionId>:<weekBucket>". Uniqueness here is what
-  -- makes the nightly job safe to re-run — without it a stall that has been true for
-  -- a week produces seven identical nudges.
-  dedupe_key  text not null,
-  -- ICU arguments, never rendered text. The message key is `kind` and the SPA
-  -- translates at render (§5.2); English baked into the row cannot be read in pt-BR.
-  payload     jsonb not null default '{}',
-  subject_type text,
-  subject_id  uuid,
-  created_at  timestamptz not null default now(),
-  seen_at     timestamptz,
-  dismissed_at timestamptz,
-  unique (user_id, dedupe_key)
-);
-
-create table workspace_files (         -- sync ledger; see §7.4
+create table workspace_files (create table workspace_files (         -- sync ledger; see §7.4
   user_id      uuid not null,
   mission_id   uuid not null references missions(id) on delete cascade,
   path         text not null,          -- relative: "lessons/0007-closures.html"
@@ -886,19 +533,13 @@ create table workspace_files (         -- sync ledger; see §7.4
 > **`daily_activity` and "derived numbers are never stored".** It is a stored derivation, and the
 > exemption is narrow: it is a **cache**, never authoritative. Nothing decides anything from it,
 > nothing writes it but the rollup, and it rebuilds from raw rows at any moment. The alternative is
-> scanning every session and friction event to draw 365 cells, which is the query that makes an
-> activity grid something you stop opening.
+> scanning every session to draw 365 cells, which is the query that makes an activity grid
+> something you stop opening.
 >
-> **Four columns from the original specification are deferred, not dropped.** `reviews_done`,
-> `reviews_correct`, `lessons_completed` and `artifacts_logged` have no source table until M4–M6, so
-> they could only ever read zero — and a zero is a claim that something was measured. They arrive
-> with the tables that can fill them, and §3.9's layer switcher offers only the layers that have data.
->
-> **The rollup re-runs over a trailing window, not over yesterday alone.** §9.3 classifies `too_hard`
-> by whether the session produced learning, and the debrief that decides it is often written the next
-> morning — so a day's ember share can change after the day is over. Rebuilding is delete-then-insert
-> over the range, because an upsert can only revise a day upwards and the stale row for a day that is
-> now empty would survive forever.
+> **The rollup re-runs over a trailing window, not over yesterday alone.** A retroactive session
+> entry lands on a day that was already rolled up. Rebuilding is delete-then-insert over the range,
+> because an upsert can only revise a day upwards and the stale row for a day that is now empty
+> would survive forever.
 
 ### 3.6 Row-level security
 
@@ -957,86 +598,26 @@ create policy missions_owner on missions
 
 ---
 
-### 3.7 Notes — and why this isn't a note-taking app
+### 3.9 The activity grid — the frequency tracker
 
-`REQUIREMENTS.md` §4 lists "being a note-taking app" as a non-goal, and that stands. The distinction is not how much you can write; it's what the writing is _for_.
+A year of days as a heatmap — the familiar shape, minus the one feature GitHub made famous.
 
-**Notes here are inputs to the system, not an archive.** Four things make that true, and they're the reason the feature earns its place rather than duplicating Obsidian:
+**Opacity is focus minutes**, bucketed into quartiles of your own non-empty days across the window:
+a thirty-minute day is a real day for someone whose days are thirty minutes, and an absolute scale
+renders their entire year as the palest shade — which says nothing and reads as failure. An empty
+cell is neutral — no shading of shame, because rest days are part of the design.
 
-1. **Every note is attached to something** the app already models — a resource, a skill, a lesson, a focus session. There are no free-floating documents except the deliberate `standalone` escape hatch.
-2. **Notes feed lesson generation.** Notes on a mission's skills and resources are summarised into `BRIEFING.md`, so what you wrote while reading shapes what you're taught next. This is the single strongest argument for keeping notes in-app rather than in Obsidian.
-3. **Any note promotes to a review item in one tap.** A thought you had while reading becomes something you're tested on. That's the bridge from consumption to retention (FR-R4), now available from every subject type, not just book highlights.
-4. **Notes are searchable, and that's the whole retrieval story.** Postgres full-text over quote + body. **No backlinks, no `[[wikilinks]]`, no graph view, no daily notes.** Those are what turn a notes feature into a second product, and they are explicitly out of scope.
+**Consistency, not streaks.** No counter that resets to zero and shames you. The figure alongside
+the grid is **active days in the last 28** — it degrades gracefully, recovers naturally, and can't
+be broken by one bad week (FR-Q1).
 
-**Capture cost is the constraint, as everywhere else.** A note during a running focus session is one tap from the session bar — the note is auto-attached to that session and, through it, to the task and mission. No picker, no filing.
+**It ships with at most one derived line**, and only when there's something true to say:
 
-**Workspace sync.** Notes on a mission's subjects are written into `notes/` inside that mission's teaching workspace as Markdown, so the agent reads them with ordinary file tools and they survive outside the app. They do **not** go into `NOTES.md` — that file belongs to the `teach` skill as _its_ scratchpad for teaching preferences, and mixing the two would corrupt a contract we don't own.
+> _"You have never once logged a Saturday."_
 
-### 3.8 Goal progress
-
-**Progress is computed, never entered.** There is no percentage field and no slider — that would be self-report wearing a number's clothes, and it's the exact failure mode `REQUIREMENTS.md` §7.2 exists to prevent.
-
-Each target kind has one derivation, all of them pure functions in `packages/core`:
-
-| Kind                | Progress =                                                                 | Met when                                                                                                  |
-| ------------------- | -------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
-| `resource_progress` | `resource.progress.current / total`                                        | reaches the target percent                                                                                |
-| `skill_band`        | ordinal distance from the skill's band at goal creation to the target band | the **decayed** score sits in the target band — so a goal can un-meet itself, which is correct and honest |
-| `artifact`          | 0 or 1                                                                     | a linked artifact exists                                                                                  |
-| `focus_hours`       | `sum(focus minutes since goal start) / target`                             | reaches the target                                                                                        |
-| `review_accuracy`   | rolling accuracy over the window                                           | at or above target across the window                                                                      |
-| `lessons_completed` | `completed / target`                                                       | reaches the target                                                                                        |
-| `manual`            | 0 or 1                                                                     | you mark it                                                                                               |
-
-**Goal progress** is the weighted mean of its targets. A goal with no targets shows _"no targets — progress can't be measured"_ rather than 0% or 100%; that message is the nudge to add one.
-
-**Projection.** Pace comes from the target's own underlying series over a trailing window (default 21 days), extrapolated linearly to the target date. Stated plainly and without optimism (FR-P3):
-
-> _"At your last three weeks' pace this finishes 5 weeks late. Cut scope or add 2h/week."_
-
-Where pace is zero, say so — _"no progress in 21 days; no completion date"_ — rather than projecting infinity or hiding the row.
-
-**Recomputation** happens on the nightly `scores:recompute` job and on any write that touches a target's source. Because `skill_band` depends on decay, goal progress moves without you doing anything — which is the point.
-
-### 3.9 The activity grid
-
-A year of days as a heatmap — the familiar shape, deliberately not the familiar semantics.
-
-**GitHub's grid encodes one thing: volume. Darker is more, more is better.** For this product that's exactly wrong — a dark day of thrashing on broken tooling would render as your best week. Volume is the vanity metric the whole thesis rejects.
-
-So the cell carries two dimensions:
-
-| Channel                 | Encodes                                                               |
-| ----------------------- | --------------------------------------------------------------------- |
-| **Intensity** (opacity) | Total focus minutes that day                                          |
-| **Hue**                 | Ember share — productive friction as a fraction of the day's friction |
-
-A heavy, grey-slag cell reads as _"you spent a lot and got little."_ A heavy ember cell reads as real work. An empty cell is neutral — no shading of shame, because rest days are part of the design.
-
-**Layers.** The same grid, switchable: focus time (default), reviews completed, lessons completed, notes captured, artifacts shipped. Cadence patterns are what the grid is genuinely good at surfacing — _"you have never once logged a Saturday"_ is a fact about your life your weekly plan should probably respect.
-
-> **M2 ships two of those five: focus and notes.** Reviews, lessons and artifacts have no source table
-> until M5, M4 and M6. A switcher offering layers that are flat by construction teaches you the grid is
-> decoration, so the unavailable ones are **absent rather than disabled** — the API's layer enum is the
-> two that exist, and asking for a third is a 422 rather than a screen of zeroes claiming you completed
-> no reviews. They arrive with their data.
-
-**Intensity is relative to your own history**, not to an absolute scale: the four steps are quartiles
-of your own non-empty days across the window. A thirty-minute day is a real day for someone whose days
-are thirty minutes, and an absolute scale renders their entire year as the palest shade — which says
-nothing and reads as failure.
-
-**Hue is null, not grey, on a day with no logged friction.** Grey means "you spent a lot and got
-little", which is a measurement. A day you simply did not annotate has not been measured, and shading
-it grey would be a lie about it in exactly the direction §7.2 forbids.
-
-**Consistency, not streaks.** No counter that resets to zero and shames you. The figure alongside the grid is **active days in the last 28** — it degrades gracefully, recovers naturally, and can't be broken by one bad week. (`REQUIREMENTS.md` FR-N5.)
-
-**It has to name an action**, like every other insight. The grid ships with one derived line beneath it, and only when there's something real to say:
-
-> _"Your last four weeks average 3.2 active days. Your weekly plans assume 5."_
-
-**Implementation.** Reads `daily_activity` only — never raw sessions. 365 rows per user, so the whole year is one indexed query and the grid is instant. Mobile shows a 12-week window that scrolls horizontally in its own container; the full year is desktop.
+**Implementation.** Reads `daily_activity` only — never raw sessions. 365 rows per user, so the
+whole year is one indexed query and the grid is instant. Mobile shows a 12-week window that scrolls
+horizontally in its own container; the full year is desktop.
 
 ---
 
@@ -1044,7 +625,7 @@ it grey would be a lie about it in exactly the direction §7.2 forbids.
 
 - **Supabase Auth** issues the JWT. SPA holds the session via `@supabase/supabase-js` and refreshes it; the API never issues tokens.
 - **`SupabaseAuthGuard`** (Nest) verifies the JWT signature against Supabase's JWKS, extracts `sub` → `userId`, attaches it to the request. Applied globally with an `@Public()` decorator escape hatch.
-- **Providers:** email + password (with verification and reset, both handled by Supabase) and GitHub OAuth. GitHub also sets you up for the v2 artifact integration (FR-W4) with no second auth flow.
+- **Providers:** email + password (with verification and reset, both handled by Supabase) and GitHub OAuth.
 - **Data export** (FR-A4): a worker job that streams every table filtered by `user_id` to JSON, plus the raw workspace files as Markdown/HTML, zipped to a signed Storage URL that expires in 24h.
 - **Account deletion:** `on delete cascade` from `auth.users` covers Postgres; a worker job deletes the Storage prefix. Both must run, and deletion is confirmed only after both succeed.
 
@@ -1052,10 +633,10 @@ it grey would be a lie about it in exactly the direction §7.2 forbids.
 
 ## 5. Frontend notes
 
-- **Optimistic everything for capture.** Start-timer, log-friction, and mark-progress mutations write to the TanStack Query cache immediately and reconcile on response. This is the implementation of the ≤5s / ≤2-tap budget (`REQUIREMENTS.md` §7.1) — a capture that waits on a round-trip has already failed it.
-- **Offline queue.** Friction events and session start/stop are queued in IndexedDB when offline and flushed on reconnect. They carry client-generated UUIDs so replay is idempotent. This matters more than full offline support: losing a friction log because you were on the subway kills trust in the data.
-- **Command palette (⌘K)** as the primary navigation and capture surface **on desktop**. For this app specifically it's the right shape — "start focus on X", "log friction: tooling", "add article <url>" are all one keystroke plus a few characters. It is not the mobile answer; see §5.1.
-- **Live session state** over SSE from the API, so a timer running on your laptop is visible on your phone.
+- **Optimistic everything for capture.** The timer's mutations write to the TanStack Query cache immediately and reconcile on response. This is the implementation of the ≤5s / ≤2-tap budget (`REQUIREMENTS.md` §7.1) — a capture that waits on a round-trip has already failed it.
+- **Offline queue.** Session start/stop are queued in IndexedDB when offline and flushed on reconnect. They carry client-generated UUIDs so replay is idempotent. Losing a session because you were on the subway kills trust in the data.
+- **Command palette (⌘K)** as the primary navigation and capture surface **on desktop**. It is not the mobile answer; see §5.1.
+- **Live session state** over SSE from the API, so a timer running on your laptop is visible on your phone. (Not built yet — the mission card polls while a run is live; see CLAUDE.md.)
 - **PWA** with a service worker for install + offline shell. Not a native app (`REQUIREMENTS.md` non-goals).
 
 ---
@@ -1064,29 +645,25 @@ it grey would be a lie about it in exactly the direction §7.2 forbids.
 
 **Mobile-first for capture and review; desktop-first for analysis and authoring.** That split is the design, not a compromise — and it follows from where each activity actually happens.
 
-| Surface                              | Primary target          | Why                                                                                                                 |
-| ------------------------------------ | ----------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| Focus timer (start / stop / debrief) | **Mobile**              | You start focusing away from the desk as often as at it.                                                            |
-| Friction logging                     | **Mobile**              | It happens mid-session, one-handed, often while annoyed. This is the single most mobile interaction in the product. |
-| Review queue                         | **Mobile**              | Ten minutes in a queue, on a train, standing up. Genuinely better on a phone than a laptop.                         |
-| Resource capture + progress          | **Mobile**              | You finish a chapter in bed and update it there. Share-target is the v2 form of this.                               |
-| Lessons                              | **Both**                | Must read well on a phone — see the agent constraint below.                                                         |
-| Weekly planning grid                 | Desktop                 | Allocating hours across missions needs width.                                                                       |
-| Insights & charts                    | Desktop                 | Comparison needs pixels. Mobile gets a reduced set, not a squeezed one.                                             |
-| Galaxy (M7)                          | Desktop, mobile-capable | Pinch-zoom and tap; the full overview needs a big screen to be worth anything.                                      |
-| Mission editing, memory review       | Desktop                 | Long-form writing.                                                                                                  |
+| Surface                                | Primary target | Why                                                                        |
+| -------------------------------------- | -------------- | -------------------------------------------------------------------------- |
+| Focus timer (start / stop / debrief)   | **Mobile**     | You start focusing away from the desk as often as at it.                   |
+| Lesson outcome (understood/shaky/lost) | **Mobile**     | Two taps at the end of a lesson, wherever you read it.                     |
+| Lessons                                | **Both**       | Must read well on a phone — see the agent constraint below.                |
+| Curriculum browsing                    | Desktop        | Seeing a module's shape needs width.                                       |
+| The activity grid                      | Desktop        | Comparison needs pixels. Mobile gets a reduced window, not a squeezed one. |
+| Mission editing, memory review         | Desktop        | Long-form writing.                                                         |
 
 ### What this actually requires
 
-- **Touch targets ≥44×44px** on every capture control. The friction chips are the ones most likely to be drawn too small.
-- **Thumb-zone layout.** Primary actions live at the _bottom_ on mobile, not the top. When a focus session is running, a persistent bottom bar carries stop + the friction chips — reachable one-handed without navigating.
+- **Touch targets ≥44×44px** on every capture control.
+- **Thumb-zone layout.** Primary actions live at the _bottom_ on mobile, not the top. When a focus session is running, a persistent bottom bar carries stop — reachable one-handed without navigating.
 - **A mobile capture affordance that isn't the command palette.** A bottom sheet with the same actions, opened from a single persistent button. Same action registry, different surface.
-- **Swipe ratings in the review queue** (again / hard / good / easy), with tap targets as the accessible equivalent — never swipe-only.
 - **`dvh`, not `vh`.** iOS Safari's dynamic toolbar makes `100vh` wrong; a timer screen that scrolls under the URL bar looks broken.
 - **`env(safe-area-inset-*)`** on the bottom bar, or it sits under the home indicator.
 - **Offline matters most here.** The IndexedDB queue exists primarily for mobile — the subway case is the realistic one.
 - **PWA install** for standalone display and, on iOS, because notifications require it.
-- **Charts get mobile variants**, not squeezed desktop ones. A 12-week friction trend becomes a 4-week sparkline; the full comparison stays desktop.
+- **Charts get mobile variants**, not squeezed desktop ones. The year of days becomes a 12-week window; the full comparison stays desktop.
 - **Test at 375px**, not just at a breakpoint boundary. Playwright runs the capture-loop E2E in a mobile viewport as well as desktop.
 
 ### The non-obvious one: agent-generated lessons must be responsive
@@ -1108,11 +685,11 @@ Then verify it: the lesson-rendering E2E test loads a generated lesson in a mobi
 
 The common mistake is collapsing these into one setting. They are genuinely separate, and for this user in particular they will _not_ agree.
 
-| Setting                              | Controls                                                             | Default                                         |
-| ------------------------------------ | -------------------------------------------------------------------- | ----------------------------------------------- |
-| **UI locale** (`en`, `pt-BR`)        | Interface strings, date/number formatting                            | Browser `Accept-Language`, then user preference |
-| **Timezone** (IANA)                  | Every "day", "week", nightly job, and the activity grid              | Browser-detected, user-editable                 |
-| **Content language** (`en`, `pt-BR`) | The language the agent writes lessons, assessments, and briefings in | Follows UI locale, **separately overridable**   |
+| Setting                              | Controls                                                | Default                                         |
+| ------------------------------------ | ------------------------------------------------------- | ----------------------------------------------- |
+| **UI locale** (`en`, `pt-BR`)        | Interface strings, date/number formatting               | Browser `Accept-Language`, then user preference |
+| **Timezone** (IANA)                  | Every "day", "week", nightly job, and the activity grid | Browser-detected, user-editable                 |
+| **Content language** (`en`, `pt-BR`) | The language the agent writes lessons and briefings in  | Follows UI locale, **separately overridable**   |
 
 That third axis is the one worth having. A Brazilian engineer learning distributed systems will very reasonably want a **pt-BR interface and English lessons**, because the source material, the vocabulary, and the community are all English. Forcing lessons into the UI language would make the product worse. Store it as its own preference.
 
@@ -1120,41 +697,30 @@ Search stemming follows a fourth thing: **the language of the content itself** (
 
 ### Implementation
 
-- **`react-i18next` + ICU MessageFormat**, namespaced per feature (`missions`, `focus`, `friction`…), lazy-loaded with the route. Translation files live at `apps/web/src/locales/{en,pt-BR}/<namespace>.json`.
+- **`react-i18next` + ICU MessageFormat**, namespaced per feature (`missions`, `focus`, `insights`…). Translation files live at `apps/web/src/locales/{en,pt-BR}/<namespace>.json`.
 - **`Intl` for everything formattable** — `DateTimeFormat`, `NumberFormat`, `RelativeTimeFormat`, `ListFormat`. Never hand-format a date or concatenate a sentence.
-- **Enum values are keys, never display text.** The database stores `tooling`, `productive_struggle`, `fluent`; the UI translates at render. This is already how the schema is written — keep it that way.
+- **Enum values are keys, never display text.** The database stores `understood`, `deep_dive`, `parked`; the UI translates at render. This is already how the schema is written — keep it that way.
 - **Server-side strings** (emails, export filenames, notification copy) get their own bundle in `packages/core`, resolved from the user's stored locale, not a request header.
 - **`lang` and `dir` on `<html>`** set from the active locale.
 
 ### The domain glossary is the hard part
 
-Ember, slag, temper bands, friction types, and the score vocabulary are **product concepts, not UI chrome**. Translating them ad-hoc per string guarantees drift — the same term rendered three ways across three screens.
-
-Translate the glossary once, in one file, and derive every usage from it:
-
-| en                                             | pt-BR                                                 | Note                                                                                |
-| ---------------------------------------------- | ----------------------------------------------------- | ----------------------------------------------------------------------------------- |
-| Ember                                          | Brasa                                                 | Productive friction                                                                 |
-| Slag                                           | Escória                                               | The correct metallurgical term, and it carries the same "worthless byproduct" sense |
-| Temper                                         | Têmpera                                               |                                                                                     |
-| Aware / Assisted / Working / Fluent / Teaching | Ciente / Assistido / Praticando / Fluente / Ensinando | Band names — needs a native read before it's final                                  |
-| Mission                                        | Missão                                                |                                                                                     |
-| Focus session                                  | Sessão de foco                                        |                                                                                     |
-| Frontier                                       | Fronteira                                             | The unlit ring in the galaxy                                                        |
-
-Band names especially deserve a native speaker's judgement rather than a literal translation — _Praticando_ for "Working" is a guess that reads better than _Trabalhando_ but should be confirmed.
+Module, mission status, memory kinds, and the outcome vocabulary are **product concepts, not UI
+chrome**. Translating them ad-hoc per string guarantees drift — the same term rendered three ways
+across three screens. Translate the glossary once, in one file, and derive every usage from it.
 
 ### Locale-sensitive behaviour that isn't a string
 
-- **Week start.** pt-BR convention is Sunday, en-GB is Monday. The weekly plan grid and every "this week" rollup depend on it — so it is a **user preference seeded from locale**, not derived from it at render time. Store it on the profile; `weekly_plans.week_start` must agree with it.
+- **Week start.** pt-BR convention is Sunday, en-GB is Monday. The activity grid's columns depend
+  on it — so it is a **user preference seeded from locale**, not derived from it at render time.
 - **Duration formatting.** `6h 20m` vs `6h20`. One helper in `packages/core`, never inline.
-- **Decimal separator** in every score, ratio, and confidence interval — `74 ±4` renders differently. `Intl.NumberFormat`, always.
+- **Decimal separator** in every number. `Intl.NumberFormat`, always.
 
 ### Agent and model output
 
 - **`BRIEFING.md` states the content language**, so the teach agent writes lessons in it.
-- **Assessment generation and grading** carry the same instruction — and grading must accept an answer written in the content language, which the model handles natively as long as it's told.
-- **Lesson HTML gets a `lang` attribute** matching the content language, which also fixes hyphenation and screen-reader pronunciation.
+- **Lesson HTML gets a `lang` attribute** matching the content language, which also fixes
+  hyphenation and screen-reader pronunciation.
 
 ### Testing
 
@@ -1174,22 +740,11 @@ Vertical order is fixed, and each block hides entirely when it has nothing to sa
 
 ```
 ┌────────────────────────────────────────────┐
-│  RUNNING SESSION  (only while one is live) │  elapsed · intention ·
-│                                            │  friction chips · Stop
+│  RUNNING SESSION  (only while one is live) │  elapsed · intention · Stop
 ├────────────────────────────────────────────┤
-│  DUE NOW                                   │  "3 reviews · 12 min"  → one tap
-├────────────────────────────────────────────┤
-│  NEXT                                      │  the current study-plan step,
-│                                            │  or the ZPD candidate, or the
-│                                            │  in-progress resource
+│  NEXT                                      │  the next unblocked lesson (M4+),
+│                                            │  or the active mission
 │                                            │  [ Start focus ]  ← primary
-├────────────────────────────────────────────┤
-│  THIS WEEK                                 │  planned vs actual, one bar
-│                                            │  ember/slag split, one bar
-├────────────────────────────────────────────┤
-│  ONE THING                                 │  a single derived line, only
-│                                            │  when there's something true
-│                                            │  and actionable to say
 └────────────────────────────────────────────┘
 ```
 
@@ -1202,51 +757,25 @@ Vertical order is fixed, and each block hides entirely when it has nothing to sa
 
 ### First run
 
-You sign up into an empty account: no missions, no skills, no resources. That's where most personal tools lose people.
+You sign up into an empty account: no missions, nothing to press. That's where most personal tools lose people.
 
 **The answer is a guided first mission, not a tutorial.** You learn the app by using it on something you actually want to learn — and it produces real rows, not demo data you'll have to delete.
 
-Four steps, skippable at any point, resumable from a banner:
+Two steps, skippable at any point, resumable from a banner:
 
-| Step                                             | Produces                                                    | Why it's this one                                                                                                                              |
-| ------------------------------------------------ | ----------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1. _What do you want to get better at, and why?_ | A **Mission**                                               | The `teach` skill's whole philosophy grounds on the "why". Asking it first is not onboarding fluff — it's the thing every later feature reads. |
-| 2. _What would it look like to have got there?_  | A **Goal** with one typed target                            | Teaches that goals are measured, not declared.                                                                                                 |
-| 3. _What are you learning from right now?_       | A **Resource**                                              | Usually a paste of one URL — the cheapest possible win.                                                                                        |
-| 4. _Do 15 minutes on it now._                    | A **Focus Session** with intention + debrief + any friction | The habit is the product. Ending the tour inside the core loop is the point.                                                                   |
+| Step                                             | Produces                           | Why it's this one                                                                                                                              |
+| ------------------------------------------------ | ---------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1. _What do you want to get better at, and why?_ | A **Mission**                      | The `teach` skill's whole philosophy grounds on the "why". Asking it first is not onboarding fluff — it's the thing every later feature reads. |
+| 2. _Do 15 minutes on it now._                    | A **Focus Session** with intention | The habit is the product. Ending the tour inside the core loop is the point.                                                                   |
 
-**Deliberately not in first run:** skills, prerequisite edges, weekly plans, the friction taxonomy. Those are learned by encountering them. And **no questionnaire about how you learn** — those answers are usually wrong, and the learner memory (§7.6) is designed to be populated from behaviour instead.
+**No questionnaire about how you learn** — those answers are usually wrong, and the learner memory (§7.6) is designed to be populated from behaviour instead.
 
 The empty state on every other screen names one action and links to it. Never an illustration and a shrug.
 
-### The friction chip problem
-
-Eleven friction types (FR-C1) and a one-tap budget (§7.1) are in direct conflict. Eleven chips is not a one-tap UI, especially at 375px.
-
-**Resolution — a ranked four, plus more:**
-
-- Show **four chips**: your three most-used types over the last 30 days, plus **Productive struggle**, which is pinned permanently. It's pinned because it's the one people under-report and the one the product most needs — nobody volunteers "this was hard in a good way" unless it's in front of them.
-- A **More** control opens the full eleven in a bottom sheet.
-- Intensity defaults to **3** and is never asked for inline. You can adjust it later from the session debrief, where you have the time.
-- Cold start, before there's usage data: _Interruption · Tooling · Too hard · Productive struggle_.
-
-So logging friction is one tap in the common case and two in the tail — which meets the budget honestly rather than by pretending eleven chips fit.
-
 ### Parked missions
 
-Parking is not archiving, and the semantics have to be explicit or the review queue quietly rots.
-
-| Behaviour                | Parked mission                                                                                                                                                     |
-| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Skill decay              | **Continues.** Skills don't know your mission is parked, and pretending otherwise would be the exact dishonesty the product exists to avoid.                       |
-| Review items             | **Suspended by default**, with a one-tap "keep reviewing" per mission. Otherwise a parked mission floods a queue you can't act on — the Anki death spiral (FR-V6). |
-| Decay warnings           | Silenced.                                                                                                                                                          |
-| Weekly plan              | Excluded from allocation; excluded from plan-vs-actual.                                                                                                            |
-| Activity grid & insights | **Still counted.** History is history.                                                                                                                             |
-| Goals                    | Frozen — no missed-deadline nagging, and `target_date` stops projecting.                                                                                           |
-| Galaxy (M7)              | Rendered dimmer, not hidden. Parked knowledge is still knowledge.                                                                                                  |
-
-**Unparking restores reviews with their real due dates**, which means an immediately large queue. Say so before unparking, and offer to reschedule the backlog across two weeks instead of dumping it.
+Parking is not archiving. A parked mission keeps its curriculum and its history, is excluded from
+the teach button, and still counts in the activity grid — history is history.
 
 ---
 
@@ -1254,23 +783,16 @@ Parking is not archiving, and the semantics have to be explicit or the review qu
 
 NestJS modules, one per bounded context. REST with Zod-validated DTOs from `packages/core`.
 
-| Module        | Key routes                                                                                                                                                                             |
-| ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `missions`    | `GET/POST /missions`, `PATCH /missions/:id` (revision recorded on mission-field change), `POST /missions/:id/park`                                                                     |
-| `goals`       | CRUD + `POST /goals/:id/close` (requires `status` + `outcome_note`)                                                                                                                    |
-| `skills`      | CRUD, `GET /skills/graph`, `GET /skills/:id/evidence`, `POST /skills/:id/self-rating`                                                                                                  |
-| `resources`   | CRUD, `POST /resources/capture` (URL → metadata, §8.5), `PATCH /resources/:id/progress`, `POST /resources/:id/abandon`                                                                 |
-| `highlights`  | CRUD, `POST /highlights/:id/promote` → creates a `review_item`                                                                                                                         |
-| `focus`       | `POST /focus/sessions/start`, `POST /:id/stop`, `POST /:id/debrief`, `POST /focus/sessions` (manual/backfill), SSE `GET /focus/live`                                                   |
-| `friction`    | `POST /friction` (single tap), `GET /friction/summary`                                                                                                                                 |
-| `planning`    | `GET/PUT /plans/:weekStart`, `GET /plans/:weekStart/actual`, `POST /reviews/weekly/:weekStart`, `GET /reviews/weekly`                                                                  |
-| `teach`       | `POST /missions/:id/lessons/generate` → enqueues, `GET /agent-runs/:id` (SSE progress), `POST /missions/:id/sync`, `GET /lessons`, `GET /reference-docs`, `POST /lessons/:id/complete` |
-| `records`     | `GET/POST /learning-records`                                                                                                                                                           |
-| `review`      | `GET /review/queue`, `POST /review/:itemId/answer`                                                                                                                                     |
-| `assessments` | `POST /assessments/generate`, `GET /assessments/:id`, `POST /assessments/:id/answer`, `POST /assessments/:id/submit`, `POST /questions/:id/flag`                                       |
-| `artifacts`   | CRUD                                                                                                                                                                                   |
-| `insights`    | `GET /insights/focus`, `/friction`, `/learning`, `/consumption-vs-retention`, `/backlog`, `/activity`                                                                                  |
-| `account`     | `GET/PATCH /me`, `GET/PUT /me/notification-prefs`, `POST /me/changelog-seen`, `GET /notifications`, `POST /notifications/:id/dismiss`, `POST /account/export`, `DELETE /account`       |
+| Module     | Key routes                                                                                                             |
+| ---------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `missions` | `GET/POST /missions`, `PATCH /missions/:id` (revision recorded on mission-field change), `POST /missions/:id/park`     |
+| `focus`    | `POST /focus/sessions/start`, `POST /:id/stop`, `POST /:id/debrief`, `POST /focus/sessions` (manual/backfill)          |
+| `teach`    | `POST /missions/:id/teach` → 202, `GET /agent-runs/:id`, `GET /missions/:id/agent-runs`, `GET/POST/DELETE /me/memory…` |
+| `insights` | `GET /insights/activity`                                                                                               |
+| `account`  | `GET/PATCH /me`, `POST /me/changelog-seen`, `POST /account/export` (planned), `DELETE /account` (planned)              |
+
+M4/M5 add the curriculum and lesson surface: modules with their planned lessons, the lesson reader's
+signed URL, and `POST /lessons/:id/complete` for the outcome (FR-P1).
 
 **Long operations never block a request.** Anything touching the LLM returns `202` with an `agent_run_id`; the SPA subscribes to `GET /agent-runs/:id/stream` (SSE) for progress and the terminal result.
 
@@ -1292,7 +814,7 @@ NestJS modules, one per bounded context. REST with Zod-validated DTOs from `pack
 
   `detail` is user-facing and **translated** (§5.2); `type` and `errors[].code` are stable machine keys and never translated. Validation failures use `422` with a populated `errors` array; everything else uses `errors: []`.
 
-- **Idempotency.** Capture endpoints (`POST /focus/sessions/start`, `POST /friction`, `POST /notes`) accept a client-generated UUID as the resource id and are upserts. This is what makes the offline queue safe to replay — retries are free, and the client never has to reason about whether a request landed.
+- **Idempotency.** Capture endpoints (`POST /focus/sessions/start`, `POST /focus/sessions`) accept a client-generated UUID as the resource id and are upserts. This is what makes the offline queue safe to replay — retries are free, and the client never has to reason about whether a request landed.
 - **Pagination** is cursor-based (`?cursor=&limit=`) on every list. Offset pagination breaks the moment a nightly job inserts rows mid-scroll.
 - **`ETag` + `If-None-Match`** on read-heavy dashboard endpoints. The insight rollups change once a night.
 
@@ -1348,7 +870,7 @@ try {
   for await (const message of query({
     prompt:
       "Teach me the next thing. Read BRIEFING.md first — it has my current " +
-      "zone of proximal development, weak skills, and what is not measured yet.",
+      "current module, the lessons already in it, and what is not measured yet.",
     options: {
       cwd: dir,
       model: "claude-opus-5",
@@ -1457,11 +979,12 @@ under the SDK either way — tool scoping is expressed at the `query()` level or
 
 **Design points:**
 
-- **`BRIEFING.md` is the ZPD bridge (FR-T7).** Generated fresh each run from learning records,
-  skill-graph gaps, and recent friction. It's a workspace file, so the agent reads it with the same
-  tools it reads everything else — no special protocol. Regenerated (not appended) every run and
-  excluded from sync-back. **Sections whose source table does not exist yet say so in words** — see
-  §7.3b; a briefing that renders "0 reviews due" is a measurement claim the model will teach from.
+- **`BRIEFING.md` is what the agent knows before it teaches (FR-T3).** Generated fresh each run
+  from the mission, the curriculum position, and recent learning records. It's a workspace file, so
+  the agent reads it with the same tools it reads everything else — no special protocol.
+  Regenerated (not appended) every run and excluded from sync-back. **Sections whose source table
+  does not exist yet say so in words** — see §7.3b; a briefing that renders "0 lessons completed"
+  is a measurement claim the model will teach from.
 - **No `Bash` tool** — see the ⚠ above for why that takes three options rather than one.
 - **Turn cap and hard timeout, both surfaced in `agent_runs`.** The turn cap is `maxTurns`. **The
   timeout is ours**: the SDK has no session timeout of any kind, so it is an `AbortController` plus a
@@ -1513,21 +1036,16 @@ ordered by how likely it is to end a run having produced nothing:
 7. **An absent section means unmeasured, not zero.** Stated explicitly, because §7.3b's honest
    absences only work if the reader does not fill them in.
 
-### 7.3b What M3 cannot measure, and must therefore not claim
+### 7.3b What the briefing cannot measure, and must therefore not claim
 
 `BRIEFING.md` is read by a model that will treat a number as evidence. Non-negotiable 1 — _"unknown is
 never rendered as zero"_ — is load-bearing here in a way it is not on a screen a human can squint at: a
-fabricated "0 items due" produces a lesson that skips revision on false evidence.
+fabricated "0 lessons completed" produces teaching that repeats ground on false evidence.
 
 | Section         | Needs                            | Arrives | Renders as                                                                |
 | --------------- | -------------------------------- | ------- | ------------------------------------------------------------------------- |
-| Due reviews     | `review_items` + FSRS            | M5      | "not tracked yet — do not assume the learner has or has not revised"      |
-| Weak skills     | `skill_evidence`                 | M4/M6   | "none recorded; levels below are self-reported, not measured"             |
-| Review accuracy | review outcomes                  | M5      | "unmeasured"                                                              |
-| Lesson outcomes | `lessons.completed_at`/`outcome` | M4      | "no completion signal exists; past lessons may or may not have been read" |
-| Calibration gap | `score` vs `perceived_level`     | M6      | section omitted entirely                                                  |
-| ZPD candidates  | records' `## Next` only in M3    | partial | labelled as records-only, not as "your ZPD"                               |
-| Friction        | `friction_events`                | **now** | rendered — the one signal that is genuinely measured today                |
+| Lesson outcomes | `lessons.completed_at`/`outcome` | M5      | "no completion signal exists; past lessons may or may not have been read" |
+| What next       | records' `## Next` only, today   | partial | labelled as records-only, not as "your ZPD"                               |
 
 **Enforced by types, not by discipline.** `renderBriefing()` takes a `BriefingInput` whose unavailable
 fields are `{ status: "not-tracked"; reason: string }` rather than `number | null`. A number is not
@@ -1588,40 +1106,25 @@ excluded from indexing by name.
 
 **Reindex** parses the changed files into Postgres:
 
-| File                         | Parsed into                                                                               | Parser                                          |
-| ---------------------------- | ----------------------------------------------------------------------------------------- | ----------------------------------------------- |
-| `MISSION.md`                 | `missions` + `mission_revisions`                                                          | Headed-section Markdown per `MISSION-FORMAT.md` |
-| `CURRICULUM.md`              | `tracks`, `track_edges`, `track_skills`, `skills`                                         | Markdown tables per `CURRICULUM-FORMAT.md`      |
-| `RESOURCES.md`               | `resources` (+ trust, rejected list)                                                      | Markdown tables                                 |
-| `learning-records/NNNN-*.md` | `learning_records`                                                                        | Sections per `LEARNING-RECORD-FORMAT.md`        |
-| `lessons/NNNN-*.html`        | `lessons` + `lesson_skills` (title from `<title>`/`<h1>`, track and skills from `<meta>`) | Cheerio                                         |
-| `reference/*.html`           | `reference_docs`                                                                          | Cheerio                                         |
+| File                         | Parsed into                                                                              | Parser                                          |
+| ---------------------------- | ---------------------------------------------------------------------------------------- | ----------------------------------------------- |
+| `MISSION.md`                 | `missions` (revisions via `applyEdit`, never `## History`)                               | Headed-section Markdown per `MISSION-FORMAT.md` |
+| `CURRICULUM.md`              | `tracks`, `track_edges`                                                                  | Markdown tables per `CURRICULUM-FORMAT.md`      |
+| `RESOURCES.md`               | **nothing** — a workspace file for the agent's grounding (FR-K4), synced but not indexed | —                                               |
+| `learning-records/NNNN-*.md` | `learning_records`                                                                       | Sections per `LEARNING-RECORD-FORMAT.md`        |
+| `lessons/NNNN-*.html`        | `lessons` (title from `<title>`/`<h1>`, track from `<meta>`)                             | Cheerio                                         |
+| `reference/*.html`           | `reference_docs`                                                                         | Cheerio                                         |
 
 `CURRICULUM.md` upserts on `(mission_id, slug)` and **never deletes**: the agent rewrites the file
-wholesale, `tracks.status` and `lessons.track_id` are not expressible in it, and a track dropped from
-one regeneration would take a module of finished lessons with it. A track that vanishes from the file
-is marked `dropped`, not removed — the same shape as the `RESOURCES.md` upsert-key problem, and the
-same reason `lessons` upserts where `workspace_files` delete-then-inserts.
+wholesale, `tracks.status` is not expressible in it, and a track dropped from one regeneration would
+take a module of finished lessons with it. A track that vanishes from the file is marked `dropped`,
+not removed — and `lessons` upserts where `workspace_files` delete-then-inserts, because
+`completed_at` and `outcome` are state the file does not carry.
 
-The skills it names are matched on `skills.slug`, which is unique per **user**, not per mission. That
-is deliberate — you learn IAM once, for however many missions want it — and it means a curriculum can
-adopt an existing skill rather than fork it. It may create skills; it may never write `score`,
-`band`, or `perceived_level`, and the writer's interface is what enforces that rather than care.
-
-**`skill_edges` is deliberately not derived from `track_edges`**, correcting an earlier draft of this
-section. The obvious reading is that "track B requires track A" means every skill in B requires every
-skill in A. That is wrong twice: it is quadratic in the size of two modules, and §9.4's readiness term
-is the _fraction_ of prerequisites at `working` — so inventing twenty-five edges where the learner
-meant one pushes a genuinely reachable skill out of their ZPD. Track-level order is what a curriculum
-knows; skill-level order is not, and asserting it makes the recommender worse rather than better.
-Skill prerequisites stay manual.
-
-A lesson's `track_id` and its `lesson_skills` come from its own `<meta>` tags, never from
-`CURRICULUM.md`, and both resolve against every track and skill that already exists rather than only
-those parsed in the same run — the run that writes a lesson normally leaves the curriculum untouched.
-A tag naming something that does not exist leaves the lesson unfiled with a warning; it never creates
-a skill, because a skill invented by one lesson has exactly one possible source of evidence and no way
-to be wrong.
+A lesson's `track_id` comes from its own `<meta name="mindforge:track">`, never from
+`CURRICULUM.md`, and resolves against every track that already exists rather than only those parsed
+in the same run — the run that writes a lesson normally leaves the curriculum untouched. A tag
+naming a track that does not exist leaves the lesson unfiled with a warning.
 
 **Parse defensively.** The `teach` skill's formats are a contract you don't control; a format change must degrade to "file stored, partially indexed", never "run failed" and never "content lost". Every parser returns `{ parsed, warnings[] }` and warnings surface in the run result.
 
@@ -1662,7 +1165,7 @@ Mounted read-write at `<workspace>/.memory/` for the run. The agent reads and wr
 - **Same sync + conflict rules as §7.4**, keyed on `learner_memories.content_hash`.
 - **Export and delete cover it.** It's part of the user's data (FR-A4) and goes in the export zip.
 
-**Also feeds non-agent calls.** The memory summaries are prepended to the cached system prefix (§8.4) for assessment generation and grading, so a model grading your answer knows you're an engineer who explains in code, not prose.
+**Also feeds any future non-agent calls** — the memory summaries are the block that would be prepended to the cached system prefix (§8.4).
 
 **Bootstrapping:** empty at signup. The agent populates it from the first few sessions; the user can also write entries directly. Don't build an onboarding questionnaire — the answers people give up front about how they learn are usually wrong.
 
@@ -1674,15 +1177,10 @@ All non-agent model calls go through `packages/llm` — no module calls the Anth
 
 ### 8.1 Model selection
 
-| Job                                                    | Model                                 | Why                                                                                                                                                                     |
-| ------------------------------------------------------ | ------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Lesson generation (agent)                              | `claude-opus-5`                       | The hardest, highest-value output. $5/$25 per MTok, 1M context.                                                                                                         |
-| Assessment generation                                  | `claude-opus-5`                       | Question quality is the whole feature; a weak question corrupts a skill score.                                                                                          |
-| Answer grading (short answer, explain, teach-back)     | `claude-opus-5` at `effort: "medium"` | Grading is judgment; cheap grading produces wrong scores, which is worse than no scores.                                                                                |
-| Study plan generation                                  | `claude-sonnet-5`                     | Structured planning over known inputs. $3/$15 — **note the $2/$10 introductory rate runs through 2026-08-31**, so early cost measurements will understate steady-state. |
-| Resource metadata extraction (URL → title/author/type) | `claude-haiku-4-5`                    | High-volume, low-judgment. $1/$5.                                                                                                                                       |
-| Friction → suggestion summarization                    | `claude-haiku-4-5`                    |                                                                                                                                                                         |
-| Weekly narrative digest (v2)                           | `claude-opus-5` via **Batch API**     | Not latency-sensitive → 50% discount.                                                                                                                                   |
+| Job                           | Model           | Why                                                             |
+| ----------------------------- | --------------- | --------------------------------------------------------------- |
+| Lesson generation (agent)     | `claude-opus-5` | The hardest, highest-value output. $5/$25 per MTok, 1M context. |
+| Curriculum generation (agent) | `claude-opus-5` | The structure everything else hangs off.                        |
 
 Defaults live in one config object, overridable per environment, so a model change is a deploy not a refactor.
 
@@ -1696,31 +1194,10 @@ Defaults live in one config object, overridable per environment, so a model chan
 
 ### 8.3 Structured outputs
 
-Every non-prose model call returns a validated object. One Zod schema per call site in `packages/llm/schemas`, reused by the API DTO so the model's output and the API contract can't drift.
-
-```ts
-// packages/llm/schemas/assessment.ts
-export const AssessmentQuestion = z.object({
-  format: z.enum(['mcq','short_answer','explain','applied','spot_the_bug','scenario']),
-  prompt: z.string(),
-  options: z.array(z.string()).length(4).optional(),
-  correct: z.union([z.string(), z.array(z.string())]),
-  rationale: z.string(),
-  cites: z.array(z.object({ kind: z.enum(['lesson','reference','resource']), id: z.string() })),
-});
-export const GeneratedAssessment = z.object({ questions: z.array(AssessmentQuestion).min(5).max(20) });
-
-// call site
-const res = await client.messages.parse({
-  model: 'claude-opus-5',
-  max_tokens: 16000,
-  output_config: { format: zodOutputFormat(GeneratedAssessment) },
-  messages: [...],
-});
-res.parsed_output!.questions   // validated
-```
-
-**MCQ hygiene is enforced in code, not hoped for in the prompt** (FR-X6). A post-generation validator rejects any question whose options differ in length by more than ~15%, or where one option is conspicuously longer/more qualified than the rest. Rejected questions are regenerated once, then dropped. The `teach` skill is explicit about this and it's exactly the kind of rule a model will drift on.
+Every non-prose model call returns a validated object. One Zod schema per call site in
+`packages/llm/schemas`, reused by the API DTO so the model's output and the API contract can't
+drift. (The agent path does not use structured outputs — its contract is files, parsed defensively
+per §7.4.)
 
 ### 8.4 Prompt caching
 
@@ -1730,22 +1207,12 @@ Rules for `packages/llm`:
 
 1. **The system prompt is frozen per purpose.** No timestamps, no user IDs, no session IDs, no conditional sections. Anything dynamic goes into `messages`, after the last cache breakpoint.
 2. **Tool lists are sorted deterministically** and never vary within a purpose.
-3. **Mission context is the cache boundary.** For repeated calls within one mission (assessment generation, grading a batch of answers), put the mission + learning-records + reference-doc block first with a `cache_control` breakpoint at its end, and the varying question after it.
+3. **Mission context is the cache boundary.** For repeated calls within one mission, put the mission + learning-records block first with a `cache_control` breakpoint at its end, and the varying part after it.
 4. **Assert on cache hits in dev.** If `usage.cache_read_input_tokens` is 0 across repeated calls with the same prefix, something is silently invalidating it — log a warning in non-production.
 
-For grading a 15-question assessment, this is the difference between paying for the mission context 15 times and paying for it once.
+For repeated calls over one mission's context, this is the difference between paying for it every time and paying for it once.
 
-### 8.5 Frictionless capture (FR-R2)
-
-`POST /resources/capture { url }`:
-
-1. Fetch the URL server-side (SSRF-guarded: no private IP ranges, redirect cap, 5s timeout, size cap).
-2. Extract Open Graph / JSON-LD / `<title>` — pure parsing, no model call.
-3. Only if extraction is weak, fall back to `claude-haiku-4-5` with a structured output for `{title, author, type, estimated_minutes}`.
-
-Most captures cost nothing. That matters — this endpoint runs on every article you save.
-
-### 8.6 Cost control
+### 8.5 Cost control
 
 - Every call writes a `llm_calls` row with token counts (including cache reads/writes) and computed cost.
 
@@ -1781,7 +1248,7 @@ Most captures cost nothing. That matters — this endpoint runs on every article
     SDK was built; its docs say not to bill from it. Store it on `agent_runs.result` as a cross-check
     against our own figure, never as the source of truth.
 
-- Per-user monthly soft cap, configurable. On breach: non-essential jobs (digests, plan regeneration) pause; user-initiated jobs warn and continue.
+- Per-user monthly soft cap, configurable. On breach: user-initiated jobs warn and continue.
 - A cost meter in the UI. If you're spending $80/month on lesson generation you should find out from the app, not the invoice.
 - Rough order of magnitude for one lesson generation with warm cache: tens of cents. Measure it in the first week rather than trusting that estimate — agent runs vary enormously with turn count.
 
@@ -1791,140 +1258,52 @@ Most captures cost nothing. That matters — this endpoint runs on every article
 
 Pure, deterministic, exhaustively unit-tested. These encode the product's opinions, so they're the highest-value tests in the repo.
 
-### 9.1 Skill score, decay, and confidence
+### 9.1 Module progress
 
-Score is a **time-weighted, evidence-weighted, decayed** aggregate:
-
-```
-weight(e)   = kindWeight(e.kind) × exp(-ln(2) × ageDays(e) / halfLife)
-score       = Σ (e.raw_score × weight(e)) / Σ weight(e)
-score_stddev= weighted stddev, floored to widen as evidence ages
-```
-
-- `kindWeight`: `artifact 1.0 > teach_back 0.9 > assessment 0.8 > review 0.6 > lesson 0.35 > self_report 0.1`. Shipping something beats answering questions about it (FR-W2).
-- `halfLife` is per skill, defaulting to 90 days, adjusted by observed review performance: a skill you keep getting right after long gaps earns a longer half-life.
-- **`score_stddev` widens with evidence age.** A skill last tested 6 months ago should read `61 ±24`, not `61`. This is what makes the dashboard honest (FR-S3, FR-S4).
-- **Calibration gap** = `perceived_level − score`, plus a per-assessment version from confidence ratings (FR-S5). A persistently positive gap is overconfidence and is the single highest-value number the app produces.
-
-### 9.2 Spaced repetition
-
-**FSRS** (`ts-fsrs`), not a hand-rolled SM-2. Two adaptations:
-
-- **Daily load cap** with overflow: items past the cap are pushed, prioritized by `(overdue days × skill importance)`. Anki's unbounded-backlog death spiral is itself wasteful friction (FR-V6).
-- **Review outcomes are `skill_evidence`** with `kind='review'`, so retention directly feeds skill scores. That's the loop that makes a score mean something.
-
-### 9.3 Friction classification
-
-Deterministic mapping, no model call:
+Computed on read in `packages/core`, never stored (FR-P2..P5):
 
 ```
-productive  = { productive_struggle }
-            ∪ { too_hard | missing_prerequisite  where the session still
-                produced a learning record or a passed review }
-wasteful    = everything else
+moduleProgress = completed planned lessons / planned lessons   -- dropped entries leave both sides
+unblocked(l)   = every prerequisite of l is completed
+fundamental(l) = l has dependents; rank by dependent count
+nextLesson     = first unblocked, incomplete planned lesson,
+                 module order then difficulty ascending
 ```
 
-The conditional clause matters: "too hard" that you _pushed through_ is desirable difficulty; "too hard" that ended the session is a ZPD miss. Same event type, opposite meaning, distinguished by outcome.
+"Unknown is never rendered as zero": a module with no plan yet returns null with a reason, and the
+UI says which — it does not show 0%.
 
-**Suggestions** (FR-C4) are rule-based first — thresholds over recent windows (`tooling > 30% of sessions on mission X over 14 days` → "spend a session fixing your environment"). Only the _phrasing_ goes near a model, and only in v2. A rule you can read beats an LLM opinion you can't audit.
+### 9.2 The lesson dependency graph
 
-### 9.3b Ember and slag minutes
+Cycle detection and edge resolution live in `packages/workspace/src/parse/curriculum.ts` today
+(for `track_edges`) and extend to `lesson_edges` in M4 — the parser breaks cycles with a warning
+rather than failing the file (a curriculum with one bad edge is still 14 good subtopics), and the
+first path found wins, so the file's own reading order is the tie-break. The unblocked/fundamental
+derivations land in `packages/core` with M4, next to the module-progress maths that read the same
+edges.
 
-Settled in M2, because the weekly review is the first screen that reports it and until then the code
-carried a proxy: every friction event was weighted as one minute, so `emberShare` was a share of the
-_count_ wearing the minutes field. §3.5 stored `ember_minutes` while §3.9 described "a fraction of the
-day's friction", and neither said what the rule was.
+### 9.3 The frequency figures
 
-**A friction event is a moment, not a duration.** Nothing records how long an interruption cost, and
-asking would break the ≤5s capture budget that makes the data exist at all. So minutes are
-_attributed_ rather than measured:
-
-```
-weight(e)      = e.intensity                    -- 1..5, collected since M1, previously unread
-share(e)       = sessionMinutes × weight(e) / Σ weight
-emberMinutes   = Σ share(e) where classify(e) = productive
-slagMinutes    = Σ share(e) where classify(e) = wasteful
-```
-
-Rounded by largest remainder so the shares sum exactly to the session's minutes — flooring loses a
-minute per session, and a month of rollups drifts entirely into whichever class rounds down.
-
-Three consequences, each a choice rather than a fact:
-
-- **A session with no friction contributes to neither.** Its minutes are focus minutes and nothing
-  else. `emberMinutes + slagMinutes` therefore covers only the sessions that hit friction and does not
-  sum to `focusMinutes`. Calling unexamined time ember would be the flattering answer and the wrong
-  one: an hour you never noticed anything about is not an hour of demonstrated productive struggle.
-- **A tap logged outside any session gets no minutes at all.** It is still counted, and still appears
-  in the top-sources list — the API reports `unattributedEventCount` so the two figures cannot
-  silently disagree with each other.
-- **The classification can change after the fact**, because the debrief that decides `too_hard` may be
-  written the next morning. Any stored rollup must therefore be rebuildable rather than append-only.
-
-`producedLearning` remains an interim proxy reading the session's debrief. CLAUDE.md previously said
-it expires "in M2/M5"; the M2 half cannot, because §9.3's real definition needs learning records or
-passed reviews and neither exists until M4/M5. A session with no debrief classifies as wasteful, by
-design.
-
-### 9.5 Backlog health and stall detection
-
-Also settled in M2. FR-I7 and FR-R6 name the outputs — queue growth versus throughput, abandonment
-rate and reasons, stalled items — with no window, no threshold, and no definition of "stalled". These
-are the definitions:
-
-| Term          | Definition                                                                                             |
-| ------------- | ------------------------------------------------------------------------------------------------------ |
-| Window        | **28 days**, matching the activity grid's "active days in the last 28" so the two figures agree        |
-| Open          | `inbox`, `queued`, `active`. `reference` is neither open nor resolved — a thing you keep is not debt   |
-| Resolved      | `finished` + `abandoned`, dated within the window                                                      |
-| Stalled       | `active` with no focus session for **21 days** — started and not abandoned, so the action is to decide |
-| Mission stall | An **active** mission with no focus session for **12 days** (FR-N3), counted from creation if never    |
-
-"Untouched" means no focus session, never "no write": editing a mission's `why` at midnight is
-thinking about it, not working on it.
-
-**Signals are returned as a key plus its numbers, never a sentence** — the SPA translates (§5.2) — and
-null far more often than not. At most one fires, ordered by what you can act on soonest rather than by
-size: three stalled books is a smaller decision than reversing a month of queue growth. A growing
-queue needs to clear throughput by two, not one; a line about a single book every month is how a user
-learns to stop reading the line.
-
-### 9.4 ZPD recommendation
-
-Candidate scoring over the skill graph:
-
-```
-score(skill) = readiness × missionRelevance × (1 − recentCoverage) × decayUrgency
-readiness    = fraction of prerequisites at ≥ 'working' band
-decayUrgency = 1 − exp(-ln(2) × daysSinceEvidence / halfLife)
-```
-
-Top candidates go into `BRIEFING.md` (§7.3) and onto the home screen. The recommender **proposes**; the teach agent decides. Don't try to out-think the skill's own ZPD logic — feed it state it can't otherwise see.
+`buildGrid` buckets `daily_activity` rows into quartile intensities of the user's own non-empty
+days, counts active days over the trailing 28, and emits at most one signal
+(`never_on_weekday`) — see §3.9.
 
 ---
 
 ## 10. Background jobs
 
-| Queue / job                         | Trigger                        | Notes                                                                           |
-| ----------------------------------- | ------------------------------ | ------------------------------------------------------------------------------- |
-| `teach:generate-lesson`             | User action                    | Agent SDK. One per mission concurrently. 15-min timeout.                        |
-| `teach:sync-workspace`              | Manual, or after any agent run | Diff + reindex.                                                                 |
-| `assessment:generate`               | User action                    | Structured output + MCQ validator.                                              |
-| `assessment:grade`                  | On submit                      | Batched per assessment for cache reuse.                                         |
-| `scores:recompute`                  | Nightly + on new evidence      | Decay means scores change with no user action.                                  |
-| `review:build-queue`                | Nightly per user timezone      | Materializes tomorrow's queue and load-caps it.                                 |
-| `insights:rollup`                   | Nightly                        | Pre-aggregates focus/friction into daily rollup tables so dashboards stay fast. |
-| `notify:decay-warning`              | Nightly                        | "You're about to lose Rust lifetimes."                                          |
-| `notify:stall-detection`            | Daily                          | Missions untouched >N days.                                                     |
-| `account:export` / `account:delete` | User action                    |                                                                                 |
-| `digest:weekly`                     | Weekly, Batch API              | v2.                                                                             |
+| Queue / job                         | Trigger                        | Notes                                                    |
+| ----------------------------------- | ------------------------------ | -------------------------------------------------------- |
+| `teach:generate-lesson`             | User action                    | Agent SDK. One per mission concurrently. 15-min timeout. |
+| `teach:sync-workspace`              | Manual, or after any agent run | Diff + reindex.                                          |
+| `insights:rollup`                   | Nightly per user timezone      | Rebuilds `daily_activity` over a trailing window.        |
+| `account:export` / `account:delete` | User action                    | Planned.                                                 |
 
-Nightly jobs run **per user timezone**, not at a global UTC hour. A "daily review queue" that rolls over at 4pm local is a bug.
+Nightly jobs run **per user timezone**Nightly jobs run **per user timezone**, not at a global UTC hour. A "daily review queue" that rolls over at 4pm local is a bug.
 
 **The `queue:job` names above are descriptive, not real.** There is no Redis and no queue — the
 scheduler is a self-rescheduling `setTimeout` in `apps/worker`, and idempotency lives in Postgres
-(the `notifications` `(user_id, dedupe_key)` unique, `daily_activity`'s range rebuild, and now
-`agent_runs`' single-active-run partial index). `bullmq` and `@nestjs/bullmq` are declared by both
+(`daily_activity`'s range rebuild and `agent_runs`' single-active-run partial index). `bullmq` and `@nestjs/bullmq` are declared by both
 apps and imported by nothing. Read this table as "the jobs that exist", not "the queues they run on";
 the names stay so the swap to a real queue is a rename rather than a redesign. `agent_runs.job_id` is
 part of the same anticipation — an external job id, unused while the scheduler is in-process.
@@ -1937,11 +1316,11 @@ This data is a detailed map of your weaknesses. Treat it accordingly.
 
 - **RLS on every table**; worker code filters `user_id` explicitly and is reviewed for it (§3.6).
 - **Lesson HTML is untrusted** — separate origin, sandboxed iframe without `allow-same-origin`, restrictive CSP, `connect-src 'none'` (§7.5).
-- **SSRF guard** on `POST /resources/capture` and anywhere else a user-supplied URL is fetched: block private/link-local/metadata IP ranges, cap redirects, cap response size, short timeout.
+- **SSRF guard** anywhere a user-supplied URL is fetched: block private/link-local/metadata IP ranges, cap redirects, cap response size, short timeout.
 - **Secrets** live in Railway/Supabase env config. The Anthropic key exists only in `worker` and `api`, never in the SPA bundle.
-- **What goes to Anthropic, and when** is documented in-app and logged. A user should be able to answer "did my friction notes get sent to a model?" from the UI. (Answer: only if they trigger a job that needs them.)
+- **What goes to Anthropic, and when** is documented in-app and logged. A user should be able to answer "did my mission notes get sent to a model?" from the UI. (Answer: only if they trigger a run that reads them.)
 - **Rate limits** per user on LLM-triggering endpoints, independent of the cost cap.
-- **PII in prompts:** notes and reflections can be deeply personal. Send only what a job needs — grading an answer doesn't need your friction log.
+- **PII in prompts:** the workspace and memory can be deeply personal. Send only what a run needs.
 
 ---
 
@@ -1949,7 +1328,7 @@ This data is a detailed map of your weaknesses. Treat it accordingly.
 
 - **Structured logs** (Pino) with `requestId`, `userId`, `agentRunId` on every line.
 - **Sentry** for both `api` and `worker`; agent-run failures are first-class errors, not swallowed job retries.
-- **`llm_calls`** is the cost source of truth. A weekly internal query answers: cost per lesson, cache hit rate, cost per skill point gained.
+- **`llm_calls`** is the cost source of truth. A weekly internal query answers: cost per lesson, cache hit rate.
 - **Agent run traces** stored as JSON (turn count, tools used, files touched, tokens) — when a lesson comes out bad you need to see what the agent actually did.
 - **Health checks** on both services; Railway restarts on failure. The worker drains in-flight jobs on SIGTERM before exiting.
 
@@ -1963,16 +1342,16 @@ This data is a detailed map of your weaknesses. Treat it accordingly.
 
 80% global, with **per-area thresholds** so the number means something. A flat 80% lets you hit the target by testing DTOs while leaving the scoring math bare — which is exactly backwards, because that's where a silent bug produces confidently wrong numbers rather than a crash.
 
-| Area                                   | Lines    | Branches | Why                                                                                                                                  |
-| -------------------------------------- | -------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| `packages/core`                        | **100%** | **95%**  | Scoring, decay, calibration, FSRS, friction classification. A wrong number here is invisible and corrupts every downstream decision. |
-| `apps/api` — `domain/`                 | 95%      | 90%      | Entity invariants are the rules of the product.                                                                                      |
-| `apps/api` — `application/`            | 90%      | 85%      | Use cases: every command and query has at least a success and a failure test.                                                        |
-| `apps/api` — `infrastructure/`         | 80%      | 70%      | Repository impls and mappers, covered via integration tests against real Postgres.                                                   |
-| `packages/llm`                         | 85%      | 75%      | Schema validation, MCQ hygiene, cache-breakpoint construction.                                                                       |
-| `apps/web` — `features/*/api`, `model` | 85%      | 75%      | Query keys, optimistic rollback, derived selectors.                                                                                  |
-| `apps/web` — `shared/ui`               | 80%      | 70%      | The temper gauge gets its own suite — feathering is load-bearing, not decoration.                                                    |
-| **Global floor**                       | **80%**  | **75%**  | Fails the build below this.                                                                                                          |
+| Area                                   | Lines    | Branches | Why                                                                                                                 |
+| -------------------------------------- | -------- | -------- | ------------------------------------------------------------------------------------------------------------------- |
+| `packages/core`                        | **100%** | **95%**  | The calendar, the grid, the graph helpers. A wrong number here is invisible and corrupts every downstream decision. |
+| `apps/api` — `domain/`                 | 95%      | 90%      | Entity invariants are the rules of the product.                                                                     |
+| `apps/api` — `application/`            | 90%      | 85%      | Use cases: every command and query has at least a success and a failure test.                                       |
+| `apps/api` — `infrastructure/`         | 80%      | 70%      | Repository impls and mappers, covered via integration tests against real Postgres.                                  |
+| `packages/llm`                         | 85%      | 75%      | Pricing, cache-breakpoint construction.                                                                             |
+| `apps/web` — `features/*/api`, `model` | 85%      | 75%      | Query keys, optimistic rollback, derived selectors.                                                                 |
+| `apps/web` — `shared/ui`               | 80%      | 70%      | The component library every feature composes.                                                                       |
+| **Global floor**                       | **80%**  | **75%**  | Fails the build below this.                                                                                         |
 
 **Excluded from the denominator** (config, not laziness — these are generated or trivially declarative): generated Prisma client, migrations, `*.module.ts` wiring, `main.ts` bootstraps, type-only files, Storybook stories, test utilities.
 
@@ -1998,35 +1377,31 @@ coverage: {
 
 **Unit** — no I/O, no database, no network. Pure functions and entities in isolation. Fast enough to run on save.
 
-| Target          | Tool                          | Notes                                                                                                                                                                                                      |
-| --------------- | ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `packages/core` | Vitest + fast-check           | **Property-based** for decay and scoring: a score never exceeds its bounds; decay is monotonic without new evidence; adding evidence never widens the confidence interval. Example-based tests miss these. |
-| Domain entities | Vitest                        | Every invariant gets a test that proves it _rejects_ the invalid case, not just accepts the valid one.                                                                                                     |
-| Use cases       | Vitest + in-memory repo fakes | The repository interface makes fakes trivial. Test the rule, not the SQL.                                                                                                                                  |
-| Parsers         | Vitest + fixtures             | Real `teach` output, plus deliberately malformed files proving degradation is graceful.                                                                                                                    |
-| LLM layer       | Vitest + recorded fixtures    | **Never hits the live API in CI.** Schema validation, MCQ hygiene validator, cache-breakpoint construction.                                                                                                |
+| Target          | Tool                          | Notes                                                                                                       |
+| --------------- | ----------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `packages/core` | Vitest                        | The calendar and grid maths, exhaustively; the DAG helpers against cycles and forward references.           |
+| Domain entities | Vitest                        | Every invariant gets a test that proves it _rejects_ the invalid case, not just accepts the valid one.      |
+| Use cases       | Vitest + in-memory repo fakes | The repository interface makes fakes trivial. Test the rule, not the SQL.                                   |
+| Parsers         | Vitest + fixtures             | Real `teach` output, plus deliberately malformed files proving degradation is graceful.                     |
+| LLM layer       | Vitest + recorded fixtures    | **Never hits the live API in CI.** Schema validation, MCQ hygiene validator, cache-breakpoint construction. |
 
-**Integration** — real Postgres, real Storage, real Redis; no mocks at the boundary.
+**Integration** — real Postgres, real Storage; no mocks at the boundary.
 
-| Target         | Tool                             | Notes                                                                                                                                                           |
-| -------------- | -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Repositories   | Vitest + Testcontainers Postgres | Migrations applied per suite. Mappers verified round-trip.                                                                                                      |
-| **RLS**        | Vitest + Testcontainers          | **Mandatory and non-negotiable: for every table, prove user A cannot read or write user B's rows.** A new table without an RLS test is an incomplete migration. |
-| API routes     | Vitest + Nest testing module     | Real DI graph, real DB, HTTP in and out. Auth guard included — an unauthenticated request must 401.                                                             |
-| Workspace sync | Vitest + Storage emulator        | Added / modified / deleted / **conflict** — the conflict path especially, since it's the one that can lose work.                                                |
-| Queue          | Vitest + Redis container         | Job enqueue → consume → result, including retry and timeout.                                                                                                    |
+| Target         | Tool                         | Notes                                                                                                                                                           |
+| -------------- | ---------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Repositories   | Vitest + local Supabase      | Migrations applied first. Mappers verified round-trip.                                                                                                          |
+| **RLS**        | Vitest + local Supabase      | **Mandatory and non-negotiable: for every table, prove user A cannot read or write user B's rows.** A new table without an RLS test is an incomplete migration. |
+| API routes     | Vitest + Nest testing module | Real DI graph, real DB, HTTP in and out. Auth guard included — an unauthenticated request must 401.                                                             |
+| Workspace sync | Vitest + local Storage       | Added / modified / deleted / **conflict** — the conflict path especially, since it's the one that can lose work.                                                |
 
 **End to end** — Playwright, real browser, real stack.
 
 | Flow                                                                             | Why it's covered                                                |
 | -------------------------------------------------------------------------------- | --------------------------------------------------------------- |
 | Sign up → sign in → sign out                                                     | Auth is the front door.                                         |
-| The capture loop: start focus → log friction → stop → debrief → appears on today | The core daily habit; if this breaks, the product is dead.      |
-| Add a resource by URL → update progress → abandon with reason                    | The second most-used path.                                      |
-| Weekly plan → log sessions → weekly review shows plan vs. actual                 | The retention ritual.                                           |
+| The capture loop: start focus → stop → debrief → appears on today                | The core daily habit; if this breaks, the product is dead.      |
 | Generate a lesson → run completes → lesson renders in the sandbox → mark outcome | The agent path, with the model stubbed.                         |
-| Review queue: due items → answer → schedule moves                                | Retention loop.                                                 |
-| Offline: go offline → log friction → reconnect → event persists exactly once     | Idempotency, which is easy to get wrong and silent when you do. |
+| Offline: go offline → start a session → reconnect → persists exactly once        | Idempotency, which is easy to get wrong and silent when you do. |
 | Keyboard-only pass through the capture loop                                      | Accessibility, tested not asserted.                             |
 
 E2E runs against a seeded database with a stubbed Anthropic client — deterministic, no spend, no flake from model variance.
@@ -2056,11 +1431,11 @@ E2E runs against a seeded database with a stubbed Anthropic client — determini
 
 ## 14. Environments & deploy
 
-| Env     | Supabase                           | Railway                                              |
-| ------- | ---------------------------------- | ---------------------------------------------------- |
-| local   | Supabase CLI (Docker)              | `pnpm dev` — api, worker, web, lessons + local Redis |
-| preview | Shared staging project             | Railway PR environments                              |
-| prod    | Dedicated project, PITR backups on | `api`, `worker`, `lessons`, Redis                    |
+| Env     | Supabase                           | Railway                                |
+| ------- | ---------------------------------- | -------------------------------------- |
+| local   | Supabase CLI (Docker)              | `pnpm dev` — api, worker, web, lessons |
+| preview | Shared staging project             | Railway PR environments                |
+| prod    | Dedicated project, PITR backups on | `api`, `worker`, `lessons`             |
 
 ### Toolchain and infrastructure decisions
 
@@ -2078,12 +1453,17 @@ E2E runs against a seeded database with a stubbed Anthropic client — determini
 
 Two fixture sets, both generated by a script, neither hand-maintained:
 
-- **`pnpm seed:minimal`** — one user, one mission, three skills with prereq edges, two resources. Enough to click through. Used by E2E.
-- **`pnpm seed:rich`** — 6 months of synthetic history: ~200 focus sessions with realistic weekday/weekend distribution, friction events weighted toward tooling and interruption, review logs producing a believable retention curve, and skills at varied evidence ages so the **gauges actually feather differently**.
+- **`pnpm seed:minimal`** — one user, one mission with a three-module curriculum, lessons in three
+  states (understood, shaky, unread), four sessions. Enough to click through.
+- **`pnpm seed:rich`** — 6 months of synthetic history: two curricula with modules in every state,
+  ~90 focus sessions with a realistic weekday distribution (never a Saturday, one dead fortnight),
+  and a parked mission. `pnpm seed:report` prints what the tracker functions actually say about it.
 
-The rich set exists because insights, the activity grid, decay curves, and the galaxy are all unbuildable against an empty database — you cannot design a retention chart with three data points. Generate it from a fixed seed so it's reproducible, and keep it out of production by construction (guard on `NODE_ENV`).
+The rich set exists because the trackers are unbuildable against an empty database — you cannot
+design a year-of-days grid with four data points. Generate it from a fixed seed so it's
+reproducible, and keep it out of production by construction (guard on `NODE_ENV`).
 
-- **Migrations** are `prisma migrate` files in `packages/db/prisma/migrations`, applied with `prisma migrate deploy` in a release command before the new revision takes traffic. **RLS policies and any `check` constraints Prisma can't express go in hand-edited SQL inside those migration files** — never clicked into the Supabase dashboard, which is how environments drift. **Write them by hand.** `prisma migrate dev` cannot run in this repo at all — the `profiles.id → auth.users.id` foreign key is a cross-schema reference, and Prisma refuses to introspect past it unless `auth` joins the datasource's `schemas`, which would hand Prisma ownership of tables Supabase owns. Create the directory and the SQL yourself, apply with `migrate deploy`, and prove it with the RLS and integration suites. Anything hand-written is invisible to `schema.prisma` and will not be regenerated: the `notes.search` tsvector, every CHECK constraint, and every partial unique index exist only in SQL.
+- **Migrations** are `prisma migrate` files in `packages/db/prisma/migrations`, applied with `prisma migrate deploy` in a release command before the new revision takes traffic. **RLS policies and any `check` constraints Prisma can't express go in hand-edited SQL inside those migration files** — never clicked into the Supabase dashboard, which is how environments drift. **Write them by hand.** `prisma migrate dev` cannot run in this repo at all — the `profiles.id → auth.users.id` foreign key is a cross-schema reference, and Prisma refuses to introspect past it unless `auth` joins the datasource's `schemas`, which would hand Prisma ownership of tables Supabase owns. Create the directory and the SQL yourself, apply with `migrate deploy`, and prove it with the RLS and integration suites. Anything hand-written is invisible to `schema.prisma` and will not be regenerated: every CHECK constraint and every partial unique index exists only in SQL.
 - **Connection pooling:** point Prisma at Supabase's pooler (`DATABASE_URL`, pgbouncer, `?pgbouncer=true&connection_limit=1`) and at the direct connection for migrations (`DIRECT_URL`). Getting this wrong surfaces as prepared-statement errors under load, not at deploy time.
 - **Workspace Storage bucket is private.** All access goes through signed URLs minted after an ownership check.
 - **Backups:** Postgres PITR via Supabase; Storage bucket versioning on. A lost lesson is unrecoverable creative work.
@@ -2095,7 +1475,7 @@ The rich set exists because insights, the activity grid, decay curves, and the g
 **One version for the whole product**, not per-package. It's a single deployable product with a single user; independent package versions would be bookkeeping with no reader.
 
 - **SemVer** in the root `package.json`, the single source of truth.
-- **Conventional Commits** (`feat:`, `fix:`, `chore:`, scoped: `feat(friction): …`), already the commit convention in `CLAUDE.md` where requirement IDs are also referenced.
+- **Conventional Commits** (`feat:`, `fix:`, `chore:`, scoped: `feat(focus): …`), already the commit convention in `CLAUDE.md` where requirement IDs are also referenced.
 - **`release-please`** on GitHub Actions derives the version bump, writes `CHANGELOG.md`, tags, and opens the release PR. Nothing is versioned by hand.
 - **Build metadata** — git SHA, build timestamp, and the applied migration name — is injected at build time and exposed at `GET /v1/health`. When something is wrong in production, "which code and which schema is actually running" is the first question, and it should take one request to answer.
 - **Sentry releases** are tagged with the same version so a stack trace maps to a commit.
@@ -2109,53 +1489,13 @@ The rich set exists because insights, the activity grid, decay curves, and the g
 
 Entries are written for a reader, not derived raw from commit subjects: `release-please` produces the skeleton and the release PR is where you rewrite it into plain sentences. A changelog nobody can read is a git log with extra steps.
 
-### The self-referential bit
-
-You are both the developer and the only user, which makes the changelog more useful here than in most products: **shipping a Mindforge feature is real-world evidence of skill.** A release can offer to log an **Artifact** (§3.4, FR-W1) against whatever skills the work exercised — the highest-weight evidence type there is, captured at the one moment you actually remember the details.
-
-Opt-in per release, one tap, never automatic. It closes a loop the product otherwise leaves open: the thing you build to track your learning becomes something your learning is measured by.
-
 ---
 
 ## 15. Build phases
 
-Each phase leaves a working, useful app.
-
-> **`NORTHSTAR.md` §4 is the authority on sequencing; this section is the coarse shape.** They
-> disagreed on the weekly rhythm and the north star wins: Phase 1 below listed "weekly plan vs.
-> actual" alongside the capture loop and Phase 3 listed the "weekly review ritual" with retention,
-> while §4 puts both in M2 — deliberately, because the review ritual is the habit loop that stops the
-> app being abandoned at week three, and shipping it two milestones after capture is shipping it too
-> late to do that job. Corrected below.
-
-### Phase 0 — Skeleton (est. small)
-
-Monorepo, Prisma schema for §3.1/§3.3, RLS + RLS tests, Supabase Auth + Nest guard, SPA shell with routing and the command palette, Railway deploy for `api`/`web`.
-
-### Phase 1 — The capture loop (the v0 milestone)
-
-Missions · Goals · Skills (manual score only) · Resources with progress and capture-by-URL · Focus timer with intention + debrief · Friction logging · Notes on anything · Offline queue · PWA.
-**No LLM calls at all.** Ship it, use it for three weeks, and see whether the data is there. If it isn't, no amount of AI fixes the app.
-
-### Phase 1b — The weekly rhythm (M2)
-
-Weekly plan and plan vs. actual · the weekly review ritual · ember/slag by the deterministic rule ·
-backlog health · the activity grid · the nightly rollup · quiet notifications · the in-app changelog.
-Still no LLM calls. This is the phase that decides whether the capture loop from Phase 1 gets used in
-week four.
-
-### Phase 2 — The teach engine
-
-Storage workspaces · Agent SDK worker · sync + reindex + conflict UI · lesson/reference library with the sandboxed renderer · learning records · per-user learner memory + its review screen (§7.6) · `BRIEFING.md` / ZPD recommender · `agent_runs` + SSE progress · `llm_calls` cost tracking.
-This is the phase where the risky unknowns live — budget accordingly.
-
-### Phase 3 — Retention and measurement
-
-Review queue (FSRS) · assessments with confidence rating · grading · evidence-based skill scores with decay and confidence intervals · calibration gap · study plans · the rest of the insights suite (learning analytics, consumption vs. retention, and the three activity-grid layers whose tables land here).
-
-### Phase 4 — Reduce the friction it measures
-
-Readwise/Kindle · calendar · podcast history · GitHub artifacts · browser extension · AI weekly digest · teach-back grading · `mindforge` CLI for local `/teach` round-tripping.
+**`NORTHSTAR.md` §4 is the authority on sequencing.** M0–M3 are built; M4 is the curriculum
+(§3.2b), M5 is lessons in the product (the sandboxed reader, completion, `focus_sessions.lesson_id`),
+M6 finishes the three trackers and deploys.
 
 ---
 
@@ -2186,15 +1526,12 @@ Readwise/Kindle · calendar · podcast history · GitHub artifacts · browser ex
      The invariant still holds — the rows sum to `modelUsage`, so the meter is right — but the
      per-turn split is not the granularity it looks like. See §16.8.
 
-3. **Managed Agents re-evaluation** — if the memory-store model stabilizes out of beta, it deletes §7.4 entirely. Worth a spike at Phase 4.
+3. **Managed Agents re-evaluation** — if the memory-store model stabilizes out of beta, it deletes §7.4 entirely. Worth a spike after M6.
 4. **Lesson asset handling** — the `teach` skill wants a shared `assets/` component library per workspace. Confirm relative-path resolution works through the signed-URL lessons origin; may need path rewriting on serve.
-5. **FSRS parameter fitting** — default parameters until there's enough `review_logs` to fit personalized ones (needs ~1000 reviews). Plan the refit job, don't build it yet.
-6. **Timezone handling** — store the user's IANA timezone on the profile; every "day", "week", and nightly job derives from it. Get this right at Phase 1 or every analytics number will be subtly wrong.
-7. **`llm_calls` per-turn granularity is currently fiction.** The rows sum to `modelUsage` so the
+5. **`llm_calls` per-turn granularity is currently fiction.** The rows sum to `modelUsage` so the
    cost total is correct, but the per-`teach_turn` figures are partial-message deltas rather than what
    each turn was billed. Either attribute properly — which may need `includePartialMessages` off and a
    different message to read usage from — or collapse to one row per model per run and stop implying
    a breakdown that is not there. A wrong breakdown is worse than none, because §8.6's stated purpose
    is answering "cost per lesson" and somebody will eventually ask "cost per turn".
-
-8. **Mission slug immutability** — `workspace_key` is a Storage prefix, so renaming a mission must not move files. Slug is set once at creation; the display topic is free to change.
+6. **Mission slug immutability** — `workspace_key` is a Storage prefix, so renaming a mission must not move files. Set once at first materialisation; the display topic is free to change.

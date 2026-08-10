@@ -62,10 +62,10 @@ export class NightlyScheduler implements OnApplicationBootstrap, OnModuleDestroy
   private async tick(): Promise<void> {
     try {
       const outcome = await this.run.execute();
-      if (outcome.rolledUp > 0 || outcome.notificationsRaised > 0 || outcome.failures > 0) {
+      if (outcome.rolledUp > 0 || outcome.failures > 0) {
         this.logger.log(
-          `Nightly: ${outcome.rolledUp} rolled up, ${outcome.notificationsRaised} raised, ` +
-            `${outcome.failures} failed, across ${outcome.profilesSeen} profiles`,
+          `Nightly: ${outcome.rolledUp} rolled up, ${outcome.failures} failed, ` +
+            `across ${outcome.profilesSeen} profiles`,
         );
       }
     } catch (error) {

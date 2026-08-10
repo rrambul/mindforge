@@ -1,316 +1,209 @@
 # Mindforge — North Star & Roadmap
 
-**Status:** Draft v0.1
-**Date:** 2026-08-05
+**Status:** v0.2 — refocused on the curriculum flow
+**Date:** 2026-08-10
 **Companions:** [`REQUIREMENTS.md`](./REQUIREMENTS.md) (what to build) · [`TECH-DESIGN.md`](./TECH-DESIGN.md) (how to build it)
 
 This document is the destination and the staircase. It answers two questions: _what does "done" look like_, and _what is the next thing I build_.
+
+> **v0.2 refocus.** The v0.1 plan grew nine feature pillars — goals, skill scoring, friction
+> analytics, spaced repetition, assessments, a skill galaxy, insights, integrations — around a core
+> that was never finished. All of that is cut. What remains is one flow, built end to end:
+> **curriculum → modules → lessons → progress · time · frequency.** Everything cut is listed in §5,
+> with the condition under which it returns. Nothing was lost: the cut code is one git revert away,
+> and the cut ideas live in this file's history.
 
 ---
 
 ## 1. The north star
 
-> **Mindforge is the one place that tells you the truth about your learning.**
+> **Mindforge turns a topic into a curriculum, teaches it lesson by lesson, and tells you the truth about how you're moving through it.**
 
-Not how much you consumed. Whether it worked.
+One flow, no sidequests:
+
+1. **Curriculum** — you give it a mission (the topic and the why). An agent, built on the `teach`
+   skill, proposes a curriculum: an ordered set of **modules**, fundamentals first.
+2. **Modules** — each module is a subtopic with a one-line outcome and a **planned lesson list**:
+   every lesson named up front with a difficulty level, a depth level, and its dependencies on
+   other lessons.
+3. **Lessons** — generated one at a time, on demand, by the teach agent. You finish one, you ask
+   for the next; the app knows which lessons are unblocked because the dependency graph says so.
+4. **Progress tracker** — which lessons are done (and how they landed: understood / shaky / lost),
+   how far each module is, honestly: completed over planned, with the plan visible and revisable.
+5. **Time tracker** — the focus timer. Start with an intention, work, stop, ≤30s debrief. Sessions
+   bind to the curriculum you were working through.
+6. **Frequency tracker** — the activity grid. Which days you showed up, for how many minutes, and
+   active days in the last 28. Consistency, not streaks.
 
 ### A Tuesday, once it exists
 
-You open Mindforge at 8:40am. It doesn't greet you. It says: **three reviews due, 12 minutes**, and below that, one line — _your ownership model held; lifetimes didn't._ You do the reviews. Two land, one doesn't; the one that doesn't schedules itself closer.
-
-You hit **Start focus**. One field: what does done look like? You type _"get the parser handling nested groups."_ The timer runs. Forty minutes in, a build tool breaks. You tap once — **tooling** — and keep going. At the end: did you hit it? _Partly._ Focus quality 4. Energy 3.
-
-At 4pm you open a lesson the agent generated overnight from your mission, your last three learning records, and the two skills the graph says you're now ready for. It takes eight minutes. It's hard in the right way. You finish it and mark it _shaky_, which is honest, and the app believes you.
-
-### A Sunday, once it exists
-
-The weekly review takes six minutes. It shows you planned 5 hours on Rust and spent 6:20 — but 59% of that was **slag**, and most of it was tooling on the same project. The suggestion is not motivational: _"Tooling friction is 40% of your Rust sessions over the last 14 days. Spend one session fixing your environment."_
-
-It shows your Postgres skill has faded to `37 ±22`, edges dissolved, because you last proved anything in January.
-
-It shows your calibration gap is **+18** — you consistently rate yourself higher than you test. That number has been getting smaller for two months, and that's the single best thing on the screen.
-
-### The map
-
-Everything you know about a domain is one **galaxy**. Foundations sit at the core; specializations radiate outward as arms; each star is a skill, positioned by how many prerequisites deep it is. Arms are allowed to touch — the bridges between them (async ↔ web, types ↔ performance) are often where the valuable knowledge is.
-
-The galaxy isn't decoration, because every visual property carries a value the app already computes:
-
-| You see               | It means                                                                                                            |
-| --------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| **Brightness**        | Skill score. Dim stars are unproven, not unknown.                                                                   |
-| **Haze**              | Uncertainty — the same feathering language as the temper gauge. A skill untested for months goes soft at the edges. |
-| **Dimming over time** | Decay. Light fading is what decay actually feels like.                                                              |
-| **Dark regions**      | Your frontier. The zone of proximal development is the ring just past where the light stops.                        |
-
-Nobody places stars by hand. The teach agent proposes structure as it teaches; position is computed from the prerequisite graph. And the galaxy is the **navigation** view, not the analysis view — radial layouts are superb for "where am I, where next" and poor for comparing two numbers, so gauges and lists stay for that.
+You open Mindforge. The Rust curriculum shows module 3 of 9 — _Ownership in practice_ — at 4 of 6
+lessons, and one line: **next unblocked lesson: “Borrow checker errors as a debugging tool”,
+difficulty 4, deep dive — depends on the two lessons you marked understood last week.** You hit
+**Start focus**, type what done looks like, and do the lesson. At the end you mark it _shaky_ —
+which is honest, and the app believes you — and the debrief takes twenty seconds. The grid gets one
+more lit day.
 
 ### What makes it work
 
-- **Evidence, not vibes.** Every score traces to something you did.
-- **Decay is visible.** Skill fades on screen the way it fades in your head.
-- **Friction is split.** The hard part that teaches you is counted separately from the hard part that wastes you.
-- **It never flatters you.** When the week was bad, it says so, plainly, once.
+- **The curriculum is a plan, not a cage.** Lessons are planned up front — that is what makes
+  progress a real fraction — but generated lazily, and the plan is revisable when the material
+  teaches the agent something about you.
+- **Dependencies are honest structure.** A lesson that depends on another is locked until its
+  prerequisites are done; a lesson many others depend on is visibly **fundamental**. Both read
+  straight off the same edge.
+- **It never flatters you.** No fake celebration, no streak guilt, no inflated numbers. A _shaky_
+  outcome stays shaky on the module until you redo the lesson.
+- **Files stay canonical.** The teach workspace works from a terminal without Mindforge; Postgres
+  is a rebuildable index over it.
 
 ---
 
 ## 2. How we'll know we got there
 
-In priority order (detail in `REQUIREMENTS.md` §8):
+In priority order:
 
 1. **Still in use after 90 days.** Everything else is moot.
-2. Retention lift on active skills.
-3. Ember share up, slag share down.
-4. Plans get more honest (adherence up, _or_ plans get smaller — both are wins).
-5. Artifacts shipped per quarter.
-6. Calibration gap shrinking.
+2. **A full module completed end to end** — planned by the agent, taught lesson by lesson, every
+   completion honest.
+3. **The trackers answer their questions at a glance:** how far am I (progress), how much did it
+   take (time), am I showing up (frequency).
 
 ---
 
 ## 3. Principles that govern every step
 
-These don't change between milestones. When a decision is close, these break the tie.
-
-| Principle                                 | Consequence                                                                                                                                                              |
-| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **Capture in ≤5s, ≤2 taps**               | If a feature can't meet this, automate it or cut it. Non-negotiable.                                                                                                     |
-| **Mobile-first for capture and review**   | Friction logging, the timer, and the review queue are phone interactions before they are desktop ones. Analysis and authoring stay desktop-first. `TECH-DESIGN.md` §5.1. |
-| **Honesty over encouragement**            | No fake celebration, no inflated scores, no hidden decay.                                                                                                                |
-| **Evidence over self-report**             | Scores are derived. Self-ratings are stored separately and compared, never trusted.                                                                                      |
-| **Files stay canonical**                  | The teach workspace must always be usable from a terminal without Mindforge.                                                                                             |
-| **Every insight names an action**         | An insight that doesn't change what you do next gets cut.                                                                                                                |
-| **Boring where it's not the point**       | Spend novelty on the temper gauge and the friction split. Everything else is quiet.                                                                                      |
-| **Ship a usable thing each milestone**    | If you stop after any step, what's there still earns its keep.                                                                                                           |
-| **Tested at all three levels, 80% floor** | Unit, integration, and E2E ship _with_ the feature, not after. CI fails below 80%. `packages/core` is held to 100% — see `TECH-DESIGN.md` §13.                           |
+| Principle                                 | Consequence                                                                                                                                            |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **One flow**                              | A feature that is not curriculum → modules → lessons → progress/time/frequency does not ship. §5 is the only other list.                               |
+| **Capture in ≤5s, ≤2 taps**               | The timer and the lesson debrief are the only capture paths left; they stay under budget or they're wrong.                                             |
+| **Mobile-first for capture**              | The timer and the debrief are phone interactions first. Reading lessons and browsing the curriculum are desktop-first.                                 |
+| **Honesty over encouragement**            | No fake celebration, no inflated progress, no hidden nothing-happened weeks.                                                                           |
+| **Derived numbers, computed on read**     | Module progress, unblocked lessons, fundamental badges, active days — all derived. A stored copy is a value that was true once.                        |
+| **Files stay canonical**                  | The teach workspace must always be usable from a terminal without Mindforge. `CURRICULUM.md` is the curriculum; the DB indexes it.                     |
+| **Lessons come from the teach skill**     | Lesson generation is a Mindforge agent skill built on the upstream `teach` skill (Matt Pocock's). Mindforge orchestrates it; it never reimplements it. |
+| **Boring where it's not the point**       | Spend novelty on the curriculum view and the lesson reader. Everything else is quiet.                                                                  |
+| **Ship a usable thing each milestone**    | If you stop after any step, what's there still earns its keep.                                                                                         |
+| **Tested at all three levels, 80% floor** | Unit, integration, and E2E ship _with_ the feature. CI fails below 80%. `packages/core` is held to 100% — see `TECH-DESIGN.md` §13.                    |
 
 ---
 
 ## 4. The staircase
 
-Ten steps. Each is a week or three of evenings, ships something usable, and has an observable finish line.
+### Built (M0–M3, kept)
 
----
+- **M0 — Foundations.** Monorepo, CI gates, Prisma + RLS (tested), Supabase auth, i18n (en +
+  pt-BR), design tokens, versioning + changelog.
+- **M1 — Capture.** Missions, the focus timer (intention → run → ≤30s debrief), manual and
+  retroactive entry, offline queue, command palette, Today screen, guided first mission.
+  _(Goals, skills, resources, notes and friction logging shipped here too — cut in v0.2.)_
+- **M2 — Rhythm.** The nightly rollup into `daily_activity` and the activity grid.
+  _(Weekly planning, weekly reviews, backlog health, stall nudges — cut in v0.2.)_
+- **M3 — The agent.** The full teach pipeline: press "Teach me the next thing" → workspace
+  materialises from Storage → briefing renders from what Mindforge knows → the agent runs with the
+  teach skill loaded → files sync back with conflict retention → lessons, reference docs and
+  learning records index into Postgres → `llm_calls` reconciles to the run's real bill. Per-user
+  learner memory, reviewable in Settings. A real run: 26 turns, 8 minutes, $1.47.
 
-### M0 — Foundations
+### M4 — The curriculum
 
-**Goal:** a deployed skeleton you can log into.
+**Goal:** a mission gets a real curriculum: modules, and every module's lessons planned up front.
 
-- Monorepo (`apps/web|api|worker|lessons`, `packages/core|db|llm`) — **pnpm + Turborepo**, Node 22, shared tsconfig, Vitest + Playwright wired
-- **GitHub Actions** with the §13.3 gates; Turbo remote cache
-- `design/tokens.css` moved into `apps/web/src/styles/` — the visual language lands before the first component
-- Seed scripts: `seed:minimal` and `seed:rich` (6 months of synthetic history, so insights are designable)
-- Prisma schema for missions, goals, skills, resources, tasks, focus sessions, friction events
-- RLS policies in migrations **plus the RLS test suite** — user A cannot read or write user B's rows
-- Supabase Auth: email+password and GitHub; `SupabaseAuthGuard` on the Nest side
-- Design tokens from the identity spec as CSS custom properties; light default, dark via toggle
-- **i18n scaffolding (en + pt-BR)** — react-i18next, ICU, the domain glossary, and the missing-key CI check. Set up now; retrofitting means touching every component ever written (FR-L1..L7)
-- Railway: `api` + `web` deployed, Supabase project provisioned, migrations run on release
-- **Versioning + changelog**: Conventional Commits, `release-please`, build metadata on `/v1/health` (`TECH-DESIGN.md` §14.1)
+The in-flight curriculum work lands here, reshaped: `CURRICULUM.md` stays canonical and the
+`curriculum` skill writes it — but it now plans **lessons, not skills**.
 
-**Done when:** you sign in on the deployed URL and see an empty state that isn't a 500.
+- `CURRICULUM.md` format: 8–15 modules (tracks), each with a one-line outcome, module
+  prerequisites, and a **planned lesson list** — slug, title, one-line intent, **difficulty
+  (1–5)**, **depth (overview / working / deep-dive)**, and **depends-on** edges naming other
+  planned lessons (same module or earlier ones)
+- `curriculum` skill: proposes the structure grounded in the mission and `RESOURCES.md` (a
+  workspace file the agent maintains for grounding — not indexed into the app)
+- Parser + reindex: `tracks`, `track_edges`, planned rows in `lessons`
+  (status `planned`), `lessons.difficulty`, `lessons.depth`, and `lesson_edges` — cycle-checked,
+  like track edges
+- **Fundamental is derived, never stored:** a lesson other lessons depend on is fundamental; the
+  more dependents, the more fundamental. Same for "unblocked": all prerequisites completed
+- Curriculum screen: modules in order, each module's planned lessons with difficulty, depth,
+  locked/unblocked state, and the fundamental badge
+- Generation honours the plan: "teach me the next thing" targets the next unblocked planned
+  lesson; the generated file claims its plan entry via `<meta name="mindforge:lesson">`
 
----
+**Done when:** you press one button on a fresh mission and get a curriculum you'd actually follow,
+every lesson placed, levelled, and wired to its prerequisites.
 
-### M1 — The capture loop
+### M5 — Lessons in the product
 
-**Goal:** the daily habit, with zero AI.
+**Goal:** read, finish, and move through lessons entirely in the app.
 
-- Missions (create, edit, park — with the WIP limit of 3) and Goals
-- Skills: create, prerequisite edges, **manual** self-rating only
-- Resources: add, type-specific progress, status transitions, guilt-free abandon with reason
-- URL capture → server-side metadata extraction (no model call)
-- **Focus timer:** start with an intention → run → stop → ≤30s debrief
-- **Friction logging:** one tap, typed, mid-session, no modal
-- Manual and retroactive session entry (you _will_ forget the timer)
-- **Notes on anything** — one tap from a running session, or from any resource, skill, or mission (FR-N1..N3)
-- Command palette (⌘K) for start-focus, log-friction, add-resource
-- Offline queue in IndexedDB with client-generated UUIDs
-- **Today screen** per `TECH-DESIGN.md` §5.3 — running session, due now, next, this week, one thing
-- **Guided first mission** — four steps producing a real mission, goal, resource, and focus session (not a demo, not a questionnaire)
+- Sandboxed lesson reader: separate origin, `sandbox="allow-scripts"` without `allow-same-origin`,
+  strict CSP — lesson HTML is untrusted, always
+- Completion + outcome (understood / shaky / lost) written from the reader; progress becomes
+  completed-over-planned per module, and honest about plan revisions
+- "Next lesson" honours dependencies and difficulty ordering; generating it is one press
+- Reference-doc library (the documents you revisit), learning records browsable
+- Focus sessions can bind to the lesson you were doing, so the time tracker knows what the time
+  bought
 
-**Done when:** you've logged 10 real focus sessions without opening the code.
+**Done when:** you complete a full module — planned in M4, taught lesson by lesson — without
+touching a terminal.
 
-> **Stop here for three weeks and actually use it.** This is the milestone that decides whether the product is real. If capture doesn't stick, no amount of AI downstream fixes it — and it's much cheaper to learn that now.
+### M6 — The trackers, finished
 
----
+**Goal:** progress, time, and frequency each answer their question at a glance — then deploy and
+soak.
 
-### M2 — The weekly rhythm
+- **Progress:** curriculum overview — per-module fractions, outcomes distribution, what's
+  unblocked next
+- **Time:** minutes per curriculum/module/week, session history bound to lessons
+- **Frequency:** the activity grid (intensity = minutes) and active-days-in-28, per user timezone
+- Railway deploy (api + web), cloud Supabase, migrations on release — the M0 bullet that was
+  deliberately deferred
+- Then **use it for three weeks** on one real curriculum. That soak decides what, if anything,
+  earns its way back from §5.
 
-**Goal:** the habit loop that stops it being abandoned at week three.
-
-- Weekly planning grid: target minutes per mission/skill
-- Plan vs. actual view
-- **Weekly review screen:** what moved, what stalled, top friction sources, next week's allocation
-- Ember/slag ratio, computed by the deterministic rule (not a model)
-- Backlog health: queue growth vs. throughput, stalled items, abandonment reasons
-- **Activity grid**: intensity = minutes, hue = ember share; layers for reviews, lessons, notes; consistency over streaks (FR-I6b)
-- Nightly rollup job into `daily_activity`, per user timezone
-- Notifications: weekly review time, stall detection — quiet by default
-- **In-app changelog** (Settings → What's new) with an unseen-entries marker
-- Two carryovers M2 cannot be built honestly without: **`seed:minimal` / `seed:rich`** (an M0 bullet — the grid and the insights are undesignable against an empty database) and **a settings write path**, since `profiles` was read-only over the API and "per user timezone" described a column nobody could set
-
-**Done when:** you've done three weekly reviews and changed one thing because of one.
-
-> **Deferred out of M2:** the optional one-tap **Artifact** logging per release (`TECH-DESIGN.md`
-> §14.1). It needs the `artifacts` table, which is the wisdom pillar and belongs with the rest of
-> M6 — shipping an artifacts surface with one caller, ahead of its milestone, to serve a changelog
-> bullet is backwards. The changelog itself ships.
-
----
-
-### M3 — The workspace and the agent
-
-**Goal:** `teach` runs in the cloud. The riskiest milestone — timebox the spike.
-
-- **Day one: read the Agent SDK docs** and correct `TECH-DESIGN.md` §7.3 against the real API
-- Supabase Storage workspace per mission, layout identical to a local teaching workspace
-- Worker: materialize → run → sync → reindex → delete, with hard timeout and turn cap
-- `workspace_files` hash ledger; ETag-based conflict detection with a resolution UI
-- Defensive parsers for `MISSION.md`, `RESOURCES.md`, `learning-records/`, returning warnings not failures
-- `BRIEFING.md` generation (ZPD candidates, weak skills, due reviews)
-- `agent_runs` + SSE progress; `llm_calls` cost tracking from the first call
-- Per-user learner memory (`memory/<user_id>/`) with its review screen
-
-**Done when:** you press "Teach me the next thing", wait, and a lesson file exists in Storage and a row exists in Postgres — and running `/teach` locally against the same workspace still works.
-
----
-
-### M4 — Lessons in the product
-
-**Goal:** the generated material is usable, not just stored — and it arrives in an order.
-
-A main topic is a Mission. Under it sit **tracks** (subtopics), ordered fundamentals-first, and a
-track's lessons are its module. Lessons are still generated one at a time, on demand: you finish one,
-you ask for the next, and the module fills in behind you. Nothing is pre-generated.
-
-- **`curriculum` skill + `CURRICULUM.md`**: given a mission, propose 8–15 tracks with a one-line outcome, prerequisites, and target skills each — grounded in `RESOURCES.md`, not in the model's memory. Structure only; it proposes no scores.
-- **`tracks` table** (M7's "arm", pulled forward), `lessons.track_id`, and `lesson_skills` — the first thing that writes `skills` and `skill_edges` automatically, which shipped manual-only in M1
-- Each lesson declares its own track in a `<meta>` tag, so membership survives a rewrite. `CURRICULUM.md` is an index, not the record — the `RESOURCES.md` doubling lesson
-- Teach runs narrow from mission-scoped to **track-scoped**: `BRIEFING.md` gains the current track, the lessons already in it, and the last record's `Next`. One active track per mission
-- Sandboxed lesson renderer: separate origin, `sandbox="allow-scripts"` without `allow-same-origin`, strict CSP
-- Lesson library grouped by module, reference-doc library (searchable — these are the ones you revisit)
-- Learning records: browse, create, link, supersede
-- Lesson completion + outcome (understood / shaky / lost) → first automatic skill evidence, which `lesson_skills` is what makes landable: `lessons` has had `outcome` since M0 and no path to a skill
-- `postMessage` bridge for in-lesson quiz results
-
-A module ends when its target skills have evidence at band — **not** at a lesson count. With lazy
-generation the denominator does not exist, and "3 of 8" would be an estimate rendered as a fact. No
-percent-complete through a curriculum: that is consumption wearing a number's clothes, which §3.8
-already refused for goals.
-
-**Done when:** you complete three generated lessons end to end and the reference docs are somewhere you'd actually look things up.
-
----
-
-### M5 — Retention
-
-**Goal:** make the learning stick, and make scores mean something.
-
-- FSRS via `ts-fsrs` in `packages/core`, fully unit-tested
-- Daily review queue with a load cap and overflow handling
-- Item creation: from lesson quizzes, **any note promoted in one tap**, learning-record insights, manual
-- Full-text search across notes (FR-N6)
-- Item types beyond flashcards: recall prompts, explain-it
-- Review results become `skill_evidence`
-- Decay warnings ("10 minutes of review saves this")
-
-**Done when:** you've held a review streak of two weeks and a skill score has visibly moved because of reviews alone.
-
----
-
-### M6 — Measurement
-
-**Goal:** the numbers become honest.
-
-- AI assessment generation, grounded in your own lessons, records, and resources
-- **Confidence rating before reveal** → calibration gap
-- MCQ hygiene validator (equal-length options), enforced in code
-- Grading: auto for MCQ, model-graded for short answer and explain
-- Flag-a-bad-question, excluded from scoring
-- Evidence-weighted skill score with decay and confidence interval → **the temper gauge goes live**
-- Baseline + periodic re-test per skill
-- Artifacts: log real-world evidence, weighted highest
-
-**Done when:** every skill on your dashboard shows a score you'd defend, with edges that feather correctly.
-
----
-
-### M7 — The galaxy
-
-**Goal:** you can see the whole shape of what you know, and where the edge is.
-
-Deliberately after M6: a galaxy drawn from self-reported scores would be a pretty lie. It only becomes honest once brightness is backed by evidence.
-
-- **Schema delta:** `tracks` and `skills.track_id` already exist — M4 needed them to group lessons into modules, and the reason M7 sits after M6 was only ever that brightness must be evidence-backed, which is an argument about the picture and not about the taxonomy. What is left is `domains` (a galaxy) and `skills.domain_id`, which earn their keep here because a domain spans missions and a track does not. Core-ness is _derived_ — a skill with no prerequisites inside its domain is core, and radial distance is prerequisite depth. Nothing is hand-positioned.
-- Layout computed from `skill_edges`; cross-arm bridges rendered faint rather than forbidden
-- Visual encoding: brightness = score, haze = confidence interval, dimming = decay, dark = frontier — reusing the temper palette and the gauge's feathering, not inventing a second visual language
-- Zoom levels: domain → track → skill, so a 200-skill galaxy stays readable
-- The teach agent proposes domain assignment for new skills (track assignment ships in M4); you can correct it, and corrections stick
-- Click a star → its evidence, its lessons, its due reviews
-- **"Show me the frontier"** — the reachable-but-unlit ring, which is the ZPD recommender rendered as a place rather than a list
-
-**Done when:** you look at a galaxy and decide what to learn next from it, without opening a list.
-
----
-
-### M8 — Insights
-
-**Goal:** the app tells you something you didn't know.
-
-- Focus analytics: by mission/skill/week, best time-of-day, best-conditions
-- Friction analytics: ember/slag trend, top sources, rule-based recommendations
-- Learning analytics: retention curves, review accuracy, calibration per skill, ZPD hit-rate
-- **Consumption vs. retention** — the signature chart
-- Goal projections from real pace, stated bluntly
-- Study plans: build, AI-assist, adapt honestly when you fall behind
-
-**Done when:** an insight causes you to drop or restructure a mission.
-
----
-
-### M9 — Reduce the friction it measures
-
-**Goal:** close the loop — the app stops being a source of the thing it tracks.
-
-- Readwise / Kindle highlights
-- Calendar: push planned focus blocks, pull meetings so plans are realistic
-- Podcast and video history
-- GitHub → suggested artifacts from merged PRs
-- Browser extension / share-target capture
-- AI weekly narrative digest (Batch API)
-- Teach-back grading
-- `mindforge` CLI for local `/teach` round-tripping
-
-**Done when:** most resources arrive without you typing anything.
+**Done when:** the deployed app has three weeks of real history and you can answer "how far, how
+much, how often" for one curriculum without thinking.
 
 ---
 
 ## 5. Not building (and when that changes)
 
-| Not now                                       | Revisit when                                                           |
-| --------------------------------------------- | ---------------------------------------------------------------------- |
-| Multi-user, sharing, social                   | Never, unless the single-user version has been in daily use for a year |
-| Native mobile apps                            | PWA proves insufficient in real use                                    |
-| Managed Agents instead of the Agent SDK       | It leaves beta — it would delete the whole sync subsystem              |
-| Automatic time capture (IDE/browser activity) | M9, opt-in and local-first only                                        |
-| Personalized FSRS parameters                  | ~1000 reviews logged                                                   |
-| Gamification of any kind                      | Never. It corrupts the data the product exists to collect.             |
+Cut in the v0.2 refocus. Each returns only if the focused flow is in daily use and the need is
+felt there — not because the code was fun to write.
+
+| Not now                                        | Was          | Revisit when                                                              |
+| ---------------------------------------------- | ------------ | ------------------------------------------------------------------------- |
+| Goals & typed targets                          | M1/M2, built | The curriculum's own progress proves insufficient motivation              |
+| Skills, scores, decay, calibration, the galaxy | M1/M6/M7     | Lesson outcomes prove too coarse to answer "do I know this?"              |
+| Friction tracking, ember/slag                  | M1/M2, built | You catch yourself wanting to log _why_ sessions die, three weeks running |
+| Notes & highlights                             | M1, built    | You leave the app to write things down mid-lesson, repeatedly             |
+| Resource library in-app                        | M1, built    | `RESOURCES.md` (agent-maintained, workspace-only) stops being enough      |
+| Weekly planning & reviews                      | M2, built    | The frequency tracker shows you showing up but drifting                   |
+| Spaced repetition / FSRS                       | M5 (planned) | A finished module fades and you feel it                                   |
+| AI assessments & calibration                   | M6 (planned) | Self-reported outcomes stop being trustworthy                             |
+| Insights & analytics beyond the three trackers | M8 (planned) | The trackers raise questions they can't answer                            |
+| Integrations (Readwise, calendar, GitHub…)     | M9 (planned) | The flow is habitual and manual entry is the bottleneck                   |
+| Multi-user, native apps, gamification          | Never-ish    | Unchanged from v0.1: the last one never — it corrupts the data            |
 
 ---
 
 ## 6. Sequencing rules
 
-1. **Never skip M1's three-week soak.** The temptation to jump to the agent is enormous and it is the single most likely way this project dies half-built.
-2. **M3 is the spike.** Timebox the Agent SDK integration. If it fights back for more than a week, fall back to the raw Messages API path in `TECH-DESIGN.md` §7.1 rather than stalling.
-3. **Cost tracking ships with the first LLM call**, not after. A cost surprise in month two is avoidable.
-4. **`packages/core` gets tests before it gets callers.** Scoring, decay, and FSRS are where a silent bug produces confidently wrong numbers — the worst failure this product can have.
-5. **Each milestone ends with you using it**, not with the tests passing.
+1. **M4 before any lesson UI.** The reader without the curriculum is a file viewer; the plan is
+   what makes progress mean something.
+2. **Cost tracking stays wired to every LLM call** — it already ships; never regress it.
+3. **`packages/core` gets tests before it gets callers.** The dependency graph and progress maths
+   are where a silent bug produces confidently wrong numbers.
+4. **Each milestone ends with you using it**, not with the tests passing.
+5. **M6 ends in a three-week soak.** Nothing from §5 gets revisited before that soak has happened.
 
 ---
 
 ## 7. Open questions to answer along the way
 
-- **M3:** what does an agent run actually cost and how long does it take? Everything about the LLM budget depends on it.
-- **M5:** does the review queue survive contact with a busy week, or does it become the backlog it was meant to prevent?
-- **M6:** do generated assessments hold up, or does the flag rate make scores untrustworthy?
-- **M7:** which insights actually change behavior? Cut the rest — that's the discipline that keeps this from becoming a dashboard graveyard.
+- **M4:** does the agent plan good lesson lists up front, or do plans need heavy revision by M5?
+  (The revision rate is measurable: plan-entry churn per module.)
+- **M5:** does completed-over-planned stay honest, or does plan churn make the fraction feel
+  rigged? If the latter, show both numbers rather than blending them.
+- **M6:** which tracker do you actually open? The other two must not grow features until the
+  answer is known.

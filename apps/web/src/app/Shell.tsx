@@ -2,7 +2,6 @@ import { Outlet } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { useSupabaseSession } from "../features/auth/api/use-supabase-session.js";
 import { SignInForm } from "../features/auth/ui/SignInForm.js";
-import { NudgeMarker } from "../features/notifications/ui/NudgeMarker.js";
 import { useThemeSetting } from "../features/settings/api/use-theme-setting.js";
 import { ChangelogDot } from "../features/settings/ui/ChangelogDot.js";
 import { supabase } from "../shared/api/supabase.js";
@@ -65,10 +64,6 @@ export function Shell() {
               <Button variant="quiet" onClick={toggle} aria-label={t("theme.toggle")}>
                 {t(theme === "dark" ? "theme.light" : "theme.dark")}
               </Button>
-              {/* Quiet by delivery, not by being switched off (FR-N4): a marker and a list, never a
-                  modal, a sound, or anything that can interrupt a focus session. Both render nothing
-                  when there is nothing to say, so neither needs a conditional beyond the session. */}
-              <NudgeMarker enabled={signedIn} />
               {signedIn ? <ChangelogDot /> : null}
               {signedIn ? <PendingCaptures /> : null}
               {signedIn ? (

@@ -4,32 +4,28 @@ import { createPrismaClient } from "../src/client.js";
 /**
  * The curriculum tables: isolation, and the constraints that carry the design.
  *
- * **Isolation** is CLAUDE.md's second non-negotiable. Three of these four tables
- * are join tables carrying a denormalised `user_id`, which is the shape most
- * likely to be added later without a policy — the join looks like plumbing rather
- * than like data, right up until `lesson_skills` is the thing that decides which
- * skill somebody's evidence lands on.
+ * **Isolation** is CLAUDE.md's second non-negotiable. `track_edges` is a join
+ * table carrying a denormalised `user_id`, which is the shape most likely to be
+ * added later without a policy — the join looks like plumbing rather than like
+ * data.
  *
  * **Constraints** matter more than usual on `tracks`, because two of them encode
  * decisions that are otherwise only prose:
  *
  * - `tracks_one_active_per_mission_key` is what keeps lazy lesson generation
  *   coherent. Lessons are written one at a time into the open module; two open
- *   modules is the half-finished backlog the weekly review already measures.
+ *   modules is a half-finished backlog with no unambiguous "next lesson".
  * - `tracks_mission_id_slug_key` is per **mission**, never global. A global unique
  *   would let the first account to claim `fundamentals` take it from everyone and
  *   leak, through the 409, that it had — the mistake `missions.workspace_key`
  *   shipped with and 20260808120000 corrected.
  *
  * **Measured, not argued.** The insert proofs here were checked the way the M3
- * suite's were, by breaking the policies and counting:
- *
- *   `with check (true)` on all four tables → 4 failures, one per table
- *   `using (true)` on all four tables      → 16 failures, four per table
- *
- * Every table discriminates on both halves. Without that check an insert proof
- * can pass because the planted row failed to cast or tripped a unique index,
- * which is how four of the M2 suite's five became vacuous.
+ * suite's were, by breaking the policies and counting: `with check (true)` fails
+ * one per table, `using (true)` fails four per table. Every table discriminates
+ * on both halves. Without that check an insert proof can pass because the
+ * planted row failed to cast or tripped a unique index, which is how four of the
+ * M2 suite's five became vacuous.
  */
 
 const ADMIN_URL =
@@ -63,8 +59,6 @@ function asUser<T>(userId: string, sql: string, ...params: unknown[]): Promise<T
 const missionOf: Record<string, string> = {};
 const trackOf: Record<string, string> = {};
 const prereqOf: Record<string, string> = {};
-const skillOf: Record<string, string> = {};
-const lessonOf: Record<string, string> = {};
 
 interface TableCase {
   readonly table: string;
@@ -93,22 +87,6 @@ const CASES: readonly TableCase[] = [
       [userId, trackOf[userId], prereqOf[userId]],
     ],
   },
-  {
-    table: "track_skills",
-    identity: "track_id",
-    insert: (userId) => [
-      `insert into track_skills (user_id, track_id, skill_id) values ($1::uuid, $2::uuid, $3::uuid)`,
-      [userId, trackOf[userId], skillOf[userId]],
-    ],
-  },
-  {
-    table: "lesson_skills",
-    identity: "lesson_id",
-    insert: (userId) => [
-      `insert into lesson_skills (user_id, lesson_id, skill_id) values ($1::uuid, $2::uuid, $3::uuid)`,
-      [userId, lessonOf[userId], skillOf[userId]],
-    ],
-  },
 ];
 
 /** `position` is NOT NULL, and `(mission_id, slug)` is unique, so marks differ. */
@@ -120,38 +98,30 @@ function positionOf(mark: string): number {
 const MARKS: Record<string, string> = {
   tracks: "alice-track-1",
   track_edges: "",
-  track_skills: "",
-  lesson_skills: "",
 };
 
 const BOB_MARKS: Record<string, string> = {
   tracks: "bob-track-2",
   track_edges: "",
-  track_skills: "",
-  lesson_skills: "",
 };
 
 /**
  * A valid mark that collides with neither user's row, for the planted-insert
  * proof.
  *
- * The three join tables take no mark: their primary key is the pair of foreign
- * keys, so a planted insert reuses Bob's own ids and can only be refused by the
+ * The join table takes no mark: its primary key is the pair of foreign keys, so
+ * a planted insert reuses Bob's own ids and can only be refused by the
  * `WITH CHECK` half. That is exactly what is under test — the rows Alice plants
  * there are the ones she cannot read back afterwards.
  */
 const PLANTED: Record<string, string> = {
   tracks: "planted-track-9",
   track_edges: "",
-  track_skills: "",
-  lesson_skills: "",
 };
 
 /** The identity value each user's seeded join row carries, for the read proofs. */
 const JOIN_IDENTITY: Record<string, Record<string, () => string>> = {
   track_edges: { [ALICE]: () => trackOf[ALICE]!, [BOB]: () => trackOf[BOB]! },
-  track_skills: { [ALICE]: () => trackOf[ALICE]!, [BOB]: () => trackOf[BOB]! },
-  lesson_skills: { [ALICE]: () => lessonOf[ALICE]!, [BOB]: () => lessonOf[BOB]! },
 };
 
 function expected(table: string, userId: string): string {
@@ -201,16 +171,6 @@ async function seedTrack(
   return rows[0]!.id;
 }
 
-async function seedSkill(userId: string, slug: string): Promise<string> {
-  const rows = await admin.$queryRawUnsafe<{ id: string }[]>(
-    `insert into skills (id, user_id, name, slug, band)
-     values (gen_random_uuid(), $1::uuid, $2, $2, 'aware') returning id`,
-    userId,
-    slug,
-  );
-  return rows[0]!.id;
-}
-
 async function seedLesson(userId: string, seq: number, trackId: string | null): Promise<string> {
   const rows = await admin.$queryRawUnsafe<{ id: string }[]>(
     `insert into lessons (id, user_id, mission_id, track_id, seq, slug, title, storage_path,
@@ -235,11 +195,9 @@ beforeAll(async () => {
   for (const user of [ALICE, BOB]) {
     missionOf[user] = await seedMission(user, `${user}-mission`);
     // Seeded before the CASES loop, because `tracks`' own case inserts a third
-    // track and the two join tables need one that already exists.
+    // track and the edge table needs two that already exist.
     prereqOf[user] = await seedTrack(user, "fundamentals", 1);
     trackOf[user] = await seedTrack(user, "advanced", 2);
-    skillOf[user] = await seedSkill(user, `${user}-skill`);
-    lessonOf[user] = await seedLesson(user, 1, trackOf[user]);
   }
 
   for (const c of CASES) {
@@ -313,9 +271,8 @@ describe.each(CASES)("row-level security on $table", ({ table, identity }) => {
   it("refuses to insert a row owned by someone else", async () => {
     // The WITH CHECK half. Without it Alice can write into Bob's account even
     // though she cannot read it back — worse than a read leak, because it corrupts
-    // data nobody is looking at. On the join tables it is the *only* protection
-    // that applies, and `lesson_skills` is where a bad write decides whose skill
-    // somebody else's lesson outcome credits.
+    // data nobody is looking at. On the join table it is the *only* protection
+    // that applies.
     //
     // The assertion names the error rather than accepting any throw: only a policy
     // violation says "row-level security", and a planted value that failed to cast
@@ -329,7 +286,7 @@ describe.each(CASES)("row-level security on $table", ({ table, identity }) => {
 describe("tracks: one active track per mission", () => {
   it("refuses a second active track in the same mission", async () => {
     // Lessons are generated one at a time into whichever module is open. Two open
-    // modules is the half-finished backlog the weekly review already measures, and
+    // modules is a half-finished backlog, and
     // it also leaves "the next lesson" with no unambiguous answer.
     const mission = await seedMission(ALICE, "one-active");
     await seedTrack(ALICE, "first", 1, "active", mission);

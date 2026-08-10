@@ -32,7 +32,6 @@ export interface FocusSession {
   readonly energy: number | null;
   readonly note: string | null;
   readonly missionId: string | null;
-  readonly skillId: string | null;
 }
 
 interface RunningResponse {
@@ -109,7 +108,6 @@ export function useStartSession(): UseMutationResult<
           energy: null,
           note: null,
           missionId: input.missionId ?? null,
-          skillId: input.skillId ?? null,
         },
       });
 

@@ -66,8 +66,6 @@ describe("createI18n", () => {
     // §5.2: the vocabulary is translated once, in one file, or the same term ends up
     // rendered three ways across three screens.
     const pt = createI18n("pt-BR");
-    expect(pt.t("glossary:ember")).toBe("Brasa");
-    expect(pt.t("glossary:slag")).toBe("Escória");
     expect(pt.t("glossary:missionStatus.parked")).toBe("Pausada");
   });
 });

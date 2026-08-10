@@ -1,7 +1,6 @@
 import {
   elapsedMinutes,
   localDay,
-  producedLearning,
   resolveTimeZone,
   type EntryMode,
   type IntentionOutcome,
@@ -10,10 +9,6 @@ import { FocusSessionNotRunning, FocusSessionNotStopped, SessionInFuture } from 
 
 export interface FocusSessionAttachments {
   readonly missionId: string | null;
-  readonly resourceId: string | null;
-  /** Set from the same picker as the others. Makes a skill's weekly plan measurable (FR-F5). */
-  readonly skillId: string | null;
-  readonly taskId: string | null;
 }
 
 export interface FocusSessionDebrief {
@@ -144,12 +139,7 @@ export class FocusSession {
         energy: snapshot.energy,
         note: snapshot.note,
       },
-      {
-        missionId: snapshot.missionId,
-        resourceId: snapshot.resourceId,
-        skillId: snapshot.skillId,
-        taskId: snapshot.taskId,
-      },
+      { missionId: snapshot.missionId },
       snapshot.entryMode,
       snapshot.createdAt,
     );
@@ -178,15 +168,6 @@ export class FocusSession {
   /** Null while running: a session in progress has an elapsed time, not a duration. */
   get minutes(): number | null {
     return this.endedAtValue === null ? null : elapsedMinutes(this.startedAt, this.endedAtValue);
-  }
-
-  /**
-   * Whether this block's friction counts as productive, for `classifyFriction`.
-   *
-   * The proxy and its expiry date are documented on `producedLearning` in packages/core.
-   */
-  get producedLearning(): boolean {
-    return producedLearning(this.debriefValue.hitIntention);
   }
 
   /**

@@ -58,10 +58,8 @@ written in it.
   last one. A run that produces four lessons has guessed at three of them without seeing how the first
   landed.
 - **Declare the track in the lesson**, in `<head>`:
-  `<meta name="mindforge:track" content="<slug>">`, plus one
-  `<meta name="mindforge:skill" content="<slug>">` per skill the lesson actually teaches. Use slugs
-  from `CURRICULUM.md`. This is how the lesson joins its module and how its outcome becomes evidence
-  for a skill — a lesson without them indexes as belonging to nothing.
+  `<meta name="mindforge:track" content="<slug>">`. Use the slug from `CURRICULUM.md`. This is how
+  the lesson joins its module — a lesson without it indexes as belonging to no module.
 - **Never edit `CURRICULUM.md`.** It is an input here, like `MISSION.md`. If a track is wrong, missing
   a prerequisite, or should be split, write the case into `NOTES.md` under
   `## Proposed curriculum change`.
@@ -70,13 +68,12 @@ written in it.
 
 ## Absent is not zero
 
-`BRIEFING.md` will tell you that some things are **not tracked yet** — spaced repetition, measured
-skill evidence, whether past lessons were ever read. That is a statement about Mindforge, not about the
-learner.
+`BRIEFING.md` will tell you that some things are **not tracked yet** — for now, whether past lessons
+were ever read or how they landed. That is a statement about Mindforge, not about the learner.
 
-Do not reason as if an untracked signal were an empty one. "No reviews due" is not the same as "reviews
-are not tracked", and teaching as though the learner has revised nothing — or everything — is a guess
-dressed as evidence. Where a signal is missing, say so in the lesson if it matters, and choose
+Do not reason as if an untracked signal were an empty one. "No lessons completed" is not the same as
+"completion is not tracked", and teaching as though the learner has read nothing — or everything — is
+a guess dressed as evidence. Where a signal is missing, say so in the lesson if it matters, and choose
 something that does not depend on it.
 
 ## Trust is a claim about what you read

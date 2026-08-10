@@ -48,17 +48,6 @@ export const StartFocusSessionSchema = z.object({
   id: UuidSchema.optional(),
   intention: intention.optional(),
   missionId: UuidSchema.nullable().optional(),
-  resourceId: UuidSchema.nullable().optional(),
-  /**
-   * What the block was about, when it was a skill.
-   *
-   * The column landed in M2 so a *skill* weekly allocation would have an actual to be compared
-   * against (FR-F5) — and then nothing wrote it, so the plan grid offered a Skills group whose every
-   * row read 0m forever. That is the shape M1 already learned to distrust: the schema looks ready
-   * and the feature cannot be finished.
-   */
-  skillId: UuidSchema.nullable().optional(),
-  taskId: UuidSchema.nullable().optional(),
   /** Optional Pomodoro-style target. FR-F1: intervals are optional, never mandatory. */
   plannedMinutes: z.coerce.number().int().min(1).max(600).nullable().optional(),
 });
@@ -99,9 +88,6 @@ export const CreateFocusSessionSchema = z
     endedAt: z.coerce.date(),
     intention: intention.optional(),
     missionId: UuidSchema.nullable().optional(),
-    resourceId: UuidSchema.nullable().optional(),
-    skillId: UuidSchema.nullable().optional(),
-    taskId: UuidSchema.nullable().optional(),
     hitIntention: IntentionOutcomeSchema.optional(),
     focusQuality: rating.optional(),
     energy: rating.optional(),
@@ -123,21 +109,4 @@ export type ListFocusSessionsQuery = z.infer<typeof ListFocusSessionsQuerySchema
 /** Whole minutes, rounded down. A session is over when it ends, not when it rounds up. */
 export function elapsedMinutes(startedAt: Date, endedAt: Date): number {
   return Math.max(0, Math.floor((endedAt.getTime() - startedAt.getTime()) / 60_000));
-}
-
-/**
- * Whether a session produced learning, for `classifyFriction`.
- *
- * **This is an interim proxy.** §9.3 defines it as "a learning record was written, or a
- * review passed, after this event", and neither exists until M4/M5. Until then, hitting
- * the intention you set is the honest available signal: struggle in a block that still
- * arrived somewhere is the desirable kind, and struggle in a block that went nowhere is a
- * zone-of-proximal-development miss.
- *
- * A session with no debrief returns false rather than true. Counting an unanswered debrief
- * as productive would let the ember share drift upward simply because you stopped filling
- * it in, which is exactly the flattery this product exists to avoid.
- */
-export function producedLearning(hitIntention: IntentionOutcome | null): boolean {
-  return hitIntention === "yes" || hitIntention === "partly";
 }
