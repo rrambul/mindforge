@@ -1,7 +1,7 @@
 import type { AnchorHTMLAttributes, ButtonHTMLAttributes, ReactNode } from "react";
 import "./styles/button.css";
 
-type Variant = "primary" | "default" | "quiet";
+type Variant = "primary" | "default" | "quiet" | "bar";
 
 interface ButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, "className"> {
   readonly variant?: Variant;

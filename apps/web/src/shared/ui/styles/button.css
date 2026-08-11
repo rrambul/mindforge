@@ -53,3 +53,25 @@
   text-decoration: underline;
   text-underline-offset: 3px;
 }
+
+/* A control that lives in the top bar. The bar's nav items speak in tracked uppercase
+   labels (`app-shell.css`), and a quiet button beside them — body face, underlined —
+   read as a hyperlink that had wandered in from a paragraph. Same voice, same touch
+   floor; what separates a control from a nav item is only that nav carries an active
+   state. The gap is not decor: flexbox drops whitespace-only text nodes, so the space
+   between a label and its keycap hint never renders without it. */
+.mf-button[data-variant="bar"] {
+  gap: var(--mf-space-2);
+  padding: 0 var(--mf-space-2);
+  border: none;
+  background: none;
+  color: var(--mf-muted);
+  font-family: var(--mf-font-display);
+  font-size: var(--mf-step--1);
+  letter-spacing: var(--mf-tracking-label);
+  text-transform: uppercase;
+}
+
+.mf-button[data-variant="bar"]:hover:not(:disabled) {
+  color: var(--mf-text);
+}

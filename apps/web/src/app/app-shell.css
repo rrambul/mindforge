@@ -7,28 +7,49 @@
 .mf-topbar {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: var(--mf-space-4);
-  padding: var(--mf-space-3) var(--mf-space-4);
+  /* Smaller row gap than column gap: a wrapped bar is two rows of one thing, not two bars. */
+  gap: var(--mf-space-2) var(--mf-space-4);
+  padding: var(--mf-space-2) var(--mf-space-4);
   /* Respected here as on the bottom bar, or it sits under the notch. */
-  padding-top: max(var(--mf-space-3), env(safe-area-inset-top));
+  padding-top: max(var(--mf-space-2), env(safe-area-inset-top));
   border-bottom: 1px solid var(--mf-scale);
   background: var(--mf-surface);
 
   /**
    * Wraps rather than overflows.
    *
-   * A brand, four nav items and three controls need 567px of intrinsic width, and
-   * on a 375px screen that pushed the whole *document* to 567px — so every page
-   * under it was cut off on the right, not just the bar. It was true of every
-   * screen from M0 and only became obvious once there was a lesson title long
+   * A brand, four nav items and three controls are wider than a 375px screen, and
+   * before this the bar pushed the whole *document* to its intrinsic width — so
+   * every page under it was cut off on the right, not just the bar. It was true of
+   * every screen from M0 and only became obvious once there was a lesson title long
    * enough to notice losing.
    *
    * Wrapping rather than scrolling or collapsing to icons: nothing is hidden,
-   * nothing needs a second gesture to reach, and it costs one line of height on
-   * the only screens that could not afford the width.
+   * nothing needs a second gesture to reach. Below 640px the wrap is arranged
+   * rather than left to chance — the nav takes the second row whole (the `order`
+   * rule below), so a phone gets brand-and-controls over nav instead of four
+   * ragged lines.
    */
   flex-wrap: wrap;
+}
+
+/* The push that used to be `justify-content: space-between`. An auto margin instead,
+   because the bar now has three children and space-between would hang the nav in the
+   middle of the bar, unmoored from the brand it belongs beside. */
+.mf-topbar__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--mf-space-1);
+  margin-inline-start: auto;
+}
+
+/* The ⌘K keycap. `font: inherit` because the UA styles `kbd` as small monospace of its
+   own choosing, and the label beside it is already in the display face at label size. */
+.mf-topbar__hint {
+  font: inherit;
+  padding: 0 var(--mf-space-1);
+  border: 1px solid var(--mf-scale);
+  border-radius: var(--mf-r);
 }
 
 .mf-brand {
@@ -68,6 +89,25 @@
   .mf-main {
     padding-bottom: calc(var(--mf-space-8) * 2);
   }
+
+  /* The arranged wrap the topbar comment promises: nav takes the second row whole,
+     leaving the brand and the controls to share the first. */
+  .mf-nav {
+    order: 3;
+    flex-basis: 100%;
+  }
+
+  /* Four items and thirteen-character labels (pt-BR's "Configurações") have to share
+     343px of row; the touch floor is height, so width is where the slack is. */
+  .mf-nav__item {
+    padding: 0 var(--mf-space-2);
+  }
+
+  /* A keycap on a screen with no keyboard is furniture. `aria-keyshortcuts` on the
+     button (`Shell.tsx`) still tells a screen reader the keystroke exists. */
+  .mf-topbar__hint {
+    display: none;
+  }
 }
 
 .mf-nav {
@@ -79,6 +119,14 @@
 }
 
 .mf-nav__item {
+  /* These have been anchors since the router arrived (`AppShell.tsx`), and the tag
+     brought layout with it that the button-era styles never had to say: an inline
+     anchor ignores `min-height` and sits on the text baseline, so the items rode high
+     against the bar's centred controls — and arrived underlined. All three lines are
+     load-bearing, not tidiness. */
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
   min-height: var(--mf-touch-min);
   padding: 0 var(--mf-space-3);
   border: 1px solid transparent;
@@ -90,6 +138,13 @@
   letter-spacing: var(--mf-tracking-label);
   text-transform: uppercase;
   cursor: pointer;
+  transition:
+    background var(--mf-dur-ui) ease,
+    color var(--mf-dur-ui) ease;
+}
+
+.mf-nav__item:hover {
+  color: var(--mf-text);
 }
 
 .mf-nav__item[aria-current="page"] {

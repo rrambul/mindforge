@@ -28,6 +28,17 @@ export function Brand({ children }: { readonly children: ReactNode }) {
   return <span className="mf-brand">{children}</span>;
 }
 
+/**
+ * The bar's right-hand cluster: everything that is a control rather than a place.
+ *
+ * A named element rather than a bare div in `Shell`, because the stylesheet owns its layout duty:
+ * `margin-inline-start: auto` is what pushes the cluster to the bar's far edge, and on a phone it
+ * shares the first row with the brand while the nav takes the second (`app-shell.css`).
+ */
+export function BarActions({ children }: { readonly children: ReactNode }) {
+  return <div className="mf-topbar__actions">{children}</div>;
+}
+
 export interface NavItem {
   readonly to: string;
   readonly label: string;
