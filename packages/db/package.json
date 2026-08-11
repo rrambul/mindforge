@@ -19,11 +19,11 @@
     "generate": "prisma generate",
     "migrate:dev": "prisma migrate dev",
     "migrate:deploy": "prisma migrate deploy",
-    "seed:minimal": "tsx scripts/seed-minimal.ts",
-    "seed:rich": "tsx scripts/seed-rich.ts",
+    "seed:minimal": "tsx --conditions=development scripts/seed-minimal.ts",
+    "seed:rich": "tsx --conditions=development scripts/seed-rich.ts",
     "test:integration": "vitest run",
     "postinstall": "prisma generate",
-    "seed:report": "tsx scripts/seed-report.ts"
+    "seed:report": "tsx --conditions=development scripts/seed-report.ts"
   },
   "dependencies": {
     "@mindforge/core": "workspace:*",
