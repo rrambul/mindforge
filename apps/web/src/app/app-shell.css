@@ -14,6 +14,21 @@
   padding-top: max(var(--mf-space-3), env(safe-area-inset-top));
   border-bottom: 1px solid var(--mf-scale);
   background: var(--mf-surface);
+
+  /**
+   * Wraps rather than overflows.
+   *
+   * A brand, four nav items and three controls need 567px of intrinsic width, and
+   * on a 375px screen that pushed the whole *document* to 567px — so every page
+   * under it was cut off on the right, not just the bar. It was true of every
+   * screen from M0 and only became obvious once there was a lesson title long
+   * enough to notice losing.
+   *
+   * Wrapping rather than scrolling or collapsing to icons: nothing is hidden,
+   * nothing needs a second gesture to reach, and it costs one line of height on
+   * the only screens that could not afford the width.
+   */
+  flex-wrap: wrap;
 }
 
 .mf-brand {
@@ -58,6 +73,9 @@
 .mf-nav {
   display: flex;
   gap: var(--mf-space-1);
+  /* Four items at 375px are wider than the screen on their own, so the bar
+     wrapping is not enough — the nav has to be able to wrap inside it. */
+  flex-wrap: wrap;
 }
 
 .mf-nav__item {

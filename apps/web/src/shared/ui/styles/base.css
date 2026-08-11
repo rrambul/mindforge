@@ -1,6 +1,21 @@
 /* Document-level ground. Everything reads from tokens.css — nothing here declares a
    raw colour, radius, or type size. */
 
+/**
+ * The one reset this app has, and it was missing.
+ *
+ * Without it `width: 100%` plus horizontal padding is wider than its container by
+ * the padding — which is exactly what `.mf-main` was doing: 375px of viewport plus
+ * two 16px gutters is 407, so every screen scrolled sideways on a phone by exactly
+ * its own padding. Content-box is a default nobody has wanted since the nineties,
+ * and the alternative is remembering it at each of the places that set both.
+ */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
 body {
   margin: 0;
   background: var(--mf-ground);
