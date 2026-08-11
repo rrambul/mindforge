@@ -31,6 +31,28 @@ const BOB = "dddddddd-dddd-4ddd-8ddd-ddddddddddd2";
 const admin = createPrismaClient(ADMIN_URL);
 const gateway = new PrismaDispatchGateway(admin);
 
+/**
+ * A decade, so this suite's runs are always the oldest thing in the table.
+ *
+ * `nextQueued` is deliberately cross-user — the dispatcher's job is to find work
+ * wherever it is — so per-user isolation, which every other suite here relies on,
+ * protects nothing. The E2E suite signs up throwaway accounts, queues real runs on
+ * them and never deletes them, so the table genuinely contains other people's
+ * queued work whenever this runs after Playwright.
+ *
+ * Two defences, because either alone is a flake: everything here is backdated so
+ * the ordering assertions are about *these* rows, and `next()` below discards a
+ * run belonging to anyone else so the negative assertions cannot be satisfied by a
+ * stranger's.
+ */
+const BACKDATE_SECONDS = 10 * 365 * 24 * 60 * 60;
+
+/** What the dispatcher would pick up, if it belongs to this suite. */
+async function next(): Promise<Awaited<ReturnType<typeof gateway.nextQueued>>> {
+  const run = await gateway.nextQueued();
+  return run !== null && (run.userId === ALICE || run.userId === BOB) ? run : null;
+}
+
 const missions = new Map<string, string>();
 const plugins: string[] = [];
 
@@ -69,7 +91,7 @@ async function queue(
     missions.get(userId),
     kind,
     status,
-    agedSeconds,
+    BACKDATE_SECONDS + agedSeconds,
   );
   return rows[0]!.id;
 }
@@ -95,13 +117,13 @@ beforeEach(async () => {
 
 describe("what the dispatcher picks up", () => {
   it("finds nothing when nothing is queued", async () => {
-    expect(await gateway.nextQueued()).toBeNull();
+    expect(await next()).toBeNull();
   });
 
   it("returns a queued lesson run with everything the run needs", async () => {
     const id = await queue(ALICE, "generate_lesson");
 
-    expect(await gateway.nextQueued()).toEqual({
+    expect(await next()).toEqual({
       id,
       userId: ALICE,
       missionId: missions.get(ALICE),
@@ -118,20 +140,20 @@ describe("what the dispatcher picks up", () => {
     // so a curriculum run sat queued forever holding the mission's active slot.
     await queue(ALICE, "generate_curriculum");
 
-    expect((await gateway.nextQueued())?.kind).toBe("generate_curriculum");
+    expect((await next())?.kind).toBe("generate_curriculum");
   });
 
   it("ignores a kind this worker cannot run", async () => {
     // Claiming one would hold the single-active-run slot while nothing happened.
     await queue(ALICE, "sync_workspace");
 
-    expect(await gateway.nextQueued()).toBeNull();
+    expect(await next()).toBeNull();
   });
 
   it("ignores a run that is not queued", async () => {
     await queue(ALICE, "generate_lesson", 0, "running");
 
-    expect(await gateway.nextQueued()).toBeNull();
+    expect(await next()).toBeNull();
   });
 
   it("skips a mission that has never been materialised", async () => {
@@ -142,7 +164,7 @@ describe("what the dispatcher picks up", () => {
     );
     await queue(BOB, "generate_lesson");
 
-    expect(await gateway.nextQueued()).toBeNull();
+    expect(await next()).toBeNull();
 
     await admin.$executeRawUnsafe(
       `update missions set workspace_key = 'dispatch-bob' where id = $1::uuid`,
@@ -156,7 +178,7 @@ describe("what the dispatcher picks up", () => {
     await queue(ALICE, "generate_lesson", 10);
     const older = await queue(BOB, "generate_lesson", 120);
 
-    expect((await gateway.nextQueued())?.id).toBe(older);
+    expect((await next())?.id).toBe(older);
   });
 });
 
