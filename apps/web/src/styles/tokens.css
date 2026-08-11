@@ -63,6 +63,9 @@
   --mf-leading-tight: 1.05;
   --mf-leading-body: 1.55;
   --mf-tracking-label: 0.14em; /* uppercase labels only */
+  /* The same voice at phone widths. 0.14em across four nav labels costs ~50px, which
+     at 375px is the difference between the nav fitting its row and wrapping it. */
+  --mf-tracking-label-tight: 0.08em;
 
   /* --- Space ------------------------------------------------------------- */
   --mf-space-1: 0.25rem;

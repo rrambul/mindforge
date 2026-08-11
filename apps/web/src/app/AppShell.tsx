@@ -24,8 +24,25 @@ export function AppShell({
   );
 }
 
-export function Brand({ children }: { readonly children: ReactNode }) {
-  return <span className="mf-brand">{children}</span>;
+/**
+ * The mark and the name are separate elements because they part ways at phone widths: below 480px
+ * the first row has to hold the brand and three controls, and nine tracked mono capitals do not
+ * fit beside them. The stylesheet hides the name there by clipping, not `display: none` — the
+ * brand keeps its text for the accessibility tree while the mark stands for it visually.
+ */
+export function Brand({
+  mark,
+  children,
+}: {
+  readonly mark: ReactNode;
+  readonly children: ReactNode;
+}) {
+  return (
+    <span className="mf-brand">
+      {mark}
+      <span className="mf-brand__name">{children}</span>
+    </span>
+  );
 }
 
 /**

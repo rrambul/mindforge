@@ -1,9 +1,19 @@
 ---
-name: teach-me
-description: Author a Mindforge mission end to end — interview, curriculum, modules and the first lesson — by following the repo's own curriculum and teach skills and landing the files through the real reindexer. Use when the user says "/teach-me", asks you to create a mission or a curriculum, or asks you to write a lesson for an existing mission.
+description: Author a Mindforge mission end to end — interview, curriculum, modules and lessons — by following the repo's own curriculum and teach skills and landing the files through the real reindexer.
+argument-hint: "a mission id to continue, or nothing to start a new one"
 ---
 
 # Author a mission, without paying for a run
+
+> **This file is the canonical copy and lives in the repo.** Claude Code loads commands from
+> `~/.claude/commands/` (user) or `<cwd>/.claude/commands/` (project), so a session started outside
+> this repository needs it copied across:
+>
+> ```sh
+> cp ~/brain-gym/.claude/commands/teach-me.md ~/.claude/commands/
+> ```
+>
+> A symlink was tried first and the loader did not pick it up. If you edit one, copy it again.
 
 You are doing by hand what `apps/worker` does unattended: producing a teach workspace and letting
 Mindforge index it. The product's own path is the button in the app (FR-K1) and it is what a real

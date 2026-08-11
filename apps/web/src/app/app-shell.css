@@ -89,25 +89,6 @@
   .mf-main {
     padding-bottom: calc(var(--mf-space-8) * 2);
   }
-
-  /* The arranged wrap the topbar comment promises: nav takes the second row whole,
-     leaving the brand and the controls to share the first. */
-  .mf-nav {
-    order: 3;
-    flex-basis: 100%;
-  }
-
-  /* Four items and thirteen-character labels (pt-BR's "Configurações") have to share
-     343px of row; the touch floor is height, so width is where the slack is. */
-  .mf-nav__item {
-    padding: 0 var(--mf-space-2);
-  }
-
-  /* A keycap on a screen with no keyboard is furniture. `aria-keyshortcuts` on the
-     button (`Shell.tsx`) still tells a screen reader the keystroke exists. */
-  .mf-topbar__hint {
-    display: none;
-  }
 }
 
 .mf-nav {
@@ -151,4 +132,47 @@
   color: var(--mf-text);
   border-color: var(--mf-scale);
   background: var(--mf-sunk);
+}
+
+/* The narrow-width blocks live at the end of the file on purpose: they re-declare
+   properties at the same specificity as the base rules above, so source order is the
+   only thing that lets them win. A block moved above `.mf-nav__item` stops applying
+   and nothing reports it. */
+@media (max-width: 640px) {
+  /* The arranged wrap the topbar comment promises: nav takes the second row whole,
+     leaving the brand and the controls to share the first. */
+  .mf-nav {
+    order: 3;
+    flex-basis: 100%;
+  }
+
+  /* Four items and thirteen-character labels (pt-BR's "Configurações") have to share
+     343px of row. Measured, not guessed: at full padding and tracking the nav is
+     384px wide. The touch floor is height, so width is where the slack is — padding
+     and tracking give it up, and both locales land on one row. */
+  .mf-nav__item {
+    padding: 0 var(--mf-space-1);
+    letter-spacing: var(--mf-tracking-label-tight);
+  }
+
+  /* A keycap on a screen with no keyboard is furniture. `aria-keyshortcuts` on the
+     button (`Shell.tsx`) still tells a screen reader the keystroke exists. */
+  .mf-topbar__hint {
+    display: none;
+  }
+}
+
+@media (max-width: 480px) {
+  /* The wordmark yields to the mark (`AppShell.tsx` explains the split). Clipped
+     rather than display: none, so the brand still reads "Mindforge" to a screen
+     reader while the anvil stands for it visually. */
+  .mf-brand__name {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
 }

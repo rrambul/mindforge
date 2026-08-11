@@ -15,7 +15,7 @@ for the same reason: the upstream skill has no concept of a curriculum.
 writes `CURRICULUM.md`; it writes no lessons. Structure and material are produced by separate skills
 so the structure can be revised without discarding the material.
 
-Neither directory is Mindforge tooling for _you_: `.claude/skills/teach-me` is the command that
+Neither directory is Mindforge tooling for _you_: `.claude/commands/teach-me.md` is the command that
 reads both of these and writes a workspace by hand, for when a real run is not worth its cost. It
 follows them; it never copies them.
 

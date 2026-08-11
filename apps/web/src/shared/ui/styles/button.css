@@ -75,3 +75,12 @@
 .mf-button[data-variant="bar"]:hover:not(:disabled) {
   color: var(--mf-text);
 }
+
+/* The same tightening the nav items make at this width (`app-shell.css`): the two sit
+   in one bar speaking one voice, and a bar control still tracked at 0.14em beside a
+   nav tracked at 0.08em would read as a different typeface, not a different role. */
+@media (max-width: 640px) {
+  .mf-button[data-variant="bar"] {
+    letter-spacing: var(--mf-tracking-label-tight);
+  }
+}

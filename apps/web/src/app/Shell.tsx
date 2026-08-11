@@ -49,10 +49,7 @@ export function Shell() {
       <AppShell
         bar={
           <>
-            <Brand>
-              <Logo />
-              {t("appName")}
-            </Brand>
+            <Brand mark={<Logo />}>{t("appName")}</Brand>
             {signedIn ? <Nav label={t("appName")} items={items} /> : null}
             <BarActions>
               {/* A visible trigger as well as the keystroke. Cmd-K is the fast path for someone who
