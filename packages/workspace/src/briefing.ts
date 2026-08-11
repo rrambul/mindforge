@@ -115,7 +115,25 @@ export interface CurrentTrack {
   readonly nextLesson: PlannedLesson | null;
 }
 
-export interface BriefingInput {
+/**
+ * Which agent this briefing is for.
+ *
+ * The two runs want almost opposite things said to them, which is why this is a
+ * field rather than a caller's judgement: a lesson run is told which module it is
+ * teaching in and to write exactly one lesson, and a curriculum run must be told
+ * neither — `NO_TRACK.noCurriculum` says "do not invent a curriculum or write
+ * one", which would end a curriculum run with nothing written.
+ */
+export type BriefingKind = "generate_lesson" | "generate_curriculum";
+
+/**
+ * What Mindforge knows about the mission, with no view about the run.
+ *
+ * Split from `BriefingInput` because the reader gathers facts and the dispatcher
+ * knows which agent is about to read them — and a reader that took the kind would
+ * be a query shaped by an instruction.
+ */
+export interface BriefingFacts {
   readonly missionTopic: string | null;
   readonly lessonCount: number;
   readonly recordCount: number;
@@ -144,6 +162,10 @@ export interface BriefingInput {
    * the briefing listing all of them.
    */
   readonly lessonOutcomes: readonly string[];
+}
+
+export interface BriefingInput extends BriefingFacts {
+  readonly kind: BriefingKind;
 }
 
 /**
@@ -184,6 +206,26 @@ export const NO_OUTCOMES_YET =
   "No lesson has been marked finished yet. The reader records understood/shaky/lost, " +
   "so this is an empty result rather than a missing signal — teach as though nothing " +
   "has been completed, because nothing has.";
+
+/**
+ * What a curriculum run is told, in place of everything a lesson run is told.
+ *
+ * The module section is omitted rather than rewritten: there is no module, and
+ * `NO_TRACK.noCurriculum` — the honest thing to say to a *lesson* run on a mission
+ * with no curriculum — instructs the agent not to write one. Rendering it here
+ * would tell the curriculum agent to do nothing, and it would obey.
+ */
+const CURRICULUM_RUN = [
+  "You are writing `CURRICULUM.md`, once, for a mission that has none. Structure only:",
+  "**write no lessons**, not even one, and do not create `lessons/`.",
+  "",
+  "Producing structure and producing material are separate runs on purpose. A curriculum run",
+  "that also wrote a lesson would be writing it at the moment it knew least about the learner,",
+  "and the plan is meant to be revisable without discarding the material.",
+  "",
+  "The learner presses a second button afterwards, and a `teach` run writes the first lesson",
+  "against the plan you leave behind.",
+].join("\n");
 
 function section(heading: string, body: string): string {
   return `## ${heading}\n\n${body.trim()}\n`;
@@ -371,22 +413,26 @@ export function renderBriefing(input: BriefingInput): string {
     ),
   );
 
-  parts.push(section("The module you are teaching in", renderTrack(input.currentTrack)));
+  if (input.kind === "generate_curriculum") {
+    parts.push(section("What this run is for", CURRICULUM_RUN));
+  } else {
+    parts.push(section("The module you are teaching in", renderTrack(input.currentTrack)));
 
-  parts.push(
-    section(
-      "What to teach next",
-      input.zpdCandidates.length === 0
-        ? "No learning records yet, so there is nothing to derive a zone of proximal development " +
-            "from. Start from the mission and the learner's stated current level."
-        : [
-            "From learning records' `Next` sections **only**. Treat this as a starting point",
-            "rather than as a complete picture of the learner's frontier.",
-            "",
-            list(input.zpdCandidates.map((c) => `${c.next}  _(${c.fromRecord})_`)),
-          ].join("\n"),
-    ),
-  );
+    parts.push(
+      section(
+        "What to teach next",
+        input.zpdCandidates.length === 0
+          ? "No learning records yet, so there is nothing to derive a zone of proximal development " +
+              "from. Start from the mission and the learner's stated current level."
+          : [
+              "From learning records' `Next` sections **only**. Treat this as a starting point",
+              "rather than as a complete picture of the learner's frontier.",
+              "",
+              list(input.zpdCandidates.map((c) => `${c.next}  _(${c.fromRecord})_`)),
+            ].join("\n"),
+      ),
+    );
+  }
 
   parts.push(
     section(

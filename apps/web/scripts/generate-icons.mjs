@@ -32,7 +32,7 @@ const PLATE = "#e9ecee";
 /**
  * How much of each canvas the mark occupies.
  *
- * The .ico sizes get the full canvas: the mark already carries 3/32 of margin inside
+ * The .ico sizes get the full canvas: the mark already carries 2/32 of margin inside
  * its own grid, and at 16px any further inset costs pixels the glyph cannot spare.
  * The installed-app icons get a deep inset instead, because Android's maskable spec
  * can crop to a circle inscribed in the middle 80%, and iOS applies its own corner

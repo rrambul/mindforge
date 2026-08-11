@@ -1,12 +1,12 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="Mindforge">
   <title>Mindforge</title>
   <!--
-    The mark: an M cut square, with the strike running hot at its vertex.
+    The mark: an anvil, the temper run laid across its face, a spark struck off the heel.
 
-    Drawn on a 32 x 32 grid so every edge lands on a whole pixel at 16 and 32. This
-    file is the source every raster icon is generated from — see
-    scripts/generate-icons.mjs. Edit the two paths here, run `pnpm icons`, and the
-    .ico and .png set follows.
+    Drawn on a 32 x 32 grid so the slab's edges land on whole pixels at 16 and 32;
+    only the horn, the waist and the spark go off-axis. This file is the source every
+    raster icon is generated from — see scripts/generate-icons.mjs. Edit the three
+    paths here, run `pnpm icons`, and the .ico and .png set follows.
 
     Colours are literal rather than var(--mf-band-*) because a favicon renders in
     browser chrome, outside the document, where the token sheet does not exist. They
@@ -26,13 +26,14 @@
   </style>
   <defs>
     <!--
-      The temper run, coolest band at the top down to ember at the point of impact.
-      Straw (#c89a34) is omitted on purpose: sitting between bronze and ember it is a
-      light value in a dark neighbourhood, and at 16px it reads as a hole punched
-      through the letter. The four remaining stops keep the scale's direction, which
-      is the part the ordering encodes.
+      The temper run, coolest band at the horn heating toward the heel where the
+      spark just came off. It stops at x=26 and pads, so the heel under the spark is
+      solid ember. Straw (#c89a34) is omitted on purpose: sitting between bronze and
+      ember it is a light value in a dark neighbourhood, and at 16px it reads as a
+      hole punched through the face. The four remaining stops keep the scale's
+      direction, which is the part the ordering encodes.
     -->
-    <linearGradient id="mf-run" gradientUnits="userSpaceOnUse" x1="16" y1="6" x2="16" y2="24">
+    <linearGradient id="mf-run" gradientUnits="userSpaceOnUse" x1="4" y1="15" x2="26" y2="15">
       <stop offset="0" stop-color="#5b87a6" />
       <stop offset=".28" stop-color="#455d8a" />
       <stop offset=".55" stop-color="#7c4e66" />
@@ -40,6 +41,7 @@
       <stop offset="1" stop-color="#c2582f" />
     </linearGradient>
   </defs>
-  <path class="steel" d="M3 26V6h4l9 12 9-12h4v20h-4V12l-9 12-9-12v14z" />
-  <path fill="url(#mf-run)" d="M7 6l9 12 9-12v6l-9 12-9-12z" />
+  <path fill="#c2582f" d="M24 1.5l1.6 2.9 2.9 1.6-2.9 1.6-1.6 2.9-1.6-2.9L19.5 6l2.9-1.6z" />
+  <path fill="url(#mf-run)" d="M2 15l4-3h24v6H8z" />
+  <path class="steel" d="M25 18l-2 4 5 3v3H8v-3l5-3-2-4z" />
 </svg>

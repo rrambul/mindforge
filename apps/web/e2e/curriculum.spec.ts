@@ -9,11 +9,16 @@ import { expect, test, type Page } from "@playwright/test";
  * nothing joining them but the route table. Every unit test passes with the link
  * unthreaded, and this is where that shows up.
  *
- * It stops at a mission with no curriculum yet, deliberately — and that is not
- * only a suite limitation. Curricula are authored from a terminal for now: nothing
- * in the app dispatches a curriculum run, so the empty state a fresh mission shows
- * is the honest end of this flow. What is asserted is that it names the command
- * that does work rather than a button that does not (§5.3).
+ * It stops at a mission with no curriculum yet, which is where a fresh mission
+ * genuinely is. What used to be asserted here was that the empty state named a
+ * terminal command rather than a button, because nothing in the app could
+ * dispatch a curriculum run. It can now (FR-K1), so what is asserted is the
+ * button — and that it is the one that *plans*, not the one that teaches, because
+ * they are the same endpoint saying two different true things.
+ *
+ * Pressing it is left to `teach.spec.ts`: the worker is not started by this
+ * config and non-negotiable 8 forbids live API calls, so a queued run is as far
+ * as any spec goes.
  */
 
 function credentials(): { email: string; password: string } {
@@ -50,10 +55,11 @@ test("a mission's curriculum is reachable from its card", async ({ page }) => {
   await expect(page).toHaveURL(/\/missions\/[0-9a-f-]{36}$/u);
   await expect(page.getByRole("heading", { name: TOPIC })).toBeVisible();
 
-  // The honest state of a mission with no curriculum, naming the action that
-  // actually writes one. The teach button is deliberately absent here: it queues a
-  // lesson, and the `teach` skill never writes CURRICULUM.md.
+  // The honest state of a mission with no curriculum, offering the action that
+  // fills it. "Teach me the next thing" is deliberately absent: the next thing is
+  // a plan, and the API picks the agent from the absence of modules rather than
+  // from anything this page sends.
   await expect(page.getByText("No curriculum yet")).toBeVisible();
-  await expect(page.getByText("/curriculum")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Plan the curriculum" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Teach me the next thing" })).toHaveCount(0);
 });

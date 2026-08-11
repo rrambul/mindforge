@@ -1,9 +1,16 @@
 export const TEACH_DISPATCH_GATEWAY = Symbol("TeachDispatchGateway");
 
+import type { BriefingKind } from "@mindforge/workspace";
+
 export interface QueuedRun {
   readonly id: string;
   readonly userId: string;
   readonly missionId: string;
+  /**
+   * Which agent to load. Decided by the API from whether the mission has modules
+   * (FR-K1), never here — the dispatcher's job is to run what was queued.
+   */
+  readonly kind: BriefingKind;
   /** Assigned by the API when the run was queued, so the worker never derives one. */
   readonly workspaceKey: string;
   /**
@@ -30,10 +37,17 @@ export interface TeachDispatchGateway {
   nextQueued(): Promise<QueuedRun | null>;
 
   /**
-   * Compose the teach plugin into a directory for this run.
+   * Compose the run's plugin into a directory.
    *
    * Per run rather than per process: the run's temp tree is deleted afterwards,
    * and a shared path would be shared mutable state for four small files.
+   *
+   * Exactly one skill, chosen by `kind`. A run that could reach for both would be
+   * a teach run able to rewrite the plan it is working through, or a curriculum
+   * run able to generate the whole module at the moment it knows least.
    */
-  writePlugin(runId: string): Promise<{ readonly path: string; readonly skillRef: string }>;
+  writePlugin(
+    runId: string,
+    kind: BriefingKind,
+  ): Promise<{ readonly path: string; readonly skillRef: string }>;
 }

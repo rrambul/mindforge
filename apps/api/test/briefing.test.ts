@@ -69,8 +69,15 @@ async function open(slug: string) {
   );
 }
 
+/**
+ * The facts, plus the kind the dispatcher would supply.
+ *
+ * `generate_lesson` here because that is what every test below is about. The
+ * curriculum run's briefing is a different shape and is pinned in
+ * `packages/workspace/src/briefing.test.ts`, on pure input.
+ */
 async function gather(): Promise<BriefingInput> {
-  return reader.gather(alice.id, missionId);
+  return { ...(await reader.gather(alice.id, missionId)), kind: "generate_lesson" };
 }
 
 /** The open module, or a failure naming what came back instead. */

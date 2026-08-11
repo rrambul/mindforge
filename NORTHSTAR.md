@@ -158,8 +158,9 @@ fraction on the screen before it. What has **not** happened is the sentence take
 module planned and then taught lesson by lesson, start to finish, on one real curriculum. Two things
 stand between:
 
-1. **Curricula are still authored from a terminal** (M4's own gap, above). Until `generate_curriculum`
-   is dispatched from the app, "without touching a terminal" is not true of the first step.
+1. ~~**Curricula are still authored from a terminal**~~ — **closed.** The first press on a mission
+   with no modules queues a `generate_curriculum` run and the worker loads the `curriculum` skill
+   (FR-K1). Nothing in the flow needs a terminal any more.
 2. **The reader has been proven against seeded content, not against a lesson a real run wrote.**
    `seed:rich` now writes real HTML into Storage precisely so the reader is testable without a $1.47
    run each time — which is right for the suite and is not the same thing as the loop having been

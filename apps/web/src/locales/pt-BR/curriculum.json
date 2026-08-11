@@ -3,9 +3,9 @@
   "back": "Todas as missões",
   "empty": {
     "heading": "Ainda sem currículo",
-    "body": "Os módulos e suas lições planejadas são escritos pela skill de currículo, no workspace desta missão. Execute-a em um terminal:",
-    "command": "/curriculum",
-    "then": "A próxima execução de ensino lê o arquivo e o indexa aqui."
+    "body": "Nada foi planejado para esta missão. Um toque e um agente a divide em módulos, fundamentos primeiro, com todas as lições nomeadas de antemão.",
+    "action": "Planejar o currículo",
+    "then": "Ele escreve o plano e nenhuma lição — essas você pede uma de cada vez depois."
   },
   "module": {
     "outcome": "Depois você consegue: {outcome}",

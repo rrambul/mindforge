@@ -3,9 +3,9 @@
   "back": "All missions",
   "empty": {
     "heading": "No curriculum yet",
-    "body": "The modules and their planned lessons are written by the curriculum skill, in this mission's workspace. Run it from a terminal:",
-    "command": "/curriculum",
-    "then": "The next teach run picks the file up and indexes it here."
+    "body": "Nothing has been planned for this mission. One press and an agent maps it into modules, fundamentals first, with every lesson named up front.",
+    "action": "Plan the curriculum",
+    "then": "It writes the plan and no lessons — you ask for those one at a time afterwards."
   },
   "module": {
     "outcome": "Afterwards you can: {outcome}",

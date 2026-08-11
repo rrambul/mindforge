@@ -6,6 +6,16 @@ export interface MissionWorkspace {
   readonly status: string;
   /** Null until the first run materialises it. */
   readonly workspaceKey: string | null;
+  /**
+   * Whether `CURRICULUM.md` has been indexed into modules yet.
+   *
+   * It decides which agent the next run loads (FR-K1): a mission with no modules
+   * needs a plan before it needs a lesson. Inferred rather than chosen by the
+   * client, because "which skill runs" is not a decision a browser should be able
+   * to make — and a lesson taught against no curriculum is the state M4 exists to
+   * remove.
+   */
+  readonly hasCurriculum: boolean;
 }
 
 /**

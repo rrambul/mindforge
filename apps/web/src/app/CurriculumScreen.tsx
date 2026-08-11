@@ -32,6 +32,7 @@ export function CurriculumScreen({ missionId }: { readonly missionId: string }) 
       missionId={missionId}
       {...(mission ? { topic: mission.topic } : {})}
       teach={<TeachPanel missionId={missionId} />}
+      plan={<TeachPanel missionId={missionId} label={t("empty.action")} />}
       library={
         <Row>
           <RouterLink to={`/missions/${missionId}/library`}>{t("library")}</RouterLink>

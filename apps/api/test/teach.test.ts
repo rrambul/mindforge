@@ -51,6 +51,16 @@ async function createMission(user: TestUser, topic: string): Promise<string> {
   return rows[0]!.id;
 }
 
+/** A module, so the mission counts as having a curriculum. */
+async function seedTrack(user: TestUser, missionId: string): Promise<void> {
+  await db.$executeRawUnsafe(
+    `insert into tracks (id, user_id, mission_id, slug, name, position, status, created_at, updated_at)
+     values (gen_random_uuid(), $1::uuid, $2::uuid, 'basics', 'Basics', 1, 'active', now(), now())`,
+    user.id,
+    missionId,
+  );
+}
+
 function teach(user: TestUser, missionId: string) {
   return app.inject({
     method: "POST",
@@ -88,13 +98,15 @@ describe("POST /v1/missions/:id/teach", () => {
     // §6: long operations never block a request. 202 and not 201, because the
     // resource created is the run — saying 201 invites a client to expect a
     // lesson in the body, and one takes minutes.
+    //
+    // A fresh mission has no modules, so the first press plans the curriculum
+    // (FR-K1); the kind itself is asserted by the pair below.
     const missionId = await createMission(alice, "Postgres row-level security");
     const response = await teach(alice, missionId);
 
     expect(response.statusCode).toBe(202);
     expect(response.json<RunResponse>()).toMatchObject({
       missionId,
-      kind: "generate_lesson",
       status: "queued",
       startedAt: null,
       finishedAt: null,
@@ -319,5 +331,31 @@ describe("GET /v1/missions/:id/agent-runs", () => {
     });
 
     expect(response.json()).toEqual([]);
+  });
+});
+
+/**
+ * Which agent one button starts (FR-K1).
+ *
+ * Over HTTP because the inference reads a table the use case does not own: the
+ * unit test proves the branch, and this proves the query behind it — a mission's
+ * modules live in `tracks`, and a reader that looked at the wrong thing would give
+ * a plausible answer for every mission.
+ *
+ * The failure it rules out is the state M4 exists to remove: a lesson taught
+ * against no curriculum, which produces material with no plan to file it under.
+ */
+describe("the first press plans, and every press after it teaches", () => {
+  it("queues a curriculum run for a mission with no modules", async () => {
+    const missionId = await createMission(alice, "Distributed systems");
+
+    expect((await teach(alice, missionId)).json<RunResponse>().kind).toBe("generate_curriculum");
+  });
+
+  it("queues a lesson run once the mission has one", async () => {
+    const missionId = await createMission(alice, "Distributed systems");
+    await seedTrack(alice, missionId);
+
+    expect((await teach(alice, missionId)).json<RunResponse>().kind).toBe("generate_lesson");
   });
 });

@@ -7,7 +7,7 @@ import {
 } from "@mindforge/core";
 import {
   NO_TRACK,
-  type BriefingInput,
+  type BriefingFacts,
   type CurrentTrack,
   type PlannedLesson,
   type Tracked,
@@ -44,7 +44,7 @@ const OUTCOME_LIMIT = 12;
 export class PrismaBriefingReader implements BriefingReader {
   constructor(@Inject(USER_SCOPED_DB) private readonly db: UserScopedDb) {}
 
-  gather(userId: string, missionId: string): Promise<BriefingInput> {
+  gather(userId: string, missionId: string): Promise<BriefingFacts> {
     return this.db.run(userId, async (tx) => {
       const [mission] = await tx.$queryRawUnsafe<{ topic: string }[]>(
         `select topic from missions where id = $1::uuid`,
@@ -88,7 +88,7 @@ export class PrismaBriefingReader implements BriefingReader {
           fromRecord: record.storage_path.split("/").pop() ?? record.storage_path,
         })),
         lessonOutcomes: outcomes.map(describeOutcome),
-      } satisfies BriefingInput;
+      } satisfies BriefingFacts;
     });
   }
 }

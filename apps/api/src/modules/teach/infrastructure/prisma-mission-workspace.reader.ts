@@ -19,8 +19,21 @@ export class PrismaMissionWorkspaceReader implements MissionWorkspaceReader {
   async find(userId: string, missionId: string): Promise<MissionWorkspace | null> {
     const rows = await this.db.run(userId, (tx) =>
       tx.$queryRawUnsafe<
-        { id: string; topic: string; status: string; workspace_key: string | null }[]
-      >(`select id, topic, status, workspace_key from missions where id = $1::uuid`, missionId),
+        {
+          id: string;
+          topic: string;
+          status: string;
+          workspace_key: string | null;
+          has_curriculum: boolean;
+        }[]
+      >(
+        // `exists` rather than a count: the question is whether there is a plan at
+        // all, and Postgres stops at the first row.
+        `select m.id, m.topic, m.status, m.workspace_key,
+                exists (select 1 from tracks t where t.mission_id = m.id) as has_curriculum
+           from missions m where m.id = $1::uuid`,
+        missionId,
+      ),
     );
 
     const row = rows[0];
@@ -31,6 +44,7 @@ export class PrismaMissionWorkspaceReader implements MissionWorkspaceReader {
       topic: row.topic,
       status: row.status,
       workspaceKey: row.workspace_key,
+      hasCurriculum: row.has_curriculum,
     };
   }
 

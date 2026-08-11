@@ -158,6 +158,7 @@ describe("TeachRuns", () => {
       topic: "Postgres RLS",
       status: "active",
       workspaceKey: "postgres-rls",
+      hasCurriculum: true,
     });
   });
 
@@ -189,6 +190,7 @@ describe("TeachRuns", () => {
         topic: "Postgres RLS",
         status: "active",
         workspaceKey: null,
+        hasCurriculum: true,
       });
 
       const run = await teach.request(ALICE, MISSION);
@@ -205,6 +207,7 @@ describe("TeachRuns", () => {
         topic: "Postgres RLS",
         status: "active",
         workspaceKey: null,
+        hasCurriculum: true,
       });
       missions.existingKey = "rls-postgres";
 
@@ -219,6 +222,7 @@ describe("TeachRuns", () => {
         topic: "!!!",
         status: "active",
         workspaceKey: null,
+        hasCurriculum: true,
       });
 
       await expect(teach.request(ALICE, MISSION)).rejects.toThrow(WorkspaceKeyUnavailable);
@@ -303,5 +307,40 @@ describe("TeachRuns", () => {
 
       await expect(teach.heartbeat(ALICE, run.id)).resolves.toBe(false);
     });
+  });
+});
+
+/**
+ * Which agent the button starts (FR-K1).
+ *
+ * Inferred from the mission, never sent by the client. The failure this rules out
+ * is the one M4 exists to remove: a lesson taught against no curriculum, which
+ * produces material with no plan to file it under and no fraction to move.
+ */
+describe("choosing the run kind", () => {
+  function withCurriculum(hasCurriculum: boolean): TeachRuns {
+    const missions = new FakeMissions();
+    missions.missions.set(MISSION, {
+      missionId: MISSION,
+      topic: "Postgres RLS",
+      status: "active",
+      workspaceKey: "postgres-rls",
+      hasCurriculum,
+    });
+
+    return new TeachRuns(new FakeRuns(), missions, new FixedClock(NOW), sequentialIds());
+  }
+
+  it("plans the curriculum when the mission has no modules", async () => {
+    expect((await withCurriculum(false).request(ALICE, MISSION)).kind).toBe("generate_curriculum");
+  });
+
+  it("teaches a lesson once there are modules", async () => {
+    expect((await withCurriculum(true).request(ALICE, MISSION)).kind).toBe("generate_lesson");
+  });
+
+  it("still takes an explicit kind, which nothing in the app sends", async () => {
+    const run = await withCurriculum(false).request(ALICE, MISSION, "generate_lesson");
+    expect(run.kind).toBe("generate_lesson");
   });
 });

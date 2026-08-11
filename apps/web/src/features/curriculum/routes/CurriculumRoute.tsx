@@ -23,6 +23,14 @@ export interface CurriculumRouteProps {
   readonly lessonLink?: (lesson: CurriculumLesson) => ReactNode;
   /** The reference shelf and the written record (FR-T6), also a route the app owns. */
   readonly library?: ReactNode;
+  /**
+   * The button that plans a curriculum, for a mission that has none (FR-K1).
+   *
+   * A separate slot from `teach` even though both post to the same endpoint: they
+   * are the same button saying different true things, and which one the learner is
+   * looking at is what this screen knows and the teach feature does not.
+   */
+  readonly plan?: ReactNode;
 }
 
 /**
@@ -34,12 +42,14 @@ export interface CurriculumRouteProps {
  * lifted into a panel of its own. Pulling it out would answer the third question
  * first and turn a plan into a queue.
  *
- * An empty curriculum is a real state and says so: the mission exists and the
- * `curriculum` skill has not run against its workspace yet. **The action it names
- * is a terminal command, not a button**, because nothing in the app dispatches a
- * curriculum run today — the teach button queues a lesson, and the `teach` skill
- * is told `CURRICULUM.md` is an input it must never write. Offering it here would
- * be a button that cannot do the thing the sentence above it promises.
+ * An empty curriculum is a real state and says so: the mission exists and no
+ * plan has been written for it. It is also the one state with a different action
+ * — the button plans the curriculum rather than teaching a lesson, and the API
+ * picks the agent from the absence of modules rather than from anything sent.
+ *
+ * This used to name a terminal command instead, because nothing in the app could
+ * dispatch a curriculum run. It can now, and the sentence that explained the
+ * limitation went with it.
  */
 export function CurriculumRoute({
   missionId,
@@ -47,6 +57,7 @@ export function CurriculumRoute({
   teach,
   lessonLink,
   library,
+  plan,
 }: CurriculumRouteProps) {
   const { t } = useTranslation("curriculum");
   const curriculum = useCurriculum(missionId);
@@ -62,9 +73,7 @@ export function CurriculumRoute({
               <Stack gap="tight">
                 <Heading level={2}>{t("empty.heading")}</Heading>
                 <Text tone="muted">{t("empty.body")}</Text>
-                <Text as="span">
-                  <code>{t("empty.command")}</code>
-                </Text>
+                {plan}
                 <Text tone="hint">{t("empty.then")}</Text>
               </Stack>
             </Card>

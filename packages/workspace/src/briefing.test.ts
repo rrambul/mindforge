@@ -69,6 +69,7 @@ const EMPTY: BriefingInput = {
   currentTrack: NO_TRACK.noCurriculum,
   zpdCandidates: [],
   lessonOutcomes: [],
+  kind: "generate_lesson",
 };
 
 const RICH: BriefingInput = {
@@ -81,6 +82,7 @@ const RICH: BriefingInput = {
     { next: "Writing a policy for a join table.", fromRecord: "0008-policies.md" },
   ],
   lessonOutcomes: [],
+  kind: "generate_lesson",
 };
 
 describe("renderBriefing", () => {
@@ -359,5 +361,50 @@ describe("the plan for the open module", () => {
 
     expect(briefing).toContain("either written or waiting on one that is not");
     expect(briefing).not.toContain('<meta name="mindforge:lesson"');
+  });
+});
+
+/**
+ * The curriculum run's briefing (FR-K1).
+ *
+ * A different file for a different agent, and the first assertion is the one that
+ * matters: `NO_TRACK.noCurriculum` is the honest thing to tell a *lesson* run on a
+ * mission with no plan — "do not invent a curriculum or write one" — and rendering
+ * it here would tell the curriculum agent to do nothing at all. It would obey.
+ */
+describe("a curriculum run", () => {
+  const CURRICULUM: BriefingInput = { ...EMPTY, kind: "generate_curriculum" };
+
+  it("never tells the agent not to write a curriculum", () => {
+    const briefing = renderBriefing(CURRICULUM);
+
+    expect(briefing).not.toContain("do not invent a curriculum or write one");
+    expect(briefing).not.toContain("The module you are teaching in");
+  });
+
+  it("says structure only, and no lessons", () => {
+    const briefing = renderBriefing(CURRICULUM);
+
+    expect(briefing).toContain("**write no lessons**");
+    expect(briefing).toContain("CURRICULUM.md");
+  });
+
+  it("drops the what-to-teach-next section, which is a lesson run's question", () => {
+    expect(renderBriefing({ ...RICH, kind: "generate_curriculum" })).not.toContain(
+      "What to teach next",
+    );
+  });
+
+  it("keeps the mission and the outcomes, which a re-plan needs", () => {
+    const briefing = renderBriefing({ ...RICH, kind: "generate_curriculum" });
+
+    expect(briefing).toContain("Topic: Postgres row-level security");
+    expect(briefing).toContain("Past lesson outcomes");
+  });
+
+  it("still says one lesson and stop to a teach run", () => {
+    // The pair, so a change that made every briefing look like a curriculum one
+    // fails here rather than silently producing four lessons a run.
+    expect(renderBriefing(RICH)).toContain("Write exactly one lesson and stop");
   });
 });

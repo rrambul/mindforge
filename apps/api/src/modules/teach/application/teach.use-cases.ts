@@ -52,21 +52,28 @@ export class TeachRuns {
    *
    * Returns 202-shaped data rather than waiting: §6 says long operations never
    * block a request, and a lesson takes minutes.
+   *
+   * **The kind is inferred, not chosen** (FR-K1). A mission with no modules needs
+   * a plan before it needs a lesson, so the first press runs `curriculum` and
+   * every press after it runs `teach`. Two reasons it is not a request field:
+   * which skill runs is not a decision a browser should be able to make, and the
+   * one button the learner sees means "do the next thing" — making them pick the
+   * agent would be asking them to know the difference.
+   *
+   * A caller may still pass one explicitly; nothing in the app does.
    */
-  async request(
-    userId: string,
-    missionId: string,
-    kind: AgentRunKind = "generate_lesson",
-  ): Promise<AgentRun> {
+  async request(userId: string, missionId: string, kind?: AgentRunKind): Promise<AgentRun> {
     const mission = await this.missions.find(userId, missionId);
     if (!mission) throw new MissionNotFound(missionId);
+
+    const resolved = kind ?? (mission.hasCurriculum ? "generate_lesson" : "generate_curriculum");
 
     const workspaceKey = await this.ensureWorkspaceKey(userId, mission);
 
     const run = await this.runs.create(userId, {
       id: this.ids.next(),
       missionId,
-      kind,
+      kind: resolved,
       // The key is recorded on the run as well as on the mission, so a run's
       // input says which prefix it touched even if the mission is deleted later.
       input: { workspaceKey },

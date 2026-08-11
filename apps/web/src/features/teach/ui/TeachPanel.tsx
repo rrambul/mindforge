@@ -31,9 +31,19 @@ import {
 
 interface TeachPanelProps {
   readonly missionId: string;
+  /**
+   * What the button says when nothing is running.
+   *
+   * The endpoint decides *which* agent runs — from whether the mission has modules
+   * yet (FR-K1), because that is not a choice a browser should make. But the
+   * learner is owed the truth about what they are about to start, and "teach me
+   * the next thing" on a mission with no curriculum would be describing the wrong
+   * one. The screen that knows which state it is in passes the wording.
+   */
+  readonly label?: string;
 }
 
-export function TeachPanel({ missionId }: TeachPanelProps) {
+export function TeachPanel({ missionId, label }: TeachPanelProps) {
   const { t } = useTranslation("teach");
   const runs = useMissionRuns(missionId);
   const start = useStartTeachRun(missionId);
@@ -51,7 +61,11 @@ export function TeachPanel({ missionId }: TeachPanelProps) {
           start.mutate();
         }}
       >
-        {active ? t("action.running") : start.isPending ? t("action.starting") : t("action.start")}
+        {active
+          ? t("action.running")
+          : start.isPending
+            ? t("action.starting")
+            : (label ?? t("action.start"))}
       </Button>
 
       {run !== null && <RunStatus run={run} />}

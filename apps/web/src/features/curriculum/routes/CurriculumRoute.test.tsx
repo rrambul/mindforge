@@ -195,20 +195,39 @@ describe("the lessons", () => {
 });
 
 describe("a mission with no curriculum", () => {
-  it("names the one action — which is a terminal command, not a button", async () => {
+  it("offers the action that plans one, not the one that teaches a lesson", async () => {
     // §5.3 says an empty state names one action; honesty says it names the one
-    // that works. Nothing in the app dispatches a curriculum run today, and the
-    // teach button queues a *lesson* — the `teach` skill is told CURRICULUM.md is
-    // an input it must never write. A button here would not do what the sentence
-    // above it promises.
+    // that works. Both slots post to the same endpoint — the API picks the agent
+    // from the absence of modules (FR-K1) — so the difference the learner sees is
+    // the wording, and showing "teach me the next thing" on a mission with no plan
+    // would describe the wrong run.
+    //
+    // This test used to assert the opposite: that the empty state named a terminal
+    // command and deliberately withheld a button, because nothing in the app could
+    // dispatch a curriculum run. It can now.
     returns({ modules: [] });
     renderWithProviders(
-      <CurriculumRoute missionId={MISSION} teach={<button type="button">Teach me</button>} />,
+      <CurriculumRoute
+        missionId={MISSION}
+        teach={<button type="button">Teach me the next thing</button>}
+        plan={<button type="button">Plan the curriculum</button>}
+      />,
     );
 
     expect(await screen.findByText("No curriculum yet")).toBeInTheDocument();
-    expect(screen.getByText("/curriculum")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Teach me" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Plan the curriculum" })).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Teach me the next thing" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("says the plan comes without lessons, because that is the next question", async () => {
+    returns({ modules: [] });
+    renderWithProviders(
+      <CurriculumRoute missionId={MISSION} plan={<button type="button">Plan</button>} />,
+    );
+
+    expect(await screen.findByText(/writes the plan and no lessons/u)).toBeInTheDocument();
   });
 });
 

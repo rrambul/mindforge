@@ -1,7 +1,7 @@
 import { useId } from "react";
 
 /**
- * The Mindforge mark: an M cut square, with the strike running hot at its vertex.
+ * The Mindforge mark: an anvil, the temper run laid across its face, a spark struck off the heel.
  *
  * Lives in `app/` for the same reason `AppShell` does (§2.2 rule 7) — there is exactly one of it,
  * and promoting a single-use component into the design system is how that system becomes a junk
@@ -10,16 +10,16 @@ import { useId } from "react";
  * Two things it deliberately does NOT do:
  *
  * 1. **No raw colours.** The steel is `currentColor`, so the mark takes the ink of whatever it sits
- *    in, and the temper run reads `--mf-band-*` and `--mf-ember` straight off the token sheet. That
- *    is not tidiness — `tokens.css` redefines every band under `[data-theme="dark"]`, so pointing at
- *    the variables is what makes the mark re-temper itself when the theme toggles. Literal hexes
- *    would leave it lit for the light ground forever.
+ *    in, and the temper run and the spark read `--mf-band-*` and `--mf-ember` straight off the token
+ *    sheet. That is not tidiness — `tokens.css` redefines every band under `[data-theme="dark"]`, so
+ *    pointing at the variables is what makes the mark re-temper itself when the theme toggles.
+ *    Literal hexes would leave it lit for the light ground forever.
  *
  * 2. **No label.** It is `aria-hidden` because the only place it appears is beside the wordmark, and
  *    a screen reader announcing "Mindforge Mindforge" is worse than silence. Any future use of the
  *    mark on its own needs to supply its own accessible name.
  *
- * `public/favicon.svg` is the same two paths with literal colours, because a favicon renders in
+ * `public/favicon.svg` is the same three paths with literal colours, because a favicon renders in
  * browser chrome where the token sheet does not exist. If the geometry here changes, change it there
  * too and run `pnpm icons`.
  */
@@ -39,10 +39,11 @@ export function Logo({ size = 20 }: { readonly size?: number }) {
       focusable="false"
     >
       <defs>
-        {/* Coolest band at the top, cooling into ember at the point of impact. Straw is omitted:
+        {/* Coolest band at the horn, heating toward the heel where the spark just came off. The run
+            stops at x=26 and pads, so the heel under the spark is solid ember. Straw is omitted:
             between bronze and ember it is a light value in a dark neighbourhood, and below about
-            24px it reads as a hole punched through the letter. */}
-        <linearGradient id={run} gradientUnits="userSpaceOnUse" x1="16" y1="6" x2="16" y2="24">
+            24px it reads as a hole punched through the face. */}
+        <linearGradient id={run} gradientUnits="userSpaceOnUse" x1="4" y1="15" x2="26" y2="15">
           <stop offset="0" stopColor="var(--mf-band-teaching)" />
           <stop offset="0.28" stopColor="var(--mf-band-fluent)" />
           <stop offset="0.55" stopColor="var(--mf-band-working)" />
@@ -50,10 +51,16 @@ export function Logo({ size = 20 }: { readonly size?: number }) {
           <stop offset="1" stopColor="var(--mf-ember)" />
         </linearGradient>
       </defs>
-      {/* The letter. Cut square on a 32-unit grid so its edges land on whole pixels at 16 and 32. */}
-      <path fill="currentColor" d="M3 26V6h4l9 12 9-12h4v20h-4V12l-9 12-9-12v14z" />
-      {/* The strike, laid over the letter's own chevron. */}
-      <path fill={`url(#${run})`} d="M7 6l9 12 9-12v6l-9 12-9-12z" />
+      {/* The spark, over the heel. It is what a strike leaves, so it sits where the run is hottest. */}
+      <path
+        fill="var(--mf-ember)"
+        d="M24 1.5l1.6 2.9 2.9 1.6-2.9 1.6-1.6 2.9-1.6-2.9L19.5 6l2.9-1.6z"
+      />
+      {/* The face and horn, carrying the run. Cut square on a 32-unit grid so the slab's edges land
+          on whole pixels at 16 and 32; only the horn and the waist go off-axis. */}
+      <path fill={`url(#${run})`} d="M2 15l4-3h24v6H8z" />
+      {/* The waist and base, in steel. */}
+      <path fill="currentColor" d="M25 18l-2 4 5 3v3H8v-3l5-3-2-4z" />
     </svg>
   );
 }
