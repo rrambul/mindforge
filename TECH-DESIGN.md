@@ -342,7 +342,7 @@ create table lessons (
   seq          integer not null,        -- 0001, 0002 … from the filename, mission-global
   slug         text not null,
   title        text not null,
-  storage_path text not null,           -- workspaces/<u>/<m>/lessons/0007-x.html
+  storage_path text not null,           -- RELATIVE to the workspace: lessons/0007-x.html
   content_hash text not null,
   completed_at timestamptz,
   outcome      text check (outcome in ('understood','shaky','lost')),

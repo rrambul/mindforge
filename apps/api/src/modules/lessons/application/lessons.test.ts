@@ -39,7 +39,7 @@ function record(over: Partial<LessonRecord> = {}): LessonRecord {
     difficulty: 4,
     depth: "deep_dive",
     seq: 7,
-    storagePath: `workspaces/${ALICE}/rust/lessons/0007-borrow-checker-errors.html`,
+    storagePath: "lessons/0007-borrow-checker-errors.html",
     workspaceKey: "rust",
     completedAt: null,
     outcome: null,
@@ -128,10 +128,7 @@ describe("GetLesson", () => {
   it("encodes a filename written in the learner's own language", async () => {
     // The agent writes lessons in the content language (FR-L3), so `café` on disk
     // is real — and an unencoded accent is a path the lessons origin never resolves.
-    rows.set(
-      `${ALICE}:${LESSON}`,
-      record({ storagePath: `workspaces/${ALICE}/rust/lessons/0003-café.html` }),
-    );
+    rows.set(`${ALICE}:${LESSON}`, record({ storagePath: "lessons/0003-café.html" }));
 
     const opened = await build(rows).get.execute(ALICE, LESSON);
     expect(opened.view!.url).toContain("/lessons/0003-caf%C3%A9.html");
@@ -148,14 +145,6 @@ describe("GetLesson", () => {
 
   it("offers nothing to open before the mission has a workspace", async () => {
     rows.set(`${ALICE}:${LESSON}`, record({ workspaceKey: null }));
-    expect((await build(rows).get.execute(ALICE, LESSON)).view).toBeNull();
-  });
-
-  it("offers nothing when the stored path is not inside the granted prefix", async () => {
-    // Unreachable through the reindexer, which builds every path from the same
-    // prefix. Checked anyway: the alternative is a URL that grants nothing and
-    // 404s with no explanation.
-    rows.set(`${ALICE}:${LESSON}`, record({ storagePath: "workspaces/somebody/else/x.html" }));
     expect((await build(rows).get.execute(ALICE, LESSON)).view).toBeNull();
   });
 
@@ -255,7 +244,7 @@ describe("the reference library", () => {
     id: "doc-1",
     slug: "ownership",
     title: "Ownership, in one page",
-    storagePath: `workspaces/${ALICE}/rust/reference/ownership.html`,
+    storagePath: "reference/ownership.html",
     updatedAt: NOW,
   };
 

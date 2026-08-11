@@ -418,12 +418,16 @@ async function seedCurriculum(
       const completedAt = outcome === null ? null : at(day, 21, 30, tz);
       if (outcome !== null) tally.completed += 1;
 
-      const storagePath = `workspaces/${userId}/${workspaceKey}/lessons/${String(seq).padStart(4, "0")}-${slug}.html`;
+      // Relative to the workspace, which is what the reindexer writes and what
+      // the reader composes a view URL from. It used to be absolute here, and
+      // that agreement between the seed and a wrong assumption in the reader is
+      // why the first real teach run was the thing that found the mismatch.
+      const storagePath = `lessons/${String(seq).padStart(4, "0")}-${slug}.html`;
       const intent = `What ${title.toLowerCase()} buys you.`;
 
       // The file first, so a row never points at a path that was never written.
       await files?.put(
-        storagePath,
+        `workspaces/${userId}/${workspaceKey}/${storagePath}`,
         lessonHtml({ title, trackSlug: spec.slug, lessonSlug: slug, intent }),
         "text/html; charset=utf-8",
       );
@@ -498,9 +502,13 @@ async function seedLibrary(
   files: WorkspaceUploader | null,
 ): Promise<void> {
   const title = `${workspaceKey.replace(/-/gu, " ")} — the page to come back to`;
-  const storagePath = `workspaces/${userId}/${workspaceKey}/reference/quick-reference.html`;
+  const storagePath = "reference/quick-reference.html";
 
-  await files?.put(storagePath, referenceHtml(title, workspaceKey), "text/html; charset=utf-8");
+  await files?.put(
+    `workspaces/${userId}/${workspaceKey}/${storagePath}`,
+    referenceHtml(title, workspaceKey),
+    "text/html; charset=utf-8",
+  );
 
   await prisma.referenceDoc.create({
     data: {
@@ -530,7 +538,7 @@ async function seedLibrary(
         keyInsight: lesson.outcome === "lost" ? null : "The rule underneath the rule.",
         struggles: lesson.outcome === "understood" ? null : "Could follow it reading, not writing.",
         next: `Redo this one before moving past it.`,
-        storagePath: `workspaces/${userId}/${workspaceKey}/learning-records/${String(seq).padStart(4, "0")}-record.md`,
+        storagePath: `learning-records/${String(seq).padStart(4, "0")}-record.md`,
         contentHash: `seed-${workspaceKey}-record-${seq}`,
         recordedAt: at(lesson.day, 22, 0, tz),
       },

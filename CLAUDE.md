@@ -116,11 +116,18 @@ Four things about the reader that are easy to get wrong:
 - **The reader owns exactly two columns**, `completed_at` and `outcome`. Everything else about a
   lesson comes from the file through the reindexer, because files are canonical.
 
-**What M5 has not done is the sentence in `NORTHSTAR.md` M5 taken literally** — a module planned
-and then taught lesson by lesson, start to finish, on one real curriculum. Curricula are still
-authored from a terminal (M4's gap, above), and the reader has been proven against seeded content
-rather than against a lesson a real run wrote. Neither is missing code; both are the closing rule
-that a milestone ends with you using it.
+**The loop has been walked once, for real** (2026-08-11). A fresh mission → 12 modules and 69
+planned lessons in three minutes → a second press wrote lesson 0001, which claimed its plan entry
+and rendered in the reader with its own typography, a shared stylesheet and two JavaScript
+components. **$2.50, 37 calls.** Locally that bills a Claude Code login rather than API credits
+(`TEACH_AUTH=subscription`); `api_key` remains the default and the only mode anything deployed can
+use.
+
+It found three things nothing else had, all of them hidden by the tests and the seed having been
+written by the same hand as the code: a curriculum run failed for not writing a lesson, the agent's
+`.claude-config` directory synced into the learner's Storage, and the reader claimed a real lesson
+had no file because `storage_path` is workspace-relative and §3.2 said it was absolute. Each is
+fixed with a test; `NORTHSTAR.md` M5 has the detail.
 
 `pnpm dev` gives you a sign-in screen, then four screens: **Today** (the focus timer),
 **Missions** (cards with the teach button), **Insights** (the activity grid), and **Settings**

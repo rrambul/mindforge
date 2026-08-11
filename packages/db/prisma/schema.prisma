@@ -280,6 +280,13 @@ model Lesson {
   /// share a filename slug.
   slug        String
   title       String
+  /// **Relative to the mission's workspace prefix** — `lessons/0007-x.html`, not
+  /// `workspaces/<user>/<key>/lessons/0007-x.html`. That is what the reindexer
+  /// writes and what the reader appends to a view grant, and the two only compose
+  /// because they agree. TECH-DESIGN §3.2 documented it the other way for two
+  /// milestones; the first real teach run is what noticed, by rendering "there is
+  /// no file behind this lesson" over a lesson sitting in Storage.
+  ///
   /// Null while the lesson is only planned. `lessons_generated_has_file` is what
   /// keeps these three NOT NULL for everything with a file behind it.
   storagePath String? @map("storage_path")

@@ -54,28 +54,22 @@ export class ViewGrants {
 /**
  * A full URL for one file inside a granted workspace.
  *
- * The path is taken from the row rather than from anything a client sent, and each
- * segment is encoded — a lesson written in Portuguese is `0003-café.html` on disk
- * (§5.2, FR-L3), and an unencoded accent in a URL is a request the lessons origin
- * never sees the right name for.
- */
-export function viewUrlFor(grant: ViewGrant, storagePath: string, prefix: string): string | null {
-  const relative = relativeTo(storagePath, prefix);
-  if (relative === null) return null;
-
-  const encoded = relative.split("/").map(encodeURIComponent).join("/");
-  return `${grant.baseUrl}/${encoded}`;
-}
-
-/**
- * The part of a Storage path that sits inside the workspace.
+ * **`storagePath` is relative to the workspace**, exactly as the reindexer writes
+ * it: `lessons/0001-a-plan-is-a-tree.html`, not
+ * `workspaces/<user>/<key>/lessons/…`. That is the same shape the grant covers, so
+ * the two compose without anything being stripped.
  *
- * Null when the path is not under the prefix at all. That is unreachable through
- * the reindexer — which builds every path from the same `workspacePrefix` — and it
- * is checked anyway, because the alternative is composing a URL that grants
- * nothing and 404s with no explanation.
+ * This function used to strip an absolute prefix, because `TECH-DESIGN.md` §3.2
+ * documented the column as absolute and both the seed and this module's own tests
+ * wrote it that way — so every test agreed with the assumption and the first real
+ * teach run rendered "there is no file behind this lesson" over a lesson that was
+ * sitting in Storage.
+ *
+ * Each segment is encoded: a lesson written in Portuguese is `0003-café.html` on
+ * disk (§5.2, FR-L3), and an unencoded accent is a request the lessons origin never
+ * sees the right name for.
  */
-export function relativeTo(storagePath: string, prefix: string): string | null {
-  const marker = `${prefix}/`;
-  return storagePath.startsWith(marker) ? storagePath.slice(marker.length) : null;
+export function viewUrlFor(grant: ViewGrant, storagePath: string): string {
+  const encoded = storagePath.split("/").map(encodeURIComponent).join("/");
+  return `${grant.baseUrl}/${encoded}`;
 }

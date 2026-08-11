@@ -1,5 +1,4 @@
 import type { LessonOutcome } from "@mindforge/core";
-import { workspacePrefix } from "@mindforge/workspace";
 import { Inject, Injectable } from "@nestjs/common";
 
 import { CLOCK, type Clock } from "../../../shared/time/clock.js";
@@ -44,10 +43,8 @@ export class GetLesson {
     if (lesson.storagePath === null || lesson.workspaceKey === null) return null;
 
     const grant = await this.grants.mint(userId, lesson.workspaceKey);
-    const url = viewUrlFor(grant, lesson.storagePath, workspacePrefix(userId, lesson.workspaceKey));
-    if (url === null) return null;
 
-    return { url, expiresAt: grant.expiresAt };
+    return { url: viewUrlFor(grant, lesson.storagePath), expiresAt: grant.expiresAt };
   }
 }
 

@@ -96,7 +96,7 @@ beforeEach(async () => {
     alice.id,
     missionId,
     track!.id,
-    `workspaces/${alice.id}/${WORKSPACE_KEY}/lessons/0007-borrow-checker.html`,
+    "lessons/0007-borrow-checker.html",
   );
   lessonId = written!.id;
 
@@ -238,7 +238,7 @@ describe("the library (FR-T6)", () => {
          $3, 'sha', now(), now())`,
       alice.id,
       missionId,
-      `workspaces/${alice.id}/${WORKSPACE_KEY}/reference/ownership.html`,
+      "reference/ownership.html",
     );
 
     await db.$executeRawUnsafe(

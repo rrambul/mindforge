@@ -37,6 +37,13 @@ export const BRIEFING_FILE = "BRIEFING.md";
  * `CURRICULUM.md` is **not** here, and the distinction is the whole point:
  * `CURRICULUM-FORMAT.md` is scaffolding and the curriculum itself is the
  * learner's, canonical in Storage like `MISSION.md`.
+ *
+ * `.claude-config` is `.claude`'s twin and was missing until a real run put it in
+ * somebody's Storage prefix. `teach-run.ts` points `CLAUDE_CONFIG_DIR` at
+ * `<run>/.claude-config` — inside the tree that gets synced — so the run's own
+ * settings, its policy limits and a full session transcript were uploaded as the
+ * learner's files and given `workspace_files` rows. The prefix match is on a
+ * whole segment, so `.claude` never covered it.
  */
 export const SYNC_EXCLUDE: readonly string[] = [
   BRIEFING_FILE,
@@ -47,6 +54,7 @@ export const SYNC_EXCLUDE: readonly string[] = [
   "LEARNING-RECORD-FORMAT.md",
   ".memory",
   ".claude",
+  ".claude-config",
 ];
 
 /** Conflict copies (§7.4). Retained in Storage, never indexed. */

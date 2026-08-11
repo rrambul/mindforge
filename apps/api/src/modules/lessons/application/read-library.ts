@@ -1,4 +1,3 @@
-import { workspacePrefix } from "@mindforge/workspace";
 import { Inject, Injectable, NotFoundException } from "@nestjs/common";
 
 import {
@@ -47,12 +46,11 @@ export class ReadReferenceLibrary {
     }
 
     const grant = await this.grants.mint(userId, found.workspaceKey);
-    const prefix = workspacePrefix(userId, found.workspaceKey);
 
     return {
       docs: found.referenceDocs.map((doc) => ({
         ...doc,
-        url: viewUrlFor(grant, doc.storagePath, prefix),
+        url: viewUrlFor(grant, doc.storagePath),
       })),
       expiresAt: grant.expiresAt,
     };

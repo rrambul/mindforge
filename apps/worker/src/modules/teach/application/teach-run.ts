@@ -5,7 +5,7 @@ import {
   type AgentRunResult,
 } from "@mindforge/api/teach";
 import { estimateCostUsd, type LlmUsage } from "@mindforge/llm";
-import { LESSONS_DIR, type Change } from "@mindforge/workspace";
+import { CURRICULUM_FILE, LESSONS_DIR, type BriefingKind, type Change } from "@mindforge/workspace";
 import { Inject, Injectable, Logger } from "@nestjs/common";
 
 import {
@@ -101,6 +101,13 @@ export class TeachRun {
     readonly briefing: string;
     readonly pluginDir: string;
     readonly skillRef: string;
+    /**
+     * Which agent ran, and therefore what counts as having done the job.
+     *
+     * A curriculum run writes no lessons — that is the point of it being a
+     * separate run — so the lesson verdict below cannot be asked of both.
+     */
+    readonly kind: BriefingKind;
     /** The learner's IANA zone, so a record's `Date:` resolves in theirs. */
     readonly timezone: string;
   }): Promise<TeachRunOutcome> {
@@ -133,13 +140,18 @@ export class TeachRun {
       const lessons = lessonsIn(synced.changes);
 
       // Rule 3, and deliberately not conditioned on what the SDK reported.
-      // `skills/UNATTENDED.md` puts it the same way: a run that ends without a
-      // new file under `lessons/` is a failed run, whatever else happened. It
-      // catches the whole class at once — a run that asked a question and waited,
-      // one that researched until its turn cap, one that tidied the workspace and
-      // stopped.
-      if (lessons.length === 0) {
-        return this.fail(input, synced.changes, "The run finished without writing a lesson.");
+      // `skills/UNATTENDED.md` puts it the same way: a run that produced nothing
+      // is a failed run, whatever else happened. It catches the whole class at
+      // once — a run that asked a question and waited, one that researched until
+      // its turn cap, one that tidied the workspace and stopped.
+      //
+      // **What counts as "nothing" depends on which agent ran.** A curriculum run
+      // writes no lessons on purpose, and asking it for one failed the first real
+      // one this project ever dispatched: `CURRICULUM.md` was on disk, the tracks
+      // were ready to index, and the run was recorded as a failure.
+      const missing = verdict(input.kind, synced.changes);
+      if (missing !== null) {
+        return this.fail(input, synced.changes, missing);
       }
 
       // After the sync, because Storage is canonical: a row must never point at a
@@ -351,6 +363,30 @@ export class TeachRun {
       .catch(() => undefined);
     return { status: "failed", changes, lessonsWritten: [] };
   }
+}
+
+/**
+ * Did the run do the thing it was for? Null when it did.
+ *
+ * Written as "what is missing" rather than a boolean so the message the learner
+ * sees names the artifact, and so adding a third kind is a case rather than a
+ * second condition wired into the caller.
+ */
+function verdict(kind: BriefingKind, changes: readonly Change[]): string | null {
+  if (kind === "generate_curriculum") {
+    return wrote(changes, CURRICULUM_FILE)
+      ? null
+      : "The run finished without writing a curriculum.";
+  }
+
+  return lessonsIn(changes).length === 0 ? "The run finished without writing a lesson." : null;
+}
+
+/** Whether a run added or modified one named file at the workspace root. */
+function wrote(changes: readonly Change[], path: string): boolean {
+  return changes.some(
+    (change) => change.path === path && (change.kind === "added" || change.kind === "modified"),
+  );
 }
 
 function lessonsIn(changes: readonly Change[]): readonly string[] {

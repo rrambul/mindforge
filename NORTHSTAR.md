@@ -151,23 +151,34 @@ every lesson placed, levelled, and wired to its prerequisites.
 **Done when:** you complete a full module — planned in M4, taught lesson by lesson — without
 touching a terminal.
 
-**Where that stands.** Every screen and endpoint exists and the whole path is proven end to end by
-`apps/web/e2e/lesson.spec.ts`: the API mints a grant, the Bun service on the other origin serves the
-file, the browser runs the lesson's own JavaScript inside the sandbox, and the outcome moves the
-fraction on the screen before it. What has **not** happened is the sentence taken literally — a
-module planned and then taught lesson by lesson, start to finish, on one real curriculum. Two things
-stand between:
+**Done, and walked once for real on 2026-08-11.** One button on a fresh mission produced a
+curriculum of **12 modules and 69 planned lessons** in about three minutes; a second press wrote the
+first lesson, which claimed its plan entry, filed itself under its module, and rendered in the
+sandboxed reader with its own typography, a shared stylesheet and two JavaScript components — six
+subresources through one grant, no CSP violations. **$2.50 and 37 model calls** for the pair.
+
+That run found three defects nothing else had, and each one was invisible precisely because the
+tests and the seed had been written by the same hand as the code:
+
+1. **A curriculum run was recorded as failed** for not writing a lesson. It writes none by design;
+   the verdict asked every run the same question, and `CURRICULUM.md` was sitting on disk with the
+   run marked failed and nothing indexing it.
+2. **The agent's own config directory synced into the learner's Storage** — settings, policy limits
+   and a full session transcript, each with a `workspace_files` row claiming it was their content.
+   `SYNC_EXCLUDE` listed `.claude`, and the directory is `.claude-config`.
+3. **The reader said "there is no file behind this lesson"** over a lesson that was in Storage.
+   `storage_path` is workspace-relative, as the reindexer has always written it; `TECH-DESIGN.md`
+   §3.2 documented it as absolute, and the seed and the reader's own tests both followed the
+   document. Everything agreed with the wrong shape until something real disagreed.
+
+The earlier two blockers are both closed:
 
 1. ~~**Curricula are still authored from a terminal**~~ — **closed.** The first press on a mission
    with no modules queues a `generate_curriculum` run and the worker loads the `curriculum` skill
    (FR-K1). Nothing in the flow needs a terminal any more.
-2. **The reader has been proven against seeded content, not against a lesson a real run wrote.**
-   `seed:rich` now writes real HTML into Storage precisely so the reader is testable without a $1.47
-   run each time — which is right for the suite and is not the same thing as the loop having been
-   walked once for real.
-
-Neither is code that is missing. Both are the milestone's own closing rule (§6.4): a milestone ends
-with you using it.
+2. ~~**The reader has been proven against seeded content**~~ — **closed**, see above. `seed:rich`
+   still writes real HTML into Storage so the suite needs no paid run, which is right for CI and was
+   never the same thing as having walked the loop.
 
 ### M6 — The trackers, finished
 

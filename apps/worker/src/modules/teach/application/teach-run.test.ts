@@ -1,6 +1,11 @@
 import type { ReindexLearnerMemory, ReindexWorkspace, TeachRuns } from "@mindforge/api/teach";
 import { FixedClock } from "@mindforge/core";
-import { isExcludedFromSync, storageEtag, type FileState } from "@mindforge/workspace";
+import {
+  isExcludedFromSync,
+  storageEtag,
+  type BriefingKind,
+  type FileState,
+} from "@mindforge/workspace";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { AgentEvent, AgentGateway } from "./agent.port.js";
@@ -260,7 +265,7 @@ function harness(
     kill: () => {
       alive = false;
     },
-    execute: () =>
+    execute: (kind: BriefingKind = "generate_lesson") =>
       teach.execute({
         runId: RUN,
         userId: USER,
@@ -269,6 +274,7 @@ function harness(
         briefing: "# Briefing\n\nDue reviews: not tracked yet.\n",
         pluginDir: "/tmp/plugin",
         skillRef: SKILL,
+        kind,
         timezone: "America/Sao_Paulo",
       }),
   };
@@ -606,5 +612,47 @@ describe("what the run reports back", () => {
 
     await expect(h.execute()).resolves.toMatchObject({ status: "failed" });
     expect(h.disk.disposed).toBe(true);
+  });
+});
+
+/**
+ * What counts as having done the job, per agent.
+ *
+ * The first real curriculum run this project dispatched wrote `CURRICULUM.md`,
+ * synced it, and was recorded as a failure — because the verdict asked every run
+ * for a lesson and a curriculum run writes none by design. The tracks were on
+ * disk and ready to index; nothing indexed them, because the run had "failed".
+ */
+describe("a curriculum run is judged on a curriculum", () => {
+  it("succeeds when it wrote one, having written no lessons at all", async () => {
+    const h = harness([INIT, call("req_1"), result()], {
+      writes: [["CURRICULUM.md", "# Curriculum\n\n## Tracks\n"]],
+    });
+
+    expect((await h.execute("generate_curriculum")).status).toBe("succeeded");
+  });
+
+  it("fails when it wrote everything except the curriculum", async () => {
+    // The same stall class the lesson verdict catches: a run that researched,
+    // tidied and stopped. `NOTES.md` is where the skill is told to put its
+    // questions, so a run that only wrote one has asked and given up.
+    const h = harness([INIT, call("req_1"), result()], {
+      writes: [["NOTES.md", "## Curriculum questions"]],
+    });
+
+    const outcome = await h.execute("generate_curriculum");
+
+    expect(outcome.status).toBe("failed");
+    expect(h.finished.at(-1)?.error).toContain("without writing a curriculum");
+  });
+
+  it("does not accept a curriculum in place of a lesson", async () => {
+    // The pair. A teach run is told CURRICULUM.md is an input it must never
+    // write, so one that produced it and no lesson has done the wrong job twice.
+    const h = harness([INIT, call("req_1"), result()], {
+      writes: [["CURRICULUM.md", "# Curriculum\n"]],
+    });
+
+    expect((await h.execute("generate_lesson")).status).toBe("failed");
   });
 });

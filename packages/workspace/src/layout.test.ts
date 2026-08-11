@@ -125,3 +125,24 @@ describe("slugify and deslugify", () => {
     expect(deslugify("")).toBe("Untitled");
   });
 });
+
+describe("the agent's own directories are not the learner's files", () => {
+  it("excludes the run's Claude config, transcript and all", () => {
+    // Found by a real run, not by reading: `CLAUDE_CONFIG_DIR` points inside the
+    // synced tree, so without this the learner's Storage prefix gains the run's
+    // settings, its policy limits and a full session transcript — each with a
+    // `workspace_files` row claiming it is their content.
+    expect(isExcludedFromSync(".claude-config/.claude.json")).toBe(true);
+    expect(isExcludedFromSync(".claude-config/projects/x/session.jsonl")).toBe(true);
+  });
+
+  it("still excludes the other one, which is a different directory", () => {
+    // `.claude` never covered `.claude-config`: the match is on a whole segment,
+    // which is what stops `.memory` from excluding a lesson called `.memorybank`.
+    expect(isExcludedFromSync(".claude/settings.json")).toBe(true);
+  });
+
+  it("does not exclude a lesson whose name merely starts the same way", () => {
+    expect(isExcludedFromSync("lessons/0001-claude-configuration.html")).toBe(false);
+  });
+});
