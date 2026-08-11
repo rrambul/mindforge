@@ -104,7 +104,7 @@ The first files it under its module; the second claims its row in the plan. With
 module counts the lesson twice — once as written and once as still to come.
 
 Write **one lesson per step and stop**, the same rule the unattended run has. Ask before writing a
-second.
+second — and when they ask for one, step 5 is how you choose it.
 
 ## Step 4 — land it
 
@@ -121,6 +121,48 @@ result is indistinguishable from an agent's. Read what it prints:
   did not parse. Say which line, and offer to fix it.
 
 Then tell the user where to look: `http://localhost:5173/missions/<id>`.
+
+## Step 5 — the next lesson, and every one after it
+
+This is the common case, not an afterthought: a mission is taught one lesson at a time, on demand,
+and the user comes back and asks for another. Skip steps 1 and 2 entirely — the mission and the
+curriculum already exist.
+
+**Ask Mindforge which lesson is next. Do not decide.** "Next" is the first unblocked, unfinished
+lesson in module order, difficulty ascending within a module (FR-K7) — and it reads a dependency
+graph that crosses module boundaries and depends on what the learner has actually marked completed.
+Reasoning it out from the curriculum table gets it wrong the moment they finish something out of
+order, and non-negotiable 3 says there is one implementation of that:
+
+```sh
+curl -s "http://localhost:3000/v1/missions/<id>/curriculum" -H "authorization: Bearer $TOKEN" \
+  | jq '{next: .nextLessonId, modules: [.modules[] | {name, progress, lessons: [.lessons[] | {slug, title, status, completed, outcome, unblocked}]}]}'
+```
+
+`nextLessonId` is the answer. If it is `null`, everything is either written or locked — say so rather
+than picking one anyway, and ask whether they want the plan revised.
+
+Before writing, read what is already there, because the run that writes lesson seven is not the run
+that wrote the curriculum:
+
+- **The lessons already in that module** — `lessons/` in Storage, or the `status` field above. The
+  skill's rule is that a run must not repeat one.
+- **`learning-records/`** — what the learner said they struggled with is the strongest signal you
+  have about pitch, and it is the whole reason lessons are generated late rather than up front.
+- **Their recorded outcomes.** A module carrying a `shaky` is a module to slow down in. A `lost` on a
+  prerequisite is a reason to ask whether they want that one redone before moving on.
+
+Then write exactly one lesson, as in step 3, and land it as in step 4. Two details:
+
+- **`seq` comes from the filename and is mission-global**, not per module. The next file after
+  `lessons/0007-x.html` is `lessons/0008-<slug>.html`, whatever module it belongs to.
+- **The `mindforge:lesson` slug must be the planned row's slug**, exactly as `CURRICULUM.md` spells
+  it. That is what claims the plan entry; get it wrong and the module gains a lesson and keeps the
+  intention too, so the fraction says eight of nine when it is eight of eight.
+
+**They can also just press the button.** The app dispatches a real run for the same lesson, chosen
+the same way. That is the product; this is the way that does not cost anything. Say so if they seem
+to think this command is the only route.
 
 ## What must be running
 
