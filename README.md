@@ -183,4 +183,14 @@ coverage gates, the Supabase-backed integration/RLS job, and E2E. Full policy in
 | [`TECH-DESIGN.md`](./TECH-DESIGN.md)   | How: architecture, schema, the teach pipeline, testing                           |
 | [`CLAUDE.md`](./CLAUDE.md)             | Working agreement for agents, and the environment facts that bite                |
 
-Personal project, private repo. Not accepting contributions.
+## Licence
+
+Mindforge is [MIT](./LICENSE) — Copyright (c) 2026 Renan Rambul.
+
+One directory is not ours. `skills/teach/` is a verbatim copy of the `teach` skill from
+[`mattpocock/skills`](https://github.com/mattpocock/skills), MIT, Copyright (c) 2026 Matt Pocock,
+and it keeps its own [`LICENSE`](./skills/teach/LICENSE) beside it. Mindforge orchestrates that
+skill; it never reimplements it, and it does not relicense it. `skills/README.md` has the detail.
+
+Personal project. Published to be read and reused under the licence above, but not accepting
+contributions — the design docs are a record of decisions rather than an invitation to revisit them.
