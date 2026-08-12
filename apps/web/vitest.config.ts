@@ -28,6 +28,23 @@ export default defineConfig({
     environment: "jsdom",
     globals: false,
     setupFiles: ["./src/test/setup.ts"],
+    // Vitest's default is 5s, which on this suite measures the machine rather than the
+    // code. 34 files each build a jsdom and an MSW server — cumulative environment setup
+    // runs past four minutes — so when the workers oversubscribe the CPU, a `findBy*`
+    // waiting on a mocked fetch loses its budget to scheduling and the run comes back
+    // with seven failures in files nobody touched. Observed 2026-08-12: the same suite
+    // failed 1, then 8, then 7 tests on three consecutive runs, passed all 381 at 20s,
+    // and every file passed alone in seconds.
+    //
+    // This is not a slow test being accommodated. These assertions resolve in
+    // milliseconds on an idle worker; the timeout exists to catch a promise that never
+    // settles, and it still does that — just later. Lowering it again buys nothing and
+    // makes a real regression look like the flake we already learned to re-run.
+    testTimeout: 20_000,
+    // The same reasoning for `beforeEach`, which is where the jsdom and the MSW server
+    // are actually built. A starved hook failing produces an error about the setup rather
+    // than about the test, which is a worse trail to follow.
+    hookTimeout: 20_000,
     coverage: {
       provider: "v8",
       reporter: ["text", "json-summary"],

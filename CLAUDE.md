@@ -301,6 +301,13 @@ pnpm --filter @mindforge/db generate           # regenerate the Prisma client
   package alone before believing it" — which is exactly the habit that makes a real regression look
   like a flake, so it is worth fixing rather than living with.
 
+  **`apps/web` had the same failure for a different reason and it is fixed, not lived with.** Its 34
+  files each build a jsdom and an MSW server, so Vitest's 5s default timeout was measuring CPU
+  contention rather than the code: three consecutive runs failed 1, then 8, then 7 tests, in files
+  the change under test never touched, and all 381 passed at 20s. `vitest.config.ts` now sets
+  `testTimeout` and `hookTimeout` explicitly, with the reasoning next to them. A `findBy*` that
+  genuinely never settles still fails — just later.
+
 - **The web dev server uses `strictPort`.** The API's CORS allow-list is exactly `APP_ORIGIN`, so a
   silent move to 5174 turns every request into a preflight failure whose message names the _origin_
   rather than the port.
