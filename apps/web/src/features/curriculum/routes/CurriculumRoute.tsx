@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { ApiError, NetworkError } from "../../../shared/api/problem.js";
 import { Button, Callout, Card, Heading, Row, Stack, Text } from "../../../shared/ui/index.js";
 import { useCurriculum, type Curriculum, type CurriculumLesson } from "../api/use-curriculum.js";
+import { MissionProgressPanel } from "../ui/MissionProgressPanel.js";
 import { ModulePanel } from "../ui/ModulePanel.js";
 
 export interface CurriculumRouteProps {
@@ -79,6 +80,12 @@ export function CurriculumRoute({
             </Card>
           ) : (
             <Stack gap="normal">
+              {/* Above the actions: it answers "where am I in this", which is the
+                  question you arrive with, and the buttons answer "what next". */}
+              {/* `== null`, so a body without the field renders no bar rather than
+                  taking the screen down with it. The modules below carry their own
+                  fractions and are the thing you came for. */}
+              {data.progress == null ? null : <MissionProgressPanel progress={data.progress} />}
               {teach}
               {library}
               {data.modules.map((module) => (

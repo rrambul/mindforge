@@ -1,23 +1,34 @@
 /* The lesson reader (FR-T5): agent-written HTML, in a box it cannot get out of. */
 
 /**
- * The frame takes the height it can get, and the page does not scroll around it.
+ * A full viewport tall, so that scrolling the lesson to the top of the window gives
+ * it the whole screen.
  *
- * A lesson is a document with its own scrollbar, and nesting that inside a
- * scrolling page gives you two — the outer one moves when you meant the inner one,
- * and on a phone the lesson ends up a viewport-tall slot inside a taller page.
+ * This used to be `calc(100dvh - 18rem)`, subtracting the chrome above and the
+ * outcome tray below so that both fit on one screen with the lesson. Two things were
+ * wrong with it. The stated goal — that the page does not scroll around the frame —
+ * was not achievable and was not happening: the tray, what comes next and the
+ * learning records all sit below the lesson, so the page scrolled by 233px on a
+ * 1280×800 window and you got the two scrollbars the subtraction existed to avoid.
+ * And what it bought with that was a lesson given 64% of the window, in a reader
+ * whose entire job is showing one.
+ *
+ * So the page scrolls, deliberately, and the frame is sized for the position you
+ * read it in rather than for the position you arrive in. The outcome tray is one
+ * scroll below the lesson instead of sharing the screen with it, which is the cost;
+ * it stays a ≤2-tap path (non-negotiable 4) and on a phone it is still `sticky`, so
+ * it comes to the bottom of the window as soon as it is reached.
+ *
  * `dvh` rather than `vh` (§5.1): mobile browsers shrink the visible viewport as
  * their chrome collapses, and `vh` leaves the last lines of every lesson under the
  * address bar.
- *
- * The subtracted space is the chrome above and the outcome tray below. Generous
- * rather than exact: too small only shortens the frame, while too large clips the
- * tray, and the tray is the capture path.
  */
 .mf-lesson-frame {
   display: block;
+  /* A floor for a short window — a laptop with a console open, or a phone in
+     landscape — where a viewport-tall frame is not a readable one. */
   min-height: 32rem;
-  height: calc(100dvh - 18rem);
+  height: 100dvh;
   border: 1px solid var(--mf-scale);
   border-radius: var(--mf-r);
   /* Untrusted content: a white page on a dark theme is jarring, but forcing a

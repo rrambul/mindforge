@@ -11,17 +11,36 @@ import { UuidSchema } from "./common.js";
  */
 
 /**
- * How the session got recorded. `timer` ran live; `manual` was entered for something you
- * did today; `backfilled` is older than that.
+ * How the session got recorded. `timer` ran live because you pressed start; `auto` ran
+ * live because you opened a lesson; `manual` was entered for something you did today;
+ * `backfilled` is older than that.
  *
  * Distinguished because FR-F2 is explicit that backfilled data must be *distinguishable
  * without being second-class* — an insight built only on timer sessions would quietly
  * describe the days you remembered to press start, which is a different population from
  * the days you worked.
+ *
+ * `auto` exists for the same reason, one step further out. Time the reader was open is a
+ * weaker claim than time you declared you were focusing: nobody asserted it, and the
+ * lesson sits in a cross-origin frame, so the app cannot see a scroll or a keystroke
+ * inside it and genuinely does not know whether you were reading or had walked away.
+ * Recording it as `timer` would make those two populations one and there would be no way
+ * back — the distinction cannot be reconstructed later from a row that never kept it.
  */
-export const ENTRY_MODES = ["timer", "manual", "backfilled"] as const;
+export const ENTRY_MODES = ["timer", "auto", "manual", "backfilled"] as const;
 export type EntryMode = (typeof ENTRY_MODES)[number];
 export const EntryModeSchema = z.enum(ENTRY_MODES);
+
+/**
+ * The two modes a *live* session can start in, which is not every mode.
+ *
+ * `manual` and `backfilled` describe a block that is already over and are decided by the
+ * server from your own clock — accepting either here would let a client label a running
+ * session as something entered after the fact.
+ */
+export const START_ENTRY_MODES = ["timer", "auto"] as const;
+export type StartEntryMode = (typeof START_ENTRY_MODES)[number];
+export const StartEntryModeSchema = z.enum(START_ENTRY_MODES);
 
 /**
  * Did the block do what you set out to do. Three values, not five: the middle one is the
@@ -60,6 +79,11 @@ export const StartFocusSessionSchema = z.object({
   lessonId: UuidSchema.nullable().optional(),
   /** Optional Pomodoro-style target. FR-F1: intervals are optional, never mandatory. */
   plannedMinutes: z.coerce.number().int().min(1).max(600).nullable().optional(),
+  /**
+   * Defaults to `timer` when absent, so every existing caller keeps its meaning: a
+   * session nobody labelled is one somebody pressed start for.
+   */
+  entryMode: StartEntryModeSchema.optional(),
 });
 export type StartFocusSessionInput = z.infer<typeof StartFocusSessionSchema>;
 

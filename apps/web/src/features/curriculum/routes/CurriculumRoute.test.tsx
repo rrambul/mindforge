@@ -56,6 +56,12 @@ function module(over: Partial<CurriculumModule> = {}): CurriculumModule {
   };
 }
 
+/**
+ * `progress` defaults to absent rather than to a fraction, which is what the older
+ * tests below want: they are about the modules, and a mission bar they never asked for
+ * would put a second "2 of 7 lessons done" on the screen for their queries to match.
+ * Its own behaviour is covered in "the mission's progress".
+ */
 function returns(curriculum: Partial<Curriculum> & { modules: readonly CurriculumModule[] }) {
   server.use(
     http.get(`${API}/missions/${MISSION}/curriculum`, () =>
@@ -309,5 +315,83 @@ describe("the outcome distribution", () => {
     render();
 
     expect(await screen.findByText("No lessons planned here yet.")).toBeInTheDocument();
+  });
+});
+
+describe("the mission's progress", () => {
+  it("draws one bar for the whole mission, labelled and valued as a fraction", async () => {
+    returns({
+      progress: { completed: 12, total: 68, modulesNotPlanned: 0 },
+      modules: [module({ progress: { completed: 2, total: 7 } })],
+    });
+    render();
+
+    const bar = await screen.findByRole("progressbar", { name: "Progress through this mission" });
+
+    // `aria-valuetext` carries the fraction so a screen reader hears what the screen
+    // says. Without it the role announces a percentage nothing on the page states.
+    expect(bar).toHaveAttribute("aria-valuetext", "12 of 68 lessons done");
+    expect(bar).toHaveAttribute("aria-valuenow", "12");
+    expect(bar).toHaveAttribute("aria-valuemax", "68");
+  });
+
+  it("never renders a percentage, for the mission or for a module", async () => {
+    // The rule the module fraction has carried since M4, now with a bar beside it:
+    // a percentage of a plan that gets revised reads as a measurement of the learner.
+    returns({
+      progress: { completed: 1, total: 3, modulesNotPlanned: 0 },
+      modules: [module({ progress: { completed: 1, total: 3 } })],
+    });
+    render();
+
+    await screen.findByRole("progressbar", { name: "Progress through this mission" });
+    expect(screen.queryByText(/%/u)).not.toBeInTheDocument();
+    expect(screen.queryByText(/33/u)).not.toBeInTheDocument();
+  });
+
+  it("says how many modules the fraction could not see", async () => {
+    // A bar over eight of fourteen modules is a measurement of part of the mission.
+    // Rendering it without this line would present it as a measurement of all of it.
+    returns({
+      progress: { completed: 4, total: 20, modulesNotPlanned: 6 },
+      modules: [module()],
+    });
+    render();
+
+    expect(await screen.findByText(/6 modules have no lessons planned yet/u)).toBeInTheDocument();
+  });
+
+  it("stays quiet about unplanned modules when there are none", async () => {
+    returns({
+      progress: { completed: 4, total: 20, modulesNotPlanned: 0 },
+      modules: [module()],
+    });
+    render();
+
+    await screen.findByRole("progressbar", { name: "Progress through this mission" });
+    expect(screen.queryByText(/no lessons planned yet/u)).not.toBeInTheDocument();
+  });
+
+  it("draws no bar at all when nothing is planned, rather than an empty one", async () => {
+    // Non-negotiable 10, one level up from `moduleProgress`. An empty track is a claim
+    // that something was measured and came out at zero.
+    returns({ progress: null, modules: [module({ progress: null, lessons: [] })] });
+    render();
+
+    await screen.findByText("No lessons planned here yet.");
+    expect(
+      screen.queryByRole("progressbar", { name: "Progress through this mission" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("renders the rest of the screen when the field is missing entirely", async () => {
+    // A body from a server that does not send it yet. The modules carry their own
+    // fractions and are what the screen is for — losing the bar is acceptable, losing
+    // the page is not.
+    returns({ modules: [module({ progress: { completed: 2, total: 7 } })] });
+    render();
+
+    expect(await screen.findByRole("heading", { name: "Postgres basics" })).toBeInTheDocument();
+    expect(screen.getByText("2 of 7 lessons done")).toBeInTheDocument();
   });
 });

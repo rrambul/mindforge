@@ -147,6 +147,10 @@ every lesson placed, levelled, and wired to its prerequisites.
 - ✅ Reference-doc library and browsable learning records, linked from the lesson they came out of
 - ✅ Focus sessions bind to the lesson you were doing: the reader sends one id and the mission comes
   with it
+- ✅ The reader gives the lesson the window: the frame is a full viewport tall and the top bar goes
+  compact on that route. Both were measured — the old sizing gave the lesson 64% of a 1280×800
+  screen while still producing the two scrollbars its own comment said it existed to prevent
+  (`TECH-DESIGN.md` §7.5)
 
 **Done when:** you complete a full module — planned in M4, taught lesson by lesson — without
 touching a terminal.
@@ -193,6 +197,25 @@ soak.
   deliberately deferred
 - Then **use it for three weeks** on one real curriculum. That soak decides what, if anything,
   earns its way back from §5.
+
+**Landed early, on 2026-08-12**, because using the thing surfaced them before the milestone did:
+
+- **The mission has a fraction of its own**, and both it and each module now draw it as a bar
+  (`missionProgress` in `packages/core`, FR-P3). Lessons rather than modules, over the planned
+  modules only, reporting how many it could not count — and no percentage anywhere, which is the
+  rule the module fraction has carried since M4 rather than a new one.
+- **Opening a lesson counts as activity** (FR-F5). The reader times itself, records real elapsed
+  minutes as a distinct `auto` entry mode, and bounds a measurement it cannot confirm — a lesson sits
+  in a cross-origin frame, so reading is invisible to the app by design.
+
+Two gaps that work leaves open, both stated in `TECH-DESIGN.md` §3.9 and neither closed:
+
+1. **Today's activity is not on the grid until tomorrow.** The rollup runs once per user per local
+   day; nothing reads raw sessions at read time. So the day you did the work still renders as a rest
+   day, which is the one shape "unknown is never rendered as zero" was written to prevent.
+2. **A read under a minute contributes nothing**, because `elapsedMinutes` floors. That is the right
+   trade against inflating it, but it means "opening a lesson counts" is true of reading and not of
+   glancing.
 
 **Done when:** the deployed app has three weeks of real history and you can answer "how far, how
 much, how often" for one curriculum without thinking.

@@ -14,7 +14,8 @@
     "progress": "{completed} of {total} lessons done",
     "noPlan": "No lessons planned here yet.",
     "lessons": "Lessons in {module}",
-    "dropped": "Dropped from the plan"
+    "dropped": "Dropped from the plan",
+    "progressLabel": "Progress through {module}"
   },
   "lesson": {
     "next": "Next",
@@ -45,5 +46,10 @@
     "shaky": "{count} shaky",
     "lost": "{count} lost",
     "unrecorded": "{count, plural, one {# finished with no outcome} other {# finished with no outcome}}"
+  },
+  "mission": {
+    "progress": "{completed} of {total} lessons done",
+    "progressLabel": "Progress through this mission",
+    "notPlanned": "{count, plural, one {# module has no lessons planned yet, so it is not in this count} other {# modules have no lessons planned yet, so they are not in this count}}"
   }
 }

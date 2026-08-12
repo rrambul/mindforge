@@ -1,4 +1,4 @@
-import { Outlet } from "@tanstack/react-router";
+import { Outlet, useMatchRoute } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { useSupabaseSession } from "../features/auth/api/use-supabase-session.js";
 import { SignInForm } from "../features/auth/ui/SignInForm.js";
@@ -11,7 +11,7 @@ import { Button, StatusChip, Text } from "../shared/ui/index.js";
 import { AppShell, BarActions, Brand, Nav, type NavItem } from "./AppShell.js";
 import { CommandActions } from "./CommandActions.js";
 import { Logo } from "./Logo.js";
-import { NAV_ROUTES } from "./router.js";
+import { LESSON_PATH, NAV_ROUTES } from "./router.js";
 
 /**
  * The chrome, and the root route's component.
@@ -44,13 +44,35 @@ export function Shell() {
     label: t(route.labelKey),
   }));
 
+  /**
+   * The reader gets a slimmer bar, and no nav row at all.
+   *
+   * It is the one screen whose content is a document rather than a page of ours: the
+   * frame is sized against the viewport, so app chrome above it comes directly out of
+   * the lesson. The nav is what makes the bar tall — four items and thirteen-character
+   * labels wrap to a second row below 640px, which cost 60px of a 667px phone.
+   *
+   * Dropping it here rather than shrinking it is safe *because* of two things that
+   * already exist: ⌘K reads its list from `NAV_ROUTES`, the same table this bar does,
+   * and there is a visible button beside it for the phones with no ⌘ to press (§5.1).
+   * The reader also renders its own "back to the curriculum" link, so the way out is
+   * one tap without the bar. Nothing here is the only route to anywhere.
+   *
+   * The hook is called unconditionally and narrowed after: one behind `signedIn &&`
+   * is a hook that does not run for a signed-out render, which is the one rule React
+   * has about them.
+   */
+  const matchRoute = useMatchRoute();
+  const reading = signedIn && matchRoute({ to: LESSON_PATH }) !== false;
+
   return (
     <CommandActions>
       <AppShell
+        compact={reading}
         bar={
           <>
             <Brand mark={<Logo />}>{t("appName")}</Brand>
-            {signedIn ? <Nav label={t("appName")} items={items} /> : null}
+            {signedIn && !reading ? <Nav label={t("appName")} items={items} /> : null}
             <BarActions>
               {/* A visible trigger as well as the keystroke. Cmd-K is the fast path for someone who
                   knows it exists, and on a phone there is no keyboard at all — 5.1 asks for a single

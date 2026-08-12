@@ -36,6 +36,31 @@
 /* The push that used to be `justify-content: space-between`. An auto margin instead,
    because the bar now has three children and space-between would hang the nav in the
    middle of the bar, unmoored from the brand it belongs beside. */
+/**
+ * The reader's bar (`AppShell`'s `compact`, set by `Shell` on the lesson route only).
+ *
+ * Padding is all that is given up here, and it is given up down to the point where the
+ * bar is its tallest child and nothing more. The controls keep `--mf-touch-min`,
+ * because non-negotiable 4 is about the target and not about the bar around it — a
+ * 32px row of 44px buttons is the same bar with the buttons overflowing it.
+ *
+ * The measured effect, at 375px: 113px → 53px, because the nav is what wraps to a
+ * second row and `Shell` does not render it here. On a desktop width there is only the
+ * padding to win, 61px → 53px, and the rest of the space above a lesson belongs to the
+ * page's own title block rather than to this bar.
+ */
+.mf-topbar[data-compact="true"] {
+  padding-top: max(var(--mf-space-1), env(safe-area-inset-top));
+  padding-bottom: var(--mf-space-1);
+}
+
+/* The column starts nearer the bar for the same reason. The bottom padding is left
+   alone: below the reader sit the outcome tray, what comes next and the records, and
+   that is a scrolling page whose last element still needs clearing the session bar. */
+.mf-main[data-compact="true"] {
+  padding-top: var(--mf-space-3);
+}
+
 .mf-topbar__actions {
   display: flex;
   align-items: center;

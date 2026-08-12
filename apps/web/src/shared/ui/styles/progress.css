@@ -1,0 +1,47 @@
+/**
+ * The progress bar (FR-P2). A fraction in a second channel, never a percentage.
+ *
+ * Deliberately quiet: it sits under a line that already states "2 of 7", so its job is to
+ * make the module you are part-way through findable in a list of fourteen, not to be the
+ * headline. Ember is the same colour `StatusChip[data-accent="ember"]` uses for "in
+ * progress", so the chip and the bar are saying one thing rather than two.
+ */
+.mf-progress {
+  /* Thin. A tall bar reads as a gauge of the learner rather than a count of lessons. */
+  block-size: 0.375rem;
+  inline-size: 100%;
+  border-radius: var(--mf-r);
+  background: var(--mf-sunk);
+  /* Clips the fill's rounded end at 100%, and stops a sub-pixel scale from bleeding. */
+  overflow: hidden;
+}
+
+.mf-progress__fill {
+  block-size: 100%;
+  inline-size: 100%;
+  border-radius: inherit;
+  background: var(--mf-ember);
+  /* Scaled from the start edge, so `scale: 0.3 1` is 30% of the track rather than 30%
+     centred on it. `transform-origin` rather than `inset-inline-start` for the same
+     reason the fill is scaled at all: it stays off the layout path. */
+  transform-origin: left center;
+  transition: scale var(--mf-dur-ui) ease;
+}
+
+/**
+ * Nothing finished yet is drawn as nothing, not as a sliver.
+ *
+ * A minimum visible fill would be the honest-looking version of a dishonest number — it
+ * would show progress on a module where none has been made (non-negotiable 10). The
+ * empty track still communicates "measured, and at zero"; a module that was never
+ * planned renders no bar at all (`ProgressBar`).
+ */
+.mf-progress__fill[data-empty="true"] {
+  scale: 0 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mf-progress__fill {
+    transition: none;
+  }
+}

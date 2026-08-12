@@ -54,6 +54,7 @@
   },
   "lesson": {
     "start": "Focar nesta lição",
-    "alreadyRunning": "Já existe uma sessão em andamento."
+    "alreadyRunning": "Já existe uma sessão em andamento.",
+    "autoRunning": "Cronometrando esta lição enquanto está aberta."
   }
 }

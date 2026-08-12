@@ -116,7 +116,17 @@ function LibraryRouteScreen(): ReactElement {
   );
 }
 
-export const lessonRoute = screen("/missions/$missionId/lessons/$lessonId", LessonRouteScreen);
+/**
+ * Exported as well as used, because the shell has to recognise this one route.
+ *
+ * The reader is the only screen whose content is a whole document with its own
+ * chrome, so it gets a slimmer bar (`Shell.tsx`). Matching on a literal written
+ * there instead would be the same path in two files, and the one that drifts is
+ * the copy that only affects how the bar looks — which nothing would fail on.
+ */
+export const LESSON_PATH = "/missions/$missionId/lessons/$lessonId";
+
+export const lessonRoute = screen(LESSON_PATH, LessonRouteScreen);
 export const libraryRoute = screen("/missions/$missionId/library", LibraryRouteScreen);
 export const insightsRoute = screen("/insights", InsightsScreen);
 export const settingsRoute = screen("/settings", SettingsScreen);

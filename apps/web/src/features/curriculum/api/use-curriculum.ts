@@ -2,6 +2,7 @@ import type {
   LessonDepth,
   LessonOutcome,
   LessonStatus,
+  MissionProgress,
   ModuleProgress,
   OutcomeCounts,
 } from "@mindforge/core";
@@ -58,6 +59,14 @@ export interface CurriculumModule {
 export interface Curriculum {
   readonly missionId: string;
   readonly modules: readonly CurriculumModule[];
+  /**
+   * The mission's own fraction, over the modules that have a plan (FR-P2).
+   *
+   * Null when none of them do. `modulesNotPlanned` says how many the fraction could
+   * not see, and the screen renders that rather than implying the bar covers
+   * everything.
+   */
+  readonly progress: MissionProgress | null;
   readonly nextLessonId: string | null;
 }
 

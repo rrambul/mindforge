@@ -4,6 +4,7 @@ import {
   resolveTimeZone,
   type EntryMode,
   type IntentionOutcome,
+  type StartEntryMode,
 } from "@mindforge/core";
 import { FocusSessionNotRunning, FocusSessionNotStopped, SessionInFuture } from "./errors.js";
 
@@ -72,13 +73,20 @@ export class FocusSession {
     assertRating("energy", debriefValue.energy);
   }
 
-  /** A live timer. Ends open, because that is the point of pressing start. */
+  /**
+   * A live timer. Ends open, because that is the point of pressing start.
+   *
+   * `entryMode` is narrowed to the two live modes rather than the full set: `manual` and
+   * `backfilled` are decided by `record` from the user's own clock, and a running session
+   * cannot be either of them.
+   */
   static start(input: {
     id: string;
     userId: string;
     intention: string | null;
     plannedMinutes: number | null;
     attachments: FocusSessionAttachments;
+    entryMode: StartEntryMode;
     now: Date;
   }): FocusSession {
     return new FocusSession(
@@ -90,7 +98,7 @@ export class FocusSession {
       input.plannedMinutes,
       EMPTY_DEBRIEF,
       input.attachments,
-      "timer",
+      input.entryMode,
       input.now,
     );
   }

@@ -11,15 +11,34 @@ import "./app-shell.css";
  */
 export function AppShell({
   bar,
+  compact = false,
   children,
 }: {
   readonly bar: ReactNode;
+  /**
+   * Give the page the vertical space the chrome would have taken.
+   *
+   * Set on the reader and nowhere else (`Shell.tsx` decides). A lesson is a whole
+   * document inside a frame that is sized against the viewport, so every row of
+   * bar above it is a row the lesson does not get — and on a phone the bar wraps
+   * to two rows, which was 113px of app furniture over 512px of lesson.
+   */
+  readonly compact?: boolean;
   readonly children: ReactNode;
 }) {
+  // `undefined` rather than "false": an absent attribute is what the stylesheet's
+  // `[data-compact="true"]` selectors test for, and a literal "false" in the DOM
+  // would read, to anyone inspecting it, as a state that had been set.
+  const flag = compact ? "true" : undefined;
+
   return (
     <div className="mf-shell">
-      <header className="mf-topbar">{bar}</header>
-      <main className="mf-main">{children}</main>
+      <header className="mf-topbar" data-compact={flag}>
+        {bar}
+      </header>
+      <main className="mf-main" data-compact={flag}>
+        {children}
+      </main>
     </div>
   );
 }

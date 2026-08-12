@@ -68,6 +68,42 @@ test("a written lesson opens in a sandboxed frame on the lessons origin", async 
   await expect(page.frameLocator("iframe").getByText("Seeded content")).toBeVisible();
 });
 
+test("the reader gives the lesson the whole window, and keeps a way out of it", async ({
+  page,
+}) => {
+  await signIn(page);
+
+  // The nav is on every other screen, so read it here first — an assertion that it is
+  // absent from the reader proves nothing unless it was present a moment earlier.
+  const nav = page.getByRole("navigation", { name: "Mindforge" });
+  await openFirstCurriculum(page);
+  await expect(nav).toBeVisible();
+
+  await page.getByRole("link", { name: /^Read/u }).first().click();
+
+  // The bar loses its nav row on this route and only on this route (`Shell.tsx`). At
+  // 375px that row wraps and costs 60px of a 667px screen, all of it out of the lesson.
+  await expect(nav).toHaveCount(0);
+
+  /**
+   * Which is only acceptable while both of these hold. ⌘K reads the same route table
+   * the bar does, and the reader renders its own link back — so removing the nav took
+   * away a duplicate rather than the only route to anywhere.
+   */
+  await expect(page.getByRole("button", { name: "Commands" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Back to the curriculum" })).toBeVisible();
+
+  // A full viewport tall, so scrolling the lesson to the top of the window gives it
+  // the whole screen. It was 64% of it while the height subtracted chrome that the
+  // page scrolled past anyway.
+  const height = await page
+    .locator("iframe")
+    .evaluate((el) => Math.round(el.getBoundingClientRect().height));
+  const viewport = page.viewportSize();
+  if (viewport === null) throw new Error("No viewport to compare the frame against");
+  expect(height).toBeGreaterThanOrEqual(viewport.height);
+});
+
 test("the lesson's own JavaScript runs, and cannot reach the network", async ({ page }) => {
   // A lesson is interactive HTML — quizzes and simulators — so `allow-scripts` is
   // load-bearing rather than incidental. `connect-src 'none'` is what makes that

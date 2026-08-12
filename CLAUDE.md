@@ -67,19 +67,18 @@ briefing names the next unblocked planned lesson and the generated file claims t
 `<meta name="mindforge:lesson">`; `/v1/missions/:id/curriculum` and the curriculum screen render the
 plan with its locks, fractions and fundamental counts, all derived in `packages/core`.
 
-**Curricula are authored from a terminal, deliberately.** Nothing in the app dispatches a
-`generate_curriculum` run: the endpoint always queues `generate_lesson`, and the worker always loads
-the `teach` plugin — `writeCurriculumPlugin` is built and tested with no caller. You write a
-curriculum by running `/curriculum` in the mission's workspace; the next teach run syncs the file and
-the reindexer picks it up from there. The curriculum screen's empty state names that command rather
-than offering a button, because the teach button queues a _lesson_ and the `teach` skill is told
-`CURRICULUM.md` is an input it must never write.
+**The run kind is inferred, never sent.** A press on a mission with no curriculum queues
+`generate_curriculum`; a press on one that has a curriculum queues `generate_lesson`
+(`teach.use-cases.ts`), and the dispatch gateway picks `writeCurriculumPlugin` or `writeTeachPlugin`
+from `run.kind`. The client asks for "the next thing" and the server decides which thing that is,
+which is what keeps the two skills from ever both loading — a curriculum step writes `CURRICULUM.md`
+and no lessons, a lesson step writes a lesson and is told `CURRICULUM.md` is an input it must never
+write.
 
-That is a decision, not an oversight — but it means `NORTHSTAR.md` M4's done-when ("press one button
-on a fresh mission") is not met, and §7's open question, whether the agent plans good lesson lists up
-front, still needs one real curriculum run to answer. Closing the gap later is three changes: infer
-the run kind from whether the mission has tracks, pick the plugin from `run.kind` in the dispatch
-gateway, and swap the empty state's command for the button.
+`/curriculum` and `/teach-me` in a terminal remain a supported second route, not the only one
+(non-negotiable 5 — the files are canonical, so a workspace has to work without Mindforge). This
+paragraph described the terminal as the _only_ route until 2026-08-12, and named three changes that
+had already been made.
 
 Three things about the plan that are easy to get wrong when changing it:
 
@@ -100,7 +99,7 @@ the curriculum screen; the reference shelf and the learning records live at
 `/missions/$missionId/library`; and the timer inside the reader binds a focus session to the lesson
 it was spent on. `apps/web/e2e/lesson.spec.ts` walks all of it against the real four processes.
 
-Four things about the reader that are easy to get wrong:
+Six things about the reader that are easy to get wrong:
 
 - **The grant is a path segment covering a whole workspace, not a file.** A lesson links sideways to
   `../reference/x.html` and `../assets/y.png`, and a relative URL carries the path and drops
@@ -115,6 +114,15 @@ Four things about the reader that are easy to get wrong:
   and the lessons origin at read.
 - **The reader owns exactly two columns**, `completed_at` and `outcome`. Everything else about a
   lesson comes from the file through the reindexer, because files are canonical.
+- **The frame is `100dvh` and the page scrolls around it, deliberately.** It used to subtract the
+  chrome so the lesson, the tray and the panels would share one screen; they never could — the
+  records sit below regardless — so it produced two scrollbars _and_ gave the lesson 64% of the
+  window. Shrinking it again to "fit" is re-making that trade. Measured numbers in `TECH-DESIGN.md`
+  §7.5.
+- **The top bar drops its nav on this route only** (`AppShell`'s `compact`). That is safe because ⌘K
+  reads the same route table, a visible button opens it on a phone, and the reader renders its own
+  way back. Remove any one of those three and the reader becomes a room with no door;
+  `lesson.spec.ts` asserts all of them.
 
 **The loop has been walked once, for real** (2026-08-11). A fresh mission → 12 modules and 69
 planned lessons in three minutes → a second press wrote lesson 0001, which claimed its plan entry
@@ -128,6 +136,29 @@ written by the same hand as the code: a curriculum run failed for not writing a 
 `.claude-config` directory synced into the learner's Storage, and the reader claimed a real lesson
 had no file because `storage_path` is workspace-relative and §3.2 said it was absolute. Each is
 fixed with a test; `NORTHSTAR.md` M5 has the detail.
+
+**Two of M6's tracker jobs landed early (2026-08-12)**, because using the thing surfaced them before
+the milestone did. Both are in `NORTHSTAR.md` M6 with the gaps they leave open.
+
+- **The mission has a progress fraction and both levels draw a bar** (`missionProgress` in
+  `packages/core`, FR-P3). Three refusals carry the whole design: it counts **lessons, not modules**
+  (tracks run three to eight lessons, so counting modules would price a short one like a long one);
+  it sums **only planned modules** and reports how many it skipped, because adding an unplanned one
+  as a zero makes the bar _fall_ when the curriculum grows; and it draws **no bar at all** for null
+  progress, since an empty track claims a measurement. No percentage appears anywhere — that rule is
+  M4's, not new.
+- **Opening a lesson counts as activity** (FR-F5). The reader starts a session on the lesson it is
+  showing and ends it when you leave, recording real elapsed minutes as a distinct `auto` entry mode
+  — `timer` is a claim you made, `auto` is one the app made for you, and §7.5's isolation means it
+  cannot see whether you were reading or had walked away. So the measurement is bounded rather than
+  trusted: settle before starting, stop on a hidden tab, cap, and only ever stop the session it
+  started. `TECH-DESIGN.md` §3.3 has the reasoning and the two bugs that shook out of it.
+
+Two consequences of that second one worth knowing before trusting a quiet grid, both in §3.9: a read
+under a minute contributes nothing (`elapsedMinutes` floors, and rounding up would be the inflation
+non-negotiable 10 forbids), and **today's activity does not reach the grid until the nightly rollup
+runs** — so the day you did the work still renders as a rest day. Nothing in `apps/api` writes
+`daily_activity`, so there is no read-time repair today.
 
 `pnpm dev` gives you a sign-in screen, then four screens: **Today** (the focus timer),
 **Missions** (cards with the teach button), **Insights** (the activity grid), and **Settings**
@@ -262,6 +293,14 @@ pnpm --filter @mindforge/db generate           # regenerate the Prisma client
   is where the `new Date()` ban matters most — an integration test that reaches for the wall clock
   is a test that fails at midnight.
 
+- **`pnpm test` runs the integration suites concurrently against one local Supabase, and they
+  contend.** Turbo parallelises across packages, so `@mindforge/worker` and `@mindforge/db` reach
+  the same Postgres and the same Storage at once; each has been seen to fail on a timeout and pass
+  standalone immediately after (2026-08-12). `fileParallelism: false` only orders files _within_ a
+  package. Until `turbo.json` stops those two overlapping, read a red `pnpm test` as "re-run that
+  package alone before believing it" — which is exactly the habit that makes a real regression look
+  like a flake, so it is worth fixing rather than living with.
+
 - **The web dev server uses `strictPort`.** The API's CORS allow-list is exactly `APP_ORIGIN`, so a
   silent move to 5174 turns every request into a preflight failure whose message names the _origin_
   rather than the port.
@@ -302,9 +341,11 @@ eslint rewrites source.
    B's rows. A table without one is an incomplete migration.
 
 3. **`packages/core` is the single implementation of domain math.** The calendar, the grid, module
-   progress and the lesson-graph derivations (`curriculum/lesson-graph.ts`: fundamental, unblocked,
-   next lesson). The API and the SPA import the same functions — never reimplement, never
-   approximate.
+   and mission progress, and the lesson-graph derivations (`curriculum/lesson-graph.ts`:
+   fundamental, unblocked, next lesson). The API and the SPA import the same functions — never
+   reimplement, never approximate. A fraction is derived once and rendered twice, never derived
+   twice: the SPA has both the modules and the arithmetic to add them up itself, and doing so is how
+   the bar and the panels under it come to disagree.
 
 4. **Capture paths stay ≤5s and ≤2 taps.** The focus timer and the lesson outcome — the outcome
    tray is three chips under the frame with no confirmation, and it uses one of its two taps. Mobile

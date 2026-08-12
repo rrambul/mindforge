@@ -42,6 +42,21 @@ describe("StartFocusSessionSchema", () => {
     expect(StartFocusSessionSchema.safeParse({ missionId: "nope" }).success).toBe(false);
     expect(StartFocusSessionSchema.parse({ missionId: null }).missionId).toBeNull();
   });
+
+  it("takes the two modes a live session can start in, and no others", () => {
+    // `auto` is the reader timing a lesson while it is open. `manual` and `backfilled`
+    // describe a block that is already over and are decided by the server from your own
+    // clock — accepting either here would let a client label a *running* session as
+    // something entered after the fact.
+    expect(StartFocusSessionSchema.parse({ entryMode: "auto" }).entryMode).toBe("auto");
+    expect(StartFocusSessionSchema.parse({ entryMode: "timer" }).entryMode).toBe("timer");
+    expect(StartFocusSessionSchema.safeParse({ entryMode: "manual" }).success).toBe(false);
+    expect(StartFocusSessionSchema.safeParse({ entryMode: "backfilled" }).success).toBe(false);
+  });
+
+  it("means timer when it says nothing, so every existing caller keeps its meaning", () => {
+    expect(StartFocusSessionSchema.parse({}).entryMode).toBeUndefined();
+  });
 });
 
 describe("DebriefFocusSessionSchema", () => {

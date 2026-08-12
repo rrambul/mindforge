@@ -168,7 +168,11 @@ rollup.
 - **FR-P2** **Module progress = completed / planned**, shown with the plan visible. When the plan
   is revised, the fraction changes and the revision is visible — the number never quietly moves.
 - **FR-P3** Curriculum progress = modules done and the per-module fractions. A module is done when
-  all its planned lessons are completed (a dropped plan entry leaves the denominator).
+  all its planned lessons are completed (a dropped plan entry leaves the denominator). The mission's
+  own figure is a fraction of **lessons, not modules** — modules run from three lessons to eight, and
+  counting them would make finishing a short one worth more than finishing a long one. It covers only
+  the modules that have a plan, and reports how many it could not count, so a fraction over part of a
+  mission is never presented as a fraction over all of it.
 - **FR-P4** Outcomes are shown per module (how many understood / shaky / lost). A shaky lesson
   counts as completed but stays visibly shaky — honesty over encouragement.
 - **FR-P5** "Unknown" is never rendered as zero. A module with no plan yet says so; it does not
@@ -183,6 +187,13 @@ rollup.
 - **FR-F3** A session binds to a mission, and (once lessons render in-app) to the lesson you were
   doing. Binding is optional and never asked twice.
 - **FR-F4** Time views: minutes per curriculum/module/week, session history. Derived on read.
+- **FR-F5** **Opening a lesson times it.** The reader starts a session on the lesson it is showing
+  and ends it when you leave — reading is activity, and a lesson read without pressing start used to
+  render as a rest day. It records real elapsed time and never invented minutes, and it is recorded
+  as its own entry mode: time the reader was open is a weaker claim than time you declared you were
+  focusing, and FR-F2's rule applies one step further out. Because the lesson is a cross-origin frame
+  the app cannot see reading, so the measurement is bounded rather than trusted — it settles before
+  starting, stops on a hidden tab, and caps.
 
 ### 6.7 Frequency tracker
 

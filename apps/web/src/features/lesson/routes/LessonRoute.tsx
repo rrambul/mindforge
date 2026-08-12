@@ -105,7 +105,11 @@ export function LessonRoute({ lessonId, back, focus, next, records }: LessonRout
                 </Callout>
               ) : null}
 
-              <Row>{focus}</Row>
+              {/* Only for a lesson there is something to read. Timing a planned lesson
+                  would be timing an empty frame, and the reader auto-times what is open
+                  (`useAutoLessonSession`) — so mounting this on an unwritten one would
+                  record minutes against a file that does not exist. */}
+              {lesson.view === null ? null : <Row>{focus}</Row>}
             </Stack>
           </div>
 

@@ -472,8 +472,7 @@ create table focus_sessions (create table focus_sessions (
   focus_quality  smallint check (focus_quality between 1 and 5),
   energy         smallint check (energy between 1 and 5),
   note           text,
-  entry_mode     text not null default 'timer'
-                 check (entry_mode in ('timer','manual','backfilled')),  -- FR-F2
+  entry_mode     text not null default 'timer',  -- timer | auto | manual | backfilled (FR-F2, FR-F5)
   created_at     timestamptz not null default now()
 );
 
@@ -481,6 +480,46 @@ create table focus_sessions (create table focus_sessions (
 
 **Index note:** `focus_sessions` is the analytics hot path. Index `(user_id, started_at desc)`
 and `(user_id, mission_id, started_at desc)`.
+
+**`entry_mode` has no CHECK constraint, and this document claimed one until M5 was reviewed.** The
+init migration wrote the column with a default and nothing else; the constraint existed only here.
+Nobody noticed because the set is enforced twice in TypeScript anyway — `EntryModeSchema` on the way
+in, and `narrow(row.entryMode, ENTRY_MODES, …)` on the way out of the repository, which is what makes
+a hand-edited row degrade to `timer` rather than reach the SPA as an unmodelled string. Worth adding
+when a migration next touches this table; worth knowing until then, because a CHECK in this file is
+not a CHECK in the database.
+
+**The four modes, and why `auto` is one of them (FR-F5).** `timer` ran live because you pressed
+start; `auto` ran live because you opened a lesson; `manual` was entered for something you did today;
+`backfilled` is older than that. The last two are decided by the server from the profile's timezone
+and can never be sent by a client — `StartFocusSessionSchema` accepts only the two live modes, so a
+running session cannot be labelled as something entered after the fact.
+
+`auto` earns the distinction for FR-F2's reason taken one step further. Time the reader was open is
+a weaker claim than time you declared you were focusing: nobody asserted it, and §7.5's isolation
+means the app cannot see a scroll or a keystroke inside the lesson and genuinely does not know
+whether you were reading or had walked away. Recorded as `timer` the two populations would be one,
+and the distinction is not reconstructable later from rows that never kept it.
+
+The bounds live in the client (`useAutoLessonSession`), because the browser is the only thing that
+knows the reader is open:
+
+- **A settle delay before starting.** Opening a lesson and going straight back is not a read. It also
+  removes a duplicate in development, where React mounts, unmounts and remounts every effect.
+- **A hidden tab ends the session**, after a grace period — a ⌘-Tab to check a definition should not
+  chop one read into a dozen rows.
+- **A cap ends it too**, because a tab you walked away from is indistinguishable from one you are
+  reading, and the only honest answer to that is to stop counting.
+- **It stops only the session it started**, held by id. A timer you started deliberately is never
+  touched by it.
+- **A stop is sequenced behind its own start.** Leaving immediately used to send the stop while the
+  start was in flight: a 404 against a session that then existed and ran forever, so every later
+  start answered 409. Sessions abandoned by a closed tab are reaped on the way back in instead, since
+  `pagehide` cannot be relied on to finish a POST.
+
+One consequence to state plainly: `elapsedMinutes` floors, so a read under a minute records zero
+minutes and still leaves the day looking empty. Rounding it up would be the inflation non-negotiable
+10 exists to forbid, so it stands.
 
 **`focus_sessions.lesson_id` arrived in M5** (`20260810180000_focus_session_lesson`), with the
 reader that writes it and not before, for the write-path reason §3.2b states. `on delete set null`,
@@ -670,6 +709,21 @@ be broken by one bad week (FR-Q1).
 **Implementation.** Reads `daily_activity` only — never raw sessions. 365 rows per user, so the
 whole year is one indexed query and the grid is instant. Mobile shows a 12-week window that scrolls
 horizontally in its own container; the full year is desktop.
+
+**What reaches it.** Focus sessions, and nothing else — not lessons finished, not outcomes recorded,
+not teach runs. Since FR-F5 that includes the sessions the reader starts by itself, which is what
+stopped an afternoon of reading from rendering as a rest day. Two properties of the pipeline are
+worth holding together when reading a quiet-looking grid:
+
+- **A read under a minute contributes nothing.** `elapsedMinutes` floors, `daily_activity` sums it,
+  and the grid treats `> 0` as active. The day gets a row and stays an empty cell.
+- **Today is not on the grid until the rollup runs.** The nightly job runs once per user per local
+  day after 03:00 and marks itself done, so an afternoon's work lands tomorrow morning. The panel
+  prints `rebuiltAt` underneath for exactly this reason — a stale grid and an empty one are otherwise
+  the same picture — but today's own cell still reads as a rest day when it is not one yet. Nothing
+  in `apps/api` writes `daily_activity`, so there is no read-time repair; closing it means either
+  overlaying today's raw sessions in the reader or marking today's cell "not rolled up yet" rather
+  than empty. Neither is built.
 
 ---
 
@@ -1248,6 +1302,23 @@ Lessons are **LLM-authored HTML with inline JavaScript** (quizzes, simulators). 
 - **Every failure is a 404**: expired, forged, malformed, traversing, missing. Distinguishing them
   tells a prober which half of the token to keep working on.
 
+**The chrome around the frame is the reader's, not the app's.** Two settings, both measured rather
+than guessed:
+
+- **The frame is `100dvh`.** It was `calc(100dvh - 18rem)`, subtracting the chrome above and the
+  outcome tray below so all three would fit one screen. That goal was not reachable and was not
+  happening — the tray, the next-lesson panel and the learning records all sit below the lesson, so
+  the page scrolled by 233px on a 1280×800 window and produced the two scrollbars the subtraction
+  existed to avoid. What it bought with a third of the window was a lesson given 64% of it, in a
+  screen whose only job is showing one. The page scrolls, deliberately, and the frame is sized for
+  the position you read it in rather than the one you arrive in. The cost is that the outcome tray is
+  a scroll below rather than beside the lesson; it stays a ≤2-tap path and stays `sticky` on a phone.
+- **The top bar loses its nav on this route** (`AppShell`'s `compact`, set by `Shell`). Four nav
+  items wrap to a second row below 640px, which was 113px of app furniture over 512px of lesson;
+  compact is 53px at every width. Safe only because ⌘K reads the same route table the bar does, there
+  is a visible button beside it for phones with no ⌘ to press, and the reader renders its own link
+  back — nothing removed here was the only route to anywhere, and `lesson.spec.ts` asserts all three.
+
 **No `postMessage` channel, and deliberately not.** Earlier drafts of this section had lesson → app
 communication for completion and quiz results. Nothing emits it: the outcome is captured by the app's
 own chrome under the frame, which is a tighter capture path than anything the lesson could offer, and
@@ -1392,9 +1463,24 @@ module's `completed`, or the screen shows three outcomes out of five finished le
 the rest to guesswork. A completion with no outcome is a real row — M4 wrote some, and the reader
 cannot retroactively ask how they went.
 
+`missionProgress` aggregates them for the mission as a whole (FR-P3), and the two things it refuses
+are the whole of its design. It sums **lessons rather than modules**, because a curriculum's tracks
+run from three lessons to eight and counting modules would make finishing a short one worth more than
+finishing a long one. And it sums **only the modules that have a plan**, returning how many it left
+out — a module with no lessons contributes to neither side, because adding it as a zero would make
+the fraction fall every time the curriculum grows a subtopic, which is a number moving on news that
+is not about the learner at all. Null when nothing is planned, like its per-module counterpart.
+
 "Unknown is never rendered as zero": a module with no plan yet returns null with a reason, and the
 UI says which — it does not show 0%. A module that _has_ lessons and has finished none returns
 zeros, because those are measured.
+
+**The bar is a second channel, never a percentage.** `ProgressBar` draws the same fraction the line
+above it states, carries it to a screen reader through `aria-valuetext`, and renders no `%` anywhere:
+a percentage of a plan that gets revised reads as a measurement of the learner, where a fraction
+reads as a count against a plan that is allowed to move. Null progress gets **no bar at all** rather
+than an empty one — an empty track is a claim that something was measured and came out at zero, which
+is the failure FR-P5 names. An empty track over a module that _has_ lessons is correct and different.
 
 ### 9.2 The lesson dependency graph
 

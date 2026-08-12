@@ -14,7 +14,8 @@
     "progress": "{completed} de {total} lições concluídas",
     "noPlan": "Nenhuma lição planejada aqui ainda.",
     "lessons": "Lições em {module}",
-    "dropped": "Removido do plano"
+    "dropped": "Removido do plano",
+    "progressLabel": "Progresso em {module}"
   },
   "lesson": {
     "next": "Próxima",
@@ -45,5 +46,10 @@
     "shaky": "{count} inseguras",
     "lost": "{count} perdidas",
     "unrecorded": "{count, plural, one {# concluída sem resultado} other {# concluídas sem resultado}}"
+  },
+  "mission": {
+    "progress": "{completed} de {total} lições concluídas",
+    "progressLabel": "Progresso nesta missão",
+    "notPlanned": "{count, plural, one {# módulo ainda não tem lições planejadas, então não entra nesta contagem} other {# módulos ainda não têm lições planejadas, então não entram nesta contagem}}"
   }
 }

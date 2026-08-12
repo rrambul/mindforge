@@ -1,3 +1,4 @@
+import type { StartEntryMode } from "@mindforge/core";
 import { describe, expect, it } from "vitest";
 import { FocusSessionNotRunning, FocusSessionNotStopped, SessionInFuture } from "./errors.js";
 import { FocusSession, type FocusSessionSnapshot } from "./focus-session.js";
@@ -10,13 +11,17 @@ const LATER = new Date("2026-08-05T09:40:00Z");
 const NO_ATTACHMENTS = { missionId: null, lessonId: null };
 const NO_DEBRIEF = { hitIntention: null, focusQuality: null, energy: null, note: null };
 
-function started(intention: string | null = "get the parser handling nested groups"): FocusSession {
+function started(
+  intention: string | null = "get the parser handling nested groups",
+  entryMode: StartEntryMode = "timer",
+): FocusSession {
   return FocusSession.start({
     id: ID,
     userId: USER,
     intention,
     plannedMinutes: null,
     attachments: NO_ATTACHMENTS,
+    entryMode,
     now: START,
   });
 }
@@ -56,6 +61,14 @@ describe("start", () => {
 
   it("is a timer entry, distinguishable from something backfilled", () => {
     expect(started().entryMode).toBe("timer");
+  });
+
+  it("keeps an auto entry distinguishable from one somebody pressed start for", () => {
+    // The reader times a lesson while it is open, and that is a weaker claim than a block
+    // you declared: nobody asserted it, and the lesson sits in a cross-origin frame where
+    // reading is invisible. Collapsing the two into `timer` cannot be undone later — the
+    // row would never have kept the difference.
+    expect(started(null, "auto").entryMode).toBe("auto");
   });
 });
 

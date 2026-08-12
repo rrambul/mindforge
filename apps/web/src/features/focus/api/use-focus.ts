@@ -104,7 +104,9 @@ export function useStartSession(): UseMutationResult<
           plannedMinutes: input.plannedMinutes ?? null,
           minutes: null,
           isRunning: true,
-          entryMode: "timer",
+          // Mirrors the server's own default, so the optimistic row is not briefly a
+          // different kind of session than the one that comes back.
+          entryMode: input.entryMode ?? "timer",
           hitIntention: null,
           focusQuality: null,
           energy: null,

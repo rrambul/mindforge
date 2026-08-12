@@ -53,6 +53,8 @@ export class StartFocusSession {
       intention: input.intention ?? null,
       plannedMinutes: input.plannedMinutes ?? null,
       attachments,
+      // Absent means `timer`: a session nobody labelled is one somebody pressed start for.
+      entryMode: input.entryMode ?? "timer",
       now: this.clock.now(),
     });
 

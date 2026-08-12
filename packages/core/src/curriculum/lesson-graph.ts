@@ -74,6 +74,17 @@ export interface ModuleProgress {
 }
 
 /**
+ * A mission's fraction, plus what it could not measure.
+ *
+ * `modulesNotPlanned` is part of the value rather than something the caller works
+ * out, because a fraction over some of the modules must never be rendered as though
+ * it were over all of them.
+ */
+export interface MissionProgress extends ModuleProgress {
+  readonly modulesNotPlanned: number;
+}
+
+/**
  * How the finished lessons of a module landed (FR-P4).
  *
  * The four counts sum to the module's `completed`, and that is the property that
@@ -176,6 +187,37 @@ export function moduleProgress(lessons: readonly LessonNode[]): ModuleProgress |
   return {
     completed: lessons.filter((lesson) => lesson.completed).length,
     total: lessons.length,
+  };
+}
+
+/**
+ * How far through the whole mission, from its modules' fractions (FR-P3).
+ *
+ * **The denominator is only what has been planned.** A module with no lessons
+ * contributes nothing to either side rather than contributing a zero, for the same
+ * reason `moduleProgress` returns null for it: a mission whose later half has not
+ * been planned yet is not a mission you are behind on, and adding those modules to
+ * the total as zeroes would draw a bar that falls every time the curriculum grows a
+ * subtopic.
+ *
+ * That makes the fraction honest but partial, so `modulesNotPlanned` comes back with
+ * it — a bar over eight of fourteen modules has to be able to say so, or it is a
+ * claim about the whole mission that was measured on part of one.
+ *
+ * **Null when nothing at all is planned**, which is a fresh mission before its first
+ * curriculum run. There is no fraction to draw and "0%" would be a measurement of
+ * something that does not exist yet (non-negotiable 10).
+ */
+export function missionProgress(
+  modules: readonly (ModuleProgress | null)[],
+): MissionProgress | null {
+  const planned = modules.filter((module) => module !== null);
+  if (planned.length === 0) return null;
+
+  return {
+    completed: planned.reduce((sum, module) => sum + module.completed, 0),
+    total: planned.reduce((sum, module) => sum + module.total, 0),
+    modulesNotPlanned: modules.length - planned.length,
   };
 }
 

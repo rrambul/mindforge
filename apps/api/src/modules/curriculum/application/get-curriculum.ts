@@ -1,5 +1,6 @@
 import {
   deriveLessons,
+  missionProgress,
   moduleOutcomes,
   moduleProgress,
   nextLesson,
@@ -8,6 +9,7 @@ import {
   type LessonNode,
   type LessonOutcome,
   type LessonStatus,
+  type MissionProgress,
   type ModuleProgress,
   type OutcomeCounts,
 } from "@mindforge/core";
@@ -77,6 +79,13 @@ export interface ModuleView {
 export interface CurriculumView {
   readonly missionId: string;
   readonly modules: readonly ModuleView[];
+  /**
+   * The whole mission's fraction, over the modules that have a plan (FR-P2).
+   *
+   * Null when none of them do. `modulesNotPlanned` travels with it so the screen can
+   * say what the fraction did not cover — see `missionProgress`.
+   */
+  readonly progress: MissionProgress | null;
   /** The first unblocked, unfinished lesson across the whole plan (FR-K7). */
   readonly nextLessonId: string | null;
 }
@@ -141,6 +150,10 @@ export class GetCurriculum {
     return {
       missionId,
       modules,
+      // Over the modules the screen shows, so the bar and the panels under it are
+      // counting the same lessons. A fraction that silently included a dropped
+      // module would not add up to anything on the page.
+      progress: missionProgress(modules.map((module) => module.progress)),
       // Over every lesson, not only the shown modules': a lesson can be locked by
       // one in a module this screen hides, and the answer must not change because
       // of what is on screen.

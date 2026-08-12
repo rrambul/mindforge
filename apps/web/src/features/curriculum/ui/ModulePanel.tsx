@@ -2,7 +2,15 @@ import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { OutcomeCounts } from "@mindforge/core";
-import { Card, Heading, Spread, Stack, StatusChip, Text } from "../../../shared/ui/index.js";
+import {
+  Card,
+  Heading,
+  ProgressBar,
+  Spread,
+  Stack,
+  StatusChip,
+  Text,
+} from "../../../shared/ui/index.js";
 
 import type { CurriculumLesson, CurriculumModule } from "../api/use-curriculum.js";
 import { LessonLine } from "./LessonLine.js";
@@ -53,14 +61,30 @@ export function ModulePanel({ module, nextLessonId, lessonLink }: ModulePanelPro
           </Text>
         ) : null}
 
-        <Text tone="muted">
-          {module.progress === null
-            ? t("module.noPlan")
-            : t("module.progress", {
+        {/* The bar is the fraction in a second channel and never replaces it — an
+            unplanned module gets the sentence and no bar at all, because an empty
+            track is a claim that something was measured and came out at zero. */}
+        {module.progress === null ? (
+          <Text tone="muted">{t("module.noPlan")}</Text>
+        ) : (
+          <Stack gap="tight">
+            <Text tone="muted">
+              {t("module.progress", {
                 completed: module.progress.completed,
                 total: module.progress.total,
               })}
-        </Text>
+            </Text>
+            <ProgressBar
+              completed={module.progress.completed}
+              total={module.progress.total}
+              label={t("module.progressLabel", { module: module.name })}
+              valueText={t("module.progress", {
+                completed: module.progress.completed,
+                total: module.progress.total,
+              })}
+            />
+          </Stack>
+        )}
 
         <Outcomes outcomes={module.outcomes} />
 

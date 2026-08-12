@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   deriveLessons,
+  missionProgress,
   moduleOutcomes,
   moduleProgress,
   nextLesson,
@@ -163,6 +164,53 @@ describe("moduleProgress", () => {
     // Non-negotiable 10. A 0% bar is a claim that something was measured; this
     // module simply has no plan yet, and the UI has to say that instead.
     expect(moduleProgress([])).toBeNull();
+  });
+});
+
+describe("missionProgress", () => {
+  it("sums the planned modules into one fraction of lessons", () => {
+    const progress = missionProgress([
+      { completed: 2, total: 5 },
+      { completed: 1, total: 3 },
+    ]);
+
+    expect(progress).toEqual({ completed: 3, total: 8, modulesNotPlanned: 0 });
+  });
+
+  it("counts lessons rather than modules, because modules are not the same size", () => {
+    // Finishing a three-lesson module is not the same amount of work as finishing an
+    // eight-lesson one, and a fraction over modules would say it was.
+    const progress = missionProgress([
+      { completed: 3, total: 3 },
+      { completed: 0, total: 8 },
+    ]);
+
+    expect(progress).toEqual({ completed: 3, total: 11, modulesNotPlanned: 0 });
+  });
+
+  it("leaves an unplanned module out of the fraction and says how many there were", () => {
+    // Counting it as 0/0 would change nothing; counting it as some notional size would
+    // make the bar *fall* every time the curriculum grew a subtopic. Neither is a thing
+    // that happened, so it is excluded and reported.
+    const progress = missionProgress([{ completed: 2, total: 4 }, null, null]);
+
+    expect(progress).toEqual({ completed: 2, total: 4, modulesNotPlanned: 2 });
+  });
+
+  it("returns null when nothing is planned at all, never a zero", () => {
+    // A fresh mission before its first curriculum run. Same rule as a module's, one
+    // level up (non-negotiable 10).
+    expect(missionProgress([null, null])).toBeNull();
+    expect(missionProgress([])).toBeNull();
+  });
+
+  it("reports a finished mission as complete rather than as anything softer", () => {
+    // Honesty runs both ways: nothing decays a completed lesson back out of the count.
+    expect(missionProgress([{ completed: 4, total: 4 }])).toEqual({
+      completed: 4,
+      total: 4,
+      modulesNotPlanned: 0,
+    });
   });
 });
 

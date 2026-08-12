@@ -17,6 +17,7 @@ export { ChipList } from "./ChipList.js";
 export { ChoiceGroup, type Choice } from "./ChoiceGroup.js";
 export { Field, TextareaField } from "./Field.js";
 export { Heading } from "./Heading.js";
+export { ProgressBar } from "./ProgressBar.js";
 export { RemovableChip } from "./RemovableChip.js";
 export { RouterLink } from "./RouterLink.js";
 export { Row } from "./Row.js";

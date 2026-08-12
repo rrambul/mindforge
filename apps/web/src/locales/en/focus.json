@@ -54,6 +54,7 @@
   },
   "lesson": {
     "start": "Start focus on this lesson",
-    "alreadyRunning": "A session is already running."
+    "alreadyRunning": "A session is already running.",
+    "autoRunning": "Timing this lesson while it is open."
   }
 }
