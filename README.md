@@ -1,4 +1,21 @@
-# Mindforge
+<!--
+  The mark sits beside the wordmark here for the same reason `Brand` composes them that way in
+  the app, and carries `alt=""` for the reason Logo.tsx gives: next to the name it is decorative,
+  and a screen reader announcing "Mindforge Mindforge" is worse than silence.
+
+  It points at the source SVG rather than a generated PNG, for two reasons. The raster icons are
+  inset — 40% of the canvas is padding, so Android can crop them to a circle and iOS can round
+  the corners — and they have the light `--mf-ground` plate baked in, which on a dark README reads
+  as a pale tile around the anvil. The SVG is full-bleed, transparent, and already theme-aware:
+  `.steel` flips fill under `prefers-color-scheme`, so the anvil is dark here and light steel on
+  GitHub's dark theme. Raw serves it as `image/svg+xml` under a CSP of `style-src 'unsafe-inline'`,
+  which is what lets that embedded stylesheet run.
+
+  `align="middle"` rather than `valign`: GitHub's sanitizer keeps both, but only `align` is a real
+  attribute on `img` — it maps to `vertical-align`, and `valign` would be inert decoration.
+-->
+
+# <img src="apps/web/public/favicon.svg" alt="" width="34" height="34" align="middle"> Mindforge
 
 **Turns a topic into a curriculum, teaches it lesson by lesson, and tells you the truth about how
 you're moving through it.**
