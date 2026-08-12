@@ -5,6 +5,17 @@ edit it. Its whole value is that `diff -r skills/teach ~/.claude/skills/teach` i
 the Agent SDK so that the cloud agent and a local `/teach` run read the same instructions, and that
 argument only holds while these bytes match.
 
+**It is somebody else's work, and it is vendored here under licence.** The source is
+[`mattpocock/skills`](https://github.com/mattpocock/skills), path `skills/productivity/teach/`,
+MIT, Copyright (c) 2026 Matt Pocock. `teach/LICENSE` is that licence copied verbatim, and it is not
+optional bookkeeping: MIT grants the right to redistribute _on the condition_ that the copyright and
+permission notice travel with the copy, so deleting it is what would make publishing this repository
+an infringement rather than a citation. Upstream added the licence on 2026-03-13, before this copy
+was taken.
+
+Mindforge's own licence, whatever it becomes, does not reach into this directory. Nothing here was
+written by us and nothing here may be relicensed by us.
+
 `UNATTENDED.md` is Mindforge's own. The skill was written for a human sitting at a terminal, and a
 server run has no human: it cannot answer a question, confirm a mission change, or run a CLI command
 to open a file. Rather than fork `SKILL.md` — which would break the paragraph above — the addendum is
