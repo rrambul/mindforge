@@ -8,11 +8,19 @@
     raster icon is generated from — see scripts/generate-icons.mjs. Edit the three
     paths here, run `pnpm icons`, and the .ico and .png set follows.
 
-    Colours are literal rather than var(--mf-band-*) because a favicon renders in
-    browser chrome, outside the document, where the token sheet does not exist. They
-    are copied from src/styles/tokens.css and must be changed with it. The in-app
-    mark (src/app/Logo.tsx) reads the tokens directly and is the one that matters for
-    the no-raw-colour rule.
+    Colours are literal rather than the mf-band-* custom properties because a favicon
+    renders in browser chrome, outside the document, where the token sheet does not
+    exist. They are copied from src/styles/tokens.css and must be changed with it. The
+    in-app mark (src/app/Logo.tsx) reads the tokens directly and is the one that matters
+    for the no-raw-colour rule.
+
+    Note the custom properties are named *without* their leading double hyphen above,
+    and must stay that way. This is an XML document: a comment containing "- -" (closed
+    up) is a parse error, not a lint warning, and the whole file fails to render. It
+    reached main written the other way and every browser silently fell back to
+    favicon.ico for it — generate-icons.mjs could not catch that, because it inlines
+    this file into an HTML page, and HTML's comment parsing is lenient where the
+    standalone SVG document a browser tab requests is not.
   -->
   <style>
     /*
