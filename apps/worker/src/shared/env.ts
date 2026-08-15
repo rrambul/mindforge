@@ -71,6 +71,24 @@ const EnvSchema = z
       .int()
       .min(1_000)
       .default(15 * 60 * 1_000),
+
+    /**
+     * The learner's daily teaching budget in USD, or empty for no ceiling.
+     *
+     * **The worker never enforces it** — only `TeachRuns.request` does, and only
+     * the API serves that. It is declared here because the worker boots the API's
+     * `TeachModule` to reuse its use cases (§2.1 decision 2), so Nest constructs
+     * `TeachSpend` in this container too and would resolve `undefined` from an env
+     * that had never heard of the setting.
+     *
+     * The same reasoning as `MEMORY_STORAGE_CONFIG`, which is declared here for
+     * exactly this reason. Keep the default identical to the API's: a divergence
+     * would be invisible until somebody read a number off the wrong process.
+     */
+    TEACH_DAILY_BUDGET_USD: z.preprocess(
+      (value) => (value === "" ? null : value),
+      z.coerce.number().nonnegative().nullable().default(15),
+    ),
   })
   .superRefine((env, ctx) => {
     // The pairing the enum cannot express on its own. Checked at boot so a

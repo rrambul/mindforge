@@ -64,6 +64,39 @@ describe("loadEnv", () => {
   });
 });
 
+describe("TEACH_DAILY_BUDGET_USD", () => {
+  it("defaults to a ceiling generous enough that a real learner never meets it", () => {
+    expect(loadEnv(MINIMAL).TEACH_DAILY_BUDGET_USD).toBe(15);
+  });
+
+  it("coerces the string every real environment supplies", () => {
+    expect(loadEnv({ ...MINIMAL, TEACH_DAILY_BUDGET_USD: "40" }).TEACH_DAILY_BUDGET_USD).toBe(40);
+  });
+
+  it("reads empty as no ceiling, not as a ceiling of zero", () => {
+    // The trap this exists for: `z.coerce.number()` turns "" into 0, which is the
+    // one value that switches teaching off. A deployment clearing the variable
+    // means "no cap" and would have got "nobody may be taught anything".
+    expect(loadEnv({ ...MINIMAL, TEACH_DAILY_BUDGET_USD: "" }).TEACH_DAILY_BUDGET_USD).toBeNull();
+  });
+
+  it("keeps zero meaning zero, because switching teaching off is a real setting", () => {
+    expect(loadEnv({ ...MINIMAL, TEACH_DAILY_BUDGET_USD: "0" }).TEACH_DAILY_BUDGET_USD).toBe(0);
+  });
+
+  it("refuses a negative ceiling at boot rather than inverting the check", () => {
+    expect(() => loadEnv({ ...MINIMAL, TEACH_DAILY_BUDGET_USD: "-5" })).toThrow(
+      /TEACH_DAILY_BUDGET_USD/,
+    );
+  });
+
+  it("refuses a value that is not a number at all", () => {
+    expect(() => loadEnv({ ...MINIMAL, TEACH_DAILY_BUDGET_USD: "lots" })).toThrow(
+      /TEACH_DAILY_BUDGET_USD/,
+    );
+  });
+});
+
 describe("supabase URL derivation", () => {
   it("derives the issuer from SUPABASE_URL, so it is never configured twice", () => {
     expect(supabaseIssuer(loadEnv(MINIMAL))).toBe("http://127.0.0.1:54321/auth/v1");

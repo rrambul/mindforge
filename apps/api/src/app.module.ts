@@ -7,11 +7,16 @@ import { InsightsModule } from "./modules/insights/presentation/insights.module.
 import { LessonsModule } from "./modules/lessons/presentation/lessons.module.js";
 import { MissionsModule } from "./modules/missions/presentation/missions.module.js";
 import { TeachModule } from "./modules/teach/presentation/teach.module.js";
+import { LoggingModule } from "./shared/logging/logger.module.js";
 import { SharedModule } from "./shared/shared.module.js";
 
 @Module({
   imports: [
     SharedModule,
+    // After SharedModule, because its factory injects ENV from it. Before every
+    // feature module, so the request-context middleware is registered ahead of the
+    // routes it has to wrap — a logger imported last logs the requests it missed.
+    LoggingModule.forRoot(),
     AccountModule,
     MissionsModule,
     FocusModule,

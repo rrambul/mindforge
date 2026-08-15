@@ -1,7 +1,9 @@
 import { NestFactory } from "@nestjs/core";
 import { FastifyAdapter, type NestFastifyApplication } from "@nestjs/platform-fastify";
+import { Logger } from "nestjs-pino";
 import { AppModule } from "./app.module.js";
 import { ENV, type Env } from "./shared/config/env.js";
+import { requestIdFor } from "./shared/logging/pino-options.js";
 
 /**
  * Builds the application exactly as production runs it.
@@ -12,7 +14,18 @@ import { ENV, type Env } from "./shared/config/env.js";
  * serves `/v1/missions` passes and proves nothing.
  */
 export async function createApp(): Promise<NestFastifyApplication> {
-  const app = await NestFactory.create<NestFastifyApplication>(AppModule, new FastifyAdapter());
+  const app = await NestFactory.create<NestFastifyApplication>(AppModule, buildAdapter(), {
+    // Nest logs module initialisation before any provider exists, so without this
+    // the first dozen lines of every boot escape through the default console
+    // logger in a different format from everything after them. Buffered, they are
+    // replayed through pino the moment `useLogger` below runs.
+    bufferLogs: true,
+  });
+
+  // Every `new Logger(...)` in the app delegates to whatever is registered here,
+  // so the existing call sites — the problem filter, the memory sync — start
+  // emitting structured lines with a request id without being touched.
+  app.useLogger(app.get(Logger));
 
   // §6.1 — base path /v1. Cheap now, impossible to retrofit politely.
   app.setGlobalPrefix("v1");
@@ -38,7 +51,10 @@ export async function createApp(): Promise<NestFastifyApplication> {
     // `response.headers.get("etag")` reads null cross-origin unless it is exposed — and a client
     // that cannot read the tag has nothing to send back in `If-None-Match`. Both directions have
     // to be open or neither does anything, which is why `test/insights.test.ts` asserts both.
-    exposedHeaders: ["etag"],
+    // `x-request-id` for the same reason as `etag`, one concern over: the API stamps
+    // every response with the id its logs are keyed by, and a header the browser is
+    // not told it may read is a header the SPA cannot put in a bug report.
+    exposedHeaders: ["etag", "x-request-id"],
   });
 
   // Without this, `onModuleDestroy` never runs on SIGTERM — which is how Railway
@@ -47,6 +63,39 @@ export async function createApp(): Promise<NestFastifyApplication> {
   app.enableShutdownHooks();
 
   return app;
+}
+
+/**
+ * Fastify, told how to identify a request before Nest or pino sees one.
+ *
+ * **Request identity belongs to Fastify, not to the logger.** `pino-http` accepts
+ * a `genReqId` and it is dead configuration here: its middleware reads
+ * `req.id = req.id || genReqId(...)`, and Fastify has already assigned an id by
+ * then. Setting it there produces no error, no warning, and no request id —
+ * `pino-options.ts` has the longer version of that story.
+ *
+ * So the id is generated here, and everything downstream inherits it: the access
+ * log, `request.log`, and the response header the hook below writes.
+ */
+function buildAdapter(): FastifyAdapter {
+  const adapter = new FastifyAdapter({
+    genReqId: (request: { headers: Record<string, string | string[] | undefined> }) =>
+      requestIdFor(request.headers),
+  });
+
+  // Echoed back so the id is reachable from outside the process. Without it the
+  // logs are correlated and nobody on the other end of a bug report can name which
+  // request to correlate — which is most of the value.
+  //
+  // `onRequest` rather than `onSend`: it is the earliest hook with a reply, so the
+  // header survives every path out of the app, including the ones that never reach
+  // a handler.
+  adapter.getInstance().addHook("onRequest", (request, reply, done) => {
+    void reply.header("x-request-id", request.id);
+    done();
+  });
+
+  return adapter;
 }
 
 /**
