@@ -29,6 +29,35 @@
       "cache": false,
       "outputs": ["coverage/**"]
     },
+
+    // --- The three integration suites are serialised against each other -------
+    //
+    // `packages/db`, `apps/api` and `apps/worker` each reach the *same* local
+    // Supabase — one Postgres, one Storage, one GoTrue. Turbo parallelises across
+    // packages, so `pnpm test` ran all three at once and they contended: each has
+    // been seen to time out and then pass standalone immediately after
+    // (2026-08-12). `fileParallelism: false` only orders files *within* a package,
+    // so it could not help.
+    //
+    // Chaining them through `dependsOn` is the narrowest fix available: turbo has
+    // no per-task concurrency limit, and `--concurrency=1` would serialise the
+    // whole graph including the unit suites that have no reason to wait.
+    //
+    // The cost is real and worth naming: a failure in an earlier link means the
+    // later ones do not run at all, so one red suite can hide another. CI is
+    // unaffected — it invokes each through `pnpm --filter`, outside turbo, as
+    // separate sequential steps — and locally "fix the first failure, re-run" is a
+    // better loop than "three failures, two of them phantom".
+    "@mindforge/api#test:integration": {
+      "dependsOn": ["^build", "@mindforge/db#test:integration"],
+      "cache": false,
+      "outputs": ["coverage/**"]
+    },
+    "@mindforge/worker#test:integration": {
+      "dependsOn": ["^build", "@mindforge/api#test:integration"],
+      "cache": false,
+      "outputs": ["coverage/**"]
+    },
     "test:e2e": {
       "dependsOn": ["^build"],
       "cache": false,
@@ -44,6 +73,21 @@
     },
     "test:integration:coverage": {
       "dependsOn": ["^build"],
+      "cache": false,
+      "outputs": ["coverage/**"]
+    },
+
+    // The same chain, for the same reason. CI reaches these through `pnpm --filter`
+    // as separate steps and so never needed it, but `turbo run
+    // test:integration:coverage` is a command that exists, and it would contend
+    // exactly as the plain variant did.
+    "@mindforge/api#test:integration:coverage": {
+      "dependsOn": ["^build", "@mindforge/db#test:integration"],
+      "cache": false,
+      "outputs": ["coverage/**"]
+    },
+    "@mindforge/worker#test:integration:coverage": {
+      "dependsOn": ["^build", "@mindforge/api#test:integration:coverage"],
       "cache": false,
       "outputs": ["coverage/**"]
     }
