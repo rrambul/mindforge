@@ -13,10 +13,13 @@ import {
 } from "./mission.js";
 
 describe("MISSION_WIP_LIMIT", () => {
-  it("is 3, per FR-M4", () => {
+  it("is 10, per FR-M3", () => {
     // Lives here rather than in the API so the SPA can disable "new mission" before
     // a submit fails, instead of surfacing a 409 the user could have been spared.
-    expect(MISSION_WIP_LIMIT).toBe(3);
+    // Was 3 until 2026-08-15; see the constant for why the number moved and what
+    // it costs. Asserted literally on purpose — the limit is a product decision,
+    // so changing it should have to change a test that says so out loud.
+    expect(MISSION_WIP_LIMIT).toBe(10);
   });
 });
 
