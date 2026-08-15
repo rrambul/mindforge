@@ -2,6 +2,12 @@ MIT License
 
 Copyright (c) 2026 Renan Rambul
 
+This licence covers Mindforge's own work. It does NOT cover `skills/teach/`,
+which is a verbatim vendored copy of the upstream `teach` skill from
+https://github.com/mattpocock/skills — Copyright (c) 2026 Matt Pocock, also MIT,
+under its own `skills/teach/LICENSE`. Nothing in that directory was written here
+and nothing in it may be relicensed here. See `skills/README.md`.
+
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
 in the Software without restriction, including without limitation the rights
