@@ -919,7 +919,7 @@ understood once, which is what lets the SPA retry without asking whether the fir
     "type": "https://mindforge.app/errors/wip-limit-reached",
     "title": "Too many active missions",
     "status": 409,
-    "detail": "You have 3 active missions. Park one before starting another.",
+    "detail": "You have 10 active missions. Park one before starting another.",
     "instance": "/v1/missions",
     "errors": [{ "field": "status", "code": "wip_limit", "message": "…" }]
   }
@@ -929,6 +929,10 @@ understood once, which is what lets the SPA retry without asking whether the fir
 
 - **Idempotency.** Capture endpoints (`POST /focus/sessions/start`, `POST /focus/sessions`) accept a client-generated UUID as the resource id and are upserts. This is what makes the offline queue safe to replay — retries are free, and the client never has to reason about whether a request landed.
 - **Pagination** is cursor-based (`?cursor=&limit=`) on every list. Offset pagination breaks the moment a nightly job inserts rows mid-scroll.
+
+  Shipped for `GET /v1/focus/sessions` on 2026-08-15; that endpoint had truncated at a hard fifty since M1, with `PaginationSchema.cursor` declared in `packages/core` and issued by nothing — so the fifty-first session was history that existed, was stored, and could not be read. The cursor is base64url of `<startedAt>|<id>`, opaque and deliberately not encrypted: it carries only values the caller was already given, and RLS decides what the next page may contain whatever a tampered one asks for. **The `id` tie-break is load-bearing** — two sessions can share a `started_at` to the microsecond, because the offline queue replays a batch on reconnect, and ordering on the timestamp alone lets a page boundary between them drop one and repeat the other. `nextCursor` is always present and null on the last page, so a client checking for the key and one checking for null cannot disagree.
+
+- **Response shapes are declared once**, in `packages/core/src/schemas/wire.ts`. The API's view types are `z.infer` of those schemas and the SPA parses every response against them. Until 2026-08-15 the two ends each declared their own copy linked by a comment — "Mirrors `LessonView` in the API's `get-curriculum.ts`" — over an `api.get` that ended in `return payload as T`. Renaming a field on the server left lint, typecheck, the boundary rules, the i18n gate and every unit suite green while a screen broke at runtime. Unknown keys are **stripped**, so a server may add a field without breaking an older client; a field that disappears is a `ContractError` naming the field.
 - **`ETag` + `If-None-Match`** on read-heavy dashboard endpoints. The insight rollups change once a night.
 
 ---
@@ -1535,9 +1539,12 @@ This data is a detailed map of your weaknesses. Treat it accordingly.
 
 ## 12. Observability
 
-- **Structured logs** (Pino) with `requestId`, `userId`, `agentRunId` on every line.
+- **Structured logs** (Pino) with `requestId`, `userId`, `agentRunId` on every line. Built in the API on 2026-08-15 — see §14.2 for what was wrong with the obvious way of doing it. The worker's lines still go through Nest's default logger; that is the remaining half.
 - **Sentry** for both `api` and `worker`; agent-run failures are first-class errors, not swallowed job retries.
-- **`llm_calls`** is the cost source of truth. A weekly internal query answers: cost per lesson, cache hit rate.
+- **`llm_calls`** is the cost source of truth, and since 2026-08-15 something reads it. It recorded every call from M3 — deduplicated per message, with a `teach_overhead` row reconciling a run's rows to its real bill — and answered no question: no total was shown to anyone and the only ceiling in the product was the `$5` cap inside a single run, while the single-active-run rule is per _mission_. `GET /v1/teach/spend` sums the learner's day in Postgres (`numeric`, never a float sum in JavaScript) and `TeachRuns.request` refuses against the same figure, so the meter and the refusal cannot disagree (FR-T8).
+
+  **An unpriced call is not a free call.** `cost_usd` is null when the model is not in the pricing table; those rows are counted separately, the total is reported as a floor, and they never exhaust a budget — refusing on an estimate would mean telling a learner they had spent money nobody priced (FR-T9, non-negotiable 10). A cap of `0` switches teaching off; an _absent_ cap draws no bar at all rather than an empty one.
+
 - **Agent run traces** stored as JSON (turn count, tools used, files touched, tokens) — when a lesson comes out bad you need to see what the agent actually did.
 - **Health checks** on both services; Railway restarts on failure. The worker drains in-flight jobs on SIGTERM before exiting.
 
@@ -1688,6 +1695,19 @@ reproducible, and keep it out of production by construction (guard on `NODE_ENV`
 - **`release-please`** on GitHub Actions derives the version bump, writes `CHANGELOG.md`, tags, and opens the release PR. Nothing is versioned by hand.
 - **Build metadata** — git SHA, build timestamp, and the applied migration name — is injected at build time and exposed at `GET /v1/health`. When something is wrong in production, "which code and which schema is actually running" is the first question, and it should take one request to answer.
 - **Sentry releases** are tagged with the same version so a stack trace maps to a commit.
+
+## 14.2 Logging
+
+**Structured JSON from `pino`, in every environment**, wired through `nestjs-pino` in `apps/api/src/shared/logging/`. Both packages were dependencies of `apps/api` for three milestones and were imported by nothing: the API emitted Nest's default console lines with no request log, no request id, and no way to tie a line to the user it belonged to. Survivable on one laptop; not survivable the first time an eight-minute teach run fails in a container.
+
+Four decisions, each with a wrong-looking alternative:
+
+- **Request identity belongs to Fastify, not to the logger.** `pino-http` accepts a `genReqId` and it is dead configuration under this adapter: its middleware reads `req.id = req.id || genReqId(...)`, and Fastify has already assigned one by then. Setting it there produces no error, no warning, and no request id — the first version of this shipped exactly that. The id is generated on the `FastifyAdapter`, honours an inbound `x-request-id` when the edge supplied one, and is echoed back on every response (including failures, which are the ones anyone reports).
+- **An inbound id is validated, not trusted.** It is attacker-controlled and lands in a log aggregator, so anything that is not a single line of url-safe characters under 128 bytes is discarded in favour of a fresh uuid. A newline in it would let a caller forge whole log entries.
+- **`authorization` is redacted, not omitted.** pino's default serializer logs every request header, which means a bearer token per line. Redacting leaves the key visible, so "was a token even sent?" stays answerable on a 401.
+- **The user is attached by an interceptor, not by `customProps`.** Under the Fastify adapter `pino-http` sees the raw `IncomingMessage`, while `SupabaseAuthGuard` keys its `WeakMap` on Fastify's request wrapper — `customProps` would look the user up on the wrong object and find nothing, silently. Only the id and the timezone are attached: a log line outlives the request and is read by people with no access to the account.
+
+No pretty-printer. It runs in a worker thread and would have to be enabled on `NODE_ENV === "development"`, which `env.ts` defaults — so any container with NODE_ENV unset would crash at boot over a formatter. `pnpm dev | npx pino-pretty` costs a pipe and cannot fail that way.
 
 ### In-app changelog
 

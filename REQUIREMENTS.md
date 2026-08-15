@@ -116,8 +116,10 @@ rollup.
 - **FR-M1** Create/edit a Mission: topic, why, success criteria, constraints, current level. Same
   shape as `teach`'s `MISSION.md` so they round-trip.
 - **FR-M2** Mission history — when and why it changed (append-only revisions).
-- **FR-M3** **WIP limit:** at most 3 active missions; others park. Parking a mission suspends
-  nothing destructive — the curriculum and history stay.
+- **FR-M3** **WIP limit:** at most 10 active missions; others park. Parking a mission suspends
+  nothing destructive — the curriculum and history stay. The limit was 3 until 2026-08-15 — the
+  number that made this a rule about scatter rather than a runaway guard. It is now the second
+  thing, deliberately; restoring the first means making it per-user with 3 as the default.
 
 ### 6.3 Curriculum & modules
 
@@ -160,6 +162,15 @@ rollup.
 - **FR-T6** Reference docs get their own browsable library; learning records are browsable and
   linked from their lessons.
 - **FR-T7** Every LLM call writes an `llm_calls` row; a run's calls reconcile to its `modelUsage`.
+- **FR-T8** **The learner can see what teaching has cost**, and a daily ceiling stops it running
+  away. `llm_calls` recorded every call from M3 and nothing read the rows back: there was no total
+  anywhere and no limit beyond the $5 cap inside a single run — while the single-active-run rule is
+  per _mission_, so a learner with six missions had six runs' worth in flight. Today's spend and the
+  ceiling are one calculation, used by the meter and by the refusal, so the two cannot disagree.
+- **FR-T9** **An unpriced call is not a free call.** A model missing from the pricing table leaves
+  `cost_usd` null; the total is then reported as a floor ("at least $4.10") with the count of what
+  it could not price, and unmeasured spend never exhausts a budget — refusing on an estimate would
+  mean telling a learner they had spent money nobody priced.
 
 ### 6.5 Progress tracker
 
@@ -233,12 +244,20 @@ Unchanged from v0.1 — en + pt-BR, and three separate settings:
 - **FR-L4** Week start seeded from locale (pt-BR: Sunday) — the grid's columns depend on it.
 - **FR-L5** A missing translation key fails the build.
 
-### 7.5 Offline & mobile
+### 7.5 The response contract
+
+One declaration of every response shape, in `packages/core`, which the API derives its return types
+from and the SPA parses against. It was two declarations linked by a comment until 2026-08-15 — a
+field renamed on the server left lint, typecheck, the boundary rules and every unit suite green, and
+broke a screen at runtime. Unknown keys are stripped so a server may add a field; a field that
+_disappears_ is an error naming the field.
+
+### 7.6 Offline & mobile
 
 Timing focus must work on a phone and survive a flaky connection (offline queue with
 client-generated UUIDs). Reading lessons and browsing the curriculum can be desktop-first.
 
-### 7.6 Accessibility & performance
+### 7.7 Accessibility & performance
 
 Keyboard-first navigation (command palette on desktop), WCAG AA, dark/light themes, fast cold
 start. Lesson HTML must render legibly in both themes and at 375px.

@@ -180,6 +180,31 @@ broken while the data is perfectly correct. It needs `SUPABASE_URL` and
 `seed:report` prints what the tracker functions actually say about it. Use it before designing
 anything that reads `daily_activity` or module progress.
 
+**Five review findings were closed on 2026-08-15**, all of them things that were structurally invisible
+rather than broken on screen. Each is documented where it lives; the short version:
+
+- **The response contract is declared once** (`packages/core/src/schemas/wire.ts`, §7.5 of
+  REQUIREMENTS). The API's view types are `z.infer` of those schemas and the SPA parses against
+  them. It was two hand-written declarations linked by the comment "Mirrors `LessonView`…" over an
+  `api.get` ending in `return payload as T`: renaming a field server-side kept every gate green and
+  broke a screen at runtime. `apps/web/src/test/fixtures.ts` builds test doubles through the same
+  schemas, which is how eight test files turned out to be asserting against responses the server
+  never sends.
+- **`llm_calls` has a reader** (FR-T8/T9, §12). A daily budget in the learner's timezone, enforced in
+  `TeachRuns.request` from the same calculation the meter renders, and a spend panel in Settings.
+  An unpriced call is counted, never summed as zero.
+- **The API logs** (§14.2). `pino`/`nestjs-pino` had been declared dependencies wired to nothing.
+  Note the trap recorded there: `pino-http`'s `genReqId` is dead configuration under Fastify.
+- **Dispatch is round-robin between learners** (`prisma-dispatch.gateway.ts`). Oldest-first across
+  every user meant one learner with six queued missions owned the worker for three quarters of an
+  hour.
+- **`GET /v1/focus/sessions` pages** (§6.1). It truncated at fifty with `PaginationSchema.cursor`
+  declared since M1 and issued by nothing.
+
+Two smaller ones with the same character: the three integration suites are chained in `turbo.json`
+rather than contending (see the comment there), and `parse/curriculum.ts` split into three files
+with its 876-line test suite unchanged as the proof.
+
 Deferred deliberately, still: **Railway is not provisioned** and there is no cloud Supabase project
 (the org is at its 2-project free limit; local is sufficient until M6's deploy). **SSE is not
 built** — the mission card polls every five seconds while a run is live; `EventSource` cannot send
@@ -208,6 +233,12 @@ pnpm dev                                      # api :3000, web :5173, lessons :3
 
 Without that third service every lesson renders an empty frame — which is also what a deployment
 that forgot it looks like.
+
+`TEACH_DAILY_BUDGET_USD` caps what one learner may spend on teaching in a day (default 15; empty
+means no ceiling, which is **not** the same as `0`, which switches teaching off). `LOG_LEVEL`
+defaults to `info`. Both are read by `apps/api`, and the budget is declared by `apps/worker` too —
+not because the worker enforces it, but because it boots the API's `TeachModule` and Nest would
+otherwise construct `TeachSpend` against an env that had never heard of the setting.
 
 `.env.local` holds the local connection strings and is gitignored; `packages/db/.env` is a copy the
 Prisma CLI reads. `.env.example` documents the shape. **`LESSONS_TOKEN_SECRET` is required by both
@@ -293,13 +324,13 @@ pnpm --filter @mindforge/db generate           # regenerate the Prisma client
   is where the `new Date()` ban matters most — an integration test that reaches for the wall clock
   is a test that fails at midnight.
 
-- **`pnpm test` runs the integration suites concurrently against one local Supabase, and they
-  contend.** Turbo parallelises across packages, so `@mindforge/worker` and `@mindforge/db` reach
-  the same Postgres and the same Storage at once; each has been seen to fail on a timeout and pass
-  standalone immediately after (2026-08-12). `fileParallelism: false` only orders files _within_ a
-  package. Until `turbo.json` stops those two overlapping, read a red `pnpm test` as "re-run that
-  package alone before believing it" — which is exactly the habit that makes a real regression look
-  like a flake, so it is worth fixing rather than living with.
+- **The three integration suites are chained in `turbo.json`, not parallel.** `packages/db`,
+  `apps/api` and `apps/worker` all reach the same local Supabase, and turbo parallelises across
+  packages — each had been seen to fail on a timeout and pass standalone immediately after
+  (2026-08-12). `fileParallelism: false` only orders files _within_ a package, so the fix is a
+  `dependsOn` chain; the comment in `turbo.json` has the reasoning and names the cost, which is that
+  one red suite now hides the ones after it. CI is unaffected: it invokes each through
+  `pnpm --filter`, outside turbo.
 
   **`apps/web` had the same failure for a different reason and it is fixed, not lived with.** Its 34
   files each build a jsdom and an MSW server, so Vitest's 5s default timeout was measuring CPU
