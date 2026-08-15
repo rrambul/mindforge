@@ -493,6 +493,13 @@ model AgentRun {
 
   @@index([userId, createdAt])
   @@index([status, heartbeatAt])
+  /// A third index exists in SQL and cannot be written here: `(user_id,
+  /// started_at DESC) WHERE started_at IS NOT NULL`, added by
+  /// `20260815120000_dispatch_fairness_index`. Prisma cannot express a partial
+  /// index, so — like the check constraints and the single-active-run unique
+  /// index — it lives only in the migration. It backs round-robin dispatch in
+  /// `prisma-dispatch.gateway.ts`; dropping it makes that query a sequential scan
+  /// every five seconds.
   @@map("agent_runs")
 }
 

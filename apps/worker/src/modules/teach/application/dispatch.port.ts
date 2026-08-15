@@ -25,14 +25,17 @@ export interface QueuedRun {
 
 export interface TeachDispatchGateway {
   /**
-   * The oldest queued run, across every user.
+   * The next queued run to serve, across every user.
    *
    * The one cross-user read the dispatcher makes, and it is correct for the same
    * reason `NightlyGateway.listProfiles` is: nobody is signed in, and everything
    * afterwards is scoped by the `userId` this returns.
    *
-   * Oldest first, so a user who queued while another mission was running is not
-   * starved by a user who kept pressing the button.
+   * **Round-robin between learners, oldest-first within one.** Plain oldest-first
+   * is fair between runs and unfair between people: the worker runs one agent at a
+   * time and a run takes minutes, so a learner with six queued missions would hold
+   * it for the best part of an hour. Whoever was served longest ago goes next, and
+   * a learner with no run behind them at all goes first.
    */
   nextQueued(): Promise<QueuedRun | null>;
 

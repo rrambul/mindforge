@@ -38,6 +38,23 @@ export class PrismaDispatchGateway implements TeachDispatchGateway {
       // allows kinds this worker cannot run (`sync_workspace`, and the assessment
       // kinds M6 cut), and claiming one would hold the mission's single-active-run
       // slot while nothing happened.
+      //
+      // **Round-robin by learner, FIFO within one.** The ordering used to be
+      // `created_at` alone, which is fair between *runs* and unfair between
+      // *people*: this process runs one agent at a time (see `TeachDispatcher`'s
+      // `busy`), a run takes about eight minutes, and the single-active-run index
+      // is per mission rather than per user. So a learner who pressed the button on
+      // six missions owned the worker for the next three quarters of an hour, and
+      // everybody else waited behind all six with nothing on any screen to say why.
+      //
+      // The key is when that learner's last run *started*, oldest first, so the
+      // person served longest ago goes next. `to_timestamp(0)` puts somebody who
+      // has never had a run at the very front — a first mission should not queue
+      // behind the backlog of whoever is already here.
+      //
+      // Correlated rather than a `group by` over the whole table: the outer set is
+      // only the runnable rows, so this evaluates a handful of times and rides the
+      // `(user_id, started_at)` index rather than aggregating every run ever made.
       `select r.id, r.user_id, r.mission_id, r.kind, m.workspace_key, p.timezone
          from agent_runs r
          join missions m on m.id = r.mission_id
@@ -45,7 +62,15 @@ export class PrismaDispatchGateway implements TeachDispatchGateway {
         where r.status = 'queued'
           and r.kind in ('generate_lesson', 'generate_curriculum')
           and m.workspace_key is not null
-        order by r.created_at asc
+        order by
+          coalesce(
+            (select max(prior.started_at)
+               from agent_runs prior
+              where prior.user_id = r.user_id
+                and prior.started_at is not null),
+            to_timestamp(0)
+          ) asc,
+          r.created_at asc
         limit 1`,
     );
 
