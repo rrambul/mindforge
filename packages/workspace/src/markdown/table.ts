@@ -138,3 +138,31 @@ export function parseLink(cell: string): { title: string; url: string | null } {
   }
   return { title: cell.trim(), url: null };
 }
+
+/**
+ * Cells that mean "nothing here", including the format docs' em dash.
+ *
+ * A markdown-table convention rather than a curriculum one: a hand-written table
+ * writes `—` where a program would write an empty string, and every parser reading
+ * one has to know that. It lived in `parse/curriculum.ts` while that file was the
+ * only reader; it moved here when the module-table parser split out, because the
+ * alternative was the two halves importing a constant from each other.
+ *
+ * Both scripts' dashes and both languages' words, because the agent writes these
+ * files and writes them in the learner's content language (§5.2).
+ */
+const NONE_MARKERS: ReadonlySet<string> = new Set([
+  "—",
+  "–",
+  "-",
+  "--",
+  "none",
+  "n/a",
+  "na",
+  "nenhum",
+  "nenhuma",
+]);
+
+export function isNoneMarker(cell: string): boolean {
+  return NONE_MARKERS.has(cell.trim().toLowerCase());
+}
