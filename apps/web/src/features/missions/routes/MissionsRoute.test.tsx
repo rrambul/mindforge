@@ -81,7 +81,12 @@ describe("the WIP count", () => {
     ]);
     renderWithProviders(<MissionsRoute />);
 
-    expect(await screen.findByText(`2 of ${MISSION_WIP_LIMIT} active`)).toBeVisible();
+    // Derived from the constant rather than written out: the count of *active*
+    // missions seeded above is one less than the limit, and hardcoding "2" tied this
+    // assertion to the limit being 3. It stopped being 3 on 2026-08-15.
+    expect(
+      await screen.findByText(`${MISSION_WIP_LIMIT - 1} of ${MISSION_WIP_LIMIT} active`),
+    ).toBeVisible();
     expect(screen.getByRole("button", { name: "New mission" })).toBeEnabled();
   });
 });
@@ -258,7 +263,10 @@ describe("pt-BR", () => {
     renderWithProviders(<MissionsRoute />, { locale: "pt-BR" });
 
     expect(await screen.findByText("Missões")).toBeVisible();
-    expect(screen.getByText(`3 de ${MISSION_WIP_LIMIT} ativas`)).toBeVisible();
+    // Same as above: the seed is `MISSION_WIP_LIMIT` missions, so the count is the
+    // limit. ICU's `other` branch is what this is really asserting, and any count
+    // above one exercises it in both locales.
+    expect(screen.getByText(`${MISSION_WIP_LIMIT} de ${MISSION_WIP_LIMIT} ativas`)).toBeVisible();
     expect(screen.getByText(/Pause uma para começar outra/)).toBeVisible();
     expect(screen.getAllByRole("button", { name: "Pausar" })).toHaveLength(MISSION_WIP_LIMIT);
   });

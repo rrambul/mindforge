@@ -44,14 +44,18 @@ export function missionStatusRank(status: MissionStatus): number {
 }
 
 /**
- * FR-M4. Scatter is the main failure mode of ambitious learners, so this is a
+ * FR-M3. Scatter is the main failure mode of ambitious learners, so this is a
  * product rule rather than a preference — and it lives here so the SPA can
  * disable "new mission" *before* a submit fails, rather than surfacing a 409.
  *
- * FR-M4 calls 3 the default, implying it becomes configurable. When it does, this
- * constant becomes the fallback and nothing else moves.
+ * It was 3 until 2026-08-15, which is the number that argues the rule. 10 is a
+ * runaway guard, not a limit that shapes behaviour: nobody with ten live missions
+ * is being protected from scatter by the eleventh being refused. Raised at the
+ * owner's request to author several missions at once; the honest way back is to
+ * make it per-user configurable with 3 as the default, as FR-M3 always implied,
+ * and then this constant becomes the fallback and nothing else moves.
  */
-export const MISSION_WIP_LIMIT = 3;
+export const MISSION_WIP_LIMIT = 10;
 
 /** Long-form fields are desktop-authored (§5.1), so the ceilings are generous. */
 const TOPIC_MAX = 200;
