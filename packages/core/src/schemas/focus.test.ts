@@ -144,8 +144,22 @@ describe("ListFocusSessionsQuerySchema", () => {
     expect(parsed.since).toEqual(new Date("2026-08-01T00:00:00.000Z"));
   });
 
-  it("accepts no filter at all", () => {
-    expect(ListFocusSessionsQuerySchema.parse({})).toEqual({});
+  it("accepts no filter at all, and defaults the page size", () => {
+    // The same 50 this list has capped at since M1, so adding a cursor changed
+    // nothing for a caller that sends no parameters.
+    expect(ListFocusSessionsQuerySchema.parse({})).toEqual({ limit: 50 });
+  });
+
+  it("takes a cursor and a page size from the query string", () => {
+    expect(ListFocusSessionsQuerySchema.parse({ cursor: "abc", limit: "10" })).toMatchObject({
+      cursor: "abc",
+      limit: 10,
+    });
+  });
+
+  it("refuses a page size big enough to be a year of history", () => {
+    expect(() => ListFocusSessionsQuerySchema.parse({ limit: "5000" })).toThrow();
+    expect(() => ListFocusSessionsQuerySchema.parse({ limit: "0" })).toThrow();
   });
 });
 

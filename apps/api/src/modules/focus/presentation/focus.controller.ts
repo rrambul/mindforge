@@ -8,6 +8,7 @@ import {
   type CreateFocusSessionInput,
   type DebriefFocusSessionInput,
   type EntryMode,
+  type FocusSessionList,
   type IntentionOutcome,
   type ListFocusSessionsQuery,
   type StartFocusSessionInput,
@@ -49,6 +50,8 @@ export interface FocusSessionView {
   /** The lesson the time was spent on, when the block was started from the reader (FR-F3). */
   readonly lessonId: string | null;
 }
+
+export type FocusSessionListView = FocusSessionList;
 
 export function toFocusSessionView(session: FocusSession): FocusSessionView {
   const s = session.toSnapshot();
@@ -101,13 +104,20 @@ export class FocusController {
     return { session: session ? toFocusSessionView(session) : null };
   }
 
+  /**
+   * A page of history, newest first (§6.1).
+   *
+   * `nextCursor` is always present and null on the last page, rather than being
+   * omitted: a client checking `"nextCursor" in body` and a client checking
+   * `body.nextCursor !== null` should not be able to disagree.
+   */
   @Get("sessions")
   async listSessions(
     @CurrentUser() user: RequestContext,
     @Query(zodPipe(ListFocusSessionsQuerySchema)) query: ListFocusSessionsQuery,
-  ): Promise<{ sessions: FocusSessionView[] }> {
-    const sessions = await this.list.execute(user.userId, query);
-    return { sessions: sessions.map(toFocusSessionView) };
+  ): Promise<FocusSessionListView> {
+    const page = await this.list.execute(user.userId, query);
+    return { sessions: page.sessions.map(toFocusSessionView), nextCursor: page.nextCursor };
   }
 
   @Post("sessions/start")

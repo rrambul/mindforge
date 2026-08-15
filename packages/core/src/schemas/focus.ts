@@ -139,6 +139,20 @@ export const ListFocusSessionsQuerySchema = z.object({
   missionId: UuidSchema.optional(),
   /** Inclusive lower bound, in the user's timezone as resolved by the caller. */
   since: z.coerce.date().optional(),
+  /**
+   * The last row of the previous page, opaque (`schemas/cursor.ts`).
+   *
+   * Keyset rather than offset: this list grows for as long as somebody uses the
+   * product, and the nightly rollup and every teach run insert while a client may
+   * be paging — which is exactly when `OFFSET` starts skipping and repeating rows.
+   */
+  cursor: z.string().min(1).optional(),
+  /**
+   * Capped, so one request cannot ask for a year of history. The default is the
+   * `DEFAULT_LIMIT` this list has had since M1, kept identical so adding paging
+   * changes nothing for a caller that sends no parameters.
+   */
+  limit: z.coerce.number().int().min(1).max(100).default(50),
 });
 export type ListFocusSessionsQuery = z.infer<typeof ListFocusSessionsQuerySchema>;
 

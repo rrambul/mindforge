@@ -79,9 +79,27 @@ export class PrismaFocusSessionRepository implements FocusSessionRepository {
         where: {
           ...(filter.missionId ? { missionId: filter.missionId } : {}),
           ...(filter.since ? { startedAt: { gte: filter.since } } : {}),
+          // The keyset predicate, spelled out rather than expressed with Prisma's
+          // `cursor`/`skip`: that pair needs a unique column to seek on and orders
+          // by it, which would drop the newest-first ordering the Today screen
+          // depends on. This is the ordinary "(a, b) < (a0, b0)" comparison,
+          // written as the OR because Prisma has no row-value syntax.
+          //
+          // The `id` half is not decoration. Two sessions can share a `startedAt`
+          // to the microsecond — the offline queue replays a batch on reconnect —
+          // and without a tie-break a page boundary landing between them drops one
+          // and repeats the other, silently.
+          ...(filter.after
+            ? {
+                OR: [
+                  { startedAt: { lt: filter.after.startedAt } },
+                  { startedAt: filter.after.startedAt, id: { lt: filter.after.id } },
+                ],
+              }
+            : {}),
         },
         // Uses the (user_id, started_at) index. Newest first: the Today screen reads the top.
-        orderBy: { startedAt: "desc" },
+        orderBy: [{ startedAt: "desc" }, { id: "desc" }],
         ...(filter.limit === undefined ? {} : { take: filter.limit }),
         select: COLUMNS,
       });

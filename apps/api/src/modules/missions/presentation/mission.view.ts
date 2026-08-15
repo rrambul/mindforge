@@ -1,5 +1,7 @@
-import type { MissionStatus } from "@mindforge/core";
+import type { MissionView } from "@mindforge/core";
 import type { Mission } from "../domain/mission.js";
+
+export type { MissionView };
 
 /**
  * What a mission looks like on the wire.
@@ -9,19 +11,12 @@ import type { Mission } from "../domain/mission.js";
  * to a client that will be versioned. `status` is a key — the SPA translates it
  * (§5.2) — and timestamps are ISO 8601 UTC, with the user's timezone applied at
  * render rather than baked in here.
+ *
+ * **The shape itself is `MissionViewSchema` in `packages/core`.** It used to be
+ * declared here and again in the SPA's `use-missions.ts`, linked by a comment;
+ * now both ends derive from one schema and the SPA parses against it, so dropping
+ * a field here stops compiling instead of arriving as `undefined` on a card.
  */
-export interface MissionView {
-  readonly id: string;
-  readonly topic: string;
-  readonly why: string | null;
-  readonly successLooksLike: string | null;
-  readonly constraints: string | null;
-  readonly currentLevel: string | null;
-  readonly status: MissionStatus;
-  readonly createdAt: string;
-  readonly updatedAt: string;
-}
-
 export function toMissionView(mission: Mission): MissionView {
   const snapshot = mission.toSnapshot();
   return {

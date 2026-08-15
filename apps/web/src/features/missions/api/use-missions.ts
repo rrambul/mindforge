@@ -1,4 +1,11 @@
-import type { CreateMissionInput, MissionStatus } from "@mindforge/core";
+import {
+  MissionListSchema,
+  MissionViewSchema,
+  type CreateMissionInput,
+  type MissionList,
+  type MissionStatus,
+  type MissionView,
+} from "@mindforge/core";
 import {
   useMutation,
   useQuery,
@@ -9,22 +16,15 @@ import {
 import { api } from "../../../shared/api/http.js";
 import type { RequestError } from "../../../shared/api/problem.js";
 
-/** Mirrors the API's MissionView. */
-export interface Mission {
-  readonly id: string;
-  readonly topic: string;
-  readonly why: string | null;
-  readonly successLooksLike: string | null;
-  readonly constraints: string | null;
-  readonly currentLevel: string | null;
-  readonly status: MissionStatus;
-  readonly createdAt: string;
-  readonly updatedAt: string;
-}
-
-interface MissionsResponse {
-  readonly missions: readonly Mission[];
-}
+/**
+ * The API's own shape, from `packages/core` — not a copy of it.
+ *
+ * This was a hand-written mirror with a one-line comment pointing at the server's
+ * declaration, and nothing checked the two still matched. `Mission` stays as an
+ * alias because the whole feature reads better for it.
+ */
+export type Mission = MissionView;
+type MissionsResponse = MissionList;
 
 /**
  * Keys as a factory, not string literals at the call site. An invalidation that
@@ -40,7 +40,7 @@ export function useMissions(status?: MissionStatus): UseQueryResult<MissionsResp
   return useQuery({
     queryKey: missionKeys.list(status),
     queryFn: ({ signal }) =>
-      api.get<MissionsResponse>(status ? `/missions?status=${status}` : "/missions", signal),
+      api.get(status ? `/missions?status=${status}` : "/missions", MissionListSchema, signal),
   });
 }
 
@@ -57,7 +57,7 @@ export function useMissions(status?: MissionStatus): UseQueryResult<MissionsResp
 export function useCreateMission(): UseMutationResult<Mission, RequestError, CreateMissionInput> {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (input) => api.post<Mission>("/missions", input),
+    mutationFn: (input) => api.post("/missions", MissionViewSchema, input),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: missionKeys.all }),
   });
 }
@@ -75,7 +75,7 @@ export function useSetMissionParked(): UseMutationResult<
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({ id, parked }) =>
-      api.post<Mission>(`/missions/${id}/${parked ? "park" : "unpark"}`),
+      api.post(`/missions/${id}/${parked ? "park" : "unpark"}`, MissionViewSchema),
     // Invalidated rather than patched into the cache: parking frees a WIP slot, so the
     // list, the count, and whether "new mission" is available all change together.
     onSuccess: () => queryClient.invalidateQueries({ queryKey: missionKeys.all }),

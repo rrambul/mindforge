@@ -39,6 +39,10 @@ export const PROBLEM = {
   // not an error — the rejection and the thing it was rejected for are the same
   // fact seen from two sides.
   runAlreadyActive: `${TYPE_BASE}/run-already-active`,
+  // The daily teaching budget (FR-T8). Branched on because the recovery is
+  // "wait until midnight", not "fix the request" — so the panel shows the meter
+  // and what is left of it rather than a sentence with no context.
+  teachDailyBudgetExhausted: `${TYPE_BASE}/teach-daily-budget-exhausted`,
 } as const;
 
 /**
@@ -73,6 +77,29 @@ export class ApiError extends Error {
 }
 
 /**
+ * The API answered, and the answer was not the shape the contract promises.
+ *
+ * Its own class rather than an `ApiError`, because the recovery is different in
+ * kind: an `ApiError` is something the user might fix by signing in or waiting,
+ * and this is a deployment where the SPA and the API disagree about the wire.
+ * Retrying it will fail identically every time.
+ *
+ * The field paths are in the message and the values are not. A response body can
+ * contain anything the learner wrote, and this string ends up in a console, a
+ * screenshot, and eventually a bug report.
+ */
+export class ContractError extends Error {
+  constructor(
+    readonly path: string,
+    readonly issues: readonly { readonly path: readonly PropertyKey[]; readonly message: string }[],
+  ) {
+    const fields = issues.map((issue) => issue.path.map(String).join(".") || "(root)").join(", ");
+    super(`${path} did not match the response contract: ${fields}`);
+    this.name = "ContractError";
+  }
+}
+
+/**
  * A network failure has no problem body, so it has no translated `detail` either.
  * The caller supplies one from the i18n bundle rather than this layer inventing
  * English copy.
@@ -93,7 +120,7 @@ export class NetworkError extends Error {
  * threw `start.error.is is not a function` and React unmounted the screen. The union makes the
  * compiler refuse the unguarded call.
  */
-export type RequestError = ApiError | NetworkError;
+export type RequestError = ApiError | NetworkError | ContractError;
 
 /**
  * Safe on any error, including one with no problem body.

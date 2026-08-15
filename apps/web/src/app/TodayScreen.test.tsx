@@ -1,7 +1,9 @@
+import type { FocusSessionView } from "@mindforge/core";
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { focusSessionResponse } from "../test/fixtures.js";
 import { API, problemResponse, server } from "../test/msw.js";
 import { renderWithProviders } from "../test/render.js";
 import { TodayScreen } from "./TodayScreen.js";
@@ -14,23 +16,20 @@ vi.mock("../shared/api/supabase.js", () => ({
 const SESSION_ID = "aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa";
 const MISSION_ID = "bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb";
 
-function session(overrides: Record<string, unknown> = {}) {
-  return {
+/**
+ * Built through the shared fixture, which parses.
+ *
+ * The hand-written version of this was missing `lessonId` — added to the wire in
+ * M5 and never backfilled here — and every test passed anyway, because the client
+ * cast the response instead of reading it.
+ */
+function session(overrides: Partial<FocusSessionView> = {}): FocusSessionView {
+  return focusSessionResponse({
     id: SESSION_ID,
     intention: "get the parser handling nested groups",
     startedAt: new Date(Date.now() - 42 * 60_000).toISOString(),
-    endedAt: null,
-    plannedMinutes: null,
-    minutes: null,
-    isRunning: true,
-    entryMode: "timer",
-    hitIntention: null,
-    focusQuality: null,
-    energy: null,
-    note: null,
-    missionId: null,
     ...overrides,
-  };
+  });
 }
 
 function runningReturns(value: object | null) {

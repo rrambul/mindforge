@@ -46,12 +46,28 @@ class InMemorySessions implements FocusSessionRepository {
     return Promise.resolve([...this.own(userId).values()].find((s) => s.isRunning) ?? null);
   }
 
+  /**
+   * The same ordering and the same keyset predicate the Prisma repository uses.
+   *
+   * The tie-break on `id` is not optional here either: without it this double
+   * returns a stable-looking order that Postgres does not guarantee, and the
+   * paging tests would pass against a fake that disagrees with the database. Two
+   * sessions can share a `startedAt` to the microsecond — the offline queue
+   * replays a batch on reconnect.
+   */
   list(userId: string, filter: FocusSessionFilter): Promise<FocusSession[]> {
     let all = [...this.own(userId).values()].sort(
-      (a, b) => b.startedAt.getTime() - a.startedAt.getTime(),
+      (a, b) => b.startedAt.getTime() - a.startedAt.getTime() || (a.id < b.id ? 1 : -1),
     );
     if (filter.missionId) all = all.filter((s) => s.attachments.missionId === filter.missionId);
     if (filter.since) all = all.filter((s) => s.startedAt >= filter.since!);
+    if (filter.after) {
+      const { startedAt, id } = filter.after;
+      all = all.filter(
+        (s) =>
+          s.startedAt < startedAt || (s.startedAt.getTime() === startedAt.getTime() && s.id < id),
+      );
+    }
     if (filter.limit !== undefined) all = all.slice(0, filter.limit);
     return Promise.resolve(all);
   }
@@ -417,17 +433,71 @@ describe("reads", () => {
     await expect(new GetRunningFocusSession(sessions).execute(ALICE)).resolves.toBeNull();
   });
 
-  it("caps the list, because sessions are the one M1 list that grows without bound", async () => {
+  /** Sixty finished sessions, newest last in creation order. */
+  async function seedSessions(count: number): Promise<void> {
     const start = new StartFocusSession(sessions, clock, new SequentialIdGenerator(), subject());
     const stop = new StopFocusSession(sessions, clock);
-    for (let i = 0; i < 60; i += 1) {
+    for (let i = 0; i < count; i += 1) {
       const session = await start.execute(ALICE, {});
       clock.advance(60_000);
       await stop.execute(ALICE, session.id);
       clock.advance(60_000);
     }
+  }
 
-    await expect(new ListFocusSessions(sessions).execute(ALICE, {})).resolves.toHaveLength(50);
+  it("caps the page, because sessions are the one list that grows without bound", async () => {
+    await seedSessions(60);
+
+    const page = await new ListFocusSessions(sessions).execute(ALICE, { limit: 50 });
+
+    expect(page.sessions).toHaveLength(50);
+  });
+
+  it("offers a cursor when there is more, and none when there is not", async () => {
+    // The fifty-first session used to be unreachable: the list truncated at a
+    // hard `DEFAULT_LIMIT` and `PaginationSchema.cursor` had gone unissued since
+    // M1. History that exists and cannot be read.
+    await seedSessions(12);
+
+    const first = await new ListFocusSessions(sessions).execute(ALICE, { limit: 10 });
+    expect(first.nextCursor).not.toBeNull();
+
+    const second = await new ListFocusSessions(sessions).execute(ALICE, {
+      limit: 10,
+      cursor: first.nextCursor ?? undefined,
+    });
+    expect(second.sessions).toHaveLength(2);
+    // Null on the last page rather than a cursor that returns nothing, which would
+    // give every client one guaranteed empty request.
+    expect(second.nextCursor).toBeNull();
+  });
+
+  it("pages without dropping or repeating a session", async () => {
+    await seedSessions(25);
+
+    const seen: string[] = [];
+    let cursor: string | undefined;
+    do {
+      const page = await new ListFocusSessions(sessions).execute(ALICE, { limit: 7, cursor });
+      seen.push(...page.sessions.map((session) => session.id));
+      cursor = page.nextCursor ?? undefined;
+    } while (cursor !== undefined);
+
+    expect(seen).toHaveLength(25);
+    expect(new Set(seen).size).toBe(25);
+  });
+
+  it("starts from the top when the cursor is one we did not write", async () => {
+    // A bookmark, or a cursor from a previous release. Serving the first page
+    // beats a 500 over a stale URL.
+    await seedSessions(3);
+
+    const page = await new ListFocusSessions(sessions).execute(ALICE, {
+      limit: 10,
+      cursor: "not-a-cursor",
+    });
+
+    expect(page.sessions).toHaveLength(3);
   });
 
   it("filters by mission", async () => {
@@ -443,9 +513,12 @@ describe("reads", () => {
     clock.advance(60_000);
     await stop.execute(ALICE, second.id);
 
-    const listed = await new ListFocusSessions(sessions).execute(ALICE, { missionId: mission });
-    expect(listed).toHaveLength(1);
-    expect(listed[0]?.attachments.missionId).toBe(mission);
+    const listed = await new ListFocusSessions(sessions).execute(ALICE, {
+      missionId: mission,
+      limit: 50,
+    });
+    expect(listed.sessions).toHaveLength(1);
+    expect(listed.sessions[0]?.attachments.missionId).toBe(mission);
   });
 });
 

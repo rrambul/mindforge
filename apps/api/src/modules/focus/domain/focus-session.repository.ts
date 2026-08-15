@@ -7,6 +7,15 @@ export interface FocusSessionFilter {
   /** Inclusive lower bound on `startedAt`. */
   readonly since?: Date | undefined;
   readonly limit?: number | undefined;
+  /**
+   * The last row of the previous page, in the `(startedAt desc, id desc)` order
+   * this list is served in. Rows strictly *after* it are returned.
+   *
+   * Keyset rather than an offset: this list grows for as long as somebody uses
+   * the product, and the nightly rollup writes while a client may be paging —
+   * which is exactly when an offset starts skipping and repeating rows.
+   */
+  readonly after?: { readonly startedAt: Date; readonly id: string } | undefined;
 }
 
 /**

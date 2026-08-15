@@ -1,15 +1,20 @@
-import type { Locale, WeekStart } from "@mindforge/core";
+import { MeViewSchema, type MeView } from "@mindforge/core";
 import { useQuery, type UseQueryResult } from "@tanstack/react-query";
 import { api } from "../../../shared/api/http.js";
 
-/** Mirrors the API's MeView. */
-export interface Me {
-  readonly userId: string;
-  readonly locale: Locale;
-  /** IANA. Every "day" and "week" the client renders derives from this. */
-  readonly timezone: string;
-  readonly weekStartsOn: WeekStart;
-}
+/**
+ * The API's own shape, from `packages/core`.
+ *
+ * **All seven fields, though this hook reads four.** It used to be declared here
+ * as the narrow subset it needed, which was fine while nothing checked the wire
+ * and became a bug the moment something did: this query and
+ * `features/settings`'s share the cache key `["me"]` on purpose, so whichever
+ * runs first fills that entry — and a narrow schema strips unknown keys, leaving
+ * the settings screen reading a row with three fields missing.
+ *
+ * One key, one schema. `useProfile` documents the other half of this.
+ */
+export type Me = MeView;
 
 export const meKeys = {
   me: ["me"] as const,
@@ -25,7 +30,7 @@ export const meKeys = {
 export function useMe(enabled: boolean): UseQueryResult<Me> {
   return useQuery({
     queryKey: meKeys.me,
-    queryFn: ({ signal }) => api.get<Me>("/me", signal),
+    queryFn: ({ signal }) => api.get("/me", MeViewSchema, signal),
     // Without this, an unauthenticated app 401s on every mount before the sign-in form
     // has even rendered.
     enabled,

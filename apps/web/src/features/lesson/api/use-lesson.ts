@@ -1,4 +1,4 @@
-import type { LessonDepth, LessonOutcome, LessonStatus } from "@mindforge/core";
+import { LessonViewSchema, type LessonOutcome, type LessonView } from "@mindforge/core";
 import {
   useMutation,
   useQuery,
@@ -13,25 +13,12 @@ import { curriculumKeys } from "../../../shared/api/query-keys.js";
 /**
  * One lesson, and the URL that opens it (FR-T5, FR-P1).
  *
- * Mirrors `LessonView` in the API's `lesson.view.ts`.
+ * The API's own shape, from `packages/core` — this used to be a hand-written copy
+ * headed by "Mirrors `LessonView` in the API's `lesson.view.ts`", which was the
+ * only thing holding the two together. `view` is null when there is nothing to
+ * open: a planned lesson has no file, which is a state and not a failure.
  */
-export interface Lesson {
-  readonly id: string;
-  readonly missionId: string;
-  readonly trackId: string | null;
-  readonly moduleName: string | null;
-  readonly slug: string;
-  readonly title: string;
-  readonly intent: string | null;
-  readonly status: LessonStatus;
-  readonly difficulty: number | null;
-  readonly depth: LessonDepth | null;
-  readonly seq: number | null;
-  readonly completedAt: string | null;
-  readonly outcome: LessonOutcome | null;
-  /** Null when there is nothing to open — a planned lesson has no file. */
-  readonly view: { readonly url: string; readonly expiresAt: string } | null;
-}
+export type Lesson = LessonView;
 
 export const lessonKeys = {
   all: ["lesson"] as const,
@@ -54,7 +41,7 @@ export const lessonKeys = {
 export function useLesson(lessonId: string): UseQueryResult<Lesson> {
   return useQuery({
     queryKey: lessonKeys.byId(lessonId),
-    queryFn: ({ signal }) => api.get<Lesson>(`/lessons/${lessonId}`, signal),
+    queryFn: ({ signal }) => api.get(`/lessons/${lessonId}`, LessonViewSchema, signal),
     staleTime: 0,
     refetchOnWindowFocus: false,
   });
@@ -76,7 +63,7 @@ export function useCompleteLesson(
 
   return useMutation({
     mutationFn: (outcome: LessonOutcome) =>
-      api.put<Lesson>(`/lessons/${lessonId}/completion`, { outcome }),
+      api.put(`/lessons/${lessonId}/completion`, LessonViewSchema, { outcome }),
     onSuccess: (lesson) => {
       queryClient.setQueryData(lessonKeys.byId(lessonId), lesson);
       void queryClient.invalidateQueries({ queryKey: curriculumKeys.ofMission(lesson.missionId) });
@@ -95,7 +82,7 @@ export function useClearCompletion(lessonId: string): UseMutationResult<Lesson, 
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: () => api.delete<Lesson>(`/lessons/${lessonId}/completion`),
+    mutationFn: () => api.delete(`/lessons/${lessonId}/completion`, LessonViewSchema),
     onSuccess: (lesson) => {
       queryClient.setQueryData(lessonKeys.byId(lessonId), lesson);
       void queryClient.invalidateQueries({ queryKey: curriculumKeys.ofMission(lesson.missionId) });

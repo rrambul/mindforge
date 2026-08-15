@@ -4,6 +4,7 @@ import { http, HttpResponse } from "msw";
 import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { ApiError } from "../../../shared/api/problem.js";
+import { meResponse } from "../../../test/fixtures.js";
 import { API, problemResponse, server } from "../../../test/msw.js";
 import { meKeys, useMe } from "./use-me.js";
 
@@ -22,12 +23,9 @@ function harness() {
   return { wrapper };
 }
 
-const ME = {
-  userId: "11111111-1111-4111-8111-111111111111",
-  locale: "pt-BR",
-  timezone: "America/Sao_Paulo",
-  weekStartsOn: 0,
-};
+// Built rather than written out: `/me` returns seven fields and this fixture used
+// to carry four, which the client happily cast. See `test/fixtures.ts`.
+const ME = meResponse({ locale: "pt-BR", timezone: "America/Sao_Paulo", weekStartsOn: 0 });
 
 describe("useMe", () => {
   it("returns the profile the interface language comes from", async () => {

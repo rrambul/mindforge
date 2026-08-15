@@ -168,6 +168,101 @@ describe("the loop", () => {
   });
 });
 
+/**
+ * Paging through history (§6.1), against the real ordering.
+ *
+ * Only Postgres can answer this. The keyset predicate is `(started_at, id) <
+ * (…, …)` written as an OR because Prisma has no row-value syntax, and the tie-break
+ * on `id` exists because two sessions can share a `started_at` to the microsecond
+ * — which an in-memory double sorts deterministically and a database does not.
+ * Until this shipped, the list truncated at fifty and the fifty-first session was
+ * unreachable.
+ */
+describe("paging session history", () => {
+  /** Written directly: 25 sessions through the API would be 50 requests. */
+  async function seed(count: number, sharedStart?: string): Promise<void> {
+    for (let i = 0; i < count; i += 1) {
+      await db.$executeRawUnsafe(
+        `insert into focus_sessions (id, user_id, started_at, ended_at, entry_mode, created_at)
+         values (gen_random_uuid(), $1::uuid, $2::timestamptz,
+           $2::timestamptz + interval '25 minutes', 'manual', now())`,
+        alice.id,
+        sharedStart ?? `2026-08-${String((i % 28) + 1).padStart(2, "0")}T09:00:00Z`,
+      );
+    }
+  }
+
+  async function page(
+    cursor?: string,
+  ): Promise<{ sessions: SessionResponse[]; nextCursor: string | null }> {
+    const query = cursor === undefined ? "" : `&cursor=${encodeURIComponent(cursor)}`;
+    return JSON.parse((await get(`/v1/focus/sessions?limit=7${query}`, alice)).body) as {
+      sessions: SessionResponse[];
+      nextCursor: string | null;
+    };
+  }
+
+  it("walks the whole history without dropping or repeating a session", async () => {
+    await seed(25);
+
+    const seen: string[] = [];
+    let cursor: string | undefined;
+    do {
+      const result = await page(cursor);
+      seen.push(...result.sessions.map((session) => session.id));
+      cursor = result.nextCursor ?? undefined;
+    } while (cursor !== undefined);
+
+    expect(seen).toHaveLength(25);
+    expect(new Set(seen).size).toBe(25);
+  });
+
+  it("still walks cleanly when every session starts at the same instant", async () => {
+    // The case the `id` tie-break exists for, and the one an ordering on
+    // `started_at` alone gets wrong: Postgres may return equal keys in any order,
+    // so a page boundary between two of them drops one and repeats the other.
+    await seed(15, "2026-08-09T09:00:00Z");
+
+    const seen: string[] = [];
+    let cursor: string | undefined;
+    do {
+      const result = await page(cursor);
+      seen.push(...result.sessions.map((session) => session.id));
+      cursor = result.nextCursor ?? undefined;
+    } while (cursor !== undefined);
+
+    expect(new Set(seen).size).toBe(15);
+  });
+
+  it("returns a null cursor on the last page rather than one more empty request", async () => {
+    await seed(3);
+
+    const result = await page();
+
+    expect(result.sessions).toHaveLength(3);
+    expect(result.nextCursor).toBeNull();
+  });
+
+  it("serves the first page for a cursor nobody issued", async () => {
+    await seed(3);
+
+    const result = await page("not-a-real-cursor");
+
+    expect(result.sessions).toHaveLength(3);
+  });
+
+  it("keeps another learner's history out of the page", async () => {
+    await seed(3);
+    await db.$executeRawUnsafe(
+      `insert into focus_sessions (id, user_id, started_at, ended_at, entry_mode, created_at)
+       values (gen_random_uuid(), $1::uuid, now() - interval '1 hour', now(), 'manual', now())`,
+      bob.id,
+    );
+
+    expect((await page()).sessions).toHaveLength(3);
+  });
+});
+
 describe("idempotency (§6.1)", () => {
   it("converges on one session when a start is replayed", async () => {
     // The whole basis of the offline queue: it cannot know whether its first attempt landed, so

@@ -1,10 +1,8 @@
-import type {
-  LessonDepth,
-  LessonOutcome,
-  LessonStatus,
-  MissionProgress,
-  ModuleProgress,
-  OutcomeCounts,
+import {
+  CurriculumViewSchema,
+  type CurriculumLesson,
+  type CurriculumModule,
+  type CurriculumView,
 } from "@mindforge/core";
 import { useQuery, type UseQueryResult } from "@tanstack/react-query";
 
@@ -22,53 +20,20 @@ import { curriculumKeys } from "../../../shared/api/query-keys.js";
  * breaking quietly (non-negotiable 3).
  */
 
-/** Mirrors `LessonView` in the API's `get-curriculum.ts`. */
-export interface CurriculumLesson {
-  readonly id: string;
-  readonly slug: string;
-  readonly title: string;
-  readonly intent: string | null;
-  readonly status: LessonStatus;
-  /** 1–5 for this learner. Null means the plan did not say — rendered as unknown. */
-  readonly difficulty: number | null;
-  readonly depth: LessonDepth | null;
-  readonly completed: boolean;
-  readonly outcome: LessonOutcome | null;
-  readonly unblocked: boolean;
-  /** Titles of the prerequisites still unfinished, so the lock reads as a sentence. */
-  readonly blockedBy: readonly string[];
-  /** How many lessons depend on this one (FR-K6). */
-  readonly dependentCount: number;
-}
-
-/** Mirrors `ModuleView`. */
-export interface CurriculumModule {
-  readonly id: string;
-  readonly slug: string;
-  readonly name: string;
-  readonly outcome: string | null;
-  readonly status: string;
-  readonly prerequisites: readonly string[];
-  /** Null when the module has no lessons at all. Not a zero — see the panel. */
-  readonly progress: ModuleProgress | null;
-  /** How the finished ones landed (FR-P4). The four counts sum to `progress.completed`. */
-  readonly outcomes: OutcomeCounts | null;
-  readonly lessons: readonly CurriculumLesson[];
-}
-
-export interface Curriculum {
-  readonly missionId: string;
-  readonly modules: readonly CurriculumModule[];
-  /**
-   * The mission's own fraction, over the modules that have a plan (FR-P2).
-   *
-   * Null when none of them do. `modulesNotPlanned` says how many the fraction could
-   * not see, and the screen renders that rather than implying the bar covers
-   * everything.
-   */
-  readonly progress: MissionProgress | null;
-  readonly nextLessonId: string | null;
-}
+/**
+ * The API's own shapes, from `packages/core` — not copies of them.
+ *
+ * These were three hand-written mirrors, each headed by a comment naming the
+ * server declaration it tracked, with nothing checking they still matched. The
+ * response is now parsed against the same schema the API derives its return type
+ * from, so a field renamed on the server fails here with that field's name rather
+ * than arriving as `undefined` in a panel.
+ *
+ * Re-exported under the names this feature already used, because
+ * `CurriculumLesson` reads better than `LessonView` beside `CurriculumModule`.
+ */
+export type { CurriculumLesson, CurriculumModule };
+export type Curriculum = CurriculumView;
 
 /**
  * In `shared/api` rather than here, because the reader invalidates it: recording a
@@ -86,7 +51,8 @@ export { curriculumKeys } from "../../../shared/api/query-keys.js";
 export function useCurriculum(missionId: string): UseQueryResult<Curriculum> {
   return useQuery({
     queryKey: curriculumKeys.ofMission(missionId),
-    queryFn: ({ signal }) => api.get<Curriculum>(`/missions/${missionId}/curriculum`, signal),
+    queryFn: ({ signal }) =>
+      api.get(`/missions/${missionId}/curriculum`, CurriculumViewSchema, signal),
     staleTime: 0,
   });
 }

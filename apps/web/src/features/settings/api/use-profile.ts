@@ -1,9 +1,9 @@
-import type {
-  Locale,
-  SeenChangelogInput,
-  ThemeSchema,
-  UpdateProfileInput,
-  WeekStart,
+import {
+  MeViewSchema,
+  type MeView,
+  type SeenChangelogInput,
+  type ThemeSchema,
+  type UpdateProfileInput,
 } from "@mindforge/core";
 import {
   useMutation,
@@ -20,24 +20,14 @@ import type { RequestError } from "../../../shared/api/problem.js";
 export type Theme = z.infer<typeof ThemeSchema>;
 
 /**
- * Mirrors the API's `MeView` — all seven fields, not the four `features/auth` needs.
+ * The API's own shape, from `packages/core` — the same type `features/auth` reads.
  *
- * `contentLanguage`, `theme` and `changelogSeenVersion` are absent from that hook's `Me` because no
- * screen could write them until this one existed. This is the fuller reading of the same row.
+ * The two used to be separate declarations of one row, this one fuller than that
+ * one. They share a cache key, so they must also share a schema: parsing strips
+ * unknown keys, and a narrow schema filling the entry first would silently delete
+ * the three fields only this screen uses.
  */
-export interface Profile {
-  readonly userId: string;
-  readonly locale: Locale;
-  /** What the agent writes lessons in. Separate from `locale` on purpose (§5.2, FR-L3). */
-  readonly contentLanguage: Locale;
-  /** IANA. Every "day", "week", and nightly job derives from it. */
-  readonly timezone: string;
-  /** 0 = Sunday. Seeded from locale at signup, user-owned afterwards (FR-L5). */
-  readonly weekStartsOn: WeekStart;
-  readonly theme: Theme;
-  /** Null means never opened, which is not the same as up to date (§14.1). */
-  readonly changelogSeenVersion: string | null;
-}
+export type Profile = MeView;
 
 /**
  * **The same key array as `features/auth`'s `meKeys.me`, deliberately.**
@@ -61,7 +51,7 @@ export const profileKeys = {
 export function useProfile(enabled = true): UseQueryResult<Profile> {
   return useQuery({
     queryKey: profileKeys.me,
-    queryFn: ({ signal }) => api.get<Profile>("/me", signal),
+    queryFn: ({ signal }) => api.get("/me", MeViewSchema, signal),
     enabled,
     // These change only when this screen changes them, and the mutation below invalidates.
     staleTime: Infinity,
@@ -121,7 +111,7 @@ export function useUpdateProfile(): UseMutationResult<
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (patch) => api.patch<Profile>("/me", patch),
+    mutationFn: (patch) => api.patch("/me", MeViewSchema, patch),
     onMutate: async (patch) => {
       // Or an in-flight GET could land after the patch and overwrite it with the old row.
       await queryClient.cancelQueries({ queryKey: profileKeys.me });
@@ -154,7 +144,7 @@ export function useMarkChangelogSeen(): UseMutationResult<
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (body) => api.post<Profile>("/me/changelog-seen", body),
+    mutationFn: (body) => api.post("/me/changelog-seen", MeViewSchema, body),
     onSuccess: (updated) => queryClient.setQueryData(profileKeys.me, updated),
   });
 }

@@ -1,4 +1,4 @@
-import type { ActivityGrid, IsoDate } from "@mindforge/core";
+import { ActivityGridViewSchema, type ActivityGridView, type IsoDate } from "@mindforge/core";
 import { useQuery, type UseQueryResult } from "@tanstack/react-query";
 import { api } from "../../../shared/api/http.js";
 
@@ -11,16 +11,14 @@ import { api } from "../../../shared/api/http.js";
  * out below.
  */
 
-/** Mirrors `ActivityGridView`. */
-export interface ActivityGridResponse extends ActivityGrid {
-  /**
-   * When the nightly rollup last wrote a day in this range, or null when the range holds no rows.
-   *
-   * Rendered rather than ignored: a stale grid and an empty grid look identical without it, and a
-   * nightly job is the thing most likely to fail quietly.
-   */
-  readonly rebuiltAt: string | null;
-}
+/**
+ * The API's own shape, from `packages/core`.
+ *
+ * `rebuiltAt` is the field the *controller* adds to the grid, and it is rendered
+ * rather than ignored: a stale grid and an empty grid look identical without it,
+ * and a nightly job is the thing most likely to fail quietly.
+ */
+export type ActivityGridResponse = ActivityGridView;
 
 export const insightKeys = {
   all: ["insights"] as const,
@@ -43,7 +41,11 @@ export function useActivityGrid(range: GridRange): UseQueryResult<ActivityGridRe
   return useQuery({
     queryKey: insightKeys.activity(range.from, range.to),
     queryFn: ({ signal }) =>
-      api.get<ActivityGridResponse>(`/insights/activity?from=${range.from}&to=${range.to}`, signal),
+      api.get(
+        `/insights/activity?from=${range.from}&to=${range.to}`,
+        ActivityGridViewSchema,
+        signal,
+      ),
     staleTime: 0,
   });
 }

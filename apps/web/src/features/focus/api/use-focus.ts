@@ -1,9 +1,12 @@
-import type {
-  CreateFocusSessionInput,
-  DebriefFocusSessionInput,
-  EntryMode,
-  IntentionOutcome,
-  StartFocusSessionInput,
+import {
+  FocusSessionListSchema,
+  FocusSessionViewSchema,
+  RunningFocusSessionSchema,
+  type CreateFocusSessionInput,
+  type DebriefFocusSessionInput,
+  type FocusSessionList,
+  type FocusSessionView,
+  type StartFocusSessionInput,
 } from "@mindforge/core";
 import {
   useMutation,
@@ -17,28 +20,12 @@ import { NetworkError, type RequestError } from "../../../shared/api/problem.js"
 import { nowIso } from "../../../shared/lib/clock.js";
 import { useOfflineQueue } from "../../../shared/lib/queue-context.js";
 
-/** Mirrors the API's FocusSessionView. */
-export interface FocusSession {
-  readonly id: string;
-  readonly intention: string | null;
-  readonly startedAt: string;
-  readonly endedAt: string | null;
-  readonly plannedMinutes: number | null;
-  readonly minutes: number | null;
-  readonly isRunning: boolean;
-  readonly entryMode: EntryMode;
-  readonly hitIntention: IntentionOutcome | null;
-  readonly focusQuality: number | null;
-  readonly energy: number | null;
-  readonly note: string | null;
-  readonly missionId: string | null;
-  /** The lesson the time was spent on, when the block was started from the reader (FR-F3). */
-  readonly lessonId: string | null;
-}
-
-interface RunningResponse {
-  readonly session: FocusSession | null;
-}
+/**
+ * The API's own shape, from `packages/core` — not a copy of it. See
+ * `schemas/wire.ts` for why every one of these mirrors moved.
+ */
+export type FocusSession = FocusSessionView;
+type RunningResponse = { readonly session: FocusSession | null };
 
 export const focusKeys = {
   all: ["focus"] as const,
@@ -57,16 +44,25 @@ export const focusKeys = {
 export function useRunningSession(enabled: boolean): UseQueryResult<RunningResponse> {
   return useQuery({
     queryKey: focusKeys.running,
-    queryFn: ({ signal }) => api.get<RunningResponse>("/focus/sessions/running", signal),
+    queryFn: ({ signal }) => api.get("/focus/sessions/running", RunningFocusSessionSchema, signal),
     enabled,
     staleTime: 5_000,
   });
 }
 
-export function useRecentSessions(enabled: boolean): UseQueryResult<{ sessions: FocusSession[] }> {
+/**
+ * The most recent page of history.
+ *
+ * Deliberately the *first* page and not an infinite query: this feeds the Today
+ * screen, whose question is "what have I done lately", and the endpoint now
+ * returns a `nextCursor` for the screens that will page through the rest. The
+ * cursor is carried in the type rather than discarded so that adding
+ * `useInfiniteQuery` later is a change to this hook and to nothing that calls it.
+ */
+export function useRecentSessions(enabled: boolean): UseQueryResult<FocusSessionList> {
   return useQuery({
     queryKey: focusKeys.sessions,
-    queryFn: ({ signal }) => api.get<{ sessions: FocusSession[] }>("/focus/sessions", signal),
+    queryFn: ({ signal }) => api.get("/focus/sessions", FocusSessionListSchema, signal),
     enabled,
   });
 }
@@ -88,7 +84,7 @@ export function useStartSession(): UseMutationResult<
   const offline = useOfflineQueue();
 
   return useMutation({
-    mutationFn: (input) => api.post<FocusSession>("/focus/sessions/start", input),
+    mutationFn: (input) => api.post("/focus/sessions/start", FocusSessionViewSchema, input),
     onMutate: async (input) => {
       await queryClient.cancelQueries({ queryKey: focusKeys.running });
       const previous = queryClient.getQueryData<RunningResponse>(focusKeys.running);
@@ -147,7 +143,7 @@ export function useStopSession(): UseMutationResult<FocusSession, RequestError, 
   const offline = useOfflineQueue();
 
   return useMutation({
-    mutationFn: ({ id }) => api.post<FocusSession>(`/focus/sessions/${id}/stop`),
+    mutationFn: ({ id }) => api.post(`/focus/sessions/${id}/stop`, FocusSessionViewSchema),
     onMutate: async () => {
       await queryClient.cancelQueries({ queryKey: focusKeys.running });
       const previous = queryClient.getQueryData<RunningResponse>(focusKeys.running);
@@ -195,7 +191,7 @@ export function useDebriefSession(): UseMutationResult<
 
   return useMutation({
     mutationFn: ({ id, debrief }) =>
-      api.post<FocusSession>(`/focus/sessions/${id}/debrief`, debrief),
+      api.post(`/focus/sessions/${id}/debrief`, FocusSessionViewSchema, debrief),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: focusKeys.all }),
   });
 }
@@ -216,7 +212,7 @@ export function useRecordSession(): UseMutationResult<
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (input) => api.post<FocusSession>("/focus/sessions", input),
+    mutationFn: (input) => api.post("/focus/sessions", FocusSessionViewSchema, input),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: focusKeys.all }),
   });
 }

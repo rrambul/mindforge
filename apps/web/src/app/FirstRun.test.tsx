@@ -2,6 +2,7 @@ import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { focusSessionResponse, missionResponse } from "../test/fixtures.js";
 import { API, problemResponse, server } from "../test/msw.js";
 import { renderWithProviders } from "../test/render.js";
 import { FirstRun } from "./FirstRun.js";
@@ -18,11 +19,9 @@ function missions(count: number) {
   server.use(
     http.get(`${API}/missions`, () =>
       HttpResponse.json({
-        missions: Array.from({ length: count }, (_, i) => ({
-          id: `m${i}`,
-          topic: `Mission ${i}`,
-          status: "active",
-        })),
+        missions: Array.from({ length: count }, (_, i) =>
+          missionResponse({ id: `m${i}`, topic: `Mission ${i}` }),
+        ),
       }),
     ),
   );
@@ -35,15 +34,14 @@ function recordWrites() {
   server.use(
     http.post(`${API}/missions`, async ({ request }) => {
       written["mission"] = await request.json();
-      return HttpResponse.json(
-        { id: MISSION_ID, topic: "Rust", status: "active" },
-        { status: 201 },
-      );
+      return HttpResponse.json(missionResponse({ id: MISSION_ID, topic: "Rust" }), {
+        status: 201,
+      });
     }),
     http.post(`${API}/focus/sessions/start`, async ({ request }) => {
       written["session"] = await request.json();
       return HttpResponse.json(
-        { id: "s1", startedAt: "2026-08-06T12:00:00.000Z" },
+        focusSessionResponse({ id: "s1", startedAt: "2026-08-06T12:00:00.000Z" }),
         { status: 201 },
       );
     }),
@@ -100,7 +98,7 @@ describe("the offer", () => {
         await new Promise((resolve) => {
           setTimeout(resolve, 200);
         });
-        return HttpResponse.json({ missions: [{ id: "m0", topic: "x", status: "active" }] });
+        return HttpResponse.json({ missions: [missionResponse({ id: "m0", topic: "x" })] });
       }),
     );
 

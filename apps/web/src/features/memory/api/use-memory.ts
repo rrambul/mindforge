@@ -6,6 +6,9 @@ import {
   type UseQueryResult,
 } from "@tanstack/react-query";
 
+import { MemoryViewSchema, type MemoryView } from "@mindforge/core";
+import { z } from "zod";
+
 import { api } from "../../../shared/api/http.js";
 import type { RequestError } from "../../../shared/api/problem.js";
 
@@ -18,29 +21,31 @@ import type { RequestError } from "../../../shared/api/problem.js";
  * noticed across sessions, and your job is to correct it rather than seed it.
  */
 
-export type MemoryKind = "background" | "teaching_preference" | "learning_pattern" | "constraint";
+/**
+ * The four kinds the UI has copy for.
+ *
+ * Kept as a client-side list rather than as the wire type, and `MemoryView.kind`
+ * is a bare string on purpose: the agent writes these files and the parser stores
+ * what it finds, so a fifth kind must still reach the screen. Rejecting the
+ * response would hide the whole list over one unfamiliar word.
+ */
+export const MEMORY_KINDS_WITH_COPY = [
+  "background",
+  "teaching_preference",
+  "learning_pattern",
+  "constraint",
+] as const;
+export type MemoryKind = (typeof MEMORY_KINDS_WITH_COPY)[number];
 
-export interface MemoryView {
-  readonly id: string;
-  readonly slug: string;
-  readonly kind: MemoryKind;
-  /** The file's one-line summary — one fact, stated plainly. */
-  readonly summary: string;
-  /** `agent` or `user`. Almost always the former. */
-  readonly writtenBy: string;
-  /** Null means "you have not reviewed this", never "it is wrong". */
-  readonly confirmedAt: string | null;
-  /** Set when the agent later changed its mind. The old entry is kept. */
-  readonly supersededBySlug: string | null;
-  readonly updatedAt: string;
-}
+/** The API's own shape, from `packages/core`. */
+export type { MemoryView };
 
 export const memoryKeys = { all: ["memory"] as const };
 
 export function useMemories(): UseQueryResult<MemoryView[], RequestError> {
   return useQuery<MemoryView[], RequestError>({
     queryKey: memoryKeys.all,
-    queryFn: () => api.get<MemoryView[]>("/me/memory"),
+    queryFn: () => api.get("/me/memory", z.array(MemoryViewSchema)),
   });
 }
 
@@ -48,7 +53,7 @@ export function useConfirmMemory(): UseMutationResult<MemoryView, RequestError, 
   const queryClient = useQueryClient();
 
   return useMutation<MemoryView, RequestError, string>({
-    mutationFn: (id) => api.post<MemoryView>(`/me/memory/${id}/confirm`),
+    mutationFn: (id) => api.post(`/me/memory/${id}/confirm`, MemoryViewSchema),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: memoryKeys.all });
     },
@@ -67,7 +72,7 @@ export function useForgetMemory(): UseMutationResult<void, RequestError, string>
   const queryClient = useQueryClient();
 
   return useMutation<void, RequestError, string>({
-    mutationFn: (id) => api.delete<void>(`/me/memory/${id}`),
+    mutationFn: (id) => api.delete(`/me/memory/${id}`, z.void()),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: memoryKeys.all });
     },

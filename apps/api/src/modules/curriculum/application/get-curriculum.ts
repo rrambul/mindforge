@@ -5,13 +5,10 @@ import {
   moduleProgress,
   nextLesson,
   orderModule,
-  type LessonDepth,
+  type CurriculumLesson,
+  type CurriculumModule,
+  type CurriculumView,
   type LessonNode,
-  type LessonOutcome,
-  type LessonStatus,
-  type MissionProgress,
-  type ModuleProgress,
-  type OutcomeCounts,
 } from "@mindforge/core";
 import { Inject, Injectable, NotFoundException } from "@nestjs/common";
 
@@ -36,59 +33,16 @@ import {
  * completed, and `progress` is counted at the moment you ask.
  */
 
-export interface LessonView {
-  readonly id: string;
-  readonly slug: string;
-  readonly title: string;
-  readonly intent: string | null;
-  readonly status: LessonStatus;
-  /** 1–5 for this learner, or null when the plan did not say. Never defaulted. */
-  readonly difficulty: number | null;
-  readonly depth: LessonDepth | null;
-  readonly completed: boolean;
-  /** understood | shaky | lost, written by the reader (FR-P1). */
-  readonly outcome: LessonOutcome | null;
-  readonly unblocked: boolean;
-  /** Titles of the prerequisites still unfinished, so the lock has a reason. */
-  readonly blockedBy: readonly string[];
-  /** How many lessons depend on this one (FR-K6). Zero is the count, not a badge. */
-  readonly dependentCount: number;
-}
-
-export interface ModuleView {
-  readonly id: string;
-  readonly slug: string;
-  readonly name: string;
-  readonly outcome: string | null;
-  readonly status: string;
-  readonly prerequisites: readonly string[];
-  /** Null when the module has no lessons at all: not planned yet, never 0%. */
-  readonly progress: ModuleProgress | null;
-  /**
-   * How the finished ones landed (FR-P4). Null for the same reason `progress` is.
-   *
-   * Includes `unrecorded`, so the four sum to `progress.completed` — a
-   * distribution that dropped the completions made before an outcome could be
-   * recorded would show three outcomes out of five finished lessons and leave the
-   * reader to guess at the other two.
-   */
-  readonly outcomes: OutcomeCounts | null;
-  readonly lessons: readonly LessonView[];
-}
-
-export interface CurriculumView {
-  readonly missionId: string;
-  readonly modules: readonly ModuleView[];
-  /**
-   * The whole mission's fraction, over the modules that have a plan (FR-P2).
-   *
-   * Null when none of them do. `modulesNotPlanned` travels with it so the screen can
-   * say what the fraction did not cover — see `missionProgress`.
-   */
-  readonly progress: MissionProgress | null;
-  /** The first unblocked, unfinished lesson across the whole plan (FR-K7). */
-  readonly nextLessonId: string | null;
-}
+/**
+ * The wire shapes, derived from `packages/core`'s schemas rather than declared
+ * here.
+ *
+ * They were declared here *and* in the SPA's `use-curriculum.ts`, linked by the
+ * comment "Mirrors `LessonView`". Renaming a field on this side left every check
+ * green and broke the screen at runtime, which is the whole reason the contract
+ * moved. `CurriculumViewSchema` is what both ends now read.
+ */
+export type { CurriculumView, CurriculumLesson as LessonView, CurriculumModule as ModuleView };
 
 @Injectable()
 export class GetCurriculum {
@@ -106,7 +60,7 @@ export class GetCurriculum {
     const shown = rows.tracks.filter((track) => isShown(track, rows.lessons));
     const order = shown.map((track) => track.id);
 
-    const modules = shown.map((track): ModuleView => {
+    const modules = shown.map((track): CurriculumModule => {
       const inModule = nodes.filter((node) => node.trackId === track.id);
 
       return {

@@ -1,4 +1,4 @@
-import { defaultWeekStartsOn, type UpdateProfileInput } from "@mindforge/core";
+import { defaultWeekStartsOn, MeViewSchema, type UpdateProfileInput } from "@mindforge/core";
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback } from "react";
 import { api } from "../../../shared/api/http.js";
@@ -71,7 +71,10 @@ function browserSeed(): UpdateProfileInput {
  */
 async function seed(queryClient: ReturnType<typeof useQueryClient>): Promise<void> {
   try {
-    await api.patch("/me", browserSeed());
+    // `MeViewSchema` rather than a throwaway: the response is discarded here, but
+    // parsing it is what makes a seed that silently stopped returning a profile a
+    // failure at the call site instead of a shrug.
+    await api.patch("/me", MeViewSchema, browserSeed());
   } catch (cause) {
     console.error("Could not seed the new profile's locale, timezone and week start", cause);
     return;

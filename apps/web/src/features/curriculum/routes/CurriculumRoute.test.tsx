@@ -2,6 +2,7 @@ import { screen, within } from "@testing-library/react";
 import { http, HttpResponse } from "msw";
 import { describe, expect, it, vi } from "vitest";
 
+import { curriculumResponse } from "../../../test/fixtures.js";
 import { API, problemResponse, server } from "../../../test/msw.js";
 import { renderWithProviders } from "../../../test/render.js";
 import type { Curriculum, CurriculumLesson, CurriculumModule } from "../api/use-curriculum.js";
@@ -57,15 +58,22 @@ function module(over: Partial<CurriculumModule> = {}): CurriculumModule {
 }
 
 /**
- * `progress` defaults to absent rather than to a fraction, which is what the older
- * tests below want: they are about the modules, and a mission bar they never asked for
- * would put a second "2 of 7 lessons done" on the screen for their queries to match.
- * Its own behaviour is covered in "the mission's progress".
+ * `progress` defaults to **null**, not to absent, which is what the older tests below
+ * want: they are about the modules, and a mission bar they never asked for would put a
+ * second "2 of 7 lessons done" on the screen for their queries to match. Its own
+ * behaviour is covered in "the mission's progress".
+ *
+ * Null rather than omitted because that is what the API sends — a mission with no
+ * planned module has a null fraction, and the key is always present. It was omitted
+ * here until the response contract started being parsed, at which point this fixture
+ * turned out to be describing a response the server never produces.
  */
 function returns(curriculum: Partial<Curriculum> & { modules: readonly CurriculumModule[] }) {
   server.use(
     http.get(`${API}/missions/${MISSION}/curriculum`, () =>
-      HttpResponse.json({ missionId: MISSION, nextLessonId: null, ...curriculum }),
+      HttpResponse.json(
+        curriculumResponse({ missionId: MISSION, nextLessonId: null, ...curriculum }),
+      ),
     ),
   );
 }

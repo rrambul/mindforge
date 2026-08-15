@@ -4,6 +4,7 @@ import { renderHook, waitFor } from "@testing-library/react";
 import { http, HttpResponse } from "msw";
 import type { ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { meResponse } from "../../../test/fixtures.js";
 import { API, problemResponse, server } from "../../../test/msw.js";
 import { useSignUp } from "./use-sign-up.js";
 
@@ -34,7 +35,9 @@ function acceptsPatch(seen: UpdateProfileInput[]) {
   server.use(
     http.patch(`${API}/me`, async ({ request }) => {
       seen.push((await request.json()) as UpdateProfileInput);
-      return HttpResponse.json({});
+      // The endpoint answers with the profile it just wrote, and the hook parses
+      // it — an empty object here passed only while the response was cast.
+      return HttpResponse.json(meResponse());
     }),
   );
 }

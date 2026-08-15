@@ -1,4 +1,11 @@
+import {
+  LearningRecordSchema,
+  ReferenceDocSchema,
+  type LearningRecord,
+  type ReferenceDoc,
+} from "@mindforge/core";
 import { useQuery, type UseQueryResult } from "@tanstack/react-query";
+import { z } from "zod";
 
 import { api } from "../../../shared/api/http.js";
 
@@ -11,28 +18,25 @@ import { api } from "../../../shared/api/http.js";
  * are read next to the lesson they came out of.
  */
 
-export interface ReferenceDoc {
-  readonly id: string;
-  readonly slug: string;
-  readonly title: string;
-  readonly updatedAt: string;
-  /** Null when the mission has no workspace yet — there is nothing to open. */
-  readonly url: string | null;
-}
+/** The API's own shapes, from `packages/core`. See `schemas/wire.ts`. */
+export type { LearningRecord, ReferenceDoc };
 
-export interface LearningRecord {
-  readonly id: string;
-  readonly seq: number;
-  readonly title: string;
-  readonly lessonId: string | null;
-  readonly lessonTitle: string | null;
-  readonly whatLearned: string;
-  readonly evidence: string | null;
-  readonly keyInsight: string | null;
-  readonly struggles: string | null;
-  readonly next: string | null;
-  readonly recordedAt: string;
-}
+/**
+ * The two envelopes, declared here rather than in core.
+ *
+ * They are this feature's framing of shared rows — `expiresAt` is a fact about
+ * *this list's* signed URLs, not about a reference document — so core owns the
+ * item and the endpoint owns the wrapper.
+ */
+const ReferenceDocsResponseSchema = z.object({
+  docs: z.array(ReferenceDocSchema),
+  /** When every URL above stops working. They are signed and expire together. */
+  expiresAt: z.iso.datetime().nullable(),
+});
+
+const LearningRecordsResponseSchema = z.object({
+  records: z.array(LearningRecordSchema),
+});
 
 export const libraryKeys = {
   all: ["library"] as const,
@@ -53,10 +57,7 @@ export function useReferenceDocs(missionId: string): UseQueryResult<{
   return useQuery({
     queryKey: libraryKeys.referenceDocs(missionId),
     queryFn: ({ signal }) =>
-      api.get<{ docs: readonly ReferenceDoc[]; expiresAt: string | null }>(
-        `/missions/${missionId}/reference-docs`,
-        signal,
-      ),
+      api.get(`/missions/${missionId}/reference-docs`, ReferenceDocsResponseSchema, signal),
     staleTime: 0,
   });
 }
@@ -76,8 +77,9 @@ export function useLearningRecords(
   return useQuery({
     queryKey: libraryKeys.records(missionId, lessonId),
     queryFn: ({ signal }) =>
-      api.get<{ records: readonly LearningRecord[] }>(
+      api.get(
         `/missions/${missionId}/learning-records${query}`,
+        LearningRecordsResponseSchema,
         signal,
       ),
   });

@@ -1,6 +1,7 @@
 import { screen } from "@testing-library/react";
 import { http, HttpResponse } from "msw";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { activityGridResponse, meResponse } from "../test/fixtures.js";
 import { API, server } from "../test/msw.js";
 import { renderWithProviders } from "../test/render.js";
 import { InsightsScreen } from "./InsightsScreen.js";
@@ -20,24 +21,10 @@ vi.mock("../shared/api/supabase.js", () => ({
 function insightsReturning(options: { me?: object } = {}) {
   server.use(
     http.get(`${API}/me`, () =>
-      HttpResponse.json(
-        options.me ?? {
-          userId: "u1",
-          locale: "en",
-          timezone: "America/Sao_Paulo",
-          weekStartsOn: 1,
-        },
-      ),
+      HttpResponse.json(options.me ?? meResponse({ timezone: "America/Sao_Paulo" })),
     ),
     http.get(`${API}/insights/activity`, () =>
-      HttpResponse.json({
-        from: "2026-03-09",
-        to: "2026-03-15",
-        cells: [],
-        activeDaysIn28: 0,
-        signal: null,
-        rebuiltAt: null,
-      }),
+      HttpResponse.json(activityGridResponse({ from: "2026-03-09", to: "2026-03-15" })),
     ),
   );
 }
@@ -64,7 +51,7 @@ describe("what only the app layer can join up", () => {
       http.get(`${API}/me`, () => HttpResponse.json({}, { status: 500 })),
       http.get(`${API}/insights/activity`, ({ request }) => {
         asked.push(request.url);
-        return HttpResponse.json({});
+        return HttpResponse.json(activityGridResponse());
       }),
     );
 

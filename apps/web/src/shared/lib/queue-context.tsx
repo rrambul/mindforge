@@ -68,7 +68,7 @@ export function OfflineQueueProvider({ children, userId, storage }: OfflineQueue
             // The queue is handed `send` rather than importing the http client, so it does not depend
             // on auth — and so a test can drive it without a token.
             send: (path, body, method) =>
-              method === "PATCH" ? api.patch(path, body) : api.post(path, body),
+              method === "PATCH" ? api.replay(path, body, "PATCH") : api.replay(path, body),
             onChange: setPending,
             onDropped: (request: QueuedRequest) => {
               setDropped((count) => count + 1);
