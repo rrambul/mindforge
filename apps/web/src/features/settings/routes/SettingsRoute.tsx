@@ -22,6 +22,14 @@ export interface SettingsRouteProps {
    * not import another (§2.2 rule 6).
    */
   readonly renderMemory?: () => ReactNode;
+  /**
+   * What teaching has cost today (FR-T8).
+   *
+   * A render prop for the same reason as the memory panel: the meter belongs to
+   * `features/teach`, which owns the endpoint and the budget it is measured
+   * against, and §2.2 rule 6 forbids this feature importing another.
+   */
+  readonly renderSpend?: () => ReactNode;
 }
 
 /**
@@ -30,7 +38,7 @@ export interface SettingsRouteProps {
  * Three blocks, in the order they matter: the settings that change what every other screen *means*,
  * then appearance, then what changed since you last looked.
  */
-export function SettingsRoute({ renderMemory }: SettingsRouteProps) {
+export function SettingsRoute({ renderMemory, renderSpend }: SettingsRouteProps) {
   const { t } = useTranslation("settings");
   const { t: common } = useTranslation("common");
 
@@ -85,6 +93,11 @@ export function SettingsRoute({ renderMemory }: SettingsRouteProps) {
       </Card>
 
       {renderMemory?.()}
+
+      {/* After the memory and before the changelog: it is a fact about the account
+          rather than a setting, and it is the thing most likely to be looked up in a
+          hurry. */}
+      {renderSpend?.()}
 
       <Card as="section" label={t("changelog.heading")}>
         <Stack>

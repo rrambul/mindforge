@@ -19,6 +19,10 @@ const SAMPLE_VARS: Partial<Record<ServerMessageKey, Record<string, string | numb
   "error.goal.subject_missing": { subject: "resource" },
   "error.resource.link_target_missing": { kind: "mission" },
   "error.friction.target_missing": { kind: "skill" },
+  // Preformatted by the caller rather than an ICU `number` skeleton: the bill is
+  // in USD whatever language the learner reads, and a skeleton would render it in
+  // the message's locale. See `DailyBudgetExhausted`.
+  "error.teach.daily_budget_exhausted": { cap: "$15.00" },
 };
 
 describe("catalog completeness", () => {

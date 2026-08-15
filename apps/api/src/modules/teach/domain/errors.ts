@@ -85,3 +85,31 @@ export class WorkspaceKeyUnavailable extends DomainError {
     super(`Cannot derive a workspace key for mission ${missionId}`);
   }
 }
+
+/**
+ * Today's teaching budget is spent (FR-T8).
+ *
+ * `conflict` rather than `forbidden`: nothing about the request or the caller is
+ * wrong, and they will be allowed to make exactly this request again at midnight.
+ * `forbidden` reads as "not for you", which would be false and would send someone
+ * looking at their account rather than at the clock.
+ *
+ * **The cap travels with the error.** A message that says only "limit reached" is
+ * the version that gets pressed eleven more times, so `detailVars` carries the
+ * figure and the copy names it. The SPA branches on the slug to render the meter
+ * instead of a bare error — the same pattern `run-already-active` uses.
+ */
+export class DailyBudgetExhausted extends DomainError {
+  readonly kind: DomainErrorKind = "conflict";
+  readonly slug = "teach-daily-budget-exhausted";
+  readonly detailKey: ServerMessageKey = "error.teach.daily_budget_exhausted";
+  override readonly detailVars: Readonly<Record<string, string>>;
+
+  constructor(spentUsd: number, capUsd: number) {
+    super(`Daily teaching budget of $${capUsd} reached; $${spentUsd} spent`);
+    // Formatted here rather than in the catalogue because ICU's `number` skeleton
+    // would render the currency in the *message's* locale, and the bill is in USD
+    // whatever language the learner reads.
+    this.detailVars = { cap: `$${capUsd.toFixed(2)}` };
+  }
+}

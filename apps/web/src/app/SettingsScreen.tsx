@@ -1,5 +1,6 @@
 import { LearnerMemory } from "../features/memory/ui/LearnerMemory.js";
 import { SettingsRoute } from "../features/settings/routes/SettingsRoute.js";
+import { SpendPanel } from "../features/teach/ui/SpendPanel.js";
 
 /**
  * Settings, with the learner memory the agent has accumulated shown beside the settings that
@@ -10,5 +11,7 @@ import { SettingsRoute } from "../features/settings/routes/SettingsRoute.js";
  * importing the other. The screen that composes both hands one in as a render prop.
  */
 export function SettingsScreen() {
-  return <SettingsRoute renderMemory={() => <LearnerMemory />} />;
+  return (
+    <SettingsRoute renderMemory={() => <LearnerMemory />} renderSpend={() => <SpendPanel />} />
+  );
 }

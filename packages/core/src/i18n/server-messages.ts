@@ -96,6 +96,16 @@ const EN = {
   "error.teach.run_transition_invalid": "That run has already finished.",
   "error.teach.workspace_key_unavailable":
     "This mission's topic can't be turned into a workspace name. Give it a title with some letters or numbers in it.",
+  /**
+   * The daily teaching budget (FR-T8).
+   *
+   * Names the number and the reset, because "try again later" is the version of
+   * this message that makes someone press the button eleven more times. The reset
+   * is the learner's own midnight, which is why the hour is formatted by the
+   * caller rather than described here as "tomorrow".
+   */
+  "error.teach.daily_budget_exhausted":
+    "You've reached the {cap} daily limit for generating lessons. It resets at midnight your time.",
 
   "error.focus.lesson_missing": "That lesson no longer exists, so the session was not bound to it.",
   "error.focus.lesson_mission_mismatch": "That lesson belongs to a different mission.",
@@ -173,6 +183,8 @@ const PT_BR: Readonly<Record<ServerMessageKey, string>> = {
   "error.teach.run_transition_invalid": "Essa execução já terminou.",
   "error.teach.workspace_key_unavailable":
     "O tema desta missão não pode virar um nome de workspace. Dê a ela um título com letras ou números.",
+  "error.teach.daily_budget_exhausted":
+    "Você atingiu o limite diário de {cap} para gerar lições. Ele reinicia à meia-noite no seu fuso.",
 
   "error.focus.lesson_missing":
     "Essa lição não existe mais, então a sessão não foi vinculada a ela.",

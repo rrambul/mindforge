@@ -6,8 +6,18 @@ import {
   type UseQueryResult,
 } from "@tanstack/react-query";
 
+import {
+  AgentRunViewSchema,
+  type AgentRunStatus,
+  type AgentRunView,
+  type RunResult,
+  type RunWarning,
+} from "@mindforge/core";
+import { z } from "zod";
+
 import { api } from "../../../shared/api/http.js";
 import type { RequestError } from "../../../shared/api/problem.js";
+import { spendKeys } from "./use-spend.js";
 
 /**
  * Teach runs (FR-T3).
@@ -18,36 +28,19 @@ import type { RequestError } from "../../../shared/api/problem.js";
  * follows a duplicate is the *good* outcome rather than the failure mode.
  */
 
-export type AgentRunStatus =
-  "queued" | "running" | "succeeded" | "succeeded_with_conflicts" | "failed" | "cancelled";
-
-/** Warnings are stable keys plus ICU args, never prose — the run screen renders in pt-BR too. */
-export interface RunWarningView {
-  readonly code: string;
-  readonly args?: Readonly<Record<string, string | number>>;
-}
-
-export interface RunResultView {
-  readonly changes?: Readonly<Record<string, readonly string[]>>;
-  readonly warnings?: readonly RunWarningView[];
-  readonly conflicts?: readonly { readonly path: string; readonly reason: string }[];
-  readonly sdkCostUsd?: number;
-  readonly turns?: number;
-  readonly durationMs?: number;
-}
-
-/** Mirrors the API's `AgentRunView`. Note the absent heartbeat — see the controller. */
-export interface AgentRunView {
-  readonly id: string;
-  readonly missionId: string | null;
-  readonly kind: string;
-  readonly status: AgentRunStatus;
-  readonly error: string | null;
-  readonly result: RunResultView | null;
-  readonly createdAt: string;
-  readonly startedAt: string | null;
-  readonly finishedAt: string | null;
-}
+/**
+ * The API's own shapes, from `packages/core` — not copies of them.
+ *
+ * `AgentRunView` was declared here headed by "Mirrors the API's `AgentRunView`.
+ * Note the absent heartbeat", which was the only thing tying the two together.
+ * The absence of `heartbeatAt` is now a property of the schema: it is a lease
+ * between the worker and the reaper, and a client that could see it would form a
+ * second, differently-wrong opinion about whether a run is alive.
+ */
+export type { AgentRunStatus, AgentRunView };
+/** Kept under this feature's older names, which the panel and its tests already use. */
+export type RunWarningView = RunWarning;
+export type RunResultView = RunResult;
 
 const TERMINAL: readonly AgentRunStatus[] = [
   "succeeded",
@@ -79,7 +72,8 @@ export const teachKeys = {
 export function useMissionRuns(missionId: string): UseQueryResult<AgentRunView[], RequestError> {
   return useQuery<AgentRunView[], RequestError>({
     queryKey: teachKeys.runs(missionId),
-    queryFn: () => api.get<AgentRunView[]>(`/missions/${missionId}/agent-runs?limit=10`),
+    queryFn: () =>
+      api.get(`/missions/${missionId}/agent-runs?limit=10`, z.array(AgentRunViewSchema)),
     refetchInterval: (query) => {
       const active = query.state.data?.some((run) => isRunning(run.status));
       return active ? 5_000 : false;
@@ -102,11 +96,14 @@ export function useStartTeachRun(
   const queryClient = useQueryClient();
 
   return useMutation<AgentRunView, RequestError, void>({
-    mutationFn: () => api.post<AgentRunView>(`/missions/${missionId}/teach`),
+    mutationFn: () => api.post(`/missions/${missionId}/teach`, AgentRunViewSchema),
     onSettled: () => {
       // On success *and* on failure. A 409 means a run exists that this client
       // does not know about — refetching is what shows it.
       void queryClient.invalidateQueries({ queryKey: teachKeys.runs(missionId) });
+      // A queued run will spend money, and a refused one may have been refused
+      // *because* the budget is gone — so the meter is stale either way (FR-T8).
+      void queryClient.invalidateQueries({ queryKey: spendKeys.today });
     },
   });
 }

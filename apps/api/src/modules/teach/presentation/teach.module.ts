@@ -9,6 +9,8 @@ import { MEMORY_FILE_STORE, MEMORY_STORAGE_CONFIG } from "../application/memory-
 import { LEARNER_MEMORY_REPOSITORY } from "../application/memory.port.js";
 import { ReindexLearnerMemory } from "../application/reindex-memory.js";
 import { ReindexWorkspace } from "../application/reindex-workspace.js";
+import { SPEND_READER } from "../application/spend.port.js";
+import { TeachSpend } from "../application/teach-spend.js";
 import { MISSION_WORKSPACE_READER } from "../application/teach.port.js";
 import { TeachRuns } from "../application/teach.use-cases.js";
 import { AGENT_RUN_REPOSITORY } from "../domain/agent-run.repository.js";
@@ -16,6 +18,7 @@ import { PrismaAgentRunRepository } from "../infrastructure/prisma-agent-run.rep
 import { PrismaBriefingReader } from "../infrastructure/prisma-briefing.reader.js";
 import { PrismaLearnerMemoryRepository } from "../infrastructure/prisma-learner-memory.repository.js";
 import { PrismaMissionWorkspaceReader } from "../infrastructure/prisma-mission-workspace.reader.js";
+import { PrismaSpendReader } from "../infrastructure/prisma-spend.reader.js";
 import { PrismaWorkspaceIndexRepository } from "../infrastructure/prisma-workspace-index.repository.js";
 import { SupabaseMemoryFileStore } from "../infrastructure/supabase-memory-file.store.js";
 import { LearnerMemoryController, TeachController } from "./teach.controller.js";
@@ -51,11 +54,13 @@ import { LearnerMemoryController, TeachController } from "./teach.controller.js"
   controllers: [TeachController, LearnerMemoryController],
   providers: [
     TeachRuns,
+    TeachSpend,
     ReindexWorkspace,
     ReindexLearnerMemory,
     LearnerMemories,
     { provide: AGENT_RUN_REPOSITORY, useClass: PrismaAgentRunRepository },
     { provide: MISSION_WORKSPACE_READER, useClass: PrismaMissionWorkspaceReader },
+    { provide: SPEND_READER, useClass: PrismaSpendReader },
     { provide: BRIEFING_READER, useClass: PrismaBriefingReader },
     { provide: WORKSPACE_INDEX_REPOSITORY, useClass: PrismaWorkspaceIndexRepository },
     { provide: LEARNER_MEMORY_REPOSITORY, useClass: PrismaLearnerMemoryRepository },
@@ -72,6 +77,6 @@ import { LearnerMemoryController, TeachController } from "./teach.controller.js"
       }),
     },
   ],
-  exports: [TeachRuns, ReindexWorkspace, ReindexLearnerMemory, BRIEFING_READER],
+  exports: [TeachRuns, TeachSpend, ReindexWorkspace, ReindexLearnerMemory, BRIEFING_READER],
 })
 export class TeachModule {}

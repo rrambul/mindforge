@@ -17,10 +17,12 @@ import {
 } from "../domain/agent-run.repository.js";
 import {
   AgentRunNotFound,
+  DailyBudgetExhausted,
   RunAlreadyActive,
   RunTransitionInvalid,
   WorkspaceKeyUnavailable,
 } from "../domain/errors.js";
+import { TeachSpend } from "./teach-spend.js";
 import { MISSION_WORKSPACE_READER, type MissionWorkspaceReader } from "./teach.port.js";
 import { deriveWorkspaceKey } from "./workspace-key.js";
 
@@ -45,6 +47,7 @@ export class TeachRuns {
     @Inject(MISSION_WORKSPACE_READER) private readonly missions: MissionWorkspaceReader,
     @Inject(CLOCK) private readonly clock: Clock,
     @Inject(ID_GENERATOR) private readonly ids: IdGenerator,
+    private readonly spend: TeachSpend,
   ) {}
 
   /**
@@ -61,10 +64,33 @@ export class TeachRuns {
    * agent would be asking them to know the difference.
    *
    * A caller may still pass one explicitly; nothing in the app does.
+   *
+   * **The daily budget is checked here, before anything is written** (FR-T8). Two
+   * things follow from where it sits: a refusal costs one aggregate rather than a
+   * queued row somebody has to clean up, and the mission is resolved first — a
+   * budget error about a mission that does not exist would tell a caller that it
+   * does.
+   *
+   * `timezone` is a parameter because the day this budget covers is the learner's,
+   * not the server's (§5.2). It comes from the request context, which is the same
+   * place every other day-bucketed read gets it.
    */
-  async request(userId: string, missionId: string, kind?: AgentRunKind): Promise<AgentRun> {
+  async request(
+    userId: string,
+    missionId: string,
+    timezone: string,
+    kind?: AgentRunKind,
+  ): Promise<AgentRun> {
     const mission = await this.missions.find(userId, missionId);
     if (!mission) throw new MissionNotFound(missionId);
+
+    // Checked against what is *known* to have been spent: `budgetStatus` never
+    // lets unpriced calls exhaust a budget, because refusing on an estimate means
+    // telling somebody they spent money nobody priced (non-negotiable 10).
+    const budget = await this.spend.today(userId, timezone);
+    if (budget.exhausted && budget.capUsd !== null) {
+      throw new DailyBudgetExhausted(budget.spentUsd, budget.capUsd);
+    }
 
     const resolved = kind ?? (mission.hasCurriculum ? "generate_lesson" : "generate_curriculum");
 

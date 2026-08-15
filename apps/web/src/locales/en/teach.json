@@ -39,7 +39,8 @@
   },
   "error": {
     "run_already_active": "This mission is already being taught. Watch that run, or wait for it to finish.",
-    "generic": "Couldn't start a run."
+    "generic": "Couldn't start a run.",
+    "budget_exhausted": "You've reached today's limit for generating lessons. It resets at midnight your time."
   },
   "history": {
     "heading": "Past runs",
@@ -47,5 +48,16 @@
     "cost": "Estimated {cost}",
     "duration": "{minutes, plural, one {# minute} other {# minutes}}",
     "unpriced": "Cost unknown"
+  },
+  "spend": {
+    "heading": "Today's spending",
+    "spent": "{amount} today",
+    "atLeast": "At least {amount} today",
+    "ofCap": "{spent} of {cap}",
+    "barLabel": "Spent today against the daily limit",
+    "noCap": "No daily limit is set on this install.",
+    "unpriced": "{count, plural, one {# call couldn't be priced, so the total is a floor.} other {# calls couldn't be priced, so the total is a floor.}}",
+    "exhausted": "You've reached today's limit. It resets at midnight in your timezone.",
+    "unavailable": "Couldn't read today's spending."
   }
 }

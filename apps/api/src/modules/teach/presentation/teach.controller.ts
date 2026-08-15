@@ -13,6 +13,7 @@ import { CurrentUser } from "../../../shared/auth/current-user.decorator.js";
 import type { RequestContext } from "../../../shared/auth/request-context.js";
 import { LearnerMemories } from "../application/learner-memories.js";
 import type { LearnerMemoryView } from "../application/memory.port.js";
+import { TeachSpend, type SpendView } from "../application/teach-spend.js";
 import { TeachRuns } from "../application/teach.use-cases.js";
 import type { AgentRun } from "../domain/agent-run.js";
 
@@ -57,7 +58,22 @@ export function toAgentRunView(run: AgentRun): AgentRunView {
  */
 @Controller()
 export class TeachController {
-  constructor(private readonly runs: TeachRuns) {}
+  constructor(
+    private readonly runs: TeachRuns,
+    private readonly spend: TeachSpend,
+  ) {}
+
+  /**
+   * What teaching has cost today, and what is left (FR-T8).
+   *
+   * Served from the same use case `POST …/teach` enforces with, deliberately: a
+   * meter that computed its own total would eventually show room left beside a
+   * button that refuses, which is the one failure this endpoint exists to prevent.
+   */
+  @Get("teach/spend")
+  spendToday(@CurrentUser() user: RequestContext): Promise<SpendView> {
+    return this.spend.today(user.userId, user.timezone);
+  }
 
   /**
    * Queue a teach run for a mission.
@@ -73,7 +89,7 @@ export class TeachController {
     @CurrentUser() user: RequestContext,
     @Param("missionId", ParseUUIDPipe) missionId: string,
   ): Promise<AgentRunView> {
-    return toAgentRunView(await this.runs.request(user.userId, missionId));
+    return toAgentRunView(await this.runs.request(user.userId, missionId, user.timezone));
   }
 
   @Get("agent-runs/:id")

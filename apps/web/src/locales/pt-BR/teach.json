@@ -39,7 +39,8 @@
   },
   "error": {
     "run_already_active": "Esta missão já está sendo ensinada. Acompanhe essa execução ou aguarde ela terminar.",
-    "generic": "Não foi possível iniciar uma execução."
+    "generic": "Não foi possível iniciar uma execução.",
+    "budget_exhausted": "Você atingiu o limite de hoje para gerar lições. Ele reinicia à meia-noite no seu fuso."
   },
   "history": {
     "heading": "Execuções anteriores",
@@ -47,5 +48,16 @@
     "cost": "Estimado em {cost}",
     "duration": "{minutes, plural, one {# minuto} other {# minutos}}",
     "unpriced": "Custo desconhecido"
+  },
+  "spend": {
+    "heading": "Gasto de hoje",
+    "spent": "{amount} hoje",
+    "atLeast": "Pelo menos {amount} hoje",
+    "ofCap": "{spent} de {cap}",
+    "barLabel": "Gasto de hoje em relação ao limite diário",
+    "noCap": "Nenhum limite diário está definido nesta instalação.",
+    "unpriced": "{count, plural, one {# chamada não pôde ser precificada, então o total é um piso.} other {# chamadas não puderam ser precificadas, então o total é um piso.}}",
+    "exhausted": "Você atingiu o limite de hoje. Ele reinicia à meia-noite no seu fuso.",
+    "unavailable": "Não foi possível ler o gasto de hoje."
   }
 }
