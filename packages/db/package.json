@@ -23,7 +23,8 @@
     "seed:rich": "tsx --conditions=development scripts/seed-rich.ts",
     "test:integration": "vitest run",
     "postinstall": "prisma generate",
-    "seed:report": "tsx --conditions=development scripts/seed-report.ts"
+    "seed:report": "tsx --conditions=development scripts/seed-report.ts",
+    "export:portfolio": "tsx --conditions=development scripts/export-portfolio-snapshot.ts"
   },
   "dependencies": {
     "@mindforge/core": "workspace:*",

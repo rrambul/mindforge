@@ -262,7 +262,15 @@ pnpm --filter @mindforge/api test:integration  # real Postgres + Auth (needs sup
 pnpm --filter @mindforge/db exec vitest run    # RLS tests (needs supabase start)
 pnpm --filter @mindforge/web test:e2e          # Playwright (needs supabase start)
 pnpm --filter @mindforge/db generate           # regenerate the Prisma client
+pnpm --filter @mindforge/db export:portfolio   # curriculum progress -> the portfolio repo
 ```
+
+`export:portfolio` writes `src/data/mindforge.ts` in the sibling `~/portifolio` checkout (override
+with `--out`, pick an account with `--email`), which that site commits and renders on its learning
+page. It is a snapshot rather than a feed because Mindforge is not deployed, and it computes nothing
+of its own: the fractions come from `moduleProgress` and `missionProgress` in `packages/core`, the
+same functions the API and the SPA call. A second implementation of a fraction living in an export
+script is how a public number starts disagreeing with the private one.
 
 ## Environment facts that bite
 
