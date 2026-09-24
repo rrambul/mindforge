@@ -27,7 +27,9 @@ interface ProcessLike {
 
 export function reportExit(
   target: ProcessLike,
-  write = (line: string) => writeSync(2, line),
+  write: (line: string) => void = (line) => {
+    writeSync(2, line);
+  },
 ): void {
   for (const signal of SIGNALS) {
     target.on(signal, () => {
