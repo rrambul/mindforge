@@ -52,6 +52,19 @@ export interface ParseWarning {
    * column, which value — the things a translation needs to name.
    */
   readonly args?: Readonly<Record<string, string | number>>;
+  /**
+   * The workspace file it is about, relative to the workspace root. Never set by
+   * a parser — a parser reads text, not paths — but by whoever read the file, so
+   * a warning on screen can say *which* of a workspace's files it means. Without
+   * it, four learning records sharing one mistake read as the same complaint four
+   * times over.
+   */
+  readonly path?: string;
+}
+
+/** The same warnings, each stamped with the file they came from. */
+export function about(path: string, warnings: readonly ParseWarning[]): ParseWarning[] {
+  return warnings.map((warning) => ({ ...warning, path }));
 }
 
 export interface Parsed<T> {

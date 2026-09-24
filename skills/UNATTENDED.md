@@ -84,6 +84,20 @@ Do not reason as if an untracked signal were an empty one. "No lessons completed
 a guess dressed as evidence. Where a signal is missing, say so in the lesson if it matters, and choose
 something that does not depend on it.
 
+## No learning records from a run
+
+The skill writes a learning record when the learner has **shown** they learned something: a quiz
+passed, a task done, an explanation given back. In a run, the learner is not here, and the lesson you
+are writing has not been done yet. There is nothing to record, so **do not write or edit anything in
+`./learning-records/`.** Mindforge records how each lesson landed itself, from what the learner does in
+the app, and the briefing tells you.
+
+Your reasons for the lesson (why this angle, what you rejected, what the next lesson should pick up)
+are worth keeping. They go in `NOTES.md`, under a dated heading, not in a record. The skill calls a
+record "loosely equivalent" to a decision record. It is a record of the learner's decisions and
+evidence, not of yours, and one written about your own choices appears in the learner's library as
+something they learned.
+
 ## Trust is a claim about what you read
 
 `RESOURCES-FORMAT.md` asks for honest trust levels on resources you have "actually inspected". Your

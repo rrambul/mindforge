@@ -128,7 +128,7 @@ function harness(
   options: {
     writes?: Writes;
     throwAtEnd?: boolean;
-    indexWarnings?: readonly { code: string; args?: Record<string, unknown> }[];
+    indexWarnings?: readonly { code: string; args?: Record<string, unknown>; path?: string }[];
     finishRejects?: boolean;
     /**
      * Somebody else writing while the agent has the workspace.
@@ -623,6 +623,38 @@ describe("what the run reports back", () => {
 
     expect((h.finished.at(-1)?.result as { warnings?: { code: string }[] }).warnings).toEqual([
       { code: "filename_unnumbered", args: { filename: "closures.html" } },
+    ]);
+  });
+
+  it("reports warnings only for the files this run wrote", async () => {
+    // The whole workspace is reindexed every run. Reporting every file's warnings
+    // turned one run into 28 lines, 24 of them about records an older run wrote.
+    const h = harness([INIT, call("req_1"), result()], {
+      writes: WROTE_A_LESSON,
+      indexWarnings: [
+        {
+          code: "prose_over_budget",
+          args: { words: 1195, budget: 800 },
+          path: "lessons/0001-closures.html",
+        },
+        {
+          code: "section_missing",
+          args: { heading: "Date" },
+          path: "learning-records/0001-old.md",
+        },
+        { code: "value_unknown", args: { field: "module" } },
+      ],
+    });
+
+    await h.execute();
+
+    expect((h.finished.at(-1)?.result as { warnings?: unknown[] }).warnings).toEqual([
+      {
+        code: "prose_over_budget",
+        args: { words: 1195, budget: 800 },
+        path: "lessons/0001-closures.html",
+      },
+      { code: "value_unknown", args: { field: "module" } },
     ]);
   });
 

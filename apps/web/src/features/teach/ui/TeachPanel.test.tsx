@@ -107,6 +107,56 @@ describe("after a run", () => {
     expect(await screen.findByText("Done — one new lesson.")).toBeInTheDocument();
   });
 
+  it("counts lessons, not every file the run added", async () => {
+    // A run also writes its learning record, reference docs and assets. Counting
+    // added files called one lesson and one record "2 new lessons".
+    runsServer([
+      run({
+        result: {
+          changes: {
+            added: ["lessons/0004-x.html", "learning-records/0004-x.md", "assets/board.css"],
+            modified: [],
+            deleted: [],
+          },
+        },
+      }),
+    ]);
+
+    renderWithProviders(<TeachPanel missionId={MISSION} />);
+
+    expect(await screen.findByText("Done — one new lesson.")).toBeInTheDocument();
+  });
+
+  it("puts each warning under the file it is about", async () => {
+    // Four records sharing one mistake used to read as the same complaint four
+    // times, with no way to tell which file needed fixing.
+    runsServer([
+      run({
+        result: {
+          changes: { added: ["lessons/0004-x.html"], modified: [], deleted: [] },
+          warnings: [
+            {
+              code: "section_missing",
+              args: { heading: "Date" },
+              path: "learning-records/0004-x.md",
+            },
+            {
+              code: "prose_over_budget",
+              args: { words: 1195, budget: 800 },
+              path: "lessons/0004-x.html",
+            },
+          ],
+        },
+      }),
+    ]);
+
+    renderWithProviders(<TeachPanel missionId={MISSION} />);
+
+    expect(await screen.findByText("learning-records/0004-x.md")).toBeInTheDocument();
+    expect(screen.getByText("lessons/0004-x.html")).toBeInTheDocument();
+    expect(screen.getByText(/A section this format expects is missing: Date/u)).toBeInTheDocument();
+  });
+
   it("reads a conflicted run as a success, not a failure", async () => {
     // §7.4: the work landed and both versions were kept. Wording it as a failure
     // pushes people toward re-running, which makes more conflicts — so the copy

@@ -134,7 +134,12 @@ function StartError({ error }: { readonly error: RequestError }) {
 function RunStatus({ run }: { readonly run: AgentRunView }) {
   const { t } = useTranslation("teach");
 
-  const lessons = run.result?.changes?.["added"]?.length ?? 0;
+  // Lessons, not files: a run also adds its reference docs, assets and notes, and
+  // counting those called one lesson and one learning record "2 new lessons".
+  // `lessons/` is the workspace layout's own directory (`LESSONS_DIR` in
+  // `@mindforge/workspace`, which the SPA does not depend on).
+  const lessons =
+    run.result?.changes?.["added"]?.filter((path) => path.startsWith("lessons/")).length ?? 0;
   const conflicts = run.result?.conflicts ?? [];
   const warnings = run.result?.warnings ?? [];
 
@@ -165,16 +170,38 @@ function RunStatus({ run }: { readonly run: AgentRunView }) {
           <Stack gap="tight">
             <Label>{t("warning.heading", { count: warnings.length })}</Label>
             <Text>{t("warning.body")}</Text>
-            {warnings.map((warning, index) => (
-              <Text key={`${warning.code}-${String(index)}`} tone="hint">
-                {describeWarning(warning, t)}
-              </Text>
+            {byFile(warnings).map(([path, group]) => (
+              <Stack key={path ?? ""} gap="tight">
+                {path !== undefined && <Label>{path}</Label>}
+                {group.map((warning, index) => (
+                  <Text key={`${warning.code}-${String(index)}`} tone="hint">
+                    {describeWarning(warning, t)}
+                  </Text>
+                ))}
+              </Stack>
             ))}
           </Stack>
         </Callout>
       )}
     </Stack>
   );
+}
+
+/**
+ * Warnings grouped under the file they are about, in the order the files first
+ * appear. A warning about the run itself has no file and comes first: it is about
+ * everything below it.
+ */
+function byFile(warnings: readonly RunWarningView[]): [string | undefined, RunWarningView[]][] {
+  const groups = new Map<string | undefined, RunWarningView[]>();
+  for (const warning of [...warnings].sort((a, b) =>
+    a.path === undefined ? (b.path === undefined ? 0 : -1) : b.path === undefined ? 1 : 0,
+  )) {
+    const group = groups.get(warning.path) ?? [];
+    group.push(warning);
+    groups.set(warning.path, group);
+  }
+  return [...groups.entries()];
 }
 
 /**

@@ -1,5 +1,6 @@
 import { dayBounds, isIsoDate, resolveTimeZone } from "@mindforge/core";
 import {
+  about,
   CURRICULUM_FILE,
   deslugify,
   isConflictCopy,
@@ -151,7 +152,7 @@ export class ReindexWorkspace {
     }
 
     const { parsed, warnings: fileWarnings } = parseCurriculum(decoder.decode(source));
-    warnings.push(...fileWarnings);
+    warnings.push(...about(CURRICULUM_FILE, fileWarnings));
 
     const tracks: IndexedTrack[] = parsed.tracks.map((track): IndexedTrack => ({
       slug: track.slug,
@@ -172,7 +173,11 @@ export class ReindexWorkspace {
     for (const lesson of parsed.lessons) {
       const trackId = trackIds.get(lesson.trackSlug);
       if (trackId === undefined) {
-        warnings.push(warn("value_unknown", { field: "module", value: lesson.trackSlug }));
+        warnings.push(
+          ...about(CURRICULUM_FILE, [
+            warn("value_unknown", { field: "module", value: lesson.trackSlug }),
+          ]),
+        );
         continue;
       }
       planned.push({
@@ -209,7 +214,7 @@ export class ReindexWorkspace {
     if (!source) return;
 
     const { parsed, warnings: missionWarnings } = parseMission(decoder.decode(source));
-    warnings.push(...missionWarnings);
+    warnings.push(...about("MISSION.md", missionWarnings));
 
     // A topic the parser could not read is not a reason to blank the stored one.
     // The file may be mid-edit, or unfilled, and the mission the learner typed
@@ -242,7 +247,7 @@ export class ReindexWorkspace {
     for (const [path, bytes] of this.filesIn(input, LESSONS_DIR, /\.html?$/iu)) {
       const filename = path.split("/").pop()!;
       const { parsed, warnings: fileWarnings } = parseLessonHtml(filename, decoder.decode(bytes));
-      warnings.push(...fileWarnings);
+      warnings.push(...about(path, fileWarnings));
 
       // `seq` is NOT NULL. An unnumbered lesson has already produced a
       // `filename_unnumbered` warning; there is no honest number to invent for
@@ -254,6 +259,7 @@ export class ReindexWorkspace {
         warnings.push({
           code: "sequence_mismatch",
           args: { seq: parsed.seq, kept: filename, dropped: existing.storagePath },
+          path,
         });
       }
 
@@ -264,7 +270,7 @@ export class ReindexWorkspace {
         title: parsed.title,
         storagePath: path,
         contentHash: sha256(bytes),
-        trackId: this.resolveTrack(parsed.trackSlug, curriculum, filename, warnings),
+        trackId: this.resolveTrack(parsed.trackSlug, curriculum, path, warnings),
         // Not resolved to an id here: the row it names may not exist, and whether
         // it does is a question about the mission's rows rather than about the
         // file. The repository is where that lookup belongs.
@@ -291,14 +297,17 @@ export class ReindexWorkspace {
   private resolveTrack(
     slug: string | null,
     curriculum: Curriculum,
-    filename: string,
+    path: string,
     warnings: ParseWarning[],
   ): string | null {
     if (slug === null) return null;
 
     const id = curriculum.trackIds.get(slug);
     if (id === undefined) {
-      warnings.push(warn("value_unknown", { field: "track", value: slug, file: filename }));
+      const filename = path.split("/").pop()!;
+      warnings.push(
+        ...about(path, [warn("value_unknown", { field: "track", value: slug, file: filename })]),
+      );
       return null;
     }
     return id;
@@ -317,7 +326,7 @@ export class ReindexWorkspace {
         filename,
         decoder.decode(bytes),
       );
-      warnings.push(...fileWarnings);
+      warnings.push(...about(path, fileWarnings));
 
       docs.push({
         missionId: input.missionId,
@@ -343,12 +352,12 @@ export class ReindexWorkspace {
       const filename = path.split("/").pop()!;
       const { seq, slug } = parseNumberedFilename(filename);
       if (seq === null) {
-        warnings.push({ code: "filename_unnumbered", args: { filename } });
+        warnings.push({ code: "filename_unnumbered", args: { filename }, path });
         continue;
       }
 
       const { parsed, warnings: fileWarnings } = parseLearningRecord(decoder.decode(bytes));
-      warnings.push(...fileWarnings);
+      warnings.push(...about(path, fileWarnings));
 
       bySeq.set(seq, {
         missionId: input.missionId,

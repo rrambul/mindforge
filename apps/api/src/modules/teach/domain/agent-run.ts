@@ -63,6 +63,8 @@ export interface AgentRunResult {
   readonly warnings?: readonly {
     readonly code: string;
     readonly args?: Readonly<Record<string, unknown>>;
+    /** The workspace file it is about; absent for a warning about the run itself. */
+    readonly path?: string;
   }[];
   /** Contested paths, retained beside their originals. */
   readonly conflicts?: readonly { readonly path: string; readonly reason: string }[];

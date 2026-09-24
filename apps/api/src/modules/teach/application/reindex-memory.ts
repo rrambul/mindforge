@@ -1,4 +1,10 @@
-import { memoryPrefix, parseLearnerMemory, sha256, type ParseWarning } from "@mindforge/workspace";
+import {
+  about,
+  memoryPrefix,
+  parseLearnerMemory,
+  sha256,
+  type ParseWarning,
+} from "@mindforge/workspace";
 import { Inject, Injectable } from "@nestjs/common";
 
 import {
@@ -57,13 +63,18 @@ export class ReindexLearnerMemory {
     const prefix = memoryPrefix(input.userId);
 
     const parsed: IndexedMemory[] = [];
-    const supersessions: { readonly slug: string; readonly supersedes: string }[] = [];
+    const supersessions: {
+      readonly slug: string;
+      readonly supersedes: string;
+      readonly path: string;
+    }[] = [];
 
     for (const [path, bytes] of input.files) {
       if (!path.endsWith(".md")) continue;
 
       const result = parseLearnerMemory(path, decoder.decode(bytes));
-      warnings.push(...result.warnings);
+      // Relative to the memory root, as the files are keyed.
+      warnings.push(...about(path, result.warnings));
 
       parsed.push({
         slug: result.parsed.slug,
@@ -74,7 +85,11 @@ export class ReindexLearnerMemory {
       });
 
       if (result.parsed.supersedes !== null) {
-        supersessions.push({ slug: result.parsed.slug, supersedes: result.parsed.supersedes });
+        supersessions.push({
+          slug: result.parsed.slug,
+          supersedes: result.parsed.supersedes,
+          path,
+        });
       }
     }
 
@@ -98,6 +113,7 @@ export class ReindexLearnerMemory {
         warnings.push({
           code: "link_unresolved",
           args: { from: link.slug, to: link.supersedes },
+          path: link.path,
         });
       }
     }

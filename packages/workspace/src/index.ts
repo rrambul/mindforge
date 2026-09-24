@@ -130,4 +130,4 @@ export {
 export { parseLearnerMemory, type MemoryKind, type ParsedMemory } from "./parse/memory.js";
 export { parseMission, type MissionHistoryEntry, type ParsedMission } from "./parse/mission.js";
 export { parseLearningRecord, type ParsedRecord } from "./parse/record.js";
-export { warn, type ParseWarning, type Parsed, type WarningCode } from "./parse/result.js";
+export { about, warn, type ParseWarning, type Parsed, type WarningCode } from "./parse/result.js";

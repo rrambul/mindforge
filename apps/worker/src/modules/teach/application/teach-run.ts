@@ -184,6 +184,11 @@ export class TeachRun {
         timezone: input.timezone,
       });
 
+      const touched = new Set(
+        synced.changes.filter((change) => change.kind !== "deleted").map((change) => change.path),
+      );
+      const memoryWritten = new Set(memoryAfter.written);
+
       const status = synced.conflicts.length > 0 ? "succeeded_with_conflicts" : "succeeded";
       await this.runs.finish(input.userId, input.runId, {
         status,
@@ -194,8 +199,22 @@ export class TeachRun {
           // so copying the field explicitly turns every warning without args into
           // one that has an undefined one.
           warnings: [
-            ...indexed.warnings,
-            ...indexedMemory.warnings,
+            // Only warnings about files this run wrote. The whole workspace is
+            // reindexed every run, because the index is rebuildable, so its
+            // warnings cover every file ever written. Reporting all of them turned
+            // one run into 28 lines, 24 of them about four older learning
+            // records, and none saying which file it meant. A file this run did
+            // not touch was reported by the run that wrote it.
+            ...indexed.warnings.filter(
+              (warning) => warning.path === undefined || touched.has(warning.path),
+            ),
+            ...indexedMemory.warnings
+              .filter((warning) => warning.path === undefined || memoryWritten.has(warning.path))
+              .map((warning) =>
+                warning.path === undefined
+                  ? warning
+                  : { ...warning, path: `${MEMORY_MOUNT}/${warning.path}` },
+              ),
             // Loaded is not used: a skill's rules reach the model only through the
             // `Skill` tool. A warning rather than a failure — the lesson is real and
             // the learner has it — but a lesson that skipped its rules must not

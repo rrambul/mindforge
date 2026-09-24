@@ -478,6 +478,8 @@ export type AgentRunStatus = z.infer<typeof AgentRunStatusSchema>;
 export const RunWarningSchema = z.object({
   code: z.string(),
   args: z.record(z.string(), z.union([z.string(), z.number()])).optional(),
+  /** The workspace file it is about. Absent for a warning about the run itself. */
+  path: z.string().optional(),
 });
 export type RunWarning = z.infer<typeof RunWarningSchema>;
 

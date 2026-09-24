@@ -293,6 +293,26 @@ describe("parse warnings", () => {
   it("does not throw on an empty workspace", async () => {
     await expect(run({})).resolves.toMatchObject({ lessons: 0, warnings: [] });
   });
+
+  it("says which file each warning is about", async () => {
+    // A run reports only the files it wrote, and the screen groups by file, so
+    // every warning from a file has to carry that file's path.
+    const result = await run({
+      "lessons/0007-rls.html": "<p>no title, no headings</p>",
+      "lessons/rls.html": LESSON,
+      "learning-records/0001-x.md": "# 0001. X\n\n## Context\n\nA decision record.\n",
+      "MISSION.md": "# Mission\n\n## Surprise\n\nSomething new.\n",
+    });
+
+    const pathOf = (code: string) => result.warnings.find((w) => w.code === code)?.path;
+    expect(pathOf("title_missing")).toBe("lessons/0007-rls.html");
+    expect(pathOf("filename_unnumbered")).toBe("lessons/rls.html");
+    expect(
+      result.warnings.filter((w) => w.path === "learning-records/0001-x.md").map((w) => w.code),
+    ).toContain("section_unknown");
+    expect(result.warnings.some((w) => w.path === "MISSION.md")).toBe(true);
+    expect(result.warnings.every((w) => w.path !== undefined)).toBe(true);
+  });
 });
 
 describe("CURRICULUM.md", () => {
