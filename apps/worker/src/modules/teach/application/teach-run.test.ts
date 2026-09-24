@@ -129,6 +129,9 @@ function harness(
     writes?: Writes;
     throwAtEnd?: boolean;
     indexWarnings?: readonly { code: string; args?: Record<string, unknown>; path?: string }[];
+    /** What the memory reindexer warns about, and which memory files this run wrote. */
+    memoryWarnings?: readonly { code: string; args?: Record<string, unknown>; path?: string }[];
+    memoryWritten?: readonly string[];
     finishRejects?: boolean;
     /**
      * Somebody else writing while the agent has the workspace.
@@ -237,7 +240,9 @@ function harness(
   // that the loop mounts it before the agent runs and syncs it after.
   const memoryWrites: string[][] = [];
   const materializeMemory = vi.fn(() => Promise.resolve({ baseline: [] }));
-  const syncMemoryBack = vi.fn(() => Promise.resolve({ written: [], deleted: [] }));
+  const syncMemoryBack = vi.fn(() =>
+    Promise.resolve({ written: [...(options.memoryWritten ?? [])], deleted: [] }),
+  );
   const memory = {
     materialize: materializeMemory,
     syncBack: syncMemoryBack,
@@ -245,7 +250,11 @@ function harness(
   const reindexMemory = {
     execute: vi.fn((memoryInput: { files: ReadonlyMap<string, Uint8Array> }) => {
       memoryWrites.push([...memoryInput.files.keys()]);
-      return Promise.resolve({ indexed: 0, superseded: 0, warnings: [] });
+      return Promise.resolve({
+        indexed: 0,
+        superseded: 0,
+        warnings: [...(options.memoryWarnings ?? [])],
+      });
     }),
   } as unknown as ReindexLearnerMemory;
 
@@ -655,6 +664,27 @@ describe("what the run reports back", () => {
         path: "lessons/0001-closures.html",
       },
       { code: "value_unknown", args: { field: "module" } },
+    ]);
+  });
+
+  it("reports memory warnings only for memory files this run wrote, under their mount", async () => {
+    // Memory spans every mission, so its reindex reads every memory file there is.
+    // A run answers for the ones it wrote, named where the agent saw them.
+    const h = harness([INIT, call("req_1"), result()], {
+      writes: WROTE_A_LESSON,
+      memoryWritten: ["pace.md"],
+      memoryWarnings: [
+        { code: "section_missing", args: { heading: "Kind" }, path: "pace.md" },
+        { code: "section_missing", args: { heading: "Kind" }, path: "older.md" },
+        { code: "link_unresolved", args: { from: "pace", to: "gone" } },
+      ],
+    });
+
+    await h.execute();
+
+    expect((h.finished.at(-1)?.result as { warnings?: unknown[] }).warnings).toEqual([
+      { code: "section_missing", args: { heading: "Kind" }, path: ".memory/pace.md" },
+      { code: "link_unresolved", args: { from: "pace", to: "gone" } },
     ]);
   });
 
