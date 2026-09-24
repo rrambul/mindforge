@@ -248,7 +248,11 @@ describe("dayBounds", () => {
         expect(localDay(end, zone)).toBe(addDays(day, 1));
       }
     }
-  });
+    // An explicit timeout, because this is 1,460 days × three `Intl` formats each, and under
+    // CI's coverage instrumentation it crossed Vitest's 5s default (2026-09-24) while taking
+    // well under a second locally. That was the runner's load, not the code — the same
+    // failure `apps/web/vitest.config.ts` fixed for the web suite. A real hang still fails.
+  }, 30_000);
 });
 
 describe("activeDaysIn", () => {
