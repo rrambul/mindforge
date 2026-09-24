@@ -41,6 +41,14 @@ const EnvSchema = z.object({
   LESSONS_ORIGIN: z.url().default("http://localhost:3001"),
 
   /**
+   * For hints (FR-H2): the one Messages API call the API makes itself. Optional —
+   * without it hints answer 503 "not set up" and everything else works. Read
+   * explicitly rather than left to the SDK's credential chain, which would also
+   * find a developer's `ant auth login` profile and bill that instead.
+   */
+  ANTHROPIC_API_KEY: z.string().min(1).optional(),
+
+  /**
    * Shared with `apps/lessons`, which verifies the grants this signs (FR-T5).
    *
    * Required, with no development default. A default would be a secret in the

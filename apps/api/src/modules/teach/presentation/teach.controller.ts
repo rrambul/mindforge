@@ -92,6 +92,20 @@ export class TeachController {
     return toAgentRunView(await this.runs.request(user.userId, missionId, user.timezone));
   }
 
+  /**
+   * "Try an easier version" (FR-D2): queue a bridge toward a lesson that landed too
+   * hard. 202 like the teach button, and answered with the same run view, so the
+   * mission card's live-run polling picks it up without knowing why it started.
+   */
+  @Post("lessons/:lessonId/bridge")
+  @HttpCode(202)
+  async bridge(
+    @CurrentUser() user: RequestContext,
+    @Param("lessonId", ParseUUIDPipe) lessonId: string,
+  ): Promise<AgentRunView> {
+    return toAgentRunView(await this.runs.requestBridge(user.userId, lessonId, user.timezone));
+  }
+
   @Get("agent-runs/:id")
   async run(
     @CurrentUser() user: RequestContext,

@@ -1,3 +1,6 @@
+import type { ExerciseDeclaration } from "@mindforge/core";
+import type { LessonAdjustment } from "@mindforge/workspace";
+
 export const WORKSPACE_INDEX_REPOSITORY = Symbol("WorkspaceIndexRepository");
 
 export interface IndexedLesson {
@@ -23,6 +26,15 @@ export interface IndexedLesson {
    * two are the same row and the write fills it in rather than adding a second.
    */
   readonly planSlug: string | null;
+  /**
+   * What the file declares (FR-X1), already validated by the parser. Written over
+   * the row's `exercises` on every sync — the file is canonical, so an exercise
+   * removed from it is removed here. Attempts are keyed by the exercise's `key`,
+   * not by this array, so they survive a rewrite that keeps the key.
+   */
+  readonly exercises: readonly ExerciseDeclaration[];
+  /** What the file says it changed about the plan (FR-D2–D4). Null for as planned. */
+  readonly adjustment: LessonAdjustment | null;
 }
 
 /**

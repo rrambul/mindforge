@@ -5,6 +5,7 @@ import { MissionsModule } from "../../missions/presentation/missions.module.js";
 import { BRIEFING_READER } from "../application/briefing.port.js";
 import { WORKSPACE_INDEX_REPOSITORY } from "../application/index.port.js";
 import { LearnerMemories } from "../application/learner-memories.js";
+import { LESSON_LANDING_READER } from "../application/lesson-landing.port.js";
 import { MEMORY_FILE_STORE, MEMORY_STORAGE_CONFIG } from "../application/memory-file.port.js";
 import { LEARNER_MEMORY_REPOSITORY } from "../application/memory.port.js";
 import { ReindexLearnerMemory } from "../application/reindex-memory.js";
@@ -17,6 +18,7 @@ import { AGENT_RUN_REPOSITORY } from "../domain/agent-run.repository.js";
 import { PrismaAgentRunRepository } from "../infrastructure/prisma-agent-run.repository.js";
 import { PrismaBriefingReader } from "../infrastructure/prisma-briefing.reader.js";
 import { PrismaLearnerMemoryRepository } from "../infrastructure/prisma-learner-memory.repository.js";
+import { PrismaLessonLandingReader } from "../infrastructure/prisma-lesson-landing.reader.js";
 import { PrismaMissionWorkspaceReader } from "../infrastructure/prisma-mission-workspace.reader.js";
 import { PrismaSpendReader } from "../infrastructure/prisma-spend.reader.js";
 import { PrismaWorkspaceIndexRepository } from "../infrastructure/prisma-workspace-index.repository.js";
@@ -62,6 +64,7 @@ import { LearnerMemoryController, TeachController } from "./teach.controller.js"
     { provide: MISSION_WORKSPACE_READER, useClass: PrismaMissionWorkspaceReader },
     { provide: SPEND_READER, useClass: PrismaSpendReader },
     { provide: BRIEFING_READER, useClass: PrismaBriefingReader },
+    { provide: LESSON_LANDING_READER, useClass: PrismaLessonLandingReader },
     { provide: WORKSPACE_INDEX_REPOSITORY, useClass: PrismaWorkspaceIndexRepository },
     { provide: LEARNER_MEMORY_REPOSITORY, useClass: PrismaLearnerMemoryRepository },
     { provide: MEMORY_FILE_STORE, useClass: SupabaseMemoryFileStore },

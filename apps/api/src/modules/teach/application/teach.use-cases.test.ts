@@ -2,6 +2,7 @@ import { FixedClock } from "@mindforge/core";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import type { IdGenerator } from "../../../shared/ids/id-generator.js";
+import { LessonNotFound, LessonNotWritten } from "../../lessons/domain/errors.js";
 import { MissionNotFound } from "../../missions/domain/errors.js";
 import { HEARTBEAT_TIMEOUT_MS, type AgentRun, type AgentRunStatus } from "../domain/agent-run.js";
 import type {
@@ -11,11 +12,13 @@ import type {
 } from "../domain/agent-run.repository.js";
 import {
   AgentRunNotFound,
+  BridgeNotNeeded,
   DailyBudgetExhausted,
   RunAlreadyActive,
   RunTransitionInvalid,
   WorkspaceKeyUnavailable,
 } from "../domain/errors.js";
+import type { LessonLanding, LessonLandingReader } from "./lesson-landing.port.js";
 import type { SpendReader } from "./spend.port.js";
 import { TeachSpend } from "./teach-spend.js";
 import type { MissionWorkspace, MissionWorkspaceReader } from "./teach.port.js";
@@ -164,6 +167,15 @@ class FakeSpend implements SpendReader {
 }
 
 /** `TeachSpend` over a fake reader and a fixed cap. */
+/** Lessons a bridge might be asked for, keyed by user and id like every fake here. */
+class FakeLandings implements LessonLandingReader {
+  readonly rows = new Map<string, LessonLanding>();
+
+  find(userId: string, lessonId: string): Promise<LessonLanding | null> {
+    return Promise.resolve(this.rows.get(`${userId}:${lessonId}`) ?? null);
+  }
+}
+
 function spendWith(reader: SpendReader, capUsd: number | null, clock: FixedClock): TeachSpend {
   return new TeachSpend(reader, clock, { TEACH_DAILY_BUDGET_USD: capUsd } as never);
 }
@@ -184,13 +196,22 @@ describe("TeachRuns", () => {
   let clock: FixedClock;
   let spend: FakeSpend;
   let teach: TeachRuns;
+  let landings: FakeLandings;
 
   beforeEach(() => {
     runs = new FakeRuns();
     missions = new FakeMissions();
     clock = new FixedClock(NOW);
     spend = new FakeSpend();
-    teach = new TeachRuns(runs, missions, clock, sequentialIds(), spendWith(spend, 15, clock));
+    landings = new FakeLandings();
+    teach = new TeachRuns(
+      runs,
+      missions,
+      clock,
+      sequentialIds(),
+      spendWith(spend, 15, clock),
+      landings,
+    );
     missions.missions.set(MISSION, {
       missionId: MISSION,
       topic: "Postgres RLS",
@@ -295,6 +316,7 @@ describe("TeachRuns", () => {
           null,
           clock,
         ),
+        new FakeLandings(),
       );
 
       await expect(uncapped.request(ALICE, MISSION, TZ)).resolves.toMatchObject({
@@ -309,6 +331,7 @@ describe("TeachRuns", () => {
         clock,
         sequentialIds(),
         spendWith(new FakeSpend(), 0, clock),
+        new FakeLandings(),
       );
 
       await expect(off.request(ALICE, MISSION, TZ)).rejects.toThrow(DailyBudgetExhausted);
@@ -367,6 +390,66 @@ describe("TeachRuns", () => {
       });
 
       await expect(teach.request(ALICE, MISSION, TZ)).rejects.toThrow(WorkspaceKeyUnavailable);
+    });
+  });
+
+  describe("requestBridge", () => {
+    const LESSON = "44444444-4444-4444-8444-444444444444";
+    const landing = (over: Partial<LessonLanding> = {}): LessonLanding => ({
+      missionId: MISSION,
+      status: "generated",
+      strain: { verdict: "too-hard", reasons: ["never-passed"] },
+      bridged: false,
+      ...over,
+    });
+
+    it("queues a lesson run that names the lesson to bridge toward", async () => {
+      landings.rows.set(`${ALICE}:${LESSON}`, landing());
+
+      const run = await teach.requestBridge(ALICE, LESSON, "UTC");
+
+      // A lesson run like any other — the kind is not a new one, the target is input.
+      expect(run.kind).toBe("generate_lesson");
+      expect(run.input).toEqual({ workspaceKey: "postgres-rls", bridgeFor: LESSON });
+    });
+
+    it("refuses a lesson that did not land too hard", async () => {
+      landings.rows.set(
+        `${ALICE}:${LESSON}`,
+        landing({ strain: { verdict: "in-zone", reasons: ["passed"] } }),
+      );
+
+      await expect(teach.requestBridge(ALICE, LESSON, "UTC")).rejects.toBeInstanceOf(
+        BridgeNotNeeded,
+      );
+    });
+
+    it("refuses a lesson that is not judged yet, rather than guessing it was hard", async () => {
+      landings.rows.set(
+        `${ALICE}:${LESSON}`,
+        landing({ strain: { verdict: null, unknown: "in-progress" } }),
+      );
+
+      await expect(teach.requestBridge(ALICE, LESSON, "UTC")).rejects.toBeInstanceOf(
+        BridgeNotNeeded,
+      );
+    });
+
+    it("refuses a second bridge, with the reason that there is one", async () => {
+      landings.rows.set(`${ALICE}:${LESSON}`, landing({ bridged: true }));
+
+      await expect(teach.requestBridge(ALICE, LESSON, "UTC")).rejects.toMatchObject({
+        detailKey: "error.teach.bridge_exists",
+      });
+    });
+
+    it("refuses a planned lesson, and a lesson that is not yours", async () => {
+      landings.rows.set(`${ALICE}:${LESSON}`, landing({ status: "planned" }));
+
+      await expect(teach.requestBridge(ALICE, LESSON, "UTC")).rejects.toBeInstanceOf(
+        LessonNotWritten,
+      );
+      await expect(teach.requestBridge(BOB, LESSON, "UTC")).rejects.toBeInstanceOf(LessonNotFound);
     });
   });
 
@@ -476,6 +559,7 @@ describe("choosing the run kind", () => {
       clock,
       sequentialIds(),
       spendWith(new FakeSpend(), 15, clock),
+      new FakeLandings(),
     );
   }
 

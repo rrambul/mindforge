@@ -3,12 +3,16 @@ import {
   missionProgress,
   moduleOutcomes,
   moduleProgress,
+  nextAdjustment,
   nextLesson,
   orderModule,
+  resolveBridges,
+  type Bridges,
   type CurriculumLesson,
   type CurriculumModule,
   type CurriculumView,
   type LessonNode,
+  type UpcomingAdjustment,
 } from "@mindforge/core";
 import { Inject, Injectable, NotFoundException } from "@nestjs/common";
 
@@ -56,6 +60,16 @@ export class GetCurriculum {
     const derived = deriveLessons(nodes);
     const titles = new Map(rows.lessons.map((lesson) => [lesson.id, lesson.title]));
     const byId = new Map(rows.lessons.map((lesson) => [lesson.id, lesson]));
+    const bridges = resolveBridges(
+      rows.lessons.map((lesson) => ({
+        id: lesson.id,
+        slug: lesson.slug,
+        seq: lesson.seq,
+        adjustment: lesson.adjustment,
+      })),
+    );
+    const linked = (id: string | undefined) =>
+      id === undefined ? null : { id, title: titles.get(id) ?? "" };
 
     const shown = rows.tracks.filter((track) => isShown(track, rows.lessons));
     const order = shown.map((track) => track.id);
@@ -96,6 +110,16 @@ export class GetCurriculum {
             // id in it would be a reason nobody can read.
             blockedBy: state.blockedBy.map((id) => titles.get(id)).filter(isString),
             dependentCount: state.dependentCount,
+            strain: row.strain,
+            adjustment:
+              row.adjustment === null
+                ? null
+                : {
+                    kind: row.adjustment.kind,
+                    reason: row.adjustment.reason,
+                    bridgeFor: linked(bridges.target.get(row.id)),
+                  },
+            bridge: linked(bridges.bridgeOf.get(row.id)),
           };
         }),
       };
@@ -112,8 +136,44 @@ export class GetCurriculum {
       // one in a module this screen hides, and the answer must not change because
       // of what is on screen.
       nextLessonId: nextLesson(nodes, order)?.id ?? null,
+      upcoming: upcoming(rows.lessons, bridges),
     };
   }
+}
+
+/**
+ * What the next lesson will do about how the last ones landed (FR-D2, FR-D3).
+ *
+ * The same `nextAdjustment` the briefing tells the run, over finished lessons
+ * newest first — so the screen announces exactly what the agent is being asked to
+ * do, and the two cannot disagree.
+ */
+function upcoming(lessons: readonly LessonRow[], bridges: Bridges): UpcomingAdjustment | null {
+  const finished = lessons
+    .filter((lesson) => lesson.completedAt !== null)
+    .sort((a, b) => b.completedAt!.getTime() - a.completedAt!.getTime());
+
+  const adjustment = nextAdjustment(
+    finished.map((lesson) => ({
+      lessonId: lesson.id,
+      slug: lesson.slug,
+      title: lesson.title,
+      strain: lesson.strain,
+      bridged: bridges.bridgeOf.has(lesson.id),
+    })),
+  );
+
+  if (adjustment === null) return null;
+  if (adjustment.kind === "bridge") {
+    return { kind: "bridge", lessonId: adjustment.lesson.lessonId, title: adjustment.lesson.title };
+  }
+  if (adjustment.kind === "harder") {
+    return {
+      kind: "harder",
+      lessons: adjustment.because.map((lesson) => ({ id: lesson.lessonId, title: lesson.title })),
+    };
+  }
+  return { kind: "as-planned" };
 }
 
 function toNode(lesson: LessonRow): LessonNode {

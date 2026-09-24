@@ -1,3 +1,4 @@
+import { EXERCISE_SCRIPT_TYPE } from "@mindforge/core";
 import type { PrismaClient } from "@mindforge/db";
 import type { NestFastifyApplication } from "@nestjs/platform-fastify";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
@@ -97,6 +98,37 @@ describe("indexing a workspace", () => {
       missionId,
     );
     expect(rows[0]).toMatchObject({ seq: 7, title: "Closures and capture", slug: "rls" });
+  });
+
+  it("puts the exercises the file declares on the lesson's row, and takes them off again", async () => {
+    // FR-X1. The file is canonical: an exercise removed from it is removed here,
+    // or the panel would offer an exercise the lesson no longer explains.
+    const exercise = JSON.stringify({
+      key: "own-a-row",
+      kind: "code",
+      language: "javascript",
+      title: "Own a row",
+      prompt: "Write a policy.",
+      starter: "",
+      tests: 'test("x", () => expect(1).toBe(1));',
+    });
+    const withExercise = LESSON.replace(
+      "</body>",
+      `<script type="${EXERCISE_SCRIPT_TYPE}">${exercise}</script></body>`,
+    );
+    const exercisesOf = async () =>
+      (
+        await db.$queryRawUnsafe<{ exercises: { key: string }[] }[]>(
+          `select exercises from lessons where mission_id = $1::uuid`,
+          missionId,
+        )
+      )[0]!.exercises;
+
+    await run({ "lessons/0007-rls.html": withExercise });
+    expect((await exercisesOf()).map((e) => e.key)).toEqual(["own-a-row"]);
+
+    await run({ "lessons/0007-rls.html": LESSON });
+    expect(await exercisesOf()).toEqual([]);
   });
 
   it("writes reference docs and learning records", async () => {

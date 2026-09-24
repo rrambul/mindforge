@@ -269,6 +269,8 @@ export class ReindexWorkspace {
         // it does is a question about the mission's rows rather than about the
         // file. The repository is where that lookup belongs.
         planSlug: parsed.planSlug,
+        exercises: parsed.exercises,
+        adjustment: parsed.adjustment,
       });
     }
 

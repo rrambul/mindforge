@@ -1,12 +1,16 @@
 import {
   deriveLessons,
+  nextAdjustment,
   nextLesson,
   orderModule,
+  resolveBridges,
   type LessonDepth,
   type LessonNode,
+  type StrainReason,
 } from "@mindforge/core";
 import {
   NO_TRACK,
+  notTracked,
   type BriefingFacts,
   type CurrentTrack,
   type PlannedLesson,
@@ -15,6 +19,7 @@ import {
 import { Inject, Injectable } from "@nestjs/common";
 
 import { USER_SCOPED_DB, type UserScopedDb } from "../../../shared/persistence/user-scoped-db.js";
+import { judgeLessons } from "../../exercises/infrastructure/judge-lessons.js";
 import type { BriefingReader } from "../application/briefing.port.js";
 
 /**
@@ -44,7 +49,11 @@ const OUTCOME_LIMIT = 12;
 export class PrismaBriefingReader implements BriefingReader {
   constructor(@Inject(USER_SCOPED_DB) private readonly db: UserScopedDb) {}
 
-  gather(userId: string, missionId: string): Promise<BriefingFacts> {
+  gather(
+    userId: string,
+    missionId: string,
+    options: { readonly bridgeFor?: string | null } = {},
+  ): Promise<BriefingFacts> {
     return this.db.run(userId, async (tx) => {
       const [mission] = await tx.$queryRawUnsafe<{ topic: string }[]>(
         `select topic from missions where id = $1::uuid`,
@@ -88,6 +97,7 @@ export class PrismaBriefingReader implements BriefingReader {
           fromRecord: record.storage_path.split("/").pop() ?? record.storage_path,
         })),
         lessonOutcomes: outcomes.map(describeOutcome),
+        ...(await readAdaptation(tx, missionId, options.bridgeFor ?? null)),
       } satisfies BriefingFacts;
     });
   }
@@ -108,6 +118,109 @@ function describeOutcome(row: {
   const number = row.seq === null ? "" : `${String(row.seq).padStart(4, "0")} `;
   const outcome = row.outcome ?? "finished, outcome not recorded";
   return `${number}${row.title} — ${outcome}`;
+}
+
+const REASON_PHRASES: Readonly<Record<StrainReason, string>> = {
+  "marked-lost": "the learner marked it lost",
+  "never-passed": "they tried the exercise and never passed it",
+  "heavy-hints": "they passed only after being shown the shape of a solution or the code",
+  "first-try-no-hints-fast": "passed first try, with no hints, in under half the expected time",
+  passed: "passed",
+};
+
+/**
+ * How the finished lessons landed, and what this run should do about it (FR-D1–D3).
+ *
+ * Judged by `judgeLessons` — the same derivation the curriculum screen shows — and
+ * decided by `nextAdjustment`, so the run is asked for exactly what the screen says
+ * the next lesson will do. A bridge the learner asked for overrides the decision:
+ * they pressed a button for it.
+ */
+async function readAdaptation(
+  tx: Tx,
+  missionId: string,
+  bridgeFor: string | null,
+): Promise<Pick<BriefingFacts, "lessonLandings" | "adjustment">> {
+  const lessons = await tx.$queryRawUnsafe<
+    {
+      id: string;
+      slug: string;
+      title: string;
+      seq: number | null;
+      track_slug: string | null;
+      completed_at: Date | null;
+      outcome: string | null;
+      exercises: unknown;
+      adjustment: string | null;
+      bridge_for_slug: string | null;
+    }[]
+  >(
+    `select l.id, l.slug, l.title, l.seq, t.slug as track_slug, l.completed_at, l.outcome,
+            l.exercises, l.adjustment, l.bridge_for_slug
+       from lessons l left join tracks t on t.id = l.track_id
+      where l.mission_id = $1::uuid and l.status = 'generated'`,
+    missionId,
+  );
+
+  const finished = lessons
+    .filter((lesson) => lesson.completed_at !== null)
+    .sort((a, b) => b.completed_at!.getTime() - a.completed_at!.getTime());
+  const strains = await judgeLessons(tx, finished);
+  const bridges = resolveBridges(
+    lessons.map((lesson) => ({
+      id: lesson.id,
+      slug: lesson.slug,
+      seq: lesson.seq,
+      adjustment:
+        lesson.adjustment === "bridge" || lesson.adjustment === "harder"
+          ? { kind: lesson.adjustment, bridgeForSlug: lesson.bridge_for_slug }
+          : null,
+    })),
+  );
+
+  const judged = finished.map((lesson) => ({
+    lessonId: lesson.id,
+    slug: lesson.slug,
+    title: lesson.title,
+    strain: strains.get(lesson.id)!,
+    bridged: bridges.bridgeOf.has(lesson.id),
+  }));
+
+  const lessonLandings = finished.slice(0, OUTCOME_LIMIT).flatMap((lesson) => {
+    const strain = strains.get(lesson.id)!;
+    if (strain.verdict === null) return [];
+    const number = lesson.seq === null ? "" : `${String(lesson.seq).padStart(4, "0")} `;
+    return [
+      `${number}${lesson.title} — ${strain.verdict}: ${strain.reasons.map((r) => REASON_PHRASES[r]).join("; ")}`,
+    ];
+  });
+
+  const ref = (id: string) => {
+    const lesson = lessons.find((l) => l.id === id)!;
+    return { title: lesson.title, slug: lesson.slug, trackSlug: lesson.track_slug };
+  };
+
+  if (bridgeFor !== null && lessons.some((lesson) => lesson.id === bridgeFor)) {
+    return {
+      lessonLandings,
+      adjustment: { kind: "bridge", target: ref(bridgeFor), requested: true },
+    };
+  }
+
+  const decided = nextAdjustment(judged);
+  const adjustment: BriefingFacts["adjustment"] =
+    decided === null
+      ? notTracked(
+          "No finished lesson has been judged yet, so there is no evidence to adjust on. Teach the " +
+            "next planned lesson as planned, with no `mindforge:adjusted` tag.",
+        )
+      : decided.kind === "bridge"
+        ? { kind: "bridge", target: ref(decided.lesson.lessonId), requested: false }
+        : decided.kind === "harder"
+          ? { kind: "harder", because: [decided.because[0].title, decided.because[1].title] }
+          : { kind: "as-planned" };
+
+  return { lessonLandings, adjustment };
 }
 
 /** The transaction handle `UserScopedDb.run` hands its callback. */

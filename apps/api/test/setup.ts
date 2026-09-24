@@ -19,3 +19,10 @@ for (const candidate of ["../../../.env.local", "../../../.env"]) {
     // Next candidate.
   }
 }
+
+// No live model calls in automated tests (non-negotiable 8). `.env.local` carries a
+// real key for local teach runs, and hints are the one path in this app that would
+// spend it — so it is removed before anything reads the environment, and the hint
+// tests stub the generator instead. Without this line a green hint test would be a
+// billed one.
+delete process.env["ANTHROPIC_API_KEY"];

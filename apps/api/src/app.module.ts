@@ -2,6 +2,7 @@ import { Module } from "@nestjs/common";
 import { HealthController } from "./health.controller.js";
 import { AccountModule } from "./modules/account/presentation/account.module.js";
 import { CurriculumModule } from "./modules/curriculum/presentation/curriculum.module.js";
+import { ExercisesModule } from "./modules/exercises/presentation/exercises.module.js";
 import { FocusModule } from "./modules/focus/presentation/focus.module.js";
 import { InsightsModule } from "./modules/insights/presentation/insights.module.js";
 import { LessonsModule } from "./modules/lessons/presentation/lessons.module.js";
@@ -23,6 +24,7 @@ import { SharedModule } from "./shared/shared.module.js";
     InsightsModule,
     CurriculumModule,
     LessonsModule,
+    ExercisesModule,
     TeachModule,
   ],
   controllers: [HealthController],

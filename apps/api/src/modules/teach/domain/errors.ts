@@ -113,3 +113,21 @@ export class DailyBudgetExhausted extends DomainError {
     this.detailVars = { cap: `$${capUsd.toFixed(2)}` };
   }
 }
+
+/**
+ * An easier version was asked for a lesson that does not need one: it did not land
+ * too hard, or a bridge toward it already exists. `conflict`, because the fix is in
+ * the state of things — finish the bridge, or the lesson landed fine — not in the
+ * request.
+ */
+export class BridgeNotNeeded extends DomainError {
+  readonly kind: DomainErrorKind = "conflict";
+  readonly slug = "bridge-not-needed";
+  readonly detailKey: ServerMessageKey;
+
+  constructor(lessonId: string, why: "not-too-hard" | "already-bridged") {
+    super(`Lesson ${lessonId} needs no bridge (${why})`);
+    this.detailKey =
+      why === "already-bridged" ? "error.teach.bridge_exists" : "error.teach.bridge_not_needed";
+  }
+}

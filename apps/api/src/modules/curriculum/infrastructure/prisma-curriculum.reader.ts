@@ -2,6 +2,7 @@ import { asLessonOutcome, type LessonDepth } from "@mindforge/core";
 import { Inject, Injectable } from "@nestjs/common";
 
 import { USER_SCOPED_DB, type UserScopedDb } from "../../../shared/persistence/user-scoped-db.js";
+import { judgeLessons } from "../../exercises/infrastructure/judge-lessons.js";
 import type {
   CurriculumReader,
   CurriculumRows,
@@ -68,10 +69,14 @@ export class PrismaCurriculumReader implements CurriculumReader {
             seq: number | null;
             completed_at: Date | null;
             outcome: string | null;
+            exercises: unknown;
+            adjustment: string | null;
+            adjustment_reason: string | null;
+            bridge_for_slug: string | null;
           }[]
         >(
           `select id, track_id, slug, title, intent, status, difficulty, depth, position, seq,
-                  completed_at, outcome
+                  completed_at, outcome, exercises, adjustment, adjustment_reason, bridge_for_slug
              from lessons where mission_id = $1::uuid`,
           missionId,
         ),
@@ -83,6 +88,7 @@ export class PrismaCurriculumReader implements CurriculumReader {
         ),
       ]);
 
+      const strains = await judgeLessons(tx, lessons);
       const trackPrereqs = group(trackEdges.map((row) => [row.track_id, row.name] as const));
       const lessonPrereqs = group(
         lessonEdges.map((row) => [row.lesson_id, row.prereq_id] as const),
@@ -109,6 +115,15 @@ export class PrismaCurriculumReader implements CurriculumReader {
           completedAt: lesson.completed_at,
           outcome: asLessonOutcome(lesson.outcome),
           prerequisiteIds: lessonPrereqs.get(lesson.id) ?? [],
+          strain: strains.get(lesson.id)!,
+          adjustment:
+            lesson.adjustment === "bridge" || lesson.adjustment === "harder"
+              ? {
+                  kind: lesson.adjustment,
+                  reason: lesson.adjustment_reason,
+                  bridgeForSlug: lesson.bridge_for_slug,
+                }
+              : null,
         })),
       };
     });

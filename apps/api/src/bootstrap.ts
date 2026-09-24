@@ -79,6 +79,11 @@ export async function createApp(): Promise<NestFastifyApplication> {
  */
 function buildAdapter(): FastifyAdapter {
   const adapter = new FastifyAdapter({
+    // 6 MiB rather than Fastify's 1 MiB: a whiteboard review carries a PNG of the
+    // canvas (FR-X8, capped at 4,000,000 characters by `RequestReviewSchema`). Nest
+    // has no per-route body limit, so it is global — and every other body is still
+    // capped far lower by its own schema.
+    bodyLimit: 6 * 1024 * 1024,
     genReqId: (request: { headers: Record<string, string | string[] | undefined> }) =>
       requestIdFor(request.headers),
   });

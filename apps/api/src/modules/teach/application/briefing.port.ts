@@ -18,5 +18,13 @@ export const BRIEFING_READER = Symbol("BriefingReader");
  */
 export interface BriefingReader {
   /** Everything the briefing needs, with M3's absences already in place. */
-  gather(userId: string, missionId: string): Promise<BriefingFacts>;
+  /**
+   * `bridgeFor` is a lesson the learner asked an easier version of (FR-D2). When
+   * set, it is what the briefing asks for, whatever `nextAdjustment` would say.
+   */
+  gather(
+    userId: string,
+    missionId: string,
+    options?: { readonly bridgeFor?: string | null },
+  ): Promise<BriefingFacts>;
 }

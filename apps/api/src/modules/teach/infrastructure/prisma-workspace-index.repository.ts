@@ -256,6 +256,10 @@ export class PrismaWorkspaceIndexRepository implements WorkspaceIndexRepository 
                         title = $5,
                         storage_path = $6,
                         content_hash = $7,
+                        exercises = $8::jsonb,
+                        adjustment = $9,
+                        adjustment_reason = $10,
+                        bridge_for_slug = $11,
                         updated_at = now()
                   where mission_id = $1::uuid and slug = $2 and status = 'planned'`,
                 lesson.missionId,
@@ -265,21 +269,30 @@ export class PrismaWorkspaceIndexRepository implements WorkspaceIndexRepository 
                 lesson.title,
                 lesson.storagePath,
                 lesson.contentHash,
+                JSON.stringify(lesson.exercises),
+                lesson.adjustment?.kind ?? null,
+                lesson.adjustment?.reason ?? null,
+                lesson.adjustment?.bridgeFor ?? null,
               );
 
         if (claimed > 0) continue;
 
         await tx.$executeRawUnsafe(
           `insert into lessons (id, user_id, mission_id, track_id, seq, slug, title, storage_path,
-             content_hash, created_at, updated_at)
+             content_hash, exercises, adjustment, adjustment_reason, bridge_for_slug,
+             created_at, updated_at)
            values (gen_random_uuid(), $1::uuid, $2::uuid, $3::uuid, $4::int, $5, $6, $7, $8,
-                   now(), now())
+                   $9::jsonb, $10, $11, $12, now(), now())
            on conflict (mission_id, seq) do update
              set track_id = excluded.track_id,
                  slug = excluded.slug,
                  title = excluded.title,
                  storage_path = excluded.storage_path,
                  content_hash = excluded.content_hash,
+                 exercises = excluded.exercises,
+                 adjustment = excluded.adjustment,
+                 adjustment_reason = excluded.adjustment_reason,
+                 bridge_for_slug = excluded.bridge_for_slug,
                  updated_at = now()`,
           userId,
           lesson.missionId,
@@ -294,6 +307,10 @@ export class PrismaWorkspaceIndexRepository implements WorkspaceIndexRepository 
           lesson.title,
           lesson.storagePath,
           lesson.contentHash,
+          JSON.stringify(lesson.exercises),
+          lesson.adjustment?.kind ?? null,
+          lesson.adjustment?.reason ?? null,
+          lesson.adjustment?.bridgeFor ?? null,
         );
       }
     });

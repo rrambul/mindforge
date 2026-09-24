@@ -1,4 +1,4 @@
-import type { LessonDepth, LessonOutcome, LessonStatus } from "@mindforge/core";
+import type { LessonDepth, LessonOutcome, LessonStatus, Strain } from "@mindforge/core";
 
 export const CURRICULUM_READER = Symbol("CurriculumReader");
 
@@ -29,6 +29,14 @@ export interface LessonRow {
   readonly completedAt: Date | null;
   readonly outcome: LessonOutcome | null;
   readonly prerequisiteIds: readonly string[];
+  /** How it landed (FR-D1), judged by `judgeLessons` from the same snapshot. */
+  readonly strain: Strain;
+  /** What the lesson file says it changed about the plan (FR-D4). */
+  readonly adjustment: {
+    readonly kind: "bridge" | "harder";
+    readonly reason: string | null;
+    readonly bridgeForSlug: string | null;
+  } | null;
 }
 
 export interface CurriculumRows {

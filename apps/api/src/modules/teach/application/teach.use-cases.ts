@@ -2,6 +2,7 @@ import { Inject, Injectable } from "@nestjs/common";
 
 import { ID_GENERATOR, type IdGenerator } from "../../../shared/ids/id-generator.js";
 import { CLOCK, type Clock } from "../../../shared/time/clock.js";
+import { LessonNotFound, LessonNotWritten } from "../../lessons/domain/errors.js";
 import { MissionNotFound } from "../../missions/domain/errors.js";
 import {
   canTransition,
@@ -17,11 +18,13 @@ import {
 } from "../domain/agent-run.repository.js";
 import {
   AgentRunNotFound,
+  BridgeNotNeeded,
   DailyBudgetExhausted,
   RunAlreadyActive,
   RunTransitionInvalid,
   WorkspaceKeyUnavailable,
 } from "../domain/errors.js";
+import { LESSON_LANDING_READER, type LessonLandingReader } from "./lesson-landing.port.js";
 import { TeachSpend } from "./teach-spend.js";
 import { MISSION_WORKSPACE_READER, type MissionWorkspaceReader } from "./teach.port.js";
 import { deriveWorkspaceKey } from "./workspace-key.js";
@@ -48,6 +51,7 @@ export class TeachRuns {
     @Inject(CLOCK) private readonly clock: Clock,
     @Inject(ID_GENERATOR) private readonly ids: IdGenerator,
     private readonly spend: TeachSpend,
+    @Inject(LESSON_LANDING_READER) private readonly landings: LessonLandingReader,
   ) {}
 
   /**
@@ -80,6 +84,7 @@ export class TeachRuns {
     missionId: string,
     timezone: string,
     kind?: AgentRunKind,
+    extras: { readonly bridgeFor?: string } = {},
   ): Promise<AgentRun> {
     const mission = await this.missions.find(userId, missionId);
     if (!mission) throw new MissionNotFound(missionId);
@@ -102,7 +107,7 @@ export class TeachRuns {
       kind: resolved,
       // The key is recorded on the run as well as on the mission, so a run's
       // input says which prefix it touched even if the mission is deleted later.
-      input: { workspaceKey },
+      input: { workspaceKey, ...extras },
     });
 
     // `null` is the unique-index violation, not an error to rethrow: one active
@@ -111,6 +116,28 @@ export class TeachRuns {
     if (!run) throw new RunAlreadyActive(missionId);
 
     return run;
+  }
+
+  /**
+   * "Try an easier version" (FR-D2): a lesson run whose job is a bridge toward
+   * this lesson rather than the next planned one.
+   *
+   * Offered only where the screen offers it — a written lesson that landed too
+   * hard and has no bridge yet — and refused here on the same terms, so a stale
+   * page cannot order a second bridge. Everything else is `request`: the same
+   * budget, the same one-run-per-mission rule, the same kind (a lesson run). The
+   * target travels in the run's input, where the briefing reads it.
+   */
+  async requestBridge(userId: string, lessonId: string, timezone: string): Promise<AgentRun> {
+    const landing = await this.landings.find(userId, lessonId);
+    if (landing === null) throw new LessonNotFound(lessonId);
+    if (landing.status === "planned") throw new LessonNotWritten(lessonId);
+    if (landing.bridged) throw new BridgeNotNeeded(lessonId, "already-bridged");
+    if (landing.strain.verdict !== "too-hard") throw new BridgeNotNeeded(lessonId, "not-too-hard");
+
+    return this.request(userId, landing.missionId, timezone, "generate_lesson", {
+      bridgeFor: lessonId,
+    });
   }
 
   async get(userId: string, id: string): Promise<AgentRun> {

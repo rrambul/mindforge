@@ -55,6 +55,9 @@ const STATUS_BY_KIND: Readonly<Record<DomainErrorKind, number>> = {
   // it for validation failures specifically, and it is the only status that
   // arrives with a populated `errors` array.
   invalid: 422,
+  // The request was fine and so is the state; something this service depends on
+  // cannot answer — no key configured, or a model that returned nothing usable.
+  unavailable: 503,
 };
 
 /**
@@ -68,6 +71,7 @@ const TITLE_BY_KIND: Readonly<Record<DomainErrorKind, string>> = {
   not_found: "Not found",
   conflict: "Conflicts with current state",
   invalid: "Invalid request",
+  unavailable: "Temporarily unavailable",
 };
 
 export function statusForKind(kind: DomainErrorKind): number {
