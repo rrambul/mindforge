@@ -84,6 +84,20 @@ describe("writeTeachPlugin", () => {
     );
   });
 
+  it("appends the lesson shape after the unattended addendum", async () => {
+    // UNATTENDED.md opens with "Everything above is the `teach` skill as written",
+    // so it has to sit directly after the upstream body. The lesson shape is what
+    // makes a lesson mostly doing rather than mostly reading, and `/teach-me` reads
+    // the same file — a run that silently lost it would drift back to walls of text.
+    await writeTeachPlugin(destination);
+    const composed = await readFile(join(destination, "skills/teach/SKILL.md"), "utf8");
+
+    expect(composed).toContain("The shape of a Mindforge lesson");
+    expect(composed.indexOf("The shape of a Mindforge lesson")).toBeGreaterThan(
+      composed.indexOf("Running inside Mindforge"),
+    );
+  });
+
   it("copies the format docs beside the skill so its relative links resolve", async () => {
     // SKILL.md links `[MISSION-FORMAT.md](./MISSION-FORMAT.md)`. Without these the
     // agent reads a broken link and works from memory of the format instead.

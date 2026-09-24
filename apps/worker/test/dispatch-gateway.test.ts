@@ -169,7 +169,31 @@ describe("what the dispatcher picks up", () => {
       // Carried rather than looked up later: every "day" derives from it, and a
       // learning record resolved server-local lands on the wrong one.
       timezone: expect.any(String) as string,
+      // An ordinary press of the teach button asks for no bridge.
+      bridgeFor: null,
     });
+  });
+
+  it("carries the lesson a learner asked an easier version of (FR-D2)", async () => {
+    const id = await queue(ALICE, "generate_lesson");
+    const lesson = "44444444-4444-4444-8444-444444444444";
+    await admin.$executeRawUnsafe(
+      `update agent_runs set input = jsonb_build_object('bridgeFor', $2::text) where id = $1::uuid`,
+      id,
+      lesson,
+    );
+
+    expect(await next()).toMatchObject({ id, bridgeFor: lesson });
+  });
+
+  it("drops a bridge target that is not a uuid, rather than failing the run on a cast", async () => {
+    const id = await queue(ALICE, "generate_lesson");
+    await admin.$executeRawUnsafe(
+      `update agent_runs set input = '{"bridgeFor": "../not-a-lesson"}'::jsonb where id = $1::uuid`,
+      id,
+    );
+
+    expect(await next()).toMatchObject({ id, bridgeFor: null });
   });
 
   it("picks up a curriculum run too", async () => {

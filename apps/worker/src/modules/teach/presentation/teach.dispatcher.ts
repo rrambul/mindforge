@@ -101,7 +101,9 @@ export class TeachDispatcher implements OnApplicationBootstrap, OnModuleDestroy 
     this.busy = true;
     try {
       const briefing = renderBriefing({
-        ...(await this.briefings.gather(queued.userId, queued.missionId)),
+        ...(await this.briefings.gather(queued.userId, queued.missionId, {
+          bridgeFor: queued.bridgeFor,
+        })),
         // The facts are the mission's; which agent reads them is the run's.
         kind: queued.kind,
       });

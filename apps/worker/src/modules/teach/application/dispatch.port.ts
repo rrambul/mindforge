@@ -21,6 +21,11 @@ export interface QueuedRun {
    * server-local can land on the 7th — in a different weekly review.
    */
   readonly timezone: string;
+  /**
+   * A lesson the learner asked an easier version of (FR-D2), from the run's input.
+   * Null for an ordinary press of the teach button.
+   */
+  readonly bridgeFor: string | null;
 }
 
 export interface TeachDispatchGateway {

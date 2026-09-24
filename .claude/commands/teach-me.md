@@ -30,6 +30,7 @@ Read them from this repository, not from memory, and read them **before** writin
 | ---------------- | ------------------------------------------------------------------------- |
 | The curriculum   | `skills/curriculum/SKILL.md` and `skills/curriculum/CURRICULUM-FORMAT.md` |
 | A lesson         | `skills/teach/SKILL.md` and `skills/teach/LEARNING-RECORD-FORMAT.md`      |
+| Its shape        | `skills/LESSON-SHAPE.md` — **applies to you in full**                     |
 | The mission file | `skills/teach/MISSION-FORMAT.md`                                          |
 
 `skills/teach/` is a verbatim copy of the upstream Claude Code skill and `skills/README.md` forbids
@@ -37,6 +38,10 @@ editing it — read it, follow it, never change it. `skills/UNATTENDED.md` and
 `skills/CURRICULUM-UNATTENDED.md` are Mindforge's addenda, appended at build time for a server run.
 **Most of what they say does not apply to you**: they exist because nobody is present. You have the
 user in front of you, so where the addendum says "never ask, assume and write", you ask.
+
+`skills/LESSON-SHAPE.md` is different: it is not about being unattended, and every rule in it binds
+you exactly as it binds a server run — five parts, the prose budget, one exercise the learner does,
+and the two `data-mindforge` sections. The server run gets it appended to the skill; you read it.
 
 **One skill per step, never both.** A curriculum step writes `CURRICULUM.md` and no lessons; a lesson
 step writes a lesson and never touches `CURRICULUM.md`. That separation is the product's, not a
@@ -129,6 +134,8 @@ result is indistinguishable from an agent's. Read what it prints:
 - `tracks` / `plannedLessons` after a curriculum step, `lessons` after a lesson step.
 - Any `warning:` line means "stored, partially indexed" (§7.4) — the file landed and something in it
   did not parse. Say which line, and offer to fix it.
+- `prose_over_budget` means the lesson is over `LESSON-SHAPE.md`'s word limit. Cut explanation (move it
+  to a reference document) and land it again; do not pad the exercise to hide it.
 
 Then tell the user where to look: `http://localhost:5173/missions/<id>`.
 
@@ -146,7 +153,7 @@ order, and non-negotiable 3 says there is one implementation of that:
 
 ```sh
 curl -s "http://localhost:3000/v1/missions/<id>/curriculum" -H "authorization: Bearer $TOKEN" \
-  | jq '{next: .nextLessonId, modules: [.modules[] | {name, progress, lessons: [.lessons[] | {slug, title, status, completed, outcome, unblocked}]}]}'
+  | jq '{next: .nextLessonId, upcoming, modules: [.modules[] | {name, progress, lessons: [.lessons[] | {slug, title, status, completed, outcome, unblocked, strain, adjustment}]}]}'
 ```
 
 `nextLessonId` is the answer. If it is `null`, everything is either written or locked — say so rather
@@ -161,6 +168,12 @@ that wrote the curriculum:
   have about pitch, and it is the whole reason lessons are generated late rather than up front.
 - **Their recorded outcomes.** A module carrying a `shaky` is a module to slow down in. A `lost` on a
   prerequisite is a reason to ask whether they want that one redone before moving on.
+
+**Check how the last lessons landed.** The same response carries each lesson's `strain` and the
+curriculum's `upcoming` — what the next lesson should do, computed by `packages/core` exactly as the
+server run's briefing computes it. If `upcoming.kind` is `bridge` or `harder`, follow
+`skills/LESSON-SHAPE.md`'s "Adapting" section and write the tags it names. If the learner asks you for
+an easier version of a lesson, that is a bridge too.
 
 Then write exactly one lesson, as in step 3, and land it as in step 4. Two details:
 

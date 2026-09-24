@@ -22,6 +22,11 @@ to open a file. Rather than fork `SKILL.md` — which would break the paragraph 
 appended at build time. It also carries the parts of the track model `teach` cannot know about,
 for the same reason: the upstream skill has no concept of a curriculum.
 
+`LESSON-SHAPE.md` is also Mindforge's own, and is appended after `UNATTENDED.md`. It is kept separate
+because it is not about being unattended: it says what a lesson _is_ — five parts, a prose budget, one
+exercise the learner does — and `/teach-me` binds a person at a terminal to it exactly as the server run
+is bound. `PROSE_BUDGET` in `packages/workspace/src/parse/html.ts` is the same number, measured.
+
 `curriculum/` is Mindforge's own skill, not vendored. It maps a subject into ordered subtopics and
 writes `CURRICULUM.md`; it writes no lessons. Structure and material are produced by separate skills
 so the structure can be revised without discarding the material.

@@ -32,6 +32,7 @@ export class PrismaDispatchGateway implements TeachDispatchGateway {
         kind: string;
         workspace_key: string;
         timezone: string;
+        bridge_for: string | null;
       }[]
     >(
       // Both kinds, and the `in` list is the enumeration on purpose: `agent_runs`
@@ -55,7 +56,8 @@ export class PrismaDispatchGateway implements TeachDispatchGateway {
       // Correlated rather than a `group by` over the whole table: the outer set is
       // only the runnable rows, so this evaluates a handful of times and rides the
       // `(user_id, started_at)` index rather than aggregating every run ever made.
-      `select r.id, r.user_id, r.mission_id, r.kind, m.workspace_key, p.timezone
+      `select r.id, r.user_id, r.mission_id, r.kind, m.workspace_key, p.timezone,
+              r.input->>'bridgeFor' as bridge_for
          from agent_runs r
          join missions m on m.id = r.mission_id
          join profiles p on p.id = r.user_id
@@ -86,6 +88,9 @@ export class PrismaDispatchGateway implements TeachDispatchGateway {
       kind: row.kind === "generate_curriculum" ? "generate_curriculum" : "generate_lesson",
       workspaceKey: row.workspace_key,
       timezone: row.timezone,
+      // A uuid or nothing: the input is jsonb the API wrote, but a malformed value
+      // here would reach a `::uuid` cast in the briefing and fail the whole run.
+      bridgeFor: UUID.test(row.bridge_for ?? "") ? row.bridge_for : null,
     };
   }
 
@@ -99,3 +104,5 @@ export class PrismaDispatchGateway implements TeachDispatchGateway {
     return { path: plugin.path, skillRef: plugin.skillRef };
   }
 }
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu;

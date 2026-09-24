@@ -50,7 +50,10 @@ export interface WrittenTeachPlugin extends TeachPlugin {
 export async function writeTeachPlugin(destination: string): Promise<WrittenTeachPlugin> {
   return write(destination, {
     skillDir: "teach",
-    addendumFile: "UNATTENDED.md",
+    // Order matters: UNATTENDED.md opens by referring to "everything above" as the
+    // upstream skill. LESSON-SHAPE.md is not about being unattended — `/teach-me`
+    // reads it too — so it is its own file rather than a section of the addendum.
+    addendumFiles: ["UNATTENDED.md", "LESSON-SHAPE.md"],
     docs: FORMAT_DOCS,
     compose: buildTeachPlugin,
   });
@@ -68,7 +71,7 @@ export async function writeTeachPlugin(destination: string): Promise<WrittenTeac
 export async function writeCurriculumPlugin(destination: string): Promise<WrittenTeachPlugin> {
   return write(destination, {
     skillDir: "curriculum",
-    addendumFile: "CURRICULUM-UNATTENDED.md",
+    addendumFiles: ["CURRICULUM-UNATTENDED.md"],
     docs: CURRICULUM_FORMAT_DOCS,
     compose: buildCurriculumPlugin,
   });
@@ -76,7 +79,8 @@ export async function writeCurriculumPlugin(destination: string): Promise<Writte
 
 interface PluginSource {
   readonly skillDir: string;
-  readonly addendumFile: string;
+  /** Appended after `SKILL.md` in this order, each separated by a blank line. */
+  readonly addendumFiles: readonly string[];
   readonly docs: readonly string[];
   readonly compose: (sources: {
     skill: string;
@@ -88,11 +92,12 @@ interface PluginSource {
 async function write(destination: string, spec: PluginSource): Promise<WrittenTeachPlugin> {
   const source = join(repoRoot(), "skills");
 
-  const [skill, addendum, ...docs] = await Promise.all([
+  const [skill, addenda, docs] = await Promise.all([
     readFile(join(source, spec.skillDir, "SKILL.md"), "utf8"),
-    readFile(join(source, spec.addendumFile), "utf8"),
-    ...spec.docs.map((name) => readFile(join(source, spec.skillDir, name), "utf8")),
+    Promise.all(spec.addendumFiles.map((name) => readFile(join(source, name), "utf8"))),
+    Promise.all(spec.docs.map((name) => readFile(join(source, spec.skillDir, name), "utf8"))),
   ]);
+  const addendum = addenda.map((text) => text.trim()).join("\n\n") + "\n";
 
   const formatDocs = Object.fromEntries(spec.docs.map((name, index) => [name, docs[index]!]));
   const plugin = spec.compose({ skill, addendum, formatDocs });
