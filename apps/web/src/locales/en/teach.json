@@ -20,6 +20,8 @@
   "warning": {
     "heading": "{count, plural, one {# thing wasn't indexed} other {# things weren't indexed}}",
     "body": "The files are saved. Some of what's in them didn't fit anything Mindforge tracks, so it isn't searchable yet.",
+    "show": "Show details",
+    "hide": "Hide details",
     "section_missing": "A section this format expects is missing: {heading}",
     "section_empty": "This section is empty: {heading}",
     "section_placeholder": "This section still has its template text: {heading}",

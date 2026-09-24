@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import {
@@ -142,6 +143,9 @@ function RunStatus({ run }: { readonly run: AgentRunView }) {
     run.result?.changes?.["added"]?.filter((path) => path.startsWith("lessons/")).length ?? 0;
   const conflicts = run.result?.conflicts ?? [];
   const warnings = run.result?.warnings ?? [];
+  // Folded by default: these are about indexing, not something the learner has to
+  // act on, and a list of them under every run read as the run having failed.
+  const [showWarnings, setShowWarnings] = useState(false);
 
   return (
     <Stack gap="tight">
@@ -170,16 +174,26 @@ function RunStatus({ run }: { readonly run: AgentRunView }) {
           <Stack gap="tight">
             <Label>{t("warning.heading", { count: warnings.length })}</Label>
             <Text>{t("warning.body")}</Text>
-            {byFile(warnings).map(([path, group]) => (
-              <Stack key={path ?? ""} gap="tight">
-                {path !== undefined && <Label>{path}</Label>}
-                {group.map((warning, index) => (
-                  <Text key={`${warning.code}-${String(index)}`} tone="hint">
-                    {describeWarning(warning, t)}
-                  </Text>
-                ))}
-              </Stack>
-            ))}
+            <Button
+              variant="quiet"
+              aria-expanded={showWarnings}
+              onClick={() => {
+                setShowWarnings((shown) => !shown);
+              }}
+            >
+              {showWarnings ? t("warning.hide") : t("warning.show")}
+            </Button>
+            {showWarnings &&
+              byFile(warnings).map(([path, group]) => (
+                <Stack key={path ?? ""} gap="tight">
+                  {path !== undefined && <Label>{path}</Label>}
+                  {group.map((warning, index) => (
+                    <Text key={`${warning.code}-${String(index)}`} tone="hint">
+                      {describeWarning(warning, t)}
+                    </Text>
+                  ))}
+                </Stack>
+              ))}
           </Stack>
         </Callout>
       )}

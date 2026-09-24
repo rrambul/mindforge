@@ -152,7 +152,9 @@ describe("after a run", () => {
 
     renderWithProviders(<TeachPanel missionId={MISSION} />);
 
-    expect(await screen.findByText("learning-records/0004-x.md")).toBeInTheDocument();
+    await userEvent.click(await screen.findByRole("button", { name: "Show details" }));
+
+    expect(screen.getByText("learning-records/0004-x.md")).toBeInTheDocument();
     expect(screen.getByText("lessons/0004-x.html")).toBeInTheDocument();
     expect(screen.getByText(/A section this format expects is missing: Date/u)).toBeInTheDocument();
   });
@@ -193,7 +195,18 @@ describe("after a run", () => {
     renderWithProviders(<TeachPanel missionId={MISSION} />);
 
     expect(await screen.findByText(/wasn't indexed/u)).toBeInTheDocument();
+    // Folded until asked for: a list under every run read as the run having failed.
+    expect(screen.queryByText(/closures\.html has no number/u)).not.toBeInTheDocument();
+    const toggle = screen.getByRole("button", { name: "Show details" });
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+
+    await userEvent.click(toggle);
+
     expect(screen.getByText(/closures\.html has no number/u)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Hide details" })).toHaveAttribute(
+      "aria-expanded",
+      "true",
+    );
   });
 
   it("shows a warning code nobody has written a message for, rather than hiding it", async () => {
@@ -210,8 +223,9 @@ describe("after a run", () => {
     ]);
 
     renderWithProviders(<TeachPanel missionId={MISSION} />);
+    await userEvent.click(await screen.findByRole("button", { name: "Show details" }));
 
-    expect(await screen.findByText("some_future_warning")).toBeInTheDocument();
+    expect(screen.getByText("some_future_warning")).toBeInTheDocument();
   });
 
   it("says a failed run did not finish", async () => {

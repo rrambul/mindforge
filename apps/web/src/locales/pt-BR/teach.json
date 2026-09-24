@@ -20,6 +20,8 @@
   "warning": {
     "heading": "{count, plural, one {# coisa não foi indexada} other {# coisas não foram indexadas}}",
     "body": "Os arquivos estão salvos. Parte do conteúdo não corresponde a nada que o Mindforge acompanha, então ainda não é pesquisável.",
+    "show": "Mostrar detalhes",
+    "hide": "Ocultar detalhes",
     "section_missing": "Falta uma seção que este formato espera: {heading}",
     "section_empty": "Esta seção está vazia: {heading}",
     "section_placeholder": "Esta seção ainda está com o texto do modelo: {heading}",
