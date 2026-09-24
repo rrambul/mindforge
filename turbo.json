@@ -8,9 +8,15 @@
       "dependsOn": ["^build"],
       "outputs": ["dist/**", ".output/**", "build/**"]
     },
+    // `CLAUDE_CONFIG_DIR` is passed through because `TEACH_AUTH=subscription`
+    // authenticates as whoever the config dir it inherits is logged in as. Turbo's
+    // strict env mode drops undeclared variables, so without this a shell pointed at
+    // one Claude login ran teach runs against `~/.claude`'s — a different account,
+    // billed and rate-limited separately, with nothing in the logs to say so.
     "dev": {
       "cache": false,
-      "persistent": true
+      "persistent": true,
+      "passThroughEnv": ["CLAUDE_CONFIG_DIR"]
     },
     "lint": {
       "dependsOn": ["^build"],
