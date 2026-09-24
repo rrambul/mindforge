@@ -62,13 +62,16 @@ export {
 export { etagsMatch, normalizeEtag, sha256, storageEtag } from "./hash.js";
 
 export {
+  NO_LANDINGS_YET,
   NO_OUTCOMES_YET,
   NO_TRACK,
   notTracked,
   renderBriefing,
+  type BriefingAdjustment,
   type BriefingFacts,
   type BriefingInput,
   type BriefingKind,
+  type BriefingLessonRef,
   type CurrentTrack,
   type NotTracked,
   type PlannedLesson,
@@ -120,6 +123,7 @@ export {
   checkReferences,
   parseLessonHtml,
   parseReferenceHtml,
+  type LessonAdjustment,
   type ParsedHtmlDoc,
 } from "./parse/html.js";
 export { parseLearnerMemory, type MemoryKind, type ParsedMemory } from "./parse/memory.js";

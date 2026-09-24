@@ -1,6 +1,7 @@
+import { EXERCISE_SCRIPT_TYPE } from "@mindforge/core";
 import { describe, expect, it } from "vitest";
 
-import { checkReferences, parseLessonHtml, parseReferenceHtml } from "./html.js";
+import { checkReferences, parseLessonHtml, parseReferenceHtml, PROSE_BUDGET } from "./html.js";
 import type { WarningCode } from "./result.js";
 
 const codes = (result: { warnings: readonly { code: WarningCode }[] }): WarningCode[] =>
@@ -316,4 +317,296 @@ describe("meta tags that carry nothing", () => {
 
     expect(parsed.trackSlug).toBeNull();
   });
+});
+
+describe("the prose budget", () => {
+  // LESSON-SHAPE.md caps a lesson's explanation at PROSE_BUDGET words. This is the
+  // number that says whether lessons actually got shorter, so it counts what the
+  // learner reads as explanation and nothing else.
+  const words = (count: number): string => Array.from({ length: count }, () => "word").join(" ");
+  const lesson = (body: string): string =>
+    `<html><head><title>T</title></head><body>${body}</body></html>`;
+
+  it("counts the words of explanation in the body", () => {
+    const { parsed } = parseLessonHtml("0001-x.html", lesson(`<p>${words(12)}</p>`));
+
+    expect(parsed.proseWords).toBe(12);
+  });
+
+  it("does not run words together across block boundaries", () => {
+    // cheerio's `.text()` concatenates adjacent text nodes, so "</p><p>" would
+    // join the last word of one paragraph to the first of the next and undercount.
+    const { parsed } = parseLessonHtml(
+      "0001-x.html",
+      lesson("<p>one two</p><p>three</p><li>four</li>"),
+    );
+
+    expect(parsed.proseWords).toBe(4);
+  });
+
+  it("leaves out code, scripts, styles and the head", () => {
+    const html = `<html><head><title>${words(5)}</title><style>p { color: red }</style></head><body>
+      <p>${words(3)}</p>
+      <pre>${words(50)}</pre>
+      <p>Call <code>${words(4)}</code> here</p>
+      <script>const words = "${words(20)}";</script>
+      <noscript>${words(9)}</noscript>
+    </body></html>`;
+
+    expect(parseLessonHtml("0001-x.html", html).parsed.proseWords).toBe(5);
+  });
+
+  it("leaves out the marked exercise and debrief", () => {
+    const html = lesson(`
+      <p>${words(10)}</p>
+      <section data-mindforge="exercise"><p>${words(300)}</p></section>
+      <section data-mindforge="debrief"><p>${words(40)}</p></section>
+    `);
+
+    expect(parseLessonHtml("0001-x.html", html).parsed.proseWords).toBe(10);
+  });
+
+  it("counts only tokens that contain a letter or a digit", () => {
+    // An arrow, a dash or a bullet between two words is not a third word.
+    const { parsed } = parseLessonHtml("0001-x.html", lesson("<p>before → after — 2 · end</p>"));
+
+    expect(parsed.proseWords).toBe(4);
+  });
+
+  it("stays silent at the budget and warns one word over it", () => {
+    const at = parseLessonHtml("0001-x.html", lesson(`<p>${words(PROSE_BUDGET)}</p>`));
+    const over = parseLessonHtml("0001-x.html", lesson(`<p>${words(PROSE_BUDGET + 1)}</p>`));
+
+    expect(codes(at)).not.toContain("prose_over_budget");
+    expect(over.warnings).toContainEqual({
+      code: "prose_over_budget",
+      args: { words: PROSE_BUDGET + 1, budget: PROSE_BUDGET },
+    });
+  });
+
+  it("never warns on a reference document, which is meant to hold the depth", () => {
+    // LESSON-SHAPE.md sends the explanation a lesson cannot afford to the
+    // reference shelf. Flagging it there would punish the agent for doing so.
+    const result = parseReferenceHtml(
+      "ownership.html",
+      lesson(`<p>${words(PROSE_BUDGET * 3)}</p>`),
+    );
+
+    expect(codes(result)).not.toContain("prose_over_budget");
+  });
+});
+
+describe("the exercises a lesson declares", () => {
+  const exercise = (over: Record<string, unknown> = {}): string =>
+    JSON.stringify({
+      key: "retry-backoff",
+      kind: "code",
+      language: "javascript",
+      title: "Retry with backoff",
+      prompt: "Write retry().",
+      starter: "export function retry() {}",
+      tests: 'import { retry } from "./solution";',
+      ...over,
+    });
+  const block = (json: string): string => `<script type="${EXERCISE_SCRIPT_TYPE}">${json}</script>`;
+  const lesson = (body: string): string =>
+    `<html><head><title>T</title></head><body><p>Intro</p>${body}</body></html>`;
+
+  it("reads each block into a declaration, in document order", () => {
+    const html = lesson(
+      block(exercise()) + block(exercise({ key: "jitter", title: "Add jitter" })),
+    );
+    const { parsed, warnings } = parseLessonHtml("0001-x.html", html);
+
+    expect(parsed.exercises.map((e) => e.key)).toEqual(["retry-backoff", "jitter"]);
+    expect(parsed.exercises[0]!.solution).toBeNull();
+    expect(warnings).toEqual([]);
+  });
+
+  it("has none when the lesson declares none, which is every lesson before Phase 1", () => {
+    expect(parseLessonHtml("0001-x.html", lesson("")).parsed.exercises).toEqual([]);
+  });
+
+  it("keeps the lesson and drops a block that is not JSON, and says so", () => {
+    // A broken exercise is still a lesson worth reading (§7.4: stored, partially
+    // indexed). Losing the lesson over one block would be the worse failure.
+    const { parsed, warnings } = parseLessonHtml("0001-x.html", lesson(block("{ not json")));
+
+    expect(parsed.exercises).toEqual([]);
+    expect(parsed.title).toBe("T");
+    expect(warnings).toContainEqual({
+      code: "value_malformed",
+      args: { field: "exercise", reason: "json", file: "0001-x.html" },
+    });
+  });
+
+  it("drops a block that does not match the contract and names the field", () => {
+    const { parsed, warnings } = parseLessonHtml(
+      "0001-x.html",
+      lesson(block(exercise({ tests: "" })) + block(exercise({ key: "ok" }))),
+    );
+
+    expect(parsed.exercises.map((e) => e.key)).toEqual(["ok"]);
+    expect(warnings).toContainEqual({
+      code: "value_malformed",
+      args: { field: "exercise", reason: "tests", file: "0001-x.html" },
+    });
+  });
+
+  it("keeps the first of two blocks with the same key", () => {
+    // Attempts are recorded against the key, so two exercises sharing one would
+    // pool their attempts into a history that belongs to neither.
+    const { parsed, warnings } = parseLessonHtml(
+      "0001-x.html",
+      lesson(block(exercise({ title: "First" })) + block(exercise({ title: "Second" }))),
+    );
+
+    expect(parsed.exercises.map((e) => e.title)).toEqual(["First"]);
+    expect(warnings).toContainEqual({
+      code: "value_duplicated",
+      args: { field: "exercise", value: "retry-backoff" },
+    });
+  });
+
+  it("does not count the declaration as prose", () => {
+    const html = lesson(block(exercise({ prompt: Array(900).fill("word").join(" ") })));
+
+    expect(parseLessonHtml("0001-x.html", html).parsed.proseWords).toBe(1);
+  });
+
+  it("ignores ordinary scripts", () => {
+    const html = lesson(`<script>const exercise = ${exercise()};</script>`);
+
+    expect(parseLessonHtml("0001-x.html", html).parsed.exercises).toEqual([]);
+  });
+});
+
+describe("what a lesson changed about the plan", () => {
+  const lesson = (head: string): string =>
+    `<html><head><title>T</title>${head}</head><body><p>x</p></body></html>`;
+  const meta = (name: string, content: string) => `<meta name="${name}" content="${content}">`;
+
+  it("is null for a lesson taught as planned", () => {
+    expect(parseLessonHtml("0002-x.html", lesson("")).parsed.adjustment).toBeNull();
+  });
+
+  it("reads a bridge, the lesson it steps toward, and its reason verbatim", () => {
+    const { parsed } = parseLessonHtml(
+      "0006-smaller-step.html",
+      lesson(
+        meta("mindforge:adjusted", "bridge") +
+          meta("mindforge:bridge-for", "Commit Index") +
+          meta("mindforge:adjusted-reason", "You never passed the commit-index exercise."),
+      ),
+    );
+
+    expect(parsed.adjustment).toEqual({
+      kind: "bridge",
+      bridgeFor: "commit-index",
+      reason: "You never passed the commit-index exercise.",
+    });
+  });
+
+  it("calls a lesson that names a target a bridge, even when it forgot to say so", () => {
+    const { parsed } = parseLessonHtml(
+      "0006-x.html",
+      lesson(meta("mindforge:bridge-for", "commit-index")),
+    );
+
+    expect(parsed.adjustment).toEqual({ kind: "bridge", bridgeFor: "commit-index", reason: null });
+  });
+
+  it("reads a push, which has no target", () => {
+    const { parsed } = parseLessonHtml(
+      "0007-x.html",
+      lesson(meta("mindforge:adjusted", "Harder") + meta("mindforge:bridge-for", "ignored")),
+    );
+
+    expect(parsed.adjustment).toEqual({ kind: "harder", bridgeFor: null, reason: null });
+  });
+
+  it("drops an adjustment it does not know, and says so", () => {
+    const result = parseLessonHtml("0007-x.html", lesson(meta("mindforge:adjusted", "easier")));
+
+    expect(result.parsed.adjustment).toBeNull();
+    expect(result.warnings).toContainEqual({
+      code: "value_unknown",
+      args: { field: "mindforge:adjusted", value: "easier", file: "0007-x.html" },
+    });
+  });
+
+  it("keeps a reason to one screen line's worth", () => {
+    const { parsed } = parseLessonHtml(
+      "0007-x.html",
+      lesson(
+        meta("mindforge:adjusted", "harder") + meta("mindforge:adjusted-reason", "x".repeat(900)),
+      ),
+    );
+
+    expect(parsed.adjustment?.reason).toHaveLength(500);
+  });
+});
+
+describe("a whiteboard exercise", () => {
+  const block = (json: object) =>
+    `<html><head><title>T</title></head><body><p>x</p><script type="${EXERCISE_SCRIPT_TYPE}">${JSON.stringify(json)}</script></body></html>`;
+  const board = {
+    key: "url-shortener",
+    kind: "whiteboard",
+    title: "Design a URL shortener",
+    prompt: "Draw the read and write paths.",
+    rubric: ["Separates reads from writes", "Caches hot redirects"],
+  };
+
+  it("is read with its rubric, and needs no tests", () => {
+    const { parsed, warnings } = parseLessonHtml("0003-x.html", block(board));
+
+    expect(parsed.exercises).toEqual([{ ...board, solution: null, expectedMinutes: null }]);
+    expect(warnings).toEqual([]);
+  });
+
+  it("is dropped with a warning when its rubric is a single line", () => {
+    // One item is a verdict, not a checklist: there is nothing to be partly right about.
+    const { parsed, warnings } = parseLessonHtml("0003-x.html", block({ ...board, rubric: ["x"] }));
+
+    expect(parsed.exercises).toEqual([]);
+    expect(warnings).toContainEqual({
+      code: "value_malformed",
+      args: { field: "exercise", reason: "rubric", file: "0003-x.html" },
+    });
+  });
+});
+
+describe("a task exercise", () => {
+  const block = (json: object) =>
+    `<html><head><title>T</title></head><body><p>x</p><script type="${EXERCISE_SCRIPT_TYPE}">${JSON.stringify(json)}</script></body></html>`;
+  const task = {
+    key: "gen-counter",
+    kind: "task",
+    title: "A counter",
+    prompt: "Write it.",
+    language: "elixir",
+    files: [{ path: "lib/counter.ex", contents: "defmodule Counter do\nend\n" }],
+    command: "mix test",
+  };
+
+  it("is read with its files and command", () => {
+    const { parsed, warnings } = parseLessonHtml("0004-x.html", block(task));
+
+    expect(parsed.exercises).toEqual([{ ...task, solution: null, expectedMinutes: null }]);
+    expect(warnings).toEqual([]);
+  });
+
+  it.each(["/etc/passwd", "../outside.ex", "lib/../../x.ex", "lib\\\\win.ex"])(
+    "is dropped when a file path leaves the project: %s",
+    (path) => {
+      const { parsed, warnings } = parseLessonHtml(
+        "0004-x.html",
+        block({ ...task, files: [{ path, contents: "" }] }),
+      );
+
+      expect(parsed.exercises).toEqual([]);
+      expect(warnings[0]).toMatchObject({ code: "value_malformed", args: { reason: "files" } });
+    },
+  );
 });

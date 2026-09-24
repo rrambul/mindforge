@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  NO_LANDINGS_YET,
   NO_TRACK,
+  notTracked,
   renderBriefing,
   type BriefingInput,
   type CurrentTrack,
@@ -62,6 +64,8 @@ const TRACK: CurrentTrack = {
   nextLesson: NEXT,
 };
 
+const NO_SIGNAL = notTracked("No finished lesson has been judged yet.");
+
 const EMPTY: BriefingInput = {
   missionTopic: null,
   lessonCount: 0,
@@ -69,6 +73,8 @@ const EMPTY: BriefingInput = {
   currentTrack: NO_TRACK.noCurriculum,
   zpdCandidates: [],
   lessonOutcomes: [],
+  lessonLandings: [],
+  adjustment: NO_SIGNAL,
   kind: "generate_lesson",
 };
 
@@ -82,6 +88,8 @@ const RICH: BriefingInput = {
     { next: "Writing a policy for a join table.", fromRecord: "0008-policies.md" },
   ],
   lessonOutcomes: [],
+  lessonLandings: [],
+  adjustment: NO_SIGNAL,
   kind: "generate_lesson",
 };
 
@@ -406,5 +414,108 @@ describe("a curriculum run", () => {
     // The pair, so a change that made every briefing look like a curriculum one
     // fails here rather than silently producing four lessons a run.
     expect(renderBriefing(RICH)).toContain("Write exactly one lesson and stop");
+  });
+});
+
+describe("adapting to how the last lessons landed", () => {
+  const target = {
+    title: "Which entries are committed?",
+    slug: "commit-index",
+    trackSlug: "replication",
+  };
+
+  it("lists the judged lessons, and says plainly when there are none", () => {
+    expect(renderBriefing(EMPTY)).toContain(NO_LANDINGS_YET);
+
+    const briefing = renderBriefing({
+      ...RICH,
+      lessonLandings: ["0005 Commit index — too hard: never passed the exercise"],
+    });
+    expect(briefing).toContain("- 0005 Commit index — too hard: never passed the exercise");
+    expect(briefing).not.toContain(NO_LANDINGS_YET);
+  });
+
+  it("asks for a bridge with every tag the reindexer reads, and no plan claim", () => {
+    const briefing = renderBriefing({
+      ...RICH,
+      adjustment: { kind: "bridge", target, requested: false },
+    });
+
+    expect(briefing).toContain('"Which entries are committed?" landed too hard.');
+    expect(briefing).toContain('<meta name="mindforge:adjusted" content="bridge">');
+    expect(briefing).toContain('<meta name="mindforge:bridge-for" content="commit-index">');
+    expect(briefing).toContain('<meta name="mindforge:track" content="replication">');
+    expect(briefing).toContain("No `mindforge:lesson` tag");
+  });
+
+  it("says when the learner asked for the bridge, and leaves the track off an off-plan target", () => {
+    const briefing = renderBriefing({
+      ...RICH,
+      adjustment: { kind: "bridge", target: { ...target, trackSlug: null }, requested: true },
+    });
+
+    expect(briefing).toContain("The learner asked for an easier version");
+    expect(briefing).toContain("No `mindforge:track` tag");
+  });
+
+  it("asks for a push, naming both lessons, on the same plan entry", () => {
+    const briefing = renderBriefing({
+      ...RICH,
+      adjustment: { kind: "harder", because: ["Joins", "Policies"] },
+    });
+
+    expect(briefing).toContain('"Joins" and "Policies" both landed too easy.');
+    expect(briefing).toContain('<meta name="mindforge:adjusted" content="harder">');
+    expect(briefing).toContain("claim it with `mindforge:lesson` as usual");
+  });
+
+  it("says to teach as planned, and passes an absence through as one", () => {
+    expect(renderBriefing({ ...RICH, adjustment: { kind: "as-planned" } })).toContain(
+      "Teach the next planned lesson as planned",
+    );
+    expect(renderBriefing(RICH)).toContain("No finished lesson has been judged yet.");
+  });
+
+  it("tells a curriculum run none of this", () => {
+    const briefing = renderBriefing({
+      ...RICH,
+      kind: "generate_curriculum",
+      adjustment: { kind: "bridge", target, requested: true },
+    });
+
+    expect(briefing).not.toContain("What this lesson should do");
+    expect(briefing).not.toContain("How the last lessons landed");
+  });
+});
+
+describe("a bridge run is told one thing", () => {
+  // Review finding: the module section told a bridge run to "Write this one" and
+  // claim the next planned lesson, and a later section told it to write a bridge
+  // with no claim. An agent that followed the first turned the bridge into that
+  // plan entry, and the planned lesson disappeared from the module.
+  const target = {
+    title: "Which entries are committed?",
+    slug: "commit-index",
+    trackSlug: "replication",
+  };
+  const bridge = renderBriefing({
+    ...RICH,
+    adjustment: { kind: "bridge", target, requested: true },
+  });
+
+  it("does not ask for the next planned lesson, or tell it to claim one", () => {
+    expect(bridge).not.toContain("Write this one:");
+    expect(bridge).not.toContain(`<meta name="mindforge:lesson" content="${NEXT.slug}">`);
+  });
+
+  it("says in the module section that the planned lesson waits for a later run", () => {
+    expect(bridge).toContain("This run writes a bridge, not the next planned lesson");
+  });
+
+  it("still names the next planned lesson on an ordinary run", () => {
+    const ordinary = renderBriefing(RICH);
+
+    expect(ordinary).toContain("Write this one:");
+    expect(ordinary).toContain(`<meta name="mindforge:lesson" content="${NEXT.slug}">`);
   });
 });

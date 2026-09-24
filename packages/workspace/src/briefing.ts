@@ -162,7 +162,31 @@ export interface BriefingFacts {
    * the briefing listing all of them.
    */
   readonly lessonOutcomes: readonly string[];
+
+  /**
+   * How the finished lessons landed, judged from what the learner did (FR-D1) —
+   * one line each, newest first, only for lessons that could be judged. Empty is
+   * "nothing judged yet", which the section says in so many words.
+   */
+  readonly lessonLandings: readonly string[];
+
+  /** What this lesson should do about it (FR-D2, FR-D3) — `nextAdjustment`, or a bridge the learner asked for. */
+  readonly adjustment: BriefingAdjustment;
 }
+
+/** A lesson named by the briefing, with what a bridge needs to point at it. */
+export interface BriefingLessonRef {
+  readonly title: string;
+  readonly slug: string;
+  /** The module it is filed under, so a bridge can join the same one. Null off-plan. */
+  readonly trackSlug: string | null;
+}
+
+export type BriefingAdjustment =
+  | { readonly kind: "bridge"; readonly target: BriefingLessonRef; readonly requested: boolean }
+  | { readonly kind: "harder"; readonly because: readonly [string, string] }
+  | { readonly kind: "as-planned" }
+  | NotTracked;
 
 export interface BriefingInput extends BriefingFacts {
   readonly kind: BriefingKind;
@@ -202,6 +226,63 @@ export const NO_TRACK = {
  * whole point: "no signal exists" and "the signal exists and is empty" call for
  * different teaching.
  */
+export const NO_LANDINGS_YET =
+  "No finished lesson has been judged yet — none had an exercise the learner tried, and none " +
+  "was marked lost. That is an absence of signal, not a lesson that landed well: teach as planned, " +
+  "and do not adjust the difficulty on a guess.";
+
+/**
+ * The instruction, spelled out so the agent needs nothing but this and
+ * `LESSON-SHAPE.md`'s "Adapting" section to do it — including the exact tags, since
+ * the reindexer and the curriculum screen read them.
+ */
+function renderAdjustment(adjustment: BriefingAdjustment): string {
+  if ("status" in adjustment) return adjustment.reason;
+
+  switch (adjustment.kind) {
+    case "bridge": {
+      const { target } = adjustment;
+      return [
+        adjustment.requested
+          ? `**The learner asked for an easier version of "${target.title}".**`
+          : `**"${target.title}" landed too hard.**`,
+        "",
+        "Write a **bridge lesson** instead of the next planned one: a smaller step toward it —",
+        "the same idea, one gap closed, at a lower difficulty. Do not rewrite or replace that",
+        "lesson; it stays as it is, and the bridge ends by sending the learner back to retry it.",
+        "The planned lesson waits for the next run.",
+        "",
+        "In `<head>`, declare:",
+        "",
+        '- `<meta name="mindforge:adjusted" content="bridge">`',
+        `- \`<meta name="mindforge:bridge-for" content="${target.slug}">\``,
+        '- `<meta name="mindforge:adjusted-reason" content="…">` — one plain sentence for the',
+        "  learner, naming what the evidence showed.",
+        target.trackSlug === null
+          ? "- No `mindforge:track` tag: the lesson it steps toward is off-plan too."
+          : `- \`<meta name="mindforge:track" content="${target.trackSlug}">\` — the same module.`,
+        "- **No `mindforge:lesson` tag.** A bridge is not a plan entry and must not claim one.",
+      ].join("\n");
+    }
+    case "harder":
+      return [
+        `**"${adjustment.because[0]}" and "${adjustment.because[1]}" both landed too easy.**`,
+        "",
+        "Teach the next planned lesson, pitched **one step above** what the plan says: a harder",
+        "exercise, fewer scaffolds, an edge case the plan left for later. Same lesson, same plan",
+        "entry — claim it with `mindforge:lesson` as usual.",
+        "",
+        "In `<head>`, add:",
+        "",
+        '- `<meta name="mindforge:adjusted" content="harder">`',
+        '- `<meta name="mindforge:adjusted-reason" content="…">` — one plain sentence naming the',
+        "  two lessons that landed too easy.",
+      ].join("\n");
+    case "as-planned":
+      return "Nothing in how the last lessons landed calls for a change. Teach the next planned lesson as planned, with no `mindforge:adjusted` tag.";
+  }
+}
+
 export const NO_OUTCOMES_YET =
   "No lesson has been marked finished yet. The reader records understood/shaky/lost, " +
   "so this is an empty result rather than a missing signal — teach as though nothing " +
@@ -239,7 +320,7 @@ function section(heading: string, body: string): string {
  * vendored verbatim from upstream. `skills/UNATTENDED.md` carries the standing
  * half of the rule; this carries the part that is only true today.
  */
-function renderTrack(track: Tracked<CurrentTrack>): string {
+function renderTrack(track: Tracked<CurrentTrack>, bridging = false): string {
   if (isNotTracked(track)) return track.reason;
 
   const lines = [
@@ -256,7 +337,7 @@ function renderTrack(track: Tracked<CurrentTrack>): string {
     "",
   ];
 
-  lines.push(...renderPlan(track));
+  lines.push(...renderPlan(track, bridging));
 
   if (track.prerequisites.length > 0) {
     lines.push(
@@ -298,7 +379,7 @@ function list(items: readonly string[]): string {
  * and inventing plan entries here would write the curriculum from inside a
  * teaching run, which is the separation the two skills exist to keep.
  */
-function renderPlan(track: CurrentTrack): readonly string[] {
+function renderPlan(track: CurrentTrack, bridging: boolean): readonly string[] {
   const lines = ["", "### The plan for this module", ""];
 
   if (track.plan.length === 0) {
@@ -332,6 +413,21 @@ function renderPlan(track: CurrentTrack): readonly string[] {
       "```html",
       `<meta name="mindforge:track" content="${track.slug}">`,
       "```",
+    );
+    return lines;
+  }
+
+  if (bridging) {
+    // One instruction, not two. This section used to say "Write this one" and
+    // claim the next planned lesson even on a bridge run, while "What this lesson
+    // should do" said to write a bridge with no claim — and an agent that followed
+    // the first turned the bridge into that plan entry, which then vanished from
+    // the module. The planned lesson is named so the agent knows what waits.
+    lines.push(
+      "",
+      "**This run writes a bridge, not the next planned lesson.** The next planned lesson here",
+      `is ${track.nextLesson.title}, and it waits for a later run. Do not claim it or any other`,
+      'plan entry: the tags this lesson needs are in "What this lesson should do" below.',
     );
     return lines;
   }
@@ -416,7 +512,15 @@ export function renderBriefing(input: BriefingInput): string {
   if (input.kind === "generate_curriculum") {
     parts.push(section("What this run is for", CURRICULUM_RUN));
   } else {
-    parts.push(section("The module you are teaching in", renderTrack(input.currentTrack)));
+    parts.push(
+      section(
+        "The module you are teaching in",
+        renderTrack(
+          input.currentTrack,
+          "kind" in input.adjustment && input.adjustment.kind === "bridge",
+        ),
+      ),
+    );
 
     parts.push(
       section(
@@ -440,6 +544,24 @@ export function renderBriefing(input: BriefingInput): string {
       input.lessonOutcomes.length === 0 ? NO_OUTCOMES_YET : list(input.lessonOutcomes),
     ),
   );
+
+  if (input.kind === "generate_lesson") {
+    parts.push(
+      section(
+        "How the last lessons landed",
+        input.lessonLandings.length === 0
+          ? NO_LANDINGS_YET
+          : [
+              "Judged from what the learner did — attempts, hints, time — and the outcome they",
+              "recorded. The rules are in `packages/core`, not yours to re-derive: take the verdict",
+              "as given.",
+              "",
+              list(input.lessonLandings),
+            ].join("\n"),
+      ),
+    );
+    parts.push(section("What this lesson should do", renderAdjustment(input.adjustment)));
+  }
 
   parts.push(
     section(
