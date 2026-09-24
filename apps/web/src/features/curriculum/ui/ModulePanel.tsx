@@ -22,6 +22,8 @@ interface ModulePanelProps {
   readonly nextLessonId: string | null;
   /** The way in to a written lesson, from the app layer. */
   readonly lessonLink?: (lesson: CurriculumLesson) => ReactNode;
+  /** A link to a lesson named by another one, from the app layer. */
+  readonly targetLink?: (target: { readonly id: string; readonly title: string }) => ReactNode;
 }
 
 /**
@@ -33,7 +35,7 @@ interface ModulePanelProps {
  * change. A module with no plan says so instead of showing an empty bar
  * (non-negotiable 10, and `moduleProgress` returns null for exactly this).
  */
-export function ModulePanel({ module, nextLessonId, lessonLink }: ModulePanelProps) {
+export function ModulePanel({ module, nextLessonId, lessonLink, targetLink }: ModulePanelProps) {
   const { t } = useTranslation("curriculum");
   const { t: g } = useTranslation("glossary");
 
@@ -96,6 +98,7 @@ export function ModulePanel({ module, nextLessonId, lessonLink }: ModulePanelPro
                 lesson={lesson}
                 isNext={lesson.id === nextLessonId}
                 {...(lessonLink ? { link: lessonLink(lesson) } : {})}
+                {...(targetLink ? { targetLink } : {})}
               />
             ))}
           </ul>

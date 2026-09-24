@@ -51,5 +51,14 @@
     "progress": "{completed} de {total} lições concluídas",
     "progressLabel": "Progresso nesta missão",
     "notPlanned": "{count, plural, one {# módulo ainda não tem lições planejadas, então não entra nesta contagem} other {# módulos ainda não têm lições planejadas, então não entram nesta contagem}}"
+  },
+  "adjustment": {
+    "bridgeToward": "Um passo menor em direção a",
+    "bridgeUnnamed": "Um passo menor em direção a uma lição anterior",
+    "harder": "Um degrau acima do plano"
+  },
+  "upcoming": {
+    "bridge": "A próxima lição será um passo menor em direção a {title}, porque ela ficou difícil demais.",
+    "harder": "A próxima lição será um degrau mais difícil: {a} e {b} ficaram fáceis demais."
   }
 }

@@ -19,5 +19,17 @@
     "active": "Open",
     "done": "Finished",
     "dropped": "Dropped"
+  },
+  "strainVerdict": {
+    "too-hard": "Too hard",
+    "in-zone": "In the zone",
+    "too-easy": "Too easy"
+  },
+  "strainReason": {
+    "marked-lost": "marked lost",
+    "never-passed": "never passed the exercise",
+    "heavy-hints": "passed after being shown the shape of a solution or the code",
+    "first-try-no-hints-fast": "first try, no hints, well under the expected time",
+    "passed": "passed the exercise"
   }
 }

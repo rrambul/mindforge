@@ -81,3 +81,48 @@
     border-top: none;
   }
 }
+
+/**
+ * The lesson and its exercise, side by side (FR-X2).
+ *
+ * Only when the exercise slot has content. The slot's own component renders
+ * nothing for a lesson with no exercise, which leaves the side column `:empty` —
+ * and then none of this applies, and the frame keeps the breakout width and
+ * margins it has above, exactly as if the split did not exist.
+ *
+ * Below 64rem the exercise stacks under the lesson rather than squeezing both into
+ * a column each: an editor narrower than ~30rem wraps every line of real code.
+ */
+.mf-lesson-split__side:empty {
+  display: none;
+}
+
+.mf-lesson-split__side:not(:empty) {
+  margin-top: var(--mf-space-4);
+}
+
+@media (min-width: 64rem) {
+  .mf-lesson-split:has(> .mf-lesson-split__side:not(:empty)) {
+    display: grid;
+    grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+    gap: var(--mf-space-4);
+    align-items: start;
+    /* The same breakout as the frame's, wider: two documents now share it. */
+    width: min(100vw - 2 * var(--mf-space-4), 110rem);
+    margin-inline: calc(50% - min(50vw - var(--mf-space-4), 55rem));
+  }
+
+  .mf-lesson-split:has(> .mf-lesson-split__side:not(:empty)) .mf-lesson-frame {
+    width: 100%;
+    margin-inline: 0;
+  }
+
+  /* Sticky, so the tests stay in reach while the lesson scrolls past beside them. */
+  .mf-lesson-split__side:not(:empty) {
+    position: sticky;
+    top: 0;
+    max-height: 100dvh;
+    overflow: auto;
+    margin-top: 0;
+  }
+}

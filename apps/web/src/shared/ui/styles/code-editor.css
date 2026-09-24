@@ -1,0 +1,51 @@
+/* A code editor, in the app's own colours rather than CodeMirror's default white. */
+
+.mf-code-editor {
+  border: 1px solid var(--mf-scale);
+  border-radius: var(--mf-r);
+  background: var(--mf-sunk);
+  overflow: hidden;
+  font-size: var(--mf-step--1);
+}
+
+.mf-code-editor__fallback,
+.mf-code-editor .cm-editor {
+  margin: 0;
+  /* Room for a real function without scrolling the page, and a floor so an empty
+     starter is still obviously somewhere to type. */
+  min-height: 12rem;
+  max-height: 60dvh;
+  font-family: var(--mf-font-display);
+  color: var(--mf-text);
+  background: var(--mf-sunk);
+}
+
+.mf-code-editor__fallback {
+  padding: var(--mf-space-3);
+  white-space: pre-wrap;
+}
+
+.mf-code-editor .cm-scroller {
+  font-family: var(--mf-font-display);
+  line-height: var(--mf-leading-body);
+}
+
+.mf-code-editor .cm-gutters {
+  background: var(--mf-surface);
+  color: var(--mf-muted);
+  border-right: 1px solid var(--mf-scale);
+}
+
+.mf-code-editor .cm-activeLine,
+.mf-code-editor .cm-activeLineGutter {
+  background: color-mix(in srgb, var(--mf-accent) 8%, transparent);
+}
+
+.mf-code-editor .cm-cursor {
+  border-left-color: var(--mf-text);
+}
+
+.mf-code-editor .cm-editor.cm-focused {
+  outline: 2px solid var(--mf-focus-ring);
+  outline-offset: -2px;
+}

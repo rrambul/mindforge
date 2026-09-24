@@ -22,6 +22,8 @@ export interface CurriculumRouteProps {
    * feature that named it would drag the router into every test that renders a module.
    */
   readonly lessonLink?: (lesson: CurriculumLesson) => ReactNode;
+  /** A link to a lesson one lesson names — the target of a bridge — also the app's. */
+  readonly targetLink?: (target: { readonly id: string; readonly title: string }) => ReactNode;
   /** The reference shelf and the written record (FR-T6), also a route the app owns. */
   readonly library?: ReactNode;
   /**
@@ -57,6 +59,7 @@ export function CurriculumRoute({
   topic,
   teach,
   lessonLink,
+  targetLink,
   library,
   plan,
 }: CurriculumRouteProps) {
@@ -86,6 +89,7 @@ export function CurriculumRoute({
                   taking the screen down with it. The modules below carry their own
                   fractions and are the thing you came for. */}
               {data.progress == null ? null : <MissionProgressPanel progress={data.progress} />}
+              <Upcoming upcoming={data.upcoming} />
               {teach}
               {library}
               {data.modules.map((module) => (
@@ -94,6 +98,7 @@ export function CurriculumRoute({
                   module={module}
                   nextLessonId={data.nextLessonId}
                   {...(lessonLink ? { lessonLink } : {})}
+                  {...(targetLink ? { targetLink } : {})}
                 />
               ))}
             </Stack>
@@ -102,6 +107,27 @@ export function CurriculumRoute({
       </Loaded>
     </Stack>
   );
+}
+
+/**
+ * What the next lesson will do about how the last ones landed (FR-D2, FR-D3).
+ *
+ * Said before it happens, beside the button that makes it happen, so the learner
+ * is never surprised by a lesson that is easier or harder than the plan said.
+ * Nothing for "as planned" — there is nothing to announce — and nothing for null,
+ * which is no signal yet and must not read as "as planned".
+ */
+function Upcoming({ upcoming }: { readonly upcoming: Curriculum["upcoming"] }) {
+  const { t } = useTranslation("curriculum");
+  if (upcoming == null || upcoming.kind === "as-planned") return null;
+  if (upcoming.kind === "bridge") {
+    return <Text tone="muted">{t("upcoming.bridge", { title: upcoming.title })}</Text>;
+  }
+
+  // The schema says exactly two; read defensively rather than asserting it.
+  const [a, b] = upcoming.lessons;
+  if (a === undefined || b === undefined) return null;
+  return <Text tone="muted">{t("upcoming.harder", { a: a.title, b: b.title })}</Text>;
 }
 
 /** Loading and failure, the same shape every read screen uses. */

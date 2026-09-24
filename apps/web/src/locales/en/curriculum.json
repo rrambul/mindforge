@@ -51,5 +51,14 @@
     "progress": "{completed} of {total} lessons done",
     "progressLabel": "Progress through this mission",
     "notPlanned": "{count, plural, one {# module has no lessons planned yet, so it is not in this count} other {# modules have no lessons planned yet, so they are not in this count}}"
+  },
+  "adjustment": {
+    "bridgeToward": "A smaller step toward",
+    "bridgeUnnamed": "A smaller step toward an earlier lesson",
+    "harder": "Pitched a step above the plan"
+  },
+  "upcoming": {
+    "bridge": "The next lesson will be a smaller step toward {title}, because it landed too hard.",
+    "harder": "The next lesson will be pitched a step harder: {a} and {b} both landed too easy."
   }
 }

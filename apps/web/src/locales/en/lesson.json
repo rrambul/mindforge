@@ -25,5 +25,8 @@
     "heading": "Next",
     "read": "Read it",
     "notWritten": "Not written yet — one press and the agent writes it."
+  },
+  "easier": {
+    "heading": "This one landed too hard"
   }
 }

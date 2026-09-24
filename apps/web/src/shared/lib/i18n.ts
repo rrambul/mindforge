@@ -13,6 +13,7 @@ import enAuth from "../../locales/en/auth.json";
 import enCommand from "../../locales/en/command.json";
 import enCommon from "../../locales/en/common.json";
 import enCurriculum from "../../locales/en/curriculum.json";
+import enExercise from "../../locales/en/exercise.json";
 import enFirstRun from "../../locales/en/firstRun.json";
 import enFocus from "../../locales/en/focus.json";
 import enGlossary from "../../locales/en/glossary.json";
@@ -27,6 +28,7 @@ import ptAuth from "../../locales/pt-BR/auth.json";
 import ptCommand from "../../locales/pt-BR/command.json";
 import ptCommon from "../../locales/pt-BR/common.json";
 import ptCurriculum from "../../locales/pt-BR/curriculum.json";
+import ptExercise from "../../locales/pt-BR/exercise.json";
 import ptFirstRun from "../../locales/pt-BR/firstRun.json";
 import ptFocus from "../../locales/pt-BR/focus.json";
 import ptGlossary from "../../locales/pt-BR/glossary.json";
@@ -60,6 +62,7 @@ export const NAMESPACES = [
   "insights",
   "curriculum",
   "lesson",
+  "exercise",
   "library",
   "settings",
   "teach",
@@ -78,6 +81,7 @@ const resources = {
     insights: enInsights,
     curriculum: enCurriculum,
     lesson: enLesson,
+    exercise: enExercise,
     library: enLibrary,
     settings: enSettings,
     teach: enTeach,
@@ -94,6 +98,7 @@ const resources = {
     insights: ptInsights,
     curriculum: ptCurriculum,
     lesson: ptLesson,
+    exercise: ptExercise,
     library: ptLibrary,
     settings: ptSettings,
     teach: ptTeach,

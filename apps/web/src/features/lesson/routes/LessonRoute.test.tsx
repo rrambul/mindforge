@@ -204,3 +204,53 @@ describe("what the page says about the lesson", () => {
     expect(screen.getByRole("button", { name: "Try again" })).toBeInTheDocument();
   });
 });
+
+describe("the exercise slot", () => {
+  // The reader splits into two columns only when the exercise slot has content.
+  // These pin the three shapes: no slot at all, a slot that rendered nothing, and a
+  // slot with an exercise in it. The CSS keys off the side column being `:empty`,
+  // so an empty slot has to leave that element with no children at all.
+  function sideColumn(container: HTMLElement): Element | null {
+    return container.querySelector('[data-slot="exercise"]');
+  }
+
+  it("is the single-column page it always was when no slot is given", async () => {
+    returns(lesson());
+    const { container } = renderWithProviders(<LessonRoute lessonId={LESSON} />);
+
+    await screen.findByTitle(/Borrow checker errors/u);
+    expect(sideColumn(container)).toBeNull();
+  });
+
+  it("leaves the side column empty when the slot renders nothing", async () => {
+    returns(lesson());
+    const Nothing = () => null;
+    const { container } = renderWithProviders(
+      <LessonRoute lessonId={LESSON} exercise={<Nothing />} />,
+    );
+
+    await screen.findByTitle(/Borrow checker errors/u);
+    expect(sideColumn(container)).toBeEmptyDOMElement();
+  });
+
+  it("puts an exercise beside the lesson, and the lesson keeps its sandbox", async () => {
+    returns(lesson());
+    const { container } = renderWithProviders(
+      <LessonRoute lessonId={LESSON} exercise={<p>An exercise</p>} />,
+    );
+
+    const frame = await screen.findByTitle(/Borrow checker errors/u);
+    expect(sideColumn(container)).toHaveTextContent("An exercise");
+    expect(frame.getAttribute("sandbox") ?? "").not.toContain("allow-same-origin");
+  });
+
+  it("does not render the slot for a lesson with no file", async () => {
+    // A planned lesson has nothing to exercise, and mounting the slot would send a
+    // request whose answer is already known.
+    returns(lesson({ status: "planned", view: null, seq: null }));
+    renderWithProviders(<LessonRoute lessonId={LESSON} exercise={<p>An exercise</p>} />);
+
+    expect(await screen.findByText(/hasn't been written/u)).toBeInTheDocument();
+    expect(screen.queryByText("An exercise")).not.toBeInTheDocument();
+  });
+});

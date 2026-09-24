@@ -34,6 +34,13 @@ export interface LessonRouteProps {
   readonly next?: ReactNode;
   /** This lesson's learning records (FR-T6), from the library feature. */
   readonly records?: ReactNode;
+  /**
+   * The lesson's exercises (FR-X2), from the exercise feature. Laid out beside the
+   * frame on a wide screen and under it on a narrow one — and when it renders
+   * nothing, which is every lesson without an exercise, the page is exactly the
+   * single column it was before exercises existed.
+   */
+  readonly exercise?: ReactNode;
 }
 
 /**
@@ -52,7 +59,7 @@ export interface LessonRouteProps {
  *   taught, which the `next` slot offers.
  * - **Failed.** The request did not come back. Retry, like every other read screen.
  */
-export function LessonRoute({ lessonId, back, focus, next, records }: LessonRouteProps) {
+export function LessonRoute({ lessonId, back, focus, next, records, exercise }: LessonRouteProps) {
   const { t } = useTranslation("lesson");
   const { t: common } = useTranslation("common");
   const query = useLesson(lessonId);
@@ -81,8 +88,19 @@ export function LessonRoute({ lessonId, back, focus, next, records }: LessonRout
                 </Text>
               </Stack>
             </Card>
-          ) : (
+          ) : exercise === undefined ? (
             <LessonFrame url={lesson.view.url} title={lesson.title} />
+          ) : (
+            // Only for a written lesson: a planned one has no file, so no exercises,
+            // and asking would be a request whose answer is already known.
+            <div className="mf-lesson-split">
+              <div className="mf-lesson-split__main">
+                <LessonFrame url={lesson.view.url} title={lesson.title} />
+              </div>
+              <div className="mf-lesson-split__side" data-slot="exercise">
+                {exercise}
+              </div>
+            </div>
           )}
 
           <div className="mf-lesson-tray">

@@ -40,6 +40,9 @@ export function CurriculumScreen({ missionId }: { readonly missionId: string }) 
       }
       // Only a written lesson gets one. A link to a file that does not exist is
       // worse than no link, and the planned line already says why there is none.
+      targetLink={(target) => (
+        <RouterLink to={`/missions/${missionId}/lessons/${target.id}`}>{target.title}</RouterLink>
+      )}
       lessonLink={(lesson) =>
         lesson.status === "generated" ? (
           <RouterLink to={`/missions/${missionId}/lessons/${lesson.id}`}>

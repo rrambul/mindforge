@@ -17,6 +17,7 @@ import { z } from "zod";
 
 import { api } from "../../../shared/api/http.js";
 import type { RequestError } from "../../../shared/api/problem.js";
+import { curriculumKeys } from "../../../shared/api/query-keys.js";
 import { spendKeys } from "./use-spend.js";
 
 /**
@@ -104,6 +105,30 @@ export function useStartTeachRun(
       // A queued run will spend money, and a refused one may have been refused
       // *because* the budget is gone — so the meter is stale either way (FR-T8).
       void queryClient.invalidateQueries({ queryKey: spendKeys.today });
+    },
+  });
+}
+
+/**
+ * "Try an easier version" (FR-D2): queue a run whose lesson is a smaller step
+ * toward this one. The lesson itself is left as it is.
+ *
+ * Invalidates the same things a teach run does — the mission's runs, so the live
+ * status shows it, and the spend meter — plus the curriculum, where the bridge will
+ * appear once it is written.
+ */
+export function useRequestBridge(
+  missionId: string,
+  lessonId: string,
+): UseMutationResult<AgentRunView, RequestError, void> {
+  const queryClient = useQueryClient();
+
+  return useMutation<AgentRunView, RequestError, void>({
+    mutationFn: () => api.post(`/lessons/${lessonId}/bridge`, AgentRunViewSchema),
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: teachKeys.runs(missionId) });
+      void queryClient.invalidateQueries({ queryKey: spendKeys.today });
+      void queryClient.invalidateQueries({ queryKey: curriculumKeys.ofMission(missionId) });
     },
   });
 }

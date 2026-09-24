@@ -1,0 +1,18 @@
+/* A drawing canvas: a fixed frame the library fills, sized for a design, not a page. */
+
+.mf-whiteboard {
+  position: relative;
+  /* Tall enough to draw a system in; short enough to see the button under it. */
+  height: min(70dvh, 560px);
+  min-height: 20rem;
+  border: 1px solid var(--mf-scale);
+  border-radius: var(--mf-r);
+  overflow: hidden;
+  background: #ffffff;
+}
+
+.mf-whiteboard__fallback {
+  width: 100%;
+  height: 100%;
+  background: var(--mf-sunk);
+}

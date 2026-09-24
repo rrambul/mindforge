@@ -1,15 +1,17 @@
 import { useTranslation } from "react-i18next";
 
 import { useCurriculum } from "../features/curriculum/api/use-curriculum.js";
+import { LessonExercises } from "../features/exercise/routes/LessonExercises.js";
 import { StartLessonFocus } from "../features/focus/ui/StartLessonFocus.js";
 import { LessonRoute } from "../features/lesson/routes/LessonRoute.js";
 import { LessonRecords } from "../features/library/routes/LessonRecords.js";
 import { TeachPanel } from "../features/teach/ui/TeachPanel.js";
 import { Card, Heading, RouterLink, Stack, Text } from "../shared/ui/index.js";
+import { EasierVersion } from "./EasierVersion.js";
 
 /**
- * One lesson, composed with the three things the reader may not import (§2.2 rule 6):
- * the timer, the learning records, and what the plan says comes next.
+ * One lesson, composed with the four things the reader may not import (§2.2 rule 6):
+ * the timer, the learning records, the exercises, and what the plan says comes next.
  *
  * **"Next" is read from the curriculum, not from the reader.** Which lesson is next
  * is a fact about the whole dependency graph — it can be in another module, and it
@@ -35,8 +37,14 @@ export function LessonScreen({
       lessonId={lessonId}
       back={<RouterLink to={`/missions/${missionId}`}>{t("back")}</RouterLink>}
       focus={<StartLessonFocus lessonId={lessonId} />}
-      next={<NextLesson missionId={missionId} lessonId={lessonId} />}
+      next={
+        <>
+          <EasierVersion missionId={missionId} lessonId={lessonId} />
+          <NextLesson missionId={missionId} lessonId={lessonId} />
+        </>
+      }
       records={<LessonRecords missionId={missionId} lessonId={lessonId} />}
+      exercise={<LessonExercises lessonId={lessonId} />}
     />
   );
 }

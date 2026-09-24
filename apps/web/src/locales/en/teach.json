@@ -35,7 +35,8 @@
     "title_ambiguous": "This document has {count} top-level headings; the first was used as the title.",
     "link_unresolved": "{from} links to {to}, which isn't there.",
     "value_duplicated": "This appears twice and only the first was kept: {value}",
-    "edge_cycle": "A prerequisite loop was removed here, so the order still makes sense: {node}"
+    "edge_cycle": "A prerequisite loop was removed here, so the order still makes sense: {node}",
+    "prose_over_budget": "This lesson has {words} words of explanation; lessons aim for {budget} or fewer."
   },
   "error": {
     "run_already_active": "This mission is already being taught. Watch that run, or wait for it to finish.",
@@ -59,5 +60,12 @@
     "unpriced": "{count, plural, one {# call couldn't be priced, so the total is a floor.} other {# calls couldn't be priced, so the total is a floor.}}",
     "exhausted": "You've reached today's limit. It resets at midnight in your timezone.",
     "unavailable": "Couldn't read today's spending."
+  },
+  "bridge": {
+    "action": "Try an easier version",
+    "explain": "Writes a smaller step toward this lesson. This one stays as it is.",
+    "pending": "Queuing…",
+    "queued": "An easier version is being written.",
+    "existing": "A smaller step toward this lesson:"
   }
 }

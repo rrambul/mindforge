@@ -1,0 +1,147 @@
+{
+  "panel": {
+    "label": "Exercício: {title}",
+    "eyebrow": "Exercício"
+  },
+  "editor": {
+    "label": "Seu código para {title}"
+  },
+  "action": {
+    "run": "Rodar os testes",
+    "running": "Rodando…",
+    "starting": "Iniciando o executor de testes…",
+    "reset": "Voltar ao código inicial"
+  },
+  "solution": {
+    "show": "Ver solução",
+    "hide": "Esconder solução",
+    "heading": "Solução de referência",
+    "hint": "Uma forma de resolver. A sua pode ser diferente e ainda passar.",
+    "recorded": "Abrir a solução fica registrado como ajuda.",
+    "opened": "solução de referência aberta",
+    "openedEntry": "Você abriu a solução de referência"
+  },
+  "attempts": {
+    "none": "Ainda não tentado",
+    "tried": "{count, plural, one {# tentativa} other {# tentativas}}, ainda sem passar",
+    "passedFirst": "Passou na primeira tentativa",
+    "passed": "Passou · {count, plural, one {# tentativa} other {# tentativas}} no total",
+    "latestFails": "A última execução falha."
+  },
+  "result": {
+    "summary": "{passed} de {total, plural, one {# teste passa} other {# testes passam}}",
+    "pass": "Passou",
+    "fail": "Falhou",
+    "empty": "Os testes rodaram, mas não verificaram nada.",
+    "logs": "Saída do console ({count})",
+    "previous": "Da sua última execução:",
+    "reason": {
+      "code-syntax": "Seu código tem um erro de sintaxe",
+      "tests-syntax": "Os testes do exercício têm um erro de sintaxe — esse é da lição, não seu",
+      "code-load": "Seu código parou enquanto carregava",
+      "tests-load": "Os testes do exercício não carregaram",
+      "import-refused": "Os testes só podem importar o seu código, de ./solution",
+      "nothing-registered": "Os testes rodaram, mas não definiram nada para verificar",
+      "too-many-tests": "Este exercício tem mais testes do que uma execução reporta",
+      "timeout": "Parou depois de {seconds} segundos. Um loop infinito é a causa mais comum.",
+      "crashed": "A execução parou sem resposta",
+      "runtime-unavailable": "A linguagem deste exercício não conseguiu iniciar no seu navegador"
+    }
+  },
+  "error": {
+    "record": "A execução terminou, mas não foi salva. Rode de novo para salvar.",
+    "load": "Não foi possível carregar os exercícios desta lição."
+  },
+  "runner": {
+    "title": "Executor de testes",
+    "pythonTitle": "Executor de testes Python"
+  },
+  "hint": {
+    "heading": "Travou? Peça uma dica",
+    "intro": "Cada dica entrega um pouco mais que a anterior. Peça a próxima só quando esta não te destravar.",
+    "next": "Pedir dica: {rung}",
+    "again": "Outra dica: {rung}",
+    "pending": "Perguntando…",
+    "level": "Dica {level} de {total} · {rung}",
+    "youAsked": "Você perguntou: {question}",
+    "used": "dicas até {rung}",
+    "ask": {
+      "label": "Ou pergunte sobre este exercício",
+      "hint": "Respondida no nível de dica em que você está, não um acima.",
+      "submit": "Perguntar"
+    },
+    "rung": {
+      "question": "uma pergunta",
+      "clue": "uma pista",
+      "concept": "a ideia",
+      "structure": "o formato da solução",
+      "code": "o código"
+    }
+  },
+  "landed": "Como esta lição ficou: {verdict} — {reasons}.",
+  "whiteboard": {
+    "eyebrow": "Exercício de design",
+    "canvas": "Quadro para {title}",
+    "submit": "Pedir feedback",
+    "reviewing": "Revisando…",
+    "empty": "Desenhe seu design primeiro",
+    "solution": {
+      "show": "Mostrar design de referência",
+      "hide": "Ocultar design de referência",
+      "heading": "Design de referência"
+    },
+    "attempts": {
+      "none": "Ainda não revisado",
+      "tried": "Revisado {count, plural, one {# vez} other {# vezes}}, ainda sem tudo coberto",
+      "passedFirst": "Tudo coberto na primeira revisão",
+      "passed": "Tudo coberto · {count, plural, one {# revisão} other {# revisões}} no total"
+    },
+    "review": {
+      "heading": "Feedback",
+      "disclaimer": "Feedback de um revisor de IA. Ele lê seu desenho em relação à lista do exercício; não é uma nota."
+    },
+    "verdict": {
+      "covered": "Coberto",
+      "partly": "Em parte",
+      "missing": "Faltando"
+    },
+    "error": {
+      "tooLarge": "Este desenho é grande demais para enviar para revisão. Tire alguns detalhes e tente de novo.",
+      "export": "Não foi possível transformar o desenho em imagem para revisão. Tente de novo."
+    }
+  },
+  "python": {
+    "firstRun": "A primeira execução em Python leva alguns segundos enquanto o Python inicia no seu navegador. Só a biblioteca padrão."
+  },
+  "task": {
+    "eyebrow": "Exercício · na sua máquina",
+    "onYourMachine": "Este roda na sua máquina — o Mindforge não consegue rodar {language} no navegador.",
+    "files": "Arquivos para criar",
+    "command": "Rode isto na raiz do projeto",
+    "copy": {
+      "action": "Copiar",
+      "done": "Copiado",
+      "failed": "Não deu para copiar — selecione o texto.",
+      "label": "Copiar {name}",
+      "command": "Copiar o comando"
+    },
+    "output": {
+      "label": "Cole o que o seu terminal imprimiu (opcional)",
+      "previous": "O que você colou da última vez"
+    },
+    "report": {
+      "pass": "Os testes passam",
+      "fail": "Ainda não"
+    },
+    "attempts": {
+      "none": "Nenhum relato ainda",
+      "tried": "Você relatou {count, plural, one {# execução} other {# execuções}}, ainda sem passar",
+      "passedFirst": "Você relatou que passou na primeira tentativa",
+      "passed": "Você relatou que passou · {count, plural, one {# relato} other {# relatos}} no total"
+    },
+    "last": {
+      "pass": "Último relato: os testes passam",
+      "fail": "Último relato: ainda não"
+    }
+  }
+}

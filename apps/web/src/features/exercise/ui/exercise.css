@@ -1,0 +1,96 @@
+/* An exercise beside a lesson (FR-X2): the task, the editor, what the tests said. */
+
+/* The task is plain text from the lesson file; its line breaks are the author's. */
+.mf-exercise-prompt {
+  margin: 0;
+  white-space: pre-wrap;
+  line-height: var(--mf-leading-body);
+}
+
+.mf-exercise-code {
+  margin: 0;
+  padding: var(--mf-space-2) var(--mf-space-3);
+  border-radius: var(--mf-r);
+  background: var(--mf-sunk);
+  font-family: var(--mf-font-display);
+  font-size: var(--mf-step--1);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.mf-exercise-results {
+  display: grid;
+  gap: var(--mf-space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.mf-exercise-result {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: var(--mf-space-1) var(--mf-space-3);
+  align-items: baseline;
+}
+
+.mf-exercise-result .mf-exercise-code {
+  grid-column: 1 / -1;
+}
+
+/* Words, not only colour: "Pass" and "Fail" carry the verdict for anyone who
+   cannot tell the two tints apart. */
+.mf-exercise-result__verdict {
+  font-family: var(--mf-font-display);
+  font-size: var(--mf-step--1);
+  letter-spacing: var(--mf-tracking-label);
+  text-transform: uppercase;
+}
+
+.mf-exercise-result[data-passed="true"] .mf-exercise-result__verdict {
+  color: var(--mf-ok);
+}
+
+.mf-exercise-result[data-passed="false"] .mf-exercise-result__verdict {
+  color: var(--mf-danger);
+}
+
+.mf-exercise-logs summary {
+  min-height: var(--mf-touch-min);
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  color: var(--mf-muted);
+}
+
+/* The runner has nothing to show; it only hosts a worker. Sized to nothing rather
+   than `display: none`, so the frame is certain to load. */
+.mf-exercise-runner {
+  position: absolute;
+  width: 0;
+  height: 0;
+  border: 0;
+  visibility: hidden;
+}
+
+/* Hints (FR-H1): a numbered list, oldest first, so the climb reads top to bottom. */
+.mf-exercise-hints {
+  margin: 0;
+  padding-inline-start: 0;
+  list-style: none;
+  display: grid;
+  gap: var(--mf-space-3);
+}
+
+.mf-exercise-hint {
+  display: grid;
+  gap: var(--mf-space-1);
+  padding-inline-start: var(--mf-space-3);
+  border-inline-start: 2px solid var(--mf-scale);
+}
+
+.mf-exercise-hint__answer {
+  margin: 0;
+  /* The model answers in plain text with fenced code; keep its line breaks. */
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

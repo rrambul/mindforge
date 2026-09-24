@@ -19,5 +19,17 @@
     "active": "Aberto",
     "done": "Concluído",
     "dropped": "Removido"
+  },
+  "strainVerdict": {
+    "too-hard": "Difícil demais",
+    "in-zone": "Na medida",
+    "too-easy": "Fácil demais"
+  },
+  "strainReason": {
+    "marked-lost": "marcada como perdida",
+    "never-passed": "o exercício nunca passou",
+    "heavy-hints": "passou depois de ver o formato da solução ou o código",
+    "first-try-no-hints-fast": "primeira tentativa, sem dicas, bem abaixo do tempo esperado",
+    "passed": "o exercício passou"
   }
 }

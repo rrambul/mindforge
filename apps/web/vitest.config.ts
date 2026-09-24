@@ -26,6 +26,11 @@ export default defineConfig({
     // relying on a file-naming convention nobody wrote down.
     include: ["src/**/*.test.{ts,tsx}"],
     environment: "jsdom",
+    // Transformed rather than externalised. Excalidraw's dist imports `roughjs/bin/rough`
+    // without an extension, which Vite resolves when bundling and Node's ESM loader
+    // refuses — so without this the canvas the app ships could never be imported by a
+    // test, and the one test that proves it loads would be the one that cannot run.
+    server: { deps: { inline: ["@excalidraw/excalidraw"] } },
     globals: false,
     setupFiles: ["./src/test/setup.ts"],
     // Vitest's default is 5s, which on this suite measures the machine rather than the

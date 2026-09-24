@@ -25,5 +25,8 @@
     "heading": "Próxima",
     "read": "Ler agora",
     "notWritten": "Ainda não escrita — um toque e o agente escreve."
+  },
+  "easier": {
+    "heading": "Esta ficou difícil demais"
   }
 }

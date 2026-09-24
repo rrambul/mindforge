@@ -2,7 +2,9 @@ import {
   ActivityGridViewSchema,
   AgentRunViewSchema,
   CurriculumViewSchema,
+  ExerciseViewSchema,
   FocusSessionViewSchema,
+  LessonExercisesViewSchema,
   LessonViewSchema,
   MeViewSchema,
   MissionViewSchema,
@@ -11,7 +13,9 @@ import {
   type CurriculumLesson,
   type CurriculumModule,
   type CurriculumView,
+  type ExerciseView,
   type FocusSessionView,
+  type LessonExercisesView,
   type LessonView,
   type MeView,
   type MissionView,
@@ -133,6 +137,9 @@ export function curriculumLesson(overrides: Partial<CurriculumLesson> = {}): Cur
     unblocked: true,
     blockedBy: [],
     dependentCount: 0,
+    strain: { verdict: null, unknown: "in-progress" },
+    adjustment: null,
+    bridge: null,
     ...overrides,
   };
 }
@@ -163,6 +170,7 @@ export function curriculumResponse(overrides: Partial<CurriculumView> = {}): Cur
     modules: [],
     progress: null,
     nextLessonId: null,
+    upcoming: null,
     ...overrides,
   });
 }
@@ -190,6 +198,116 @@ export function activityGridResponse(overrides: Partial<ActivityGridView> = {}):
     activeDaysIn28: 0,
     signal: null,
     rebuiltAt: null,
+    ...overrides,
+  });
+}
+
+type CodeExerciseResponse = Extract<ExerciseView, { kind: "code" }>;
+type WhiteboardExerciseResponse = Extract<ExerciseView, { kind: "whiteboard" }>;
+type TaskExerciseResponse = Extract<ExerciseView, { kind: "task" }>;
+
+export function exerciseResponse(
+  overrides: Partial<CodeExerciseResponse> = {},
+): CodeExerciseResponse {
+  return asKind("code", {
+    key: "sum-pairs",
+    kind: "code",
+    language: "javascript",
+    title: "Sum the pairs",
+    prompt: "Write sumPairs(pairs).\nReturn one sum per pair.",
+    starter: "export function sumPairs(pairs) {\n}\n",
+    tests:
+      'import { sumPairs } from "./solution";\ntest("sums", () => expect(sumPairs([[1, 2]])).toEqual([3]));\n',
+    solution: "export function sumPairs(pairs) {\n  return pairs.map(([a, b]) => a + b);\n}\n",
+    expectedMinutes: 10,
+    attempts: EMPTY_ATTEMPTS,
+    hints: [],
+    nextHintLevel: 1,
+    ...overrides,
+  });
+}
+
+/** Parsed through the wire schema, then narrowed to the kind the builder promises. */
+function asKind<K extends ExerciseView["kind"]>(
+  kind: K,
+  body: Record<string, unknown>,
+): Extract<ExerciseView, { kind: K }> {
+  const parsed = ExerciseViewSchema.parse(body);
+  if (parsed.kind !== kind) throw new Error(`fixture built a ${parsed.kind}, not a ${kind}`);
+  return parsed as Extract<ExerciseView, { kind: K }>;
+}
+
+/** Nothing tried: every field says "nothing yet", none says zero. */
+export const EMPTY_ATTEMPTS = {
+  count: 0,
+  firstPassedAt: null,
+  lastCode: null,
+  lastPassed: null,
+  lastAt: null,
+  lastResults: null,
+  lastScene: null,
+} as const;
+
+/** A whiteboard exercise before its first review: rubric and solution withheld. */
+export function whiteboardExerciseResponse(
+  overrides: Partial<WhiteboardExerciseResponse> = {},
+): WhiteboardExerciseResponse {
+  return asKind("whiteboard", {
+    key: "url-shortener",
+    kind: "whiteboard",
+    title: "Design a URL shortener",
+    prompt: "Draw the write path and the read path.",
+    rubric: null,
+    solution: null,
+    expectedMinutes: 20,
+    attempts: EMPTY_ATTEMPTS,
+    hints: [],
+    nextHintLevel: 1,
+    ...overrides,
+  });
+}
+
+/** A task run on the learner's own machine, not yet reported. */
+export function taskExerciseResponse(
+  overrides: Partial<TaskExerciseResponse> = {},
+): TaskExerciseResponse {
+  return asKind("task", {
+    key: "lamport-clock",
+    kind: "task",
+    language: "elixir",
+    title: "A Lamport clock in Elixir",
+    prompt: "Write Clock.receive/2.\nIt returns the clock after a message arrives.",
+    files: [
+      {
+        path: "lib/clock.ex",
+        contents: "defmodule Clock do\n  def receive(local, _received), do: local\nend\n",
+      },
+      {
+        path: "test/clock_test.exs",
+        contents:
+          'defmodule ClockTest do\n  use ExUnit.Case\n  test "ticks", do: assert Clock.receive(3, 7) == 8\nend\n',
+      },
+    ],
+    command: "mix test",
+    solution:
+      "defmodule Clock do\n  def receive(local, received), do: max(local, received) + 1\nend\n",
+    expectedMinutes: 10,
+    attempts: EMPTY_ATTEMPTS,
+    hints: [],
+    nextHintLevel: 1,
+    ...overrides,
+  });
+}
+
+export function lessonExercisesResponse(
+  overrides: Partial<LessonExercisesView> = {},
+): LessonExercisesView {
+  return LessonExercisesViewSchema.parse({
+    lessonId: UUID,
+    runnerUrl: "http://localhost:3001/runner",
+    pythonRunnerUrl: "http://localhost:3001/runner/python",
+    strain: { verdict: null, unknown: "in-progress" },
+    exercises: [exerciseResponse()],
     ...overrides,
   });
 }

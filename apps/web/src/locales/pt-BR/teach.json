@@ -35,7 +35,8 @@
     "title_ambiguous": "Este documento tem {count} títulos principais; foi usado o primeiro.",
     "link_unresolved": "{from} aponta para {to}, que não existe.",
     "value_duplicated": "Isto aparece duas vezes e só o primeiro foi mantido: {value}",
-    "edge_cycle": "Um ciclo de pré-requisitos foi removido aqui, para a ordem continuar fazendo sentido: {node}"
+    "edge_cycle": "Um ciclo de pré-requisitos foi removido aqui, para a ordem continuar fazendo sentido: {node}",
+    "prose_over_budget": "Esta lição tem {words} palavras de explicação; o objetivo é no máximo {budget}."
   },
   "error": {
     "run_already_active": "Esta missão já está sendo ensinada. Acompanhe essa execução ou aguarde ela terminar.",
@@ -59,5 +60,12 @@
     "unpriced": "{count, plural, one {# chamada não pôde ser precificada, então o total é um piso.} other {# chamadas não puderam ser precificadas, então o total é um piso.}}",
     "exhausted": "Você atingiu o limite de hoje. Ele reinicia à meia-noite no seu fuso.",
     "unavailable": "Não foi possível ler o gasto de hoje."
+  },
+  "bridge": {
+    "action": "Tentar uma versão mais fácil",
+    "explain": "Escreve um passo menor em direção a esta lição. Esta continua como está.",
+    "pending": "Enfileirando…",
+    "queued": "Uma versão mais fácil está sendo escrita.",
+    "existing": "Um passo menor em direção a esta lição:"
   }
 }

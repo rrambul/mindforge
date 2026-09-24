@@ -1,0 +1,147 @@
+{
+  "panel": {
+    "label": "Exercise: {title}",
+    "eyebrow": "Exercise"
+  },
+  "editor": {
+    "label": "Your code for {title}"
+  },
+  "action": {
+    "run": "Run tests",
+    "running": "Running…",
+    "starting": "Starting the test runner…",
+    "reset": "Reset to starter"
+  },
+  "solution": {
+    "show": "Show solution",
+    "hide": "Hide solution",
+    "heading": "Reference solution",
+    "hint": "One way to solve it. Yours can look different and still pass.",
+    "recorded": "Opening it is recorded as help.",
+    "opened": "reference solution opened",
+    "openedEntry": "You opened the reference solution"
+  },
+  "attempts": {
+    "none": "Not tried yet",
+    "tried": "{count, plural, one {# attempt} other {# attempts}}, not passed yet",
+    "passedFirst": "Passed on the first attempt",
+    "passed": "Passed · {count, plural, one {# attempt} other {# attempts}} in total",
+    "latestFails": "The latest run fails."
+  },
+  "result": {
+    "summary": "{passed} of {total, plural, one {# test} other {# tests}} pass",
+    "pass": "Pass",
+    "fail": "Fail",
+    "empty": "The tests ran but checked nothing.",
+    "logs": "Console output ({count})",
+    "previous": "From your last run:",
+    "reason": {
+      "code-syntax": "Your code has a syntax error",
+      "tests-syntax": "The exercise's tests have a syntax error — that one is the lesson's, not yours",
+      "code-load": "Your code stopped while it was loading",
+      "tests-load": "The exercise's tests didn't load",
+      "import-refused": "The tests can only import your code, from ./solution",
+      "nothing-registered": "The tests ran but defined nothing to check",
+      "too-many-tests": "This exercise has more tests than one run reports",
+      "timeout": "Stopped after {seconds} seconds. An infinite loop is the usual cause.",
+      "crashed": "The run stopped without an answer",
+      "runtime-unavailable": "This exercise's language couldn't start in your browser"
+    }
+  },
+  "error": {
+    "record": "The run finished but wasn't saved. Run again to save it.",
+    "load": "Couldn't load this lesson's exercises."
+  },
+  "runner": {
+    "title": "Test runner",
+    "pythonTitle": "Python test runner"
+  },
+  "hint": {
+    "heading": "Stuck? Get a hint",
+    "intro": "Each hint gives away a little more than the one before. Take the next only when this one hasn't moved you.",
+    "next": "Get a hint: {rung}",
+    "again": "Another hint: {rung}",
+    "pending": "Asking…",
+    "level": "Hint {level} of {total} · {rung}",
+    "youAsked": "You asked: {question}",
+    "used": "hints up to {rung}",
+    "ask": {
+      "label": "Or ask about this exercise",
+      "hint": "Answered at the hint level you're on, not one higher.",
+      "submit": "Ask"
+    },
+    "rung": {
+      "question": "a question",
+      "clue": "a clue",
+      "concept": "the idea",
+      "structure": "the shape of a solution",
+      "code": "the code"
+    }
+  },
+  "landed": "How this landed: {verdict} — {reasons}.",
+  "whiteboard": {
+    "eyebrow": "Design exercise",
+    "canvas": "Whiteboard for {title}",
+    "submit": "Get feedback",
+    "reviewing": "Reviewing…",
+    "empty": "Draw your design first",
+    "solution": {
+      "show": "Show reference design",
+      "hide": "Hide reference design",
+      "heading": "Reference design"
+    },
+    "attempts": {
+      "none": "Not reviewed yet",
+      "tried": "Reviewed {count, plural, one {# time} other {# times}}, not all covered yet",
+      "passedFirst": "All covered on the first review",
+      "passed": "All covered · {count, plural, one {# review} other {# reviews}} in total"
+    },
+    "review": {
+      "heading": "Feedback",
+      "disclaimer": "Feedback from an AI reviewer. It reads your drawing against the exercise's checklist; it is not a grade."
+    },
+    "verdict": {
+      "covered": "Covered",
+      "partly": "Partly there",
+      "missing": "Missing"
+    },
+    "error": {
+      "tooLarge": "This drawing is too large to send for review. Remove some detail and try again.",
+      "export": "Couldn't turn the drawing into an image to review. Try again."
+    }
+  },
+  "python": {
+    "firstRun": "The first Python run takes a few seconds while Python starts in your browser. Standard library only."
+  },
+  "task": {
+    "eyebrow": "Exercise · on your machine",
+    "onYourMachine": "This one runs on your machine — Mindforge can't run {language} in the browser.",
+    "files": "Files to create",
+    "command": "Run this from the project root",
+    "copy": {
+      "action": "Copy",
+      "done": "Copied",
+      "failed": "Couldn't copy — select the text instead.",
+      "label": "Copy {name}",
+      "command": "Copy the command"
+    },
+    "output": {
+      "label": "Paste what your terminal printed (optional)",
+      "previous": "What you pasted last time"
+    },
+    "report": {
+      "pass": "Tests pass",
+      "fail": "Not yet"
+    },
+    "attempts": {
+      "none": "Not reported yet",
+      "tried": "You reported {count, plural, one {# run} other {# runs}}, not passing yet",
+      "passedFirst": "You reported a pass on the first try",
+      "passed": "You reported a pass · {count, plural, one {# report} other {# reports}} in total"
+    },
+    "last": {
+      "pass": "Last report: tests pass",
+      "fail": "Last report: not yet"
+    }
+  }
+}

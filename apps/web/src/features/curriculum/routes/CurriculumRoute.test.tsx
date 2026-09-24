@@ -38,6 +38,9 @@ function lesson(over: Partial<CurriculumLesson> = {}): CurriculumLesson {
     unblocked: true,
     blockedBy: [],
     dependentCount: 0,
+    strain: { verdict: null, unknown: "in-progress" },
+    adjustment: null,
+    bridge: null,
     ...over,
   };
 }
@@ -402,4 +405,149 @@ describe("the mission's progress", () => {
     expect(await screen.findByRole("heading", { name: "Postgres basics" })).toBeInTheDocument();
     expect(screen.getByText("2 of 7 lessons done")).toBeInTheDocument();
   });
+});
+
+describe("how lessons landed", () => {
+  it("names the verdict and what it was based on", async () => {
+    returns({
+      modules: [
+        module({
+          lessons: [
+            lesson({
+              title: "Hard one",
+              status: "generated",
+              completed: true,
+              outcome: "shaky",
+              strain: { verdict: "too-hard", reasons: ["never-passed", "heavy-hints"] },
+            }),
+            lesson({
+              title: "Easy one",
+              status: "generated",
+              completed: true,
+              outcome: "understood",
+              strain: { verdict: "too-easy", reasons: ["first-try-no-hints-fast"] },
+            }),
+          ],
+        }),
+      ],
+    });
+    render();
+
+    expect(await screen.findByText("Too hard")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        /never passed the exercise, passed after being shown the shape of a solution or the code/u,
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Too easy")).toBeInTheDocument();
+    expect(
+      screen.getByText(/first try, no hints, well under the expected time/u),
+    ).toBeInTheDocument();
+  });
+
+  it("says nothing for a lesson that has not been judged, rather than 'in the zone'", async () => {
+    // In progress is not a result (non-negotiable 10).
+    returns({ modules: [module({ lessons: [lesson({ title: "Unread" })] })] });
+    render();
+
+    await screen.findByText("Unread");
+    expect(screen.queryByText(/Too hard|In the zone|Too easy/u)).not.toBeInTheDocument();
+  });
+});
+
+describe("what a lesson changed about the plan", () => {
+  const TARGET = "33333333-3333-4333-8333-333333333333";
+
+  it("says a bridge is a smaller step, links what it steps toward, and gives the reason", async () => {
+    returns({
+      modules: [
+        module({
+          lessons: [
+            lesson({
+              title: "Smaller step",
+              status: "generated",
+              adjustment: {
+                kind: "bridge",
+                reason: "You never passed the commit-index exercise.",
+                bridgeFor: { id: TARGET, title: "Commit index" },
+              },
+            }),
+          ],
+        }),
+      ],
+    });
+    renderWithProviders(
+      <CurriculumRoute
+        missionId={MISSION}
+        targetLink={(target) => <a href={`/lessons/${target.id}`}>{target.title}</a>}
+      />,
+    );
+
+    expect(await screen.findByRole("link", { name: "Commit index" })).toHaveAttribute(
+      "href",
+      `/lessons/${TARGET}`,
+    );
+    expect(screen.getByText(/A smaller step toward/u)).toBeInTheDocument();
+    expect(screen.getByText(/You never passed the commit-index exercise\./u)).toBeInTheDocument();
+  });
+
+  it("says a lesson was pitched above the plan", async () => {
+    returns({
+      modules: [
+        module({
+          lessons: [lesson({ adjustment: { kind: "harder", reason: null, bridgeFor: null } })],
+        }),
+      ],
+    });
+    render();
+
+    expect(await screen.findByText("Pitched a step above the plan")).toBeInTheDocument();
+  });
+});
+
+describe("what the next lesson will do", () => {
+  it("says the next lesson will be a bridge, and why", async () => {
+    returns({
+      modules: [module()],
+      upcoming: { kind: "bridge", lessonId: crypto.randomUUID(), title: "Commit index" },
+    });
+    render();
+
+    expect(
+      await screen.findByText(
+        "The next lesson will be a smaller step toward Commit index, because it landed too hard.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("says the next lesson will be harder, naming the two lessons it is based on", async () => {
+    returns({
+      modules: [module()],
+      upcoming: {
+        kind: "harder",
+        lessons: [
+          { id: crypto.randomUUID(), title: "Joins" },
+          { id: crypto.randomUUID(), title: "Indexes" },
+        ],
+      },
+    });
+    render();
+
+    expect(
+      await screen.findByText(
+        "The next lesson will be pitched a step harder: Joins and Indexes both landed too easy.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it.each([null, { kind: "as-planned" as const }])(
+    "announces nothing for %j — no signal is not 'as planned', and as planned needs no line",
+    async (upcoming) => {
+      returns({ modules: [module()], upcoming });
+      render();
+
+      await screen.findByRole("heading", { name: "Postgres basics" });
+      expect(screen.queryByText(/The next lesson will be/u)).not.toBeInTheDocument();
+    },
+  );
 });
