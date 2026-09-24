@@ -1,7 +1,13 @@
 import { EXERCISE_SCRIPT_TYPE } from "@mindforge/core";
 import { describe, expect, it } from "vitest";
 
-import { checkReferences, parseLessonHtml, parseReferenceHtml, PROSE_BUDGET } from "./html.js";
+import {
+  checkReferences,
+  DASH_ALLOWANCE,
+  parseLessonHtml,
+  parseReferenceHtml,
+  PROSE_BUDGET,
+} from "./html.js";
 import type { WarningCode } from "./result.js";
 
 const codes = (result: { warnings: readonly { code: WarningCode }[] }): WarningCode[] =>
@@ -393,6 +399,78 @@ describe("the prose budget", () => {
     );
 
     expect(codes(result)).not.toContain("prose_over_budget");
+  });
+});
+
+describe("dashes left after the humanizer pass", () => {
+  const lesson = (body: string): string =>
+    `<html><head><title>T</title></head><body>${body}</body></html>`;
+  // LESSON-SHAPE.md ends every lesson with the humanizer, whose rule is no dashes
+  // as punctuation. Two lessons that had the pass kept eleven and thirteen.
+  const dashes = (n: number): string =>
+    Array.from({ length: n }, (_, i) => `<p>point ${String(i)} — then more</p>`).join("");
+
+  it("allows a couple, since a quoted title can carry its own", () => {
+    const result = parseLessonHtml("0001-x.html", lesson(dashes(DASH_ALLOWANCE)));
+
+    expect(codes(result)).not.toContain("prose_dashes");
+  });
+
+  it("warns past the allowance, with the count", () => {
+    const result = parseLessonHtml("0001-x.html", lesson(dashes(DASH_ALLOWANCE + 1)));
+
+    expect(result.warnings).toContainEqual({
+      code: "prose_dashes",
+      args: { count: DASH_ALLOWANCE + 1 },
+    });
+  });
+
+  it("counts the exercise and debrief text too, which the budget exempts", () => {
+    const html = lesson(
+      `<section data-mindforge="debrief">${dashes(DASH_ALLOWANCE + 1)}</section>`,
+    );
+
+    expect(codes(parseLessonHtml("0001-x.html", html))).toContain("prose_dashes");
+  });
+
+  it("leaves ranges, code and scripts alone", () => {
+    const html = lesson(`
+      <p>The 6–8′ phase, then 8–13′, then 13–26′.</p>
+      <pre><code>a — b — c — d</code></pre>
+      <script>const s = "x — y — z — w";</script>
+    `);
+
+    expect(codes(parseLessonHtml("0001-x.html", html))).not.toContain("prose_dashes");
+  });
+
+  it("leaves text diagrams and linked titles alone, which are not sentences", () => {
+    const html = lesson(`
+      <div class="flowline"><span>Client</span><span>— POST /links →</span><span>API</span></div>
+      <div class="flowline"><span>Client</span><span>— GET /x →</span><span>API</span></div>
+      <p>See <a href="0001-a.html">Lesson 1 — The shape</a> and <a href="0002-b.html">Lesson 2 — Nouns</a>.</p>
+      <p><a href="https://example.com">A Guide — Part One</a>, a source.</p>
+    `);
+
+    expect(codes(parseLessonHtml("0003-x.html", html))).not.toContain("prose_dashes");
+  });
+
+  it("counts a dash in a heading or a table cell, which are sentences", () => {
+    const html = lesson(`
+      <h2>Worked example — a thing</h2>
+      <table><tr><td>Boxes — an ER diagram</td></tr></table>
+      <ul><li><p>nested — once</p></li></ul>
+    `);
+
+    expect(parseLessonHtml("0003-x.html", html).warnings).toContainEqual({
+      code: "prose_dashes",
+      args: { count: 3 },
+    });
+  });
+
+  it("never warns on a reference document", () => {
+    const result = parseReferenceHtml("ownership.html", lesson(dashes(DASH_ALLOWANCE + 5)));
+
+    expect(codes(result)).not.toContain("prose_dashes");
   });
 });
 

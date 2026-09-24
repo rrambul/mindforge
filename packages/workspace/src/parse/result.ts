@@ -43,7 +43,8 @@ export type WarningCode =
   | "title_missing"
   | "title_ambiguous"
   | "link_unresolved"
-  | "prose_over_budget";
+  | "prose_over_budget"
+  | "prose_dashes";
 
 export interface ParseWarning {
   readonly code: WarningCode;

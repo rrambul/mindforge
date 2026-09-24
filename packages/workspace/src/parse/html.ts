@@ -82,6 +82,47 @@ const NOT_PROSE = [
 const WORD = /[\p{L}\p{N}]/u;
 
 /**
+ * Where a lesson's sentences live. Wider than the budget's reach (the exercise and
+ * debrief sections are exempt from the budget, not from how they are written) and
+ * narrower than all text: a diagram drawn in text (`— POST /links →`) and the
+ * title of a linked lesson or source are not sentences the pass should rewrite.
+ */
+const SENTENCES = [
+  "p",
+  "li",
+  "td",
+  "th",
+  "dd",
+  "dt",
+  "h2",
+  "h3",
+  "h4",
+  "h5",
+  "h6",
+  "figcaption",
+  "caption",
+  "blockquote",
+  "summary",
+].join(", ");
+const NOT_SENTENCES = ["pre", "code", "script", "style", "noscript", "template", "svg", "a"].join(
+  ", ",
+);
+
+/**
+ * An em or en dash used as punctuation: not one between two digits, which is a
+ * range (`6–8′`), the one use the humanizer keeps.
+ */
+const PUNCTUATION_DASH = /(?<!\d)[—–]|[—–](?!\d)/gu;
+
+/**
+ * How many a lesson may keep before the run says the humanizer pass fell short.
+ * Not zero: a source's own title can carry one ("System Design in a Hurry —
+ * Delivery Framework"), and quoting it is not the pattern. Eleven and thirteen,
+ * in the first two lessons that had the pass, is.
+ */
+export const DASH_ALLOWANCE = 2;
+
+/**
  * `<meta name="mindforge:adjusted">`, `…:adjusted-reason` and `…:bridge-for` — what
  * this lesson changed about the plan (FR-D2–D4).
  *
@@ -223,6 +264,22 @@ function countProseWords($: cheerio.CheerioAPI): number {
   return count;
 }
 
+function countPunctuationDashes($: cheerio.CheerioAPI): number {
+  const body = $("body").clone();
+  body.find(NOT_SENTENCES).remove();
+
+  let count = 0;
+  body
+    .find("*")
+    .contents()
+    .each((_, node) => {
+      // Text nodes only, each counted once, and only inside a sentence element.
+      if (node.nodeType !== 3 || $(node).closest(SENTENCES).length === 0) return;
+      count += $(node).text().match(PUNCTUATION_DASH)?.length ?? 0;
+    });
+  return count;
+}
+
 /**
  * Every exercise block → a declaration, or a warning.
  *
@@ -345,6 +402,14 @@ function parseHtml(
     // point is that the run says so, rather than the learner finding out by
     // scrolling.
     warnings.push(warn("prose_over_budget", { words: proseWords, budget }));
+  }
+
+  // Lessons only, like the budget: `skills/LESSON-SHAPE.md` ends every lesson with
+  // a humanizer pass, whose rule is no dashes as punctuation. A run that invoked
+  // the skill and left a dozen has not done the pass, and should say so.
+  if (budget !== null) {
+    const dashes = countPunctuationDashes($);
+    if (dashes > DASH_ALLOWANCE) warnings.push(warn("prose_dashes", { count: dashes }));
   }
 
   const declared = metaValues($, TRACK_META);
