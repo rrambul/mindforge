@@ -18,6 +18,8 @@
  * otherwise have.
  */
 
+import { EXERCISE_SCRIPT_TYPE, type ExerciseDeclaration } from "@mindforge/core";
+
 const BUCKET = "mindforge";
 
 export interface WorkspaceUploader {
@@ -82,7 +84,14 @@ export function lessonHtml(input: {
   readonly trackSlug: string;
   readonly lessonSlug: string;
   readonly intent: string;
+  /**
+   * Declared the way `skills/LESSON-SHAPE.md` tells the agent to, so the reindexer
+   * would read the same exercises back out of this file as the seed writes onto
+   * the row.
+   */
+  readonly exercises?: readonly ExerciseDeclaration[];
 }): string {
+  const exercises = input.exercises ?? [];
   return `<!doctype html>
 <html lang="en">
   <head>
@@ -114,6 +123,7 @@ export function lessonHtml(input: {
     <button id="check" type="button">It should</button>
     <output id="answer"></output>
 
+${exercises.map(exerciseSection).join("")}
     <script>
       document.getElementById("check").addEventListener("click", function () {
         document.getElementById("answer").textContent =
@@ -122,6 +132,24 @@ export function lessonHtml(input: {
     </script>
   </body>
 </html>
+`;
+}
+
+/**
+ * One exercise as a lesson carries it: the marked section the learner reads, and
+ * the declaration the app runs. `<` is escaped inside the JSON so a `</script>` in
+ * the test code cannot end the block early.
+ */
+function exerciseSection(exercise: ExerciseDeclaration): string {
+  const json = JSON.stringify(exercise, null, 2).replace(/</gu, "\\u003c");
+  return `
+    <section data-mindforge="exercise">
+      <h2>${escapeHtml(exercise.title)}</h2>
+      <p>The editor is beside this lesson. Run the tests until they pass.</p>
+    </section>
+    <script type="${EXERCISE_SCRIPT_TYPE}">
+${json}
+    </script>
 `;
 }
 

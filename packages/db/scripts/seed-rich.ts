@@ -1,4 +1,11 @@
-import { addDays, dayOfWeek, eachDay, type IsoDate } from "@mindforge/core";
+import {
+  addDays,
+  dayOfWeek,
+  eachDay,
+  ExerciseDeclarationSchema,
+  type ExerciseDeclaration,
+  type IsoDate,
+} from "@mindforge/core";
 import { rebuildDailyActivity } from "../src/index.js";
 import {
   at,
@@ -79,6 +86,152 @@ interface TrackSpec {
     readonly string[],
   ])[];
 }
+
+/**
+ * Exercises, by lesson slug (FR-X1).
+ *
+ * One, on a finished lesson in the distributed-systems curriculum, and a real
+ * one: the runner executes these tests, so a seed whose solution did not pass them
+ * would be a reader that tells every developer their correct code is wrong. Parsed
+ * through the contract here so a seed that drifted from it fails at seed time
+ * rather than as an exercise panel that silently renders nothing.
+ */
+const EXERCISES: Readonly<Record<string, readonly ExerciseDeclaration[]>> = {
+  "moves-and-copies": [
+    ExerciseDeclarationSchema.parse({
+      key: "longest-word",
+      kind: "task",
+      language: "rust",
+      title: "Borrow, don't move",
+      prompt:
+        "longest_word takes a String and returns its longest word — and the test then uses the original String again, so the function must not take ownership of it.\n\n" +
+        "Change the signature and the body until cargo test passes. The fix is in the types, not in cloning.",
+      files: [
+        {
+          path: "Cargo.toml",
+          contents: '[package]\nname = "borrowing"\nversion = "0.1.0"\nedition = "2021"\n',
+        },
+        {
+          path: "src/lib.rs",
+          contents:
+            'pub fn longest_word(text: String) -> String {\n    text.split_whitespace().max_by_key(|w| w.len()).unwrap_or("").to_string()\n}\n',
+        },
+        {
+          path: "tests/longest_word.rs",
+          contents: [
+            "use borrowing::longest_word;",
+            "",
+            "#[test]",
+            "fn finds_the_longest_word_and_leaves_the_text_usable() {",
+            '    let text = String::from("borrow the value not the ownership");',
+            '    assert_eq!(longest_word(&text), "ownership");',
+            "    assert_eq!(text.len(), 34);",
+            "}",
+            "",
+          ].join("\n"),
+        },
+      ],
+      command: "cargo test",
+      solution:
+        'pub fn longest_word(text: &str) -> &str {\n    text.split_whitespace().max_by_key(|w| w.len()).unwrap_or("")\n}\n',
+      expectedMinutes: 10,
+    }),
+  ],
+  "clocks-and-ordering": [
+    ExerciseDeclarationSchema.parse({
+      key: "lamport-receive",
+      kind: "code",
+      language: "python",
+      title: "A Lamport clock, on receive",
+      prompt:
+        "A process keeps a Lamport clock. When a message arrives it carries the sender's clock.\n\n" +
+        "Write on_receive(local, received) returning the process's clock after it handles the message.",
+      starter: "def on_receive(local: int, received: int) -> int:\n    return local\n",
+      tests: [
+        "from solution import on_receive",
+        "",
+        "def test_a_message_from_the_future_moves_the_clock_past_it():",
+        "    assert on_receive(3, 7) == 8",
+        "",
+        "def test_a_message_from_the_past_still_ticks_the_clock():",
+        "    assert on_receive(9, 2) == 10",
+        "",
+        "def test_equal_clocks_tick_once():",
+        "    assert on_receive(5, 5) == 6",
+        "",
+      ].join("\n"),
+      solution:
+        "def on_receive(local: int, received: int) -> int:\n    return max(local, received) + 1\n",
+      expectedMinutes: 5,
+    }),
+  ],
+  "network-is-not-reliable": [
+    ExerciseDeclarationSchema.parse({
+      key: "charge-once",
+      kind: "whiteboard",
+      title: "Charge exactly once",
+      prompt:
+        "A checkout service calls a payment provider over the network. Sometimes the call times out and nobody knows whether the charge happened.\n\n" +
+        "Draw the services and the calls between them so that a customer is never charged twice, even when the network drops a response and the client retries.",
+      rubric: [
+        "The client sends an idempotency key with every charge request, and reuses it on retry",
+        "The payment side stores the key with the result, so a repeated key returns the first result instead of charging again",
+        "Calls to the provider have a timeout and a bounded retry, not an unbounded one",
+        "An unknown outcome is resolved by asking the provider for the charge's status, not by charging again",
+      ],
+      solution:
+        "Checkout → Payments service, carrying an idempotency key generated once per order. Payments looks the key up in its own store: a hit returns the stored result; a miss records the key as pending, calls the provider with a timeout, and stores the outcome. On a timeout it retries a bounded number of times with the same key, and if the outcome is still unknown it queries the provider's charge status before doing anything else.",
+      expectedMinutes: 20,
+    }),
+  ],
+  "leaders-and-followers": [
+    ExerciseDeclarationSchema.parse({
+      key: "commit-index",
+      kind: "code",
+      language: "typescript",
+      title: "Which entries are committed?",
+      prompt:
+        "A leader tracks, for every node in the cluster (itself included), the highest log index that node has stored.\n\n" +
+        "Write committedIndex(matchIndex) so it returns the highest index stored on a majority of the cluster — the entries the leader may safely apply. Return 0 when there is none.",
+      starter: "export function committedIndex(matchIndex: number[]): number {\n  return 0;\n}\n",
+      tests: [
+        'import { committedIndex } from "./solution";',
+        "",
+        'test("a single node commits what it has", () => {',
+        "  expect(committedIndex([7])).toBe(7);",
+        "});",
+        "",
+        'test("three nodes need two copies", () => {',
+        "  expect(committedIndex([5, 3, 1])).toBe(3);",
+        "});",
+        "",
+        'test("five nodes need three copies", () => {',
+        "  expect(committedIndex([9, 9, 4, 2, 2])).toBe(4);",
+        "});",
+        "",
+        'test("an even cluster needs more than half", () => {',
+        "  expect(committedIndex([6, 6, 1, 1])).toBe(1);",
+        "});",
+        "",
+        'test("leaves the caller\'s array alone", () => {',
+        "  const acks = [1, 5, 3];",
+        "  committedIndex(acks);",
+        "  expect(acks).toEqual([1, 5, 3]);",
+        "});",
+        "",
+      ].join("\n"),
+      solution: [
+        "export function committedIndex(matchIndex: number[]): number {",
+        "  const sorted = [...matchIndex].sort((a, b) => b - a);",
+        "  const majority = Math.floor(sorted.length / 2) + 1;",
+        "  return sorted[majority - 1] ?? 0;",
+        "}",
+        "",
+      ].join("\n"),
+      expectedMinutes: 10,
+    }),
+  ],
+};
 
 const RUST_TRACKS: readonly TrackSpec[] = [
   {
@@ -428,7 +581,13 @@ async function seedCurriculum(
       // The file first, so a row never points at a path that was never written.
       await files?.put(
         `workspaces/${userId}/${workspaceKey}/${storagePath}`,
-        lessonHtml({ title, trackSlug: spec.slug, lessonSlug: slug, intent }),
+        lessonHtml({
+          title,
+          trackSlug: spec.slug,
+          lessonSlug: slug,
+          intent,
+          exercises: EXERCISES[slug] ?? [],
+        }),
         "text/html; charset=utf-8",
       );
 
@@ -451,6 +610,8 @@ async function seedCurriculum(
           position: index + 1,
           storagePath,
           contentHash: `seed-${workspaceKey}-${seq}`,
+          // Written onto the row as the reindexer would from the file above.
+          exercises: [...(EXERCISES[slug] ?? [])],
           completedAt,
           outcome,
         },

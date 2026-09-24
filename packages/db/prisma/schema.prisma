@@ -58,6 +58,8 @@ model Profile {
   focusSessions   FocusSession[]
   dailyActivity   DailyActivity[]
   lessons         Lesson[]
+  exerciseAttempts ExerciseAttempt[]
+  exerciseHints    ExerciseHint[]
   referenceDocs   ReferenceDoc[]
   learningRecords LearningRecord[]
   workspaceFiles  WorkspaceFile[]
@@ -312,6 +314,22 @@ model Lesson {
   /// understood | shaky | lost. The progress tracker's outcome (FR-P1).
   outcome     String?
 
+  /// The exercises the lesson file declares (FR-X1), as `ExerciseDeclaration[]`
+  /// from `packages/core`. An index like every other column the reindexer writes:
+  /// the lesson's `<script type="application/vnd.mindforge.exercise+json">` blocks
+  /// are canonical, and this is rebuilt from them on every sync. `[]` for a lesson
+  /// that declares none, which is every lesson written before Phase 1.
+  exercises   Json    @default("[]")
+
+  /// bridge | harder — what this lesson changed about the plan (FR-D2–D4), from
+  /// `<meta name="mindforge:adjusted">`. Null for a lesson taught as planned. Index,
+  /// like everything else the file says.
+  adjustment       String?
+  /// One line from `<meta name="mindforge:adjusted-reason">`, shown on screen.
+  adjustmentReason String? @map("adjustment_reason")
+  /// For a bridge: the slug of the lesson it is a step toward (`mindforge:bridge-for`).
+  bridgeForSlug    String? @map("bridge_for_slug")
+
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
@@ -327,12 +345,94 @@ model Lesson {
   requires LessonEdge[] @relation("lessonPrereq")
   /// The blocks of attention spent on it (FR-F3). M6's time views read these.
   focusSessions FocusSession[]
+  /// Every run of an exercise's tests (FR-X5). Learner data, not index.
+  exerciseAttempts ExerciseAttempt[]
+  /// Every hint asked for (FR-H3). Learner data, like the attempts.
+  exerciseHints    ExerciseHint[]
 
   @@unique([missionId, seq])
   @@index([userId, missionId])
   @@index([trackId, seq])
   @@index([trackId, position])
   @@map("lessons")
+}
+
+/// One run of an exercise's tests, as the learner's browser reported it (FR-X5).
+///
+/// **Learner data, like `lessons.completed_at`, not index.** The exercise itself is
+/// declared in the lesson file and indexed onto `lessons.exercises`; what you did
+/// with it has no file and is the only copy. So it is keyed by the lesson row and
+/// the exercise's own `key` rather than by an exercise row, which would be
+/// rebuilt — and its id changed — by every reindex.
+///
+/// Append-only. An attempt is a fact about the past, and "how many tries did it
+/// take" is Phase 3's signal: an update would rewrite it.
+model ExerciseAttempt {
+  id          String   @id @default(uuid()) @db.Uuid
+  userId      String   @map("user_id") @db.Uuid
+  lessonId    String   @map("lesson_id") @db.Uuid
+  exerciseKey String   @map("exercise_key")
+  code        String
+  /// completed | error | timeout (`RUN_STATUSES`).
+  status      String
+  /// `TestResult[]`, as the runner produced them.
+  results     Json     @default("[]")
+  testsPassed Int      @map("tests_passed")
+  testsTotal  Int      @map("tests_total")
+  /// Derived by `attemptPassed` in `packages/core`, stored so "first passed" is a
+  /// query rather than a replay of every result.
+  passed      Boolean
+  /// When the learner first changed the starter code. Null if they never did.
+  startedAt   DateTime? @map("started_at") @db.Timestamptz(6)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  /// tests | review | self — who decided "passed". Tests ran in the learner's
+  /// browser; a review is a model reading a drawing against the rubric; self is
+  /// the learner's own report of a task they ran on their machine.
+  gradedBy    String   @default("tests") @map("graded_by")
+  /// A whiteboard's canvas elements. Present exactly when `gradedBy` is review.
+  scene       Json?
+  /// The reviewer's one overall sentence.
+  feedback    String?
+  /// The review's cost row (non-negotiable 9).
+  llmCallId   String?  @map("llm_call_id") @db.Uuid
+
+  profile Profile  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lesson  Lesson   @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  llmCall LlmCall? @relation(fields: [llmCallId], references: [id], onDelete: SetNull)
+
+  @@index([userId, lessonId, exerciseKey, createdAt])
+  @@map("exercise_attempts")
+}
+
+/// One hint the learner asked for on an exercise, and what they were told (FR-H3).
+///
+/// The only record that the learner needed help, which is what separates "passed"
+/// from "passed after being shown the code" — the distinction Phase 3's difficulty
+/// signal is built on. Keyed like `ExerciseAttempt`, by lesson and exercise key.
+/// Only answers that were given are stored: a refused or empty call still has its
+/// `llm_calls` row, but nobody was helped by it. Append-only.
+model ExerciseHint {
+  id          String   @id @default(uuid()) @db.Uuid
+  userId      String   @map("user_id") @db.Uuid
+  lessonId    String   @map("lesson_id") @db.Uuid
+  exerciseKey String   @map("exercise_key")
+  /// hint | solution — a rung asked for, or the reference solution opened. A
+  /// solution is always rung 5: a pass after seeing it was not worked out alone.
+  kind        String   @default("hint")
+  /// 1–5: question, clue, concept, structure, code (`HINT_RUNGS`).
+  level       Int      @db.SmallInt
+  /// The learner's own question, when they asked one.
+  question    String?
+  answer      String
+  llmCallId   String?  @map("llm_call_id") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  profile Profile  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lesson  Lesson   @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  llmCall LlmCall? @relation(fields: [llmCallId], references: [id], onDelete: SetNull)
+
+  @@index([userId, lessonId, exerciseKey, createdAt])
+  @@map("exercise_hints")
 }
 
 /// "A depends on B", between two planned or written lessons (FR-K2).
@@ -538,6 +638,10 @@ model LlmCall {
   profile  Profile   @relation(fields: [userId], references: [id], onDelete: Cascade)
   /// Set null, not cascade: deleting a run must not delete what it cost.
   agentRun AgentRun? @relation(fields: [agentRunId], references: [id], onDelete: SetNull)
+  /// The hint this call produced, when it was a hint call (FR-H3).
+  hints    ExerciseHint[]
+  /// The whiteboard review this call produced, when it was one (Phase 4).
+  reviews  ExerciseAttempt[]
 
   @@index([userId, createdAt])
   @@index([agentRunId])
