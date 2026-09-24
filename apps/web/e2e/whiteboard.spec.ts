@@ -90,3 +90,80 @@ test("a design exercise draws on a self-hosted canvas, and keeps its rubric back
   expect(fonts.length).toBeGreaterThan(0);
   expect(external).toEqual([]);
 });
+
+test("a stroke lands under the pointer after the canvas has moved on the page", async ({
+  page,
+}) => {
+  // The canvas library caches where it sits and maps every pointer through that.
+  // A canvas that moved after it measured itself drew every stroke offset: "the
+  // line shows up above the mouse". So: mount it, move it the two ways a real
+  // page does, then draw and read the pixels back.
+  await signIn(page);
+  await page.getByRole("link", { name: "Missions" }).click();
+  await page
+    .getByRole("article")
+    .filter({ has: page.getByRole("heading", { name: "Distributed systems fundamentals" }) })
+    .getByRole("link", { name: "Curriculum" })
+    .click();
+  await page
+    .getByRole("listitem")
+    .filter({ hasText: "The network is not reliable" })
+    .getByRole("link", { name: /^Read/u })
+    .click();
+
+  const panel = page.getByRole("region", { name: "Exercise: Charge exactly once" });
+  const board = panel.getByRole("group", { name: "Whiteboard for Charge exactly once" });
+  await expect(board.locator("canvas").first()).toBeVisible();
+  await board.scrollIntoViewIfNeeded();
+
+  // Content appears above the canvas, the way a review, a wrapped prompt or a late
+  // font pushes it down, and then the page scrolls.
+  await panel.evaluate((element) => {
+    const spacer = document.createElement("div");
+    spacer.style.height = "140px";
+    element.prepend(spacer);
+  });
+  await page.evaluate(() => {
+    window.scrollBy(0, 60);
+  });
+  await board.scrollIntoViewIfNeeded();
+
+  await board.getByTitle(/Rectangle/u).click();
+  const area = (await board.locator("canvas").last().boundingBox())!;
+  const x = area.x + area.width * 0.3;
+  const y = area.y + Math.min(area.height * 0.4, 160);
+  await page.mouse.move(x, y);
+  await page.mouse.down();
+  await page.mouse.move(x + 120, y + 70, { steps: 8 });
+  await page.mouse.up();
+  // Deselect, so the selection outline is not what gets measured.
+  await page.keyboard.press("Escape");
+
+  // The rectangle's top edge is drawn along y, from x to x + 120. Count inked
+  // pixels on that line on the canvas that holds the drawing.
+  const inked = await board
+    .locator("canvas")
+    .first()
+    .evaluate(
+      (canvas: HTMLCanvasElement, at) => {
+        const rect = canvas.getBoundingClientRect();
+        const scale = canvas.width / rect.width;
+        const context = canvas.getContext("2d")!;
+        let hits = 0;
+        for (let dx = 10; dx <= 110; dx += 5) {
+          const px = Math.round((at.x + dx - rect.left) * scale);
+          let found = false;
+          for (let dy = -3; dy <= 3 && !found; dy += 1) {
+            const py = Math.round((at.y + dy - rect.top) * scale);
+            const [r, g, b] = context.getImageData(px, py, 1, 1).data;
+            if (r! < 200 || g! < 200 || b! < 200) found = true;
+          }
+          if (found) hits += 1;
+        }
+        return hits;
+      },
+      { x, y },
+    );
+  // 21 samples along the edge; nearly all of them have to be ink.
+  expect(inked).toBeGreaterThanOrEqual(18);
+});

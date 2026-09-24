@@ -11,6 +11,12 @@
   background: #ffffff;
 }
 
+/* The library sizes itself to its parent, so the wrapper has to fill the frame. */
+.mf-whiteboard__canvas {
+  width: 100%;
+  height: 100%;
+}
+
 .mf-whiteboard__fallback {
   width: 100%;
   height: 100%;

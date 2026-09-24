@@ -1,5 +1,5 @@
-import { render } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { fireEvent, render } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { WhiteboardHandle } from "./Whiteboard.js";
 import WhiteboardImpl from "./whiteboard-impl.js";
@@ -16,8 +16,23 @@ type ChangeHandler = (elements: readonly Record<string, unknown>[]) => void;
 
 const captured: {
   props: Record<string, unknown> | null;
-  api: { getSceneElements: () => unknown[] } | null;
+  api: { getSceneElements: () => unknown[]; refresh: () => void } | null;
 } = { props: null, api: null };
+
+/** jsdom has no ResizeObserver. This one records what it watches and can be fired. */
+const observed: { targets: Element[]; fire: (() => void) | null } = { targets: [], fire: null };
+class FakeResizeObserver {
+  constructor(callback: () => void) {
+    observed.fire = callback;
+  }
+  observe(target: Element) {
+    observed.targets.push(target);
+  }
+  disconnect() {
+    observed.targets = [];
+  }
+}
+vi.stubGlobal("ResizeObserver", FakeResizeObserver);
 const exportToBlob = vi.fn<(opts: Record<string, unknown>) => Promise<Blob>>();
 
 vi.mock("@excalidraw/excalidraw", () => ({
@@ -38,7 +53,7 @@ function mount(onChange = vi.fn(), onReady = vi.fn()) {
   const view = render(
     <WhiteboardImpl initialElements={[]} label="Board" onChange={onChange} onReady={onReady} />,
   );
-  captured.api = { getSceneElements: () => scene };
+  captured.api = { getSceneElements: () => scene, refresh: vi.fn() };
   (captured.props!["excalidrawAPI"] as (api: unknown) => void)(captured.api);
   const handle = onReady.mock.calls.at(-1)?.[0] as WhiteboardHandle;
   const change = captured.props!["onChange"] as ChangeHandler;
@@ -48,7 +63,13 @@ function mount(onChange = vi.fn(), onReady = vi.fn()) {
 beforeEach(() => {
   captured.props = null;
   exportToBlob.mockReset();
+  observed.targets = [];
 });
+
+/** requestAnimationFrame, run now. */
+function flushFrame() {
+  vi.runOnlyPendingTimers();
+}
 
 describe("WhiteboardImpl", () => {
   it("opens on the initial elements, on white, with nothing to load, save or embed", () => {
@@ -106,5 +127,56 @@ describe("WhiteboardImpl", () => {
     view.unmount();
 
     expect(onReady).toHaveBeenLastCalledWith(null);
+  });
+
+  describe("keeping the pointer where the stroke lands", () => {
+    // The library caches where its canvas is and maps every pointer through that.
+    // A canvas that moved without resizing drew every stroke offset from the
+    // mouse. `e2e/whiteboard.spec.ts` proves the pixels; this proves the wiring.
+    beforeEach(() => {
+      vi.useFakeTimers({ toFake: ["requestAnimationFrame", "cancelAnimationFrame"] });
+    });
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it("re-measures when the pointer enters the canvas", () => {
+      const { view } = mount();
+
+      fireEvent.pointerEnter(view.container.firstElementChild!);
+
+      expect(captured.api!.refresh).toHaveBeenCalledTimes(1);
+    });
+
+    it("re-measures once per frame when anything on the page scrolls", () => {
+      mount();
+
+      window.dispatchEvent(new Event("scroll"));
+      window.dispatchEvent(new Event("scroll"));
+      flushFrame();
+
+      expect(captured.api!.refresh).toHaveBeenCalledTimes(1);
+    });
+
+    it("re-measures when the page's layout changes size", () => {
+      mount();
+
+      expect(observed.targets).toContain(document.body);
+      observed.fire!();
+      flushFrame();
+
+      expect(captured.api!.refresh).toHaveBeenCalledTimes(1);
+    });
+
+    it("stops listening when it unmounts", () => {
+      const { view } = mount();
+      view.unmount();
+
+      window.dispatchEvent(new Event("scroll"));
+      flushFrame();
+
+      expect(captured.api!.refresh).not.toHaveBeenCalled();
+      expect(observed.targets).toEqual([]);
+    });
   });
 });

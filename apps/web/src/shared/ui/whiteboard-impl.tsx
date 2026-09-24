@@ -77,55 +77,91 @@ export default function WhiteboardImpl({ initialElements, onChange, onReady }: W
     [],
   );
 
+  // Excalidraw caches where its canvas sits on the page and maps every pointer
+  // through that. It re-measures when its own box resizes, not when the box
+  // *moves*: text above it wrapping differently, a font arriving, a review
+  // appearing, a scroll it did not see. Then every stroke lands offset by
+  // however far the canvas moved, which reads as "the line draws above the
+  // mouse". So it is told to re-measure on each of those, and when the pointer
+  // enters, which is the moment the offset starts to matter.
+  useEffect(() => {
+    let pending = 0;
+    const remeasure = () => {
+      if (pending !== 0) return;
+      pending = requestAnimationFrame(() => {
+        pending = 0;
+        api.current?.refresh();
+      });
+    };
+    const layout = new ResizeObserver(remeasure);
+    layout.observe(document.body);
+    // Capture, so a scroll inside any scrollable ancestor counts, not only the window's.
+    window.addEventListener("scroll", remeasure, { capture: true, passive: true });
+    window.addEventListener("resize", remeasure, { passive: true });
+    return () => {
+      cancelAnimationFrame(pending);
+      layout.disconnect();
+      window.removeEventListener("scroll", remeasure, { capture: true });
+      window.removeEventListener("resize", remeasure);
+    };
+  }, []);
+
   return (
-    <Excalidraw
-      // Excalidraw restores whatever it is given, so a scene saved by an older
-      // version of the library still opens.
-      initialData={{
-        elements: initialElements as never,
-        appState: { viewBackgroundColor: WHITE },
-        scrollToContent: true,
+    <div
+      className="mf-whiteboard__canvas"
+      onPointerEnter={() => {
+        api.current?.refresh();
       }}
-      UIOptions={{
-        // A design, not a file: nothing to open, save or export from here, and no
-        // embedded images — a review reads shapes, arrows and words.
-        canvasActions: {
-          loadScene: false,
-          saveToActiveFile: false,
-          saveAsImage: false,
-          export: false,
-          toggleTheme: false,
-        },
-        tools: { image: false },
-      }}
-      excalidrawAPI={(instance) => {
-        api.current = instance;
-        const handle: WhiteboardHandle = {
-          elements: () => plain(instance.getSceneElements()),
-          exportPng: async (maxSide) =>
-            asDataUrl(
-              await exportPngBlob({
-                elements: instance.getSceneElements(),
-                appState: { exportBackground: true, viewBackgroundColor: WHITE },
-                files: null,
-                maxWidthOrHeight: maxSide,
-                mimeType: "image/png",
-              }),
-            ),
-        };
-        ready.current?.(handle);
-      }}
-      onChange={(elements) => {
-        const next = versionOf(elements);
-        // The first call is the canvas settling on its initial elements.
-        if (version.current === null) {
+    >
+      <Excalidraw
+        // Excalidraw restores whatever it is given, so a scene saved by an older
+        // version of the library still opens.
+        initialData={{
+          elements: initialElements as never,
+          appState: { viewBackgroundColor: WHITE },
+          scrollToContent: true,
+        }}
+        UIOptions={{
+          // A design, not a file: nothing to open, save or export from here, and no
+          // embedded images — a review reads shapes, arrows and words.
+          canvasActions: {
+            loadScene: false,
+            saveToActiveFile: false,
+            saveAsImage: false,
+            export: false,
+            toggleTheme: false,
+          },
+          tools: { image: false },
+        }}
+        excalidrawAPI={(instance) => {
+          api.current = instance;
+          const handle: WhiteboardHandle = {
+            elements: () => plain(instance.getSceneElements()),
+            exportPng: async (maxSide) =>
+              asDataUrl(
+                await exportPngBlob({
+                  elements: instance.getSceneElements(),
+                  appState: { exportBackground: true, viewBackgroundColor: WHITE },
+                  files: null,
+                  maxWidthOrHeight: maxSide,
+                  mimeType: "image/png",
+                }),
+              ),
+          };
+          ready.current?.(handle);
+        }}
+        onChange={(elements) => {
+          const next = versionOf(elements);
+          // The first call is the canvas settling on its initial elements.
+          if (version.current === null) {
+            version.current = next;
+            return;
+          }
+          if (next === version.current) return;
           version.current = next;
-          return;
-        }
-        if (next === version.current) return;
-        version.current = next;
-        changed.current?.(plain(elements));
-      }}
-    />
+          changed.current?.(plain(elements));
+        }}
+      />
+    </div>
   );
 }
