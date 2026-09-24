@@ -311,11 +311,11 @@ describe("fairness between learners", () => {
 });
 
 describe("the plugin a run loads", () => {
-  it("writes the teach skill for a lesson run", async () => {
+  it("writes the teach skill, and the humanizer it ends with, for a lesson run", async () => {
     const plugin = await gateway.writePlugin("run-lesson", "generate_lesson");
     plugins.push(plugin.path);
 
-    expect(plugin.skillRef).toBe("mindforge-teach:teach");
+    expect(plugin.skills).toEqual(["mindforge-teach:teach", "mindforge-teach:humanizer"]);
   });
 
   it("writes the curriculum skill for a curriculum run", async () => {
@@ -325,7 +325,7 @@ describe("the plugin a run loads", () => {
     const plugin = await gateway.writePlugin("run-curriculum", "generate_curriculum");
     plugins.push(plugin.path);
 
-    expect(plugin.skillRef).toBe("mindforge-curriculum:curriculum");
+    expect(plugin.skills).toEqual(["mindforge-curriculum:curriculum"]);
   });
 
   it("gives each run its own directory", async () => {

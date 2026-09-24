@@ -116,7 +116,7 @@ export class TeachDispatcher implements OnApplicationBootstrap, OnModuleDestroy 
         workspaceKey: queued.workspaceKey,
         briefing,
         pluginDir: plugin.path,
-        skillRef: plugin.skillRef,
+        skills: plugin.skills,
         kind: queued.kind,
         timezone: queued.timezone,
       });

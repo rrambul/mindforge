@@ -8,6 +8,7 @@ import type {
   AgentModelUsage,
   AgentRunRequest,
 } from "../application/agent.port.js";
+import { openingPrompt } from "../application/opening-prompt.js";
 
 /**
  * `query()`, translated into the events `TeachRun` decides from.
@@ -96,9 +97,7 @@ export class AgentSdkGateway implements AgentGateway {
 
     try {
       for await (const message of query({
-        prompt:
-          "Teach me the next thing. Read BRIEFING.md first — it has my current zone of " +
-          "proximal development, weak skills, and what is not measured yet.",
+        prompt: openingPrompt(request.skills),
         options: {
           cwd: request.cwd,
           model: "claude-opus-5",
@@ -111,7 +110,7 @@ export class AgentSdkGateway implements AgentGateway {
           permissionMode: "dontAsk",
           allowedTools: [...TOOLS],
           plugins: [{ type: "local", path: request.pluginDir }],
-          skills: [request.skillRef],
+          skills: [...request.skills],
           settingSources: [],
           strictMcpConfig: true,
           env: this.authEnv(request),
@@ -128,6 +127,18 @@ export class AgentSdkGateway implements AgentGateway {
       clearTimeout(deadline);
     }
   }
+}
+
+/** The `skill` argument of every `Skill` tool call in one assistant message. */
+function skillsInvokedBy(content: unknown): string[] {
+  if (!Array.isArray(content)) return [];
+  return content.flatMap((block: unknown) => {
+    if (typeof block !== "object" || block === null) return [];
+    const { type, name, input } = block as { type?: unknown; name?: unknown; input?: unknown };
+    if (type !== "tool_use" || name !== "Skill") return [];
+    const skill = (input as { skill?: unknown } | null)?.skill;
+    return typeof skill === "string" ? [skill] : [];
+  });
 }
 
 function translate(message: SDKMessage): AgentEvent | null {
@@ -157,6 +168,7 @@ function translate(message: SDKMessage): AgentEvent | null {
         outputTokens: usage.output_tokens,
         cacheReadTokens: usage.cache_read_input_tokens ?? 0,
         cacheWriteTokens: usage.cache_creation_input_tokens ?? 0,
+        skillsInvoked: skillsInvokedBy(message.message.content),
       },
     };
   }

@@ -32,6 +32,7 @@ const MISSION = "mission-1";
 const KEY = "rust";
 const PREFIX = `workspaces/${USER}/${KEY}`;
 const SKILL = "mindforge-teach:teach";
+const HUMANIZER = "mindforge-teach:humanizer";
 const AT = new Date("2026-08-08T12:00:00.000Z");
 
 const bytes = (text: string): Uint8Array => new TextEncoder().encode(text);
@@ -41,14 +42,20 @@ const INIT: AgentEvent = {
   type: "init",
   init: {
     plugins: ["mindforge-teach"],
-    skills: [SKILL],
+    skills: [SKILL, HUMANIZER],
     tools: ["Read", "Write", "Edit", "Glob", "Grep", "WebSearch", "WebFetch"],
     model: "claude-opus-5",
     cliVersion: "2.1.222",
   },
 };
 
-function call(key: string, model = "claude-opus-5", outputTokens = 100): AgentEvent {
+/** One assistant message. By default it uses both skills, as a run that follows its rules does. */
+function call(
+  key: string,
+  model = "claude-opus-5",
+  outputTokens = 100,
+  skillsInvoked: readonly string[] = [SKILL, HUMANIZER],
+): AgentEvent {
   return {
     type: "call",
     call: {
@@ -58,6 +65,7 @@ function call(key: string, model = "claude-opus-5", outputTokens = 100): AgentEv
       outputTokens,
       cacheReadTokens: 1_000,
       cacheWriteTokens: 0,
+      skillsInvoked,
     },
   };
 }
@@ -273,7 +281,7 @@ function harness(
         workspaceKey: KEY,
         briefing: "# Briefing\n\nDue reviews: not tracked yet.\n",
         pluginDir: "/tmp/plugin",
-        skillRef: SKILL,
+        skills: [SKILL, HUMANIZER],
         kind,
         timezone: "America/Sao_Paulo",
       }),
@@ -519,6 +527,20 @@ describe("the handshake", () => {
     expect(h.finished.at(-1)?.error).toContain("did not load");
   });
 
+  it("refuses to teach when a companion skill did not load", async () => {
+    // `options.skills` is a filter, so a humanizer the run loaded without naming
+    // is refused by the Skill tool — and a lesson that skipped its last pass looks
+    // exactly like one that had it.
+    const h = harness([{ type: "init", init: { ...INIT.init, skills: [SKILL] } }, result()], {
+      writes: WROTE_A_LESSON,
+    });
+
+    const outcome = await h.execute();
+
+    expect(outcome.status).toBe("failed");
+    expect(h.finished.at(-1)?.error).toContain(`${HUMANIZER} did not load`);
+  });
+
   it("refuses to teach when Bash was not withheld", async () => {
     // `allowedTools` does not restrict anything, so the only proof that the tool
     // list is what was asked for is the list the run reports back.
@@ -602,6 +624,38 @@ describe("what the run reports back", () => {
     expect((h.finished.at(-1)?.result as { warnings?: { code: string }[] }).warnings).toEqual([
       { code: "filename_unnumbered", args: { filename: "closures.html" } },
     ]);
+  });
+
+  it("warns about each loaded skill the run never used", async () => {
+    // Loading a skill is not using it: its rules reach the model only through the
+    // Skill tool. A real lesson run wrote its lesson having invoked neither.
+    const h = harness([INIT, call("req_1", "claude-opus-5", 100, []), result()], {
+      writes: WROTE_A_LESSON,
+    });
+
+    const outcome = await h.execute();
+
+    expect(outcome.status).toBe("succeeded");
+    expect((h.finished.at(-1)?.result as { warnings?: unknown[] }).warnings).toEqual([
+      { code: "skill_not_invoked", args: { skill: SKILL } },
+      { code: "skill_not_invoked", args: { skill: HUMANIZER } },
+    ]);
+  });
+
+  it("counts a skill invoked in any message, by its bare name as well", async () => {
+    const h = harness(
+      [
+        INIT,
+        call("req_1", "claude-opus-5", 100, [SKILL]),
+        call("req_2", "claude-opus-5", 100, ["humanizer"]),
+        result(),
+      ],
+      { writes: WROTE_A_LESSON },
+    );
+
+    await h.execute();
+
+    expect((h.finished.at(-1)?.result as { warnings?: unknown[] }).warnings).toEqual([]);
   });
 
   it("does not crash the worker when the run was already finished", async () => {

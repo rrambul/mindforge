@@ -1022,7 +1022,7 @@ try {
       disallowedTools: ["Bash"], //  removes the definition from the request (:1390)
       permissionMode: "dontAsk", //  deny anything not pre-approved
       plugins: [{ type: "local", path: TEACH_PLUGIN_DIR }], //  how the skill loads — see below
-      skills: ["mindforge-teach:teach"], //  namespaced; a bare "teach" matches nothing
+      skills: ["mindforge-teach:teach", "mindforge-teach:humanizer"], //  namespaced; a filter
       settingSources: [], //  ⚠ else the run inherits the host's ~/.claude
       strictMcpConfig: true,
       env: { ...process.env, CLAUDE_CONFIG_DIR: runConfigDir }, //  ⚠ replaces, never merges
@@ -1184,6 +1184,19 @@ the words outside code, scripts and the `data-mindforge="exercise"` / `"debrief"
 over `PROSE_BUDGET` gets a `prose_over_budget` run warning. The nine lessons written before it measured
 1,141–5,253 words. The rule also tells the agent that a lesson cannot run the learner's code — the
 lessons origin's CSP has no `'unsafe-eval'` — so exercises are ones that can be checked without it.
+
+**It ends with a humanizer pass** (2026-09-24). The last step of every lesson is the `humanizer`
+skill in file mode over the lesson's prose, leaving tags, `<script>`, `<style>`, code and link
+targets alone. It is vendored verbatim into `skills/humanizer/` (MIT, with its `LICENSE`) and
+written into the same plugin as a **companion skill**, so a lesson run loads
+`["mindforge-teach:teach", "mindforge-teach:humanizer"]`. Two facts decide that shape:
+`options.skills` is a filter — an unlisted skill is hidden from the model and "rejected by the Skill
+tool" (`sdk.d.ts:1922`) however present its files are — so the companion has to be named; and a
+missing companion is as silent as a missing main skill, so the `init` handshake asserts on every
+name in `TeachPlugin.skills`, not only the first. A curriculum run loads no companion: it writes a
+plan, not prose a learner reads. In the same run rather than a separate API call because the pass
+is then billed through `modelUsage` like every other turn (§12), and there is one writer of the
+lesson file, not two.
 
 ### 7.3b What the briefing cannot measure, and must therefore not claim
 

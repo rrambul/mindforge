@@ -10,3 +10,7 @@ build
 # tables in RESOURCES-FORMAT.md. Mindforge's own additions to the skill live in
 # UNATTENDED.md and are appended at build time, precisely so this stays untouched.
 skills/teach
+# The same, for the humanizer: vendored verbatim, so `diff -r skills/humanizer
+# ~/.claude/skills/humanizer` is empty and a lesson run edits prose by the rules a
+# person at a terminal gets.
+skills/humanizer

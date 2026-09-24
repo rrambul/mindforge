@@ -31,6 +31,7 @@ Read them from this repository, not from memory, and read them **before** writin
 | The curriculum   | `skills/curriculum/SKILL.md` and `skills/curriculum/CURRICULUM-FORMAT.md` |
 | A lesson         | `skills/teach/SKILL.md` and `skills/teach/LEARNING-RECORD-FORMAT.md`      |
 | Its shape        | `skills/LESSON-SHAPE.md` — **applies to you in full**                     |
+| Its last pass    | `skills/humanizer/SKILL.md` — the `humanizer` skill, over the prose       |
 | The mission file | `skills/teach/MISSION-FORMAT.md`                                          |
 
 `skills/teach/` is a verbatim copy of the upstream Claude Code skill and `skills/README.md` forbids

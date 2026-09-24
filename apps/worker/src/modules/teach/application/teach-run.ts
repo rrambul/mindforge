@@ -16,6 +16,7 @@ import {
 } from "./agent.port.js";
 import { LLM_CALL_SINK, type LlmCallSink, type RecordedCall } from "./llm-call.port.js";
 import { MEMORY_MOUNT, MemorySync } from "./memory-sync.js";
+import { wasInvoked } from "./opening-prompt.js";
 import { WorkspaceSync } from "./workspace-sync.js";
 
 /**
@@ -100,7 +101,7 @@ export class TeachRun {
     readonly workspaceKey: string;
     readonly briefing: string;
     readonly pluginDir: string;
-    readonly skillRef: string;
+    readonly skills: readonly string[];
     /**
      * Which agent ran, and therefore what counts as having done the job.
      *
@@ -130,7 +131,7 @@ export class TeachRun {
         // rather than accumulating one directory per lesson in the temp dir.
         configDir: `${dir.root}/.claude-config`,
         pluginDir: input.pluginDir,
-        skillRef: input.skillRef,
+        skills: input.skills,
         timeoutMs: TIMEOUT_MS,
         maxTurns: MAX_TURNS,
         maxBudgetUsd: MAX_BUDGET_USD,
@@ -192,7 +193,17 @@ export class TeachRun {
           // `exactOptionalPropertyTypes` distinguishes "absent" from "undefined",
           // so copying the field explicitly turns every warning without args into
           // one that has an undefined one.
-          warnings: [...indexed.warnings, ...indexedMemory.warnings].map((warning) => ({
+          warnings: [
+            ...indexed.warnings,
+            ...indexedMemory.warnings,
+            // Loaded is not used: a skill's rules reach the model only through the
+            // `Skill` tool. A warning rather than a failure — the lesson is real and
+            // the learner has it — but a lesson that skipped its rules must not
+            // look like one that followed them.
+            ...input.skills
+              .filter((skill) => !wasInvoked(skill, seen.invoked))
+              .map((skill) => ({ code: "skill_not_invoked", args: { skill } })),
+          ].map((warning) => ({
             ...warning,
           })),
           memoriesWritten: memoryAfter.written.length,
@@ -222,13 +233,23 @@ export class TeachRun {
   private async drive(
     input: { runId: string; userId: string },
     request: AgentRunRequest,
-  ): Promise<{ ok: boolean; turns: number; durationMs: number; sdkCostUsd: number }> {
+  ): Promise<{
+    ok: boolean;
+    turns: number;
+    durationMs: number;
+    sdkCostUsd: number;
+    invoked: ReadonlySet<string>;
+  }> {
     const calls = new Map<string, RecordedCall>();
+    const invoked = new Set<string>();
     let terminal = { ok: false, turns: 0, durationMs: 0, sdkCostUsd: 0 };
 
     try {
       for await (const event of this.agent.run(request)) {
-        await this.onEvent(event, { ...input, skillRef: request.skillRef }, calls, (result) => {
+        if (event.type === "call") {
+          for (const skill of event.call.skillsInvoked) invoked.add(skill);
+        }
+        await this.onEvent(event, { ...input, skills: request.skills }, calls, (result) => {
           terminal = result;
         });
       }
@@ -247,12 +268,12 @@ export class TeachRun {
     }
 
     await this.calls.record(input.userId, input.runId, [...calls.values()]);
-    return terminal;
+    return { ...terminal, invoked };
   }
 
   private async onEvent(
     event: AgentEvent,
-    input: { runId: string; userId: string; skillRef: string },
+    input: { runId: string; userId: string; skills: readonly string[] },
     calls: Map<string, RecordedCall>,
     setTerminal: (result: {
       ok: boolean;
@@ -265,8 +286,12 @@ export class TeachRun {
       // Rule 2. A run with no skill is indistinguishable from a run with one
       // except in what it writes, so this is the only place it can be caught.
       const missing: string[] = [];
-      if (!event.init.skills.includes(input.skillRef)) {
-        missing.push(`${input.skillRef} did not load — the plugin path is skipped silently`);
+      // Every one of them: a companion that did not load is as silent as the main
+      // skill not loading — a lesson that skipped its humanizer pass looks finished.
+      for (const skill of input.skills) {
+        if (!event.init.skills.includes(skill)) {
+          missing.push(`${skill} did not load — the plugin path is skipped silently`);
+        }
       }
       if (event.init.tools.includes("Bash")) {
         missing.push("Bash was not withheld from the tool list");

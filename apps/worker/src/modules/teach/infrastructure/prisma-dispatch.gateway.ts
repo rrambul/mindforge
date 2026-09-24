@@ -97,11 +97,11 @@ export class PrismaDispatchGateway implements TeachDispatchGateway {
   async writePlugin(
     runId: string,
     kind: BriefingKind,
-  ): Promise<{ path: string; skillRef: string }> {
+  ): Promise<{ path: string; skills: readonly string[] }> {
     const root = await mkdtemp(join(tmpdir(), `mindforge-plugin-${runId}-`));
     const write = kind === "generate_curriculum" ? writeCurriculumPlugin : writeTeachPlugin;
     const plugin = await write(root);
-    return { path: plugin.path, skillRef: plugin.skillRef };
+    return { path: plugin.path, skills: plugin.skills };
   }
 }
 

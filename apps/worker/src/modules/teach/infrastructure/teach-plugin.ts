@@ -28,6 +28,13 @@ const FORMAT_DOCS = [
 /** The same, for `curriculum/SKILL.md`. */
 const CURRICULUM_FORMAT_DOCS = ["CURRICULUM-FORMAT.md"] as const;
 
+/**
+ * Skills a lesson run loads beside `teach`, each a directory under `skills/` and the
+ * files in it to copy. The licence travels with the copy because MIT's permission
+ * is conditional on it.
+ */
+const TEACH_COMPANIONS = { humanizer: ["SKILL.md", "LICENSE"] } as const;
+
 /** Repo root, from this file's location. `apps/worker/src/modules/teach/infrastructure` → up six. */
 function repoRoot(): string {
   return fileURLToPath(new URL("../../../../../../", import.meta.url));
@@ -55,6 +62,7 @@ export async function writeTeachPlugin(destination: string): Promise<WrittenTeac
     // reads it too — so it is its own file rather than a section of the addendum.
     addendumFiles: ["UNATTENDED.md", "LESSON-SHAPE.md"],
     docs: FORMAT_DOCS,
+    companions: TEACH_COMPANIONS,
     compose: buildTeachPlugin,
   });
 }
@@ -73,6 +81,7 @@ export async function writeCurriculumPlugin(destination: string): Promise<Writte
     skillDir: "curriculum",
     addendumFiles: ["CURRICULUM-UNATTENDED.md"],
     docs: CURRICULUM_FORMAT_DOCS,
+    companions: {},
     compose: buildCurriculumPlugin,
   });
 }
@@ -82,25 +91,37 @@ interface PluginSource {
   /** Appended after `SKILL.md` in this order, each separated by a blank line. */
   readonly addendumFiles: readonly string[];
   readonly docs: readonly string[];
+  /** Directory under `skills/` → the files in it to copy. */
+  readonly companions: Readonly<Record<string, readonly string[]>>;
   readonly compose: (sources: {
     skill: string;
     addendum: string;
     formatDocs: Record<string, string>;
+    companions: Record<string, Record<string, string>>;
   }) => TeachPlugin;
 }
 
 async function write(destination: string, spec: PluginSource): Promise<WrittenTeachPlugin> {
   const source = join(repoRoot(), "skills");
 
-  const [skill, addenda, docs] = await Promise.all([
+  const [skill, addenda, docs, companionEntries] = await Promise.all([
     readFile(join(source, spec.skillDir, "SKILL.md"), "utf8"),
     Promise.all(spec.addendumFiles.map((name) => readFile(join(source, name), "utf8"))),
     Promise.all(spec.docs.map((name) => readFile(join(source, spec.skillDir, name), "utf8"))),
+    Promise.all(
+      Object.entries(spec.companions).map(async ([dir, names]) => {
+        const contents = await Promise.all(
+          names.map((name) => readFile(join(source, dir, name), "utf8")),
+        );
+        return [dir, Object.fromEntries(names.map((name, i) => [name, contents[i]!]))] as const;
+      }),
+    ),
   ]);
   const addendum = addenda.map((text) => text.trim()).join("\n\n") + "\n";
 
   const formatDocs = Object.fromEntries(spec.docs.map((name, index) => [name, docs[index]!]));
-  const plugin = spec.compose({ skill, addendum, formatDocs });
+  const companions = Object.fromEntries(companionEntries);
+  const plugin = spec.compose({ skill, addendum, formatDocs, companions });
 
   await Promise.all(
     Object.entries(plugin.files).map(async ([relative, contents]) => {

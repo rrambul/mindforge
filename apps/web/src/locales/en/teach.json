@@ -36,7 +36,8 @@
     "link_unresolved": "{from} links to {to}, which isn't there.",
     "value_duplicated": "This appears twice and only the first was kept: {value}",
     "edge_cycle": "A prerequisite loop was removed here, so the order still makes sense: {node}",
-    "prose_over_budget": "This lesson has {words} words of explanation; lessons aim for {budget} or fewer."
+    "prose_over_budget": "This lesson has {words} words of explanation; lessons aim for {budget} or fewer.",
+    "skill_not_invoked": "The {skill} skill was loaded but this run never used it, so what it asks of a lesson may be missing."
   },
   "error": {
     "run_already_active": "This mission is already being taught. Watch that run, or wait for it to finish.",

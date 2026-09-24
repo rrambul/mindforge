@@ -311,7 +311,7 @@ async function main(): Promise<void> {
           permissionMode: "dontAsk",
           allowedTools: [...TOOLS],
           plugins: [{ type: "local", path: plugin.path }],
-          skills: [plugin.skillRef],
+          skills: [...plugin.skills],
           settingSources: [],
           strictMcpConfig: true,
           // Mirrors AgentSdkGateway.authEnv exactly, including the delete —

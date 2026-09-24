@@ -36,7 +36,8 @@
     "link_unresolved": "{from} aponta para {to}, que não existe.",
     "value_duplicated": "Isto aparece duas vezes e só o primeiro foi mantido: {value}",
     "edge_cycle": "Um ciclo de pré-requisitos foi removido aqui, para a ordem continuar fazendo sentido: {node}",
-    "prose_over_budget": "Esta lição tem {words} palavras de explicação; o objetivo é no máximo {budget}."
+    "prose_over_budget": "Esta lição tem {words} palavras de explicação; o objetivo é no máximo {budget}.",
+    "skill_not_invoked": "A skill {skill} foi carregada, mas esta execução nunca a usou; o que ela pede de uma lição pode estar faltando."
   },
   "error": {
     "run_already_active": "Esta missão já está sendo ensinada. Acompanhe essa execução ou aguarde ela terminar.",

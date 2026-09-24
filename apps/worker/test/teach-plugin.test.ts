@@ -2,7 +2,7 @@ import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { TEACH_SKILL_REF } from "@mindforge/workspace";
+import { HUMANIZER_SKILL_REF, TEACH_SKILL_REF } from "@mindforge/workspace";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { writeTeachPlugin } from "../src/modules/teach/infrastructure/teach-plugin.js";
@@ -114,6 +114,38 @@ describe("writeTeachPlugin", () => {
     const plugin = await writeTeachPlugin(destination);
 
     expect(plugin.skillRef).toBe(TEACH_SKILL_REF);
+  });
+
+  it("writes the humanizer beside the teach skill, verbatim and with its licence", async () => {
+    // LESSON-SHAPE.md ends every lesson with a humanizer pass, and a run cannot
+    // invoke a skill whose files are not in the plugin. Compared against the
+    // vendored copy rather than a fixture, so a moved directory fails here.
+    await writeTeachPlugin(destination);
+    const vendored = (file: string): Promise<string> =>
+      readFile(new URL(`../../../skills/humanizer/${file}`, import.meta.url), "utf8");
+
+    await expect(readFile(join(destination, "skills/humanizer/SKILL.md"), "utf8")).resolves.toBe(
+      await vendored("SKILL.md"),
+    );
+    // MIT's permission is conditional on the notice travelling with the copy.
+    await expect(readFile(join(destination, "skills/humanizer/LICENSE"), "utf8")).resolves.toBe(
+      await vendored("LICENSE"),
+    );
+  });
+
+  it("names both skills for options.skills, the main one first", async () => {
+    // `options.skills` is a filter: a humanizer on disk but not named is hidden
+    // from the model and refused by the Skill tool.
+    const plugin = await writeTeachPlugin(destination);
+
+    expect(plugin.skills).toEqual([TEACH_SKILL_REF, HUMANIZER_SKILL_REF]);
+  });
+
+  it("tells the run to end each lesson with the humanizer", async () => {
+    await writeTeachPlugin(destination);
+    const composed = await readFile(join(destination, "skills/teach/SKILL.md"), "utf8");
+
+    expect(composed).toContain("run the humanizer over the prose");
   });
 
   it("is idempotent, so a retried run does not half-write a plugin", async () => {

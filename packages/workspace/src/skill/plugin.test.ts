@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   CURRICULUM_PLUGIN_NAME,
   CURRICULUM_SKILL_REF,
+  HUMANIZER_SKILL_REF,
   SkillCompositionError,
   TEACH_SKILL_REF,
   buildCurriculumPlugin,
@@ -145,6 +146,65 @@ describe("buildTeachPlugin", () => {
     expect(() => buildTeachPlugin({ ...SOURCES, skill: renamed })).toThrow(
       /mindforge-teach:tutor/u,
     );
+  });
+});
+
+describe("buildTeachPlugin's companion skills", () => {
+  const HUMANIZER = [
+    "---",
+    "name: humanizer",
+    "description: Rewrite AI-sounding text so it reads naturally.",
+    "---",
+    "",
+    "# Humanizer",
+    "",
+  ].join("\n");
+  const WITH = {
+    ...SOURCES,
+    companions: { humanizer: { "SKILL.md": HUMANIZER, LICENSE: "MIT License\n" } },
+  };
+
+  it("names only the main skill when there are none", () => {
+    expect(buildTeachPlugin(SOURCES).skills).toEqual([TEACH_SKILL_REF]);
+  });
+
+  it("names each companion after the main skill, namespaced by the same plugin", () => {
+    expect(buildTeachPlugin(WITH).skills).toEqual([TEACH_SKILL_REF, HUMANIZER_SKILL_REF]);
+    expect(HUMANIZER_SKILL_REF).toBe("mindforge-teach:humanizer");
+  });
+
+  it("writes every file in its own directory, verbatim and with no addendum", () => {
+    const { files } = buildTeachPlugin(WITH);
+
+    expect(files["skills/humanizer/SKILL.md"]).toBe(HUMANIZER);
+    expect(files["skills/humanizer/LICENSE"]).toBe("MIT License\n");
+    expect(files["skills/humanizer/SKILL.md"]).not.toContain("Running inside Mindforge");
+  });
+
+  it("strips the invocation guard if a later version adds one", () => {
+    // Left in, the companion would be listed in init.skills and never callable.
+    const guarded = HUMANIZER.replace("---\n\n", "disable-model-invocation: true\n---\n\n");
+    const { files } = buildTeachPlugin({
+      ...SOURCES,
+      companions: { humanizer: { "SKILL.md": guarded } },
+    });
+
+    expect(files["skills/humanizer/SKILL.md"]).not.toContain("disable-model-invocation");
+    expect(files["skills/humanizer/SKILL.md"]).toContain("name: humanizer");
+  });
+
+  it("refuses a companion with no SKILL.md, which would load as nothing", () => {
+    expect(() =>
+      buildTeachPlugin({ ...SOURCES, companions: { humanizer: { LICENSE: "MIT\n" } } }),
+    ).toThrow(/has no SKILL.md/u);
+  });
+
+  it("refuses a companion whose declared name is not its directory", () => {
+    const renamed = HUMANIZER.replace("name: humanizer", "name: de-slop");
+
+    expect(() =>
+      buildTeachPlugin({ ...SOURCES, companions: { humanizer: { "SKILL.md": renamed } } }),
+    ).toThrow(/mindforge-teach:de-slop/u);
   });
 });
 

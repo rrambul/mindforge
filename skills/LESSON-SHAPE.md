@@ -228,3 +228,25 @@ When you adapt, say so in the lesson's `<head>`, because the learner is shown it
 
 The reason is read by the learner on the curriculum screen. State the evidence plainly — "You passed
 the last two exercises first try, well under the expected time" — with no praise and no apology.
+
+## Last: run the humanizer over the prose
+
+When the lesson file is written and every exercise in it is final, invoke the `humanizer` skill on
+the lesson in **file mode**, and let it rewrite the file in place. Lessons written by a model read
+like one — inflated stakes, stock transitions, "not X but Y", a summary that restates the headings
+— and a learner reading their tenth lesson notices. This is the last edit, after everything else,
+because anything written after it has not been through it.
+
+What it may change is the words a learner reads as explanation: paragraphs, list items, headings,
+the debrief, captions, link text. What it must leave byte-for-byte alone, because Mindforge or the
+browser reads it rather than a person:
+
+- every tag and attribute, including `data-mindforge` and every `<meta name="mindforge:…">`;
+- every `<script>` — the exercise JSON above all, whose starter, tests and prompt are parsed, not
+  read — and every `<style>`;
+- everything inside `<pre>` and `<code>`, and every `href` and `src`.
+
+The humanizer's own rule holds here in full: **it changes how a thing is said, never what is said.**
+No claim, number, name, step or example may be added or lost, and the prose budget above still
+applies to the result — a rewrite that makes the explanation longer has gone wrong. Do it once; do
+not run it over reference documents or the learning record, which are notes, not lessons.

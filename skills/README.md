@@ -27,6 +27,13 @@ because it is not about being unattended: it says what a lesson _is_ — five pa
 exercise the learner does — and `/teach-me` binds a person at a terminal to it exactly as the server run
 is bound. `PROSE_BUDGET` in `packages/workspace/src/parse/html.ts` is the same number, measured.
 
+`humanizer/` is vendored the same way as `teach/` — verbatim, never edited, `diff -r skills/humanizer
+~/.claude/skills/humanizer` empty. The source is [`blader/humanizer`](https://github.com/blader/humanizer),
+MIT, Copyright (c) 2025 Siqi Chen, and `humanizer/LICENSE` travels with it for the same reason
+`teach/LICENSE` does. `LESSON-SHAPE.md` ends every lesson with a pass of it over the prose; the
+server run loads it as a second skill in the teach plugin, and `/teach-me` uses the copy a person
+already has installed.
+
 `curriculum/` is Mindforge's own skill, not vendored. It maps a subject into ordered subtopics and
 writes `CURRICULUM.md`; it writes no lessons. Structure and material are produced by separate skills
 so the structure can be revised without discarding the material.
@@ -46,6 +53,7 @@ handled there, and `TECH-DESIGN.md` §7.3 says why at length.
 
 ```sh
 cp ~/.claude/skills/teach/*.md skills/teach/
+cp ~/.claude/skills/humanizer/SKILL.md ~/.claude/skills/humanizer/LICENSE skills/humanizer/
 pnpm --filter @mindforge/workspace test:unit   # the fixtures pin the headings the parsers match on
 ```
 

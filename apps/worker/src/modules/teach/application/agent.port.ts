@@ -16,6 +16,15 @@ export interface AgentCall {
   readonly outputTokens: number;
   readonly cacheReadTokens: number;
   readonly cacheWriteTokens: number;
+  /**
+   * Skills this message invoked through the `Skill` tool, as the agent named them.
+   *
+   * Loading a skill is not using it: the model only reads a skill's body when it
+   * calls `Skill`, and a run that never does writes from memory with every rule in
+   * the body unread. Carried on every message, not only the deduplicated ones —
+   * parallel tool calls share an id and each carries its own blocks.
+   */
+  readonly skillsInvoked: readonly string[];
 }
 
 /** Whole-tree usage per model, from the terminal result's `modelUsage`. */
@@ -83,8 +92,8 @@ export interface AgentRunRequest {
   readonly configDir: string;
   /** Where the composed teach plugin was written. */
   readonly pluginDir: string;
-  /** The namespaced skill reference the run must load. */
-  readonly skillRef: string;
+  /** The namespaced skill references the run must load, main skill first. */
+  readonly skills: readonly string[];
   readonly timeoutMs: number;
   readonly maxTurns: number;
   readonly maxBudgetUsd: number;

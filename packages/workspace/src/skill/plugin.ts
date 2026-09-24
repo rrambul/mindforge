@@ -40,6 +40,17 @@ export const TEACH_PLUGIN_NAME = "mindforge-teach";
 export const TEACH_SKILL_REF = `${TEACH_PLUGIN_NAME}:teach`;
 
 /**
+ * The `humanizer`, a second skill inside the teach plugin.
+ *
+ * `LESSON-SHAPE.md` ends every lesson with a pass of it over the prose. It shares
+ * the plugin rather than having its own because it is part of writing a lesson,
+ * not a separate job the way the curriculum is — and `options.skills` is a filter,
+ * so a companion the run does not name is hidden from the model and refused by the
+ * `Skill` tool, however present its files are.
+ */
+export const HUMANIZER_SKILL_REF = `${TEACH_PLUGIN_NAME}:humanizer`;
+
+/**
  * The `curriculum` skill, which maps a subject into subtopics and writes
  * `CURRICULUM.md`.
  *
@@ -151,13 +162,24 @@ export interface TeachPluginSources {
   readonly addendum: string;
   /** The format docs, keyed by filename. Copied beside the skill so its relative links resolve. */
   readonly formatDocs: Readonly<Record<string, string>>;
+  /**
+   * Further skills the run loads beside the main one, keyed by directory name, each
+   * a map of filename → contents that must include `SKILL.md`. Vendored verbatim,
+   * so no addendum: whatever Mindforge needs of them is said in the main skill's.
+   */
+  readonly companions?: Readonly<Record<string, Readonly<Record<string, string>>>>;
 }
 
 export interface TeachPlugin {
   /** Relative path → contents. The caller writes these and nothing else. */
   readonly files: Readonly<Record<string, string>>;
-  /** What `options.skills` must contain. */
+  /** The main skill: the one the run is for. */
   readonly skillRef: string;
+  /**
+   * Every skill the run loads — `skillRef` first, then its companions. Exactly what
+   * `options.skills` is given, and exactly what `init.skills` must then contain.
+   */
+  readonly skills: readonly string[];
 }
 
 interface PluginShape {
@@ -211,7 +233,31 @@ function buildPlugin(shape: PluginShape, sources: TeachPluginSources): TeachPlug
     files[`skills/${skillDir}/${name}`] = contents;
   }
 
-  return { files, skillRef: shape.skillRef };
+  const companions: string[] = [];
+  for (const [dir, companionFiles] of Object.entries(sources.companions ?? {})) {
+    const skillMd = companionFiles["SKILL.md"];
+    if (skillMd === undefined) {
+      throw new SkillCompositionError(`Companion skill "${dir}" has no SKILL.md.`);
+    }
+    // The name, not the directory, is what the skill loads as.
+    const name = skillName(skillMd);
+    if (name !== dir) {
+      throw new SkillCompositionError(
+        `Companion skill in "${dir}" declares name "${name}", so it would load as ` +
+          `"${shape.pluginName}:${name}".`,
+      );
+    }
+    for (const [file, contents] of Object.entries(companionFiles)) {
+      // No `stripped` assertion here, unlike the main skill: a companion is not
+      // expected to carry the guard at all, and if a later upstream version adds
+      // one, leaving it in is the silent failure — listed, and never callable.
+      files[`skills/${dir}/${file}`] =
+        file === "SKILL.md" ? stripModelInvocationGuard(contents).text : contents;
+    }
+    companions.push(`${shape.pluginName}:${name}`);
+  }
+
+  return { files, skillRef: shape.skillRef, skills: [shape.skillRef, ...companions] };
 }
 
 export function buildTeachPlugin(sources: TeachPluginSources): TeachPlugin {

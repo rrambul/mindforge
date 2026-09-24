@@ -50,12 +50,13 @@ export interface TeachDispatchGateway {
    * Per run rather than per process: the run's temp tree is deleted afterwards,
    * and a shared path would be shared mutable state for four small files.
    *
-   * Exactly one skill, chosen by `kind`. A run that could reach for both would be
-   * a teach run able to rewrite the plan it is working through, or a curriculum
-   * run able to generate the whole module at the moment it knows least.
+   * One main skill, chosen by `kind`. A run that could reach for both would be a
+   * teach run able to rewrite the plan it is working through, or a curriculum run
+   * able to generate the whole module at the moment it knows least. `skills` is
+   * that one first, then any companion it writes with — a lesson's humanizer pass.
    */
   writePlugin(
     runId: string,
     kind: BriefingKind,
-  ): Promise<{ readonly path: string; readonly skillRef: string }>;
+  ): Promise<{ readonly path: string; readonly skills: readonly string[] }>;
 }
