@@ -1,5 +1,6 @@
 import { signViewToken, type ViewGrant } from "@mindforge/core";
 import { beforeEach, describe, expect, test } from "bun:test";
+import { PYODIDE_VERSION } from "./runner/pyodide.js";
 
 import { loadEnv, type LessonsEnv } from "./env.js";
 import { createHandler } from "./handler.js";
@@ -262,5 +263,179 @@ describe("health", () => {
     const res = await handler()(new Request("https://lessons.example/health", { method: "POST" }));
 
     expect(res.status).toBe(404);
+  });
+});
+
+describe("the exercise runner", () => {
+  // A fake bundle for the routing; the real one is built once, in the last test.
+  const SCRIPT = { text: "/* runner */", version: "v1abc" };
+  const withRunner = (appOrigin = ENV.appOrigin) =>
+    createHandler({
+      env: { ...ENV, appOrigin },
+      objects,
+      now: () => NOW,
+      runner: () => Promise.resolve(SCRIPT),
+    });
+
+  const cspOf = (res: Response): string[] =>
+    (res.headers.get("content-security-policy") ?? "").split("; ");
+
+  test("the page names the app it answers to, and links the current script", async () => {
+    const res = await withRunner()(new Request("https://lessons.example/runner"));
+    const html = await res.text();
+
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toBe("text/html; charset=utf-8");
+    expect(res.headers.get("cache-control")).toBe("no-store");
+    expect(html).toContain('<meta name="mindforge:app-origin" content="https://app.example" />');
+    expect(html).toContain('<script src="/runner.js?v=v1abc"></script>');
+  });
+
+  test("the page has no inline script, because its CSP allows none", async () => {
+    const html = await (await withRunner()(new Request("https://lessons.example/runner"))).text();
+
+    // Every <script> on the page has a src. An inline one would be silently
+    // blocked, and the runner would never say it was ready.
+    const scripts = html.match(/<script[^>]*>/gu) ?? [];
+    expect(scripts).toHaveLength(1);
+    expect(scripts.every((tag) => tag.includes(" src="))).toBe(true);
+  });
+
+  test("the app origin is escaped into the attribute, not pasted", async () => {
+    const res = await withRunner('https://app.example" /><script>x</script>')(
+      new Request("https://lessons.example/runner"),
+    );
+    const html = await res.text();
+
+    expect(html).not.toContain("<script>x</script>");
+    expect(html).toContain("&quot; /&gt;&lt;script&gt;");
+  });
+
+  const directive = (csp: string[], name: string) =>
+    csp.find((part) => part.startsWith(`${name} `));
+
+  test("the JavaScript runner reaches nothing: eval and blob workers, no network, no wasm", async () => {
+    for (const path of ["/runner", "/runner.js?v=v1abc"]) {
+      const res = await withRunner()(new Request(`https://lessons.example${path}`));
+      const csp = cspOf(res);
+
+      expect(directive(csp, "script-src")).toBe("script-src 'self' 'unsafe-eval'");
+      expect(csp).toContain("worker-src blob:");
+      // JavaScript and TypeScript need nothing from the network, so they get none.
+      expect(directive(csp, "connect-src")).toBe("connect-src 'none'");
+      expect(csp).toContain("default-src 'none'");
+      expect(csp).toContain("frame-ancestors https://app.example");
+      expect(csp.join("; ")).not.toContain("'unsafe-inline' 'self'");
+      expect(res.headers.get("x-content-type-options")).toBe("nosniff");
+      expect(res.headers.get("referrer-policy")).toBe("no-referrer");
+    }
+  });
+
+  test("the Python runner alone may compile wasm and reach this origin — and no other host", async () => {
+    const res = await withRunner()(new Request("https://lessons.example/runner/python"));
+    const csp = cspOf(res);
+
+    expect(res.status).toBe(200);
+    expect(directive(csp, "script-src")).toBe("script-src 'self' 'unsafe-eval' 'wasm-unsafe-eval'");
+    // Exactly this origin — Pyodide fetches its own files — so nothing a run does can leave.
+    expect(directive(csp, "connect-src")).toBe("connect-src 'self'");
+    expect(csp).toContain("worker-src blob:");
+    expect(csp).toContain("frame-ancestors https://app.example");
+  });
+
+  test("each page says which languages it runs, and links the same script", async () => {
+    const js = await (await withRunner()(new Request("https://lessons.example/runner"))).text();
+    const py = await (
+      await withRunner()(new Request("https://lessons.example/runner/python"))
+    ).text();
+
+    expect(js).toContain('<meta name="mindforge:languages" content="javascript typescript" />');
+    expect(py).toContain('<meta name="mindforge:languages" content="python" />');
+    expect(py).toContain('<script src="/runner.js?v=v1abc"></script>');
+  });
+
+  test("a lesson's CSP is untouched by the runner: no eval, no workers", async () => {
+    // The runner's policy is the one exception on this origin. If it ever leaks
+    // into the lesson routes, a generated lesson gains `eval` and blob workers —
+    // exactly what non-negotiable 7 exists to keep it from having.
+    const token = await grantFor(MINE);
+    const res = await withRunner()(
+      new Request(`https://lessons.example/v/${token}/lessons/0007-closures.html`),
+    );
+    const csp = res.headers.get("content-security-policy") ?? "";
+
+    expect(csp).not.toContain("unsafe-eval");
+    expect(csp).not.toContain("blob:");
+    expect(csp).toContain("script-src 'unsafe-inline' 'self'");
+    // The Python runner's `connect-src 'self'` is that page's alone.
+    expect(csp).toContain("connect-src 'none'");
+    expect(csp).not.toContain("wasm-unsafe-eval");
+  });
+
+  describe("Pyodide's files", () => {
+    const pyodide = (path: string) =>
+      withRunner()(new Request(`https://lessons.example/pyodide/${PYODIDE_VERSION}/${path}`));
+
+    test("serves the interpreter with its content type, CORS for the sandboxed frame, cached hard", async () => {
+      const res = await pyodide("pyodide.asm.wasm");
+
+      expect(res.status).toBe(200);
+      expect(res.headers.get("content-type")).toBe("application/wasm");
+      // The runner frame's origin is opaque, so Pyodide's own fetch is cross-origin.
+      expect(res.headers.get("access-control-allow-origin")).toBe("*");
+      expect(res.headers.get("cache-control")).toContain("immutable");
+      expect(res.headers.get("x-content-type-options")).toBe("nosniff");
+    });
+
+    test.each(["package.json", "README.md", "../../package.json", "pyodide.d.ts"])(
+      "serves nothing off the allowlist: %s",
+      async (path) => {
+        expect((await pyodide(path)).status).toBe(404);
+      },
+    );
+
+    test("serves nothing under another version, so an upgrade is a new URL", async () => {
+      const res = await withRunner()(
+        new Request("https://lessons.example/pyodide/0.0.1/pyodide.js"),
+      );
+
+      expect(res.status).toBe(404);
+    });
+  });
+
+  test("the script is cached hard only under its current version", async () => {
+    const current = await withRunner()(new Request("https://lessons.example/runner.js?v=v1abc"));
+    const stale = await withRunner()(new Request("https://lessons.example/runner.js?v=old"));
+
+    expect(current.headers.get("content-type")).toBe("text/javascript; charset=utf-8");
+    expect(current.headers.get("cache-control")).toBe("public, max-age=86400, immutable");
+    expect(await current.text()).toBe("/* runner */");
+    expect(stale.headers.get("cache-control")).toBe("no-store");
+  });
+
+  test("is read-only like everything else here", async () => {
+    const res = await withRunner()(
+      new Request("https://lessons.example/runner", { method: "POST", body: "{}" }),
+    );
+
+    expect(res.status).toBe(404);
+  });
+
+  test("the real bundle builds, with the worker inlined into it", async () => {
+    // The one test that runs `Bun.build`: a broken import in the browser files
+    // otherwise surfaces as a frame that never says it is ready.
+    const res = await handler()(new Request("https://lessons.example/runner"));
+    const src = /src="([^"]+)"/u.exec(await res.text())?.[1] ?? "";
+    const script = await (await handler()(new Request(`https://lessons.example${src}`))).text();
+
+    expect(src).toMatch(/^\/runner\.js\?v=[a-z0-9]+$/u);
+    // Booleans rather than `toContain`, so a failure does not print half a
+    // megabyte of minified bundle.
+    expect(script.includes("mindforge:ready")).toBe(true);
+    expect(script.includes("mindforge:result")).toBe(true);
+    // A reason key only the JavaScript worker's harness emits, and the Python
+    // harness's source — both inlined, since neither page may fetch them.
+    expect(script.includes("nothing-registered")).toBe(true);
+    expect(script.includes("def run(code, tests)")).toBe(true);
   });
 });

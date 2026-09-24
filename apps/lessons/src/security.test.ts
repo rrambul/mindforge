@@ -68,6 +68,30 @@ describe("lessons origin security headers", () => {
     }
   });
 
+  test("only the runners may eval, and only the Python runner reaches any host — this one", async () => {
+    const server = await startServer();
+    try {
+      const csp = async (path: string) =>
+        (await fetch(`${server.url}${path}`)).headers.get("content-security-policy") ?? "";
+      const [javascript, python, lesson] = await Promise.all([
+        csp("/runner"),
+        csp("/runner/python"),
+        csp("/any-lesson.html"),
+      ]);
+
+      expect(javascript).toContain("script-src 'self' 'unsafe-eval';");
+      expect(javascript).toContain("connect-src 'none'");
+      expect(python).toContain("script-src 'self' 'unsafe-eval' 'wasm-unsafe-eval'");
+      expect(python).toContain("connect-src 'self';");
+      expect(python).toContain("frame-ancestors https://app.example");
+      expect(lesson).toContain("connect-src 'none'");
+      expect(lesson).not.toContain("unsafe-eval");
+      expect(lesson).not.toContain("blob:");
+    } finally {
+      server.stop();
+    }
+  });
+
   test("health reports the running build", async () => {
     const server = await startServer();
     try {
