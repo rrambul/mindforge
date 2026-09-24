@@ -172,6 +172,90 @@ rollup.
   it could not price, and unmeasured spend never exhausts a budget — refusing on an estimate would
   mean telling a learner they had spent money nobody priced.
 
+### 6.4b Exercises — lessons you do, not only read (`PLAN-HANDS-ON.md`)
+
+- **FR-X1** A lesson may **declare exercises** in its own file, as
+  `<script type="application/vnd.mindforge.exercise+json">` blocks validated against
+  `ExerciseDeclarationSchema` in `packages/core`. The reindexer writes them onto the lesson's row
+  (`lessons.exercises`); a block that fails the contract costs that exercise, never the lesson.
+- **FR-X2** A lesson with exercises renders an **exercise panel beside the frame**: the prompt, an
+  editor seeded with the starter, and "Run tests". A lesson with none renders exactly as before.
+- **FR-X3** **Code runs in a sandboxed runner on the lessons origin**, never in the app and never in
+  the lesson: its own frame (`allow-scripts` without `allow-same-origin`), its own CSP
+  (`'unsafe-eval'` for this route only, `connect-src 'none'`), and a Blob worker killed after five
+  seconds. JavaScript and TypeScript (transpiled, not type-checked), and Python on Pyodide
+  (standard library only, served from the lessons origin, kept warm between runs, its start timed
+  separately from the run).
+- **FR-X4** A run shows each test's name, pass or fail, and its message. Code that will not load is
+  an error the learner can act on, not a crash; a timeout says it stopped and why that usually
+  happens.
+- **FR-X5** **Every run is an attempt, recorded**, whatever it ended as. `passed` is derived by the
+  server (`attemptPassed`) from the results the browser reported; attempts are append-only and
+  keyed by lesson and exercise key, so a reindex never orphans them.
+- **FR-X6** What the learner has done is shown honestly and derived on read: not tried, tried and not
+  passed, passed on the first attempt, or passed with the total count. No celebration copy. The
+  editor resumes from this device's draft, then the last attempt, then the starter; the reference
+  solution is shown only when asked for.
+
+- **FR-X7** **Whiteboard exercises** (`kind: "whiteboard"`): a design drawn on a canvas beside the
+  lesson, against a prompt and a rubric of two to ten concrete, checkable items. The rubric and the
+  reference design are **withheld by the server until the first review** — a checklist shown up front
+  is the answer shown up front.
+- **FR-X8** **A drawing is reviewed, not scored.** One Messages API call per submission reads the
+  canvas as an image and as a structural description (`describeScene`) and answers covered, partly or
+  missing for every rubric item, with a note on what it saw. The screen says it is an AI reviewer's
+  feedback, not a grade. An answer that skips a rubric item is not shown — a verdict nobody gave is
+  not filled in as "missing".
+- **FR-X9** **A review is an attempt**, graded by the server and recorded as such
+  (`graded_by = 'review'`, with the drawing and the bill): its results are the rubric items, and
+  "passed" is every item covered — the same rule as tests — so the attempt summary, `lessonStrain` and
+  adaptation treat a design exactly as they treat code. Billed and budgeted like a hint.
+
+- **FR-X10** **Task exercises** (`kind: "task"`) for languages the browser cannot run: every file in
+  full, the one command that runs the tests, and the learner's report of what happened. A report is an
+  attempt graded by the learner (`graded_by = 'self'`) and shown as self-reported, never as a checked
+  pass. With no clock behind it, a task can land too hard or in the zone, never too easy.
+
+### 6.4c Hints — help when you're stuck, never the answer first (`PLAN-HANDS-ON.md` Phase 2)
+
+- **FR-H1** **A ladder of five rungs** — a question, a clue, the idea, the shape of a solution, the
+  code — asked for one at a time. The next rung is named on the button before it is pressed, and
+  the server refuses a rung more than one above the highest given, so the code is never the first
+  thing shown. Asking again at a rung already reached is allowed. The learner may also ask in their
+  own words; that is answered at the rung they are on, not one higher.
+- **FR-H2** A hint is one Messages API call (`packages/llm/src/hint.ts`), grounded in the exercise,
+  its tests, the reference solution when there is one, the code in the editor and the last run, in
+  the learner's content language (FR-L3). The system prompt is frozen for caching; everything that
+  varies is in the user turn. Refusals fall back server-side; a refusal or an empty answer is never
+  shown as a hint.
+- **FR-H3** **Every hint given is recorded** (`exercise_hints`, append-only), and the attempt
+  summary says how far up the ladder the learner went. A pass after being shown the code and a pass
+  worked out alone are different results and never look alike.
+- **FR-H4** **Every hint call is billed** (`llm_calls`, `purpose: exercise_hint`) — answered or not
+  — and refused before calling when the day's teaching budget is spent (FR-T8, the same ceiling and
+  meter as lesson runs). A failed call says which kind of failure it was: "not available" (no key,
+  or a key refused or out of credit) or "try again" (rate-limited, overloaded, unreachable).
+
+### 6.4d Difficulty adaptation — staying in the zone (`PLAN-HANDS-ON.md` Phase 3)
+
+- **FR-D1** **Every finished lesson is judged** too hard, in the zone or too easy, from what the
+  learner did — attempts, hints, time — and the outcome they recorded (`lessonStrain` in
+  `packages/core`, derived on read, never stored). Too hard: marked lost, an exercise tried and never
+  passed, or a pass only after rung 4 or 5. Too easy: every exercise passed first try, no hint before
+  the pass, in at most half the expected minutes — with the timing known — and not marked shaky or
+  lost. An unfinished lesson is `in-progress`, and nothing-to-judge is its own state; neither is ever
+  shown as "in the zone". Every verdict carries its reasons.
+- **FR-D2** **Too hard → a bridge, never a rewrite.** The next lesson is a smaller step toward it; the
+  lesson itself and everything the learner did with it stay. One bridge per lesson. The learner can
+  also ask for one ("Try an easier version") on any lesson that landed too hard.
+- **FR-D3** **Two too-easy lessons in a row → the next is pitched a step harder** than the plan says.
+  One is chance; two is the plan pitched low.
+- **FR-D4** **Adaptation is always visible.** A lesson declares what it changed in its own file
+  (`mindforge:adjusted`, `mindforge:bridge-for`, `mindforge:adjusted-reason`); the curriculum screen
+  shows each verdict with its reasons, each bridge and push with its reason, and what the next lesson
+  will do — the same `nextAdjustment` the run's briefing is given, so the screen and the agent cannot
+  disagree.
+
 ### 6.5 Progress tracker
 
 - **FR-P1** Lesson completion is recorded from the reader with an outcome:

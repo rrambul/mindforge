@@ -456,6 +456,29 @@ Six rules that carry the design:
 6. **"Next lesson"** is the first unblocked, incomplete planned lesson in module order, difficulty
    ascending within a module (FR-K7). The briefing names it; the agent still decides.
 
+### 3.2c Exercises and attempts (migration `20260924100000_exercises`, FR-X1–X6)
+
+Two halves with different owners, deliberately not one table:
+
+- **What an exercise is** comes from the lesson file, so it is index. `lessons.exercises` is jsonb
+  (`ExerciseDeclaration[]`, CHECKed to be an array), rewritten by every reindex from the file's
+  `<script type="application/vnd.mindforge.exercise+json">` blocks. An exercise removed from the file
+  is removed from the row. The use case re-validates the column on read, so a row written around the
+  reindexer cannot reach the SPA as an exercise with no tests.
+- **What you did with it** has no file and is the only copy, like `completed_at`. `exercise_attempts`
+  is append-only (no UPDATE policy) and keyed by `(lesson_id, exercise_key)`, never by an exercise
+  row — one of those would be rebuilt, and its id changed, by every sync.
+
+Three constraints carry the design. `exercise_attempts_passed_means_all` makes a pass with a failing
+test, no tests, or a run that did not complete unrepresentable. The key is CHECKed to the same
+dash-case `ExerciseKeySchema` enforces, so no row holds a key a URL cannot carry. And the insert
+policy checks the **lesson** as well as `user_id`: without that half, a learner could hang attempts off
+another user's lesson id — invisible to its owner, but a foreign key into their data.
+`packages/db/test/exercise-attempts.test.ts` was measured against a broken policy for each half.
+
+The summary the panel shows (count, first pass, last code) is derived on read in one grouped query,
+never kept as a counter.
+
 ### 3.3 The time tracker
 
 ```sql
@@ -1153,6 +1176,15 @@ ordered by how likely it is to end a run having produced nothing:
 7. **An absent section means unmeasured, not zero.** Stated explicitly, because §7.3b's honest
    absences only work if the reader does not fill them in.
 
+**A second addendum follows it: `skills/LESSON-SHAPE.md`** (2026-09-24, `PLAN-HANDS-ON.md` Phase 0).
+It is not an override for a missing human, which is why it is not a section of `UNATTENDED.md`: it
+says what a lesson _is_ — five parts, a prose budget, one exercise the learner does — and `/teach-me`
+binds a person at a terminal to it too. The budget is measured, not trusted: `parseLessonHtml` counts
+the words outside code, scripts and the `data-mindforge="exercise"` / `"debrief"` sections, and a lesson
+over `PROSE_BUDGET` gets a `prose_over_budget` run warning. The nine lessons written before it measured
+1,141–5,253 words. The rule also tells the agent that a lesson cannot run the learner's code — the
+lessons origin's CSP has no `'unsafe-eval'` — so exercises are ones that can be checked without it.
+
 ### 7.3b What the briefing cannot measure, and must therefore not claim
 
 `BRIEFING.md` is read by a model that will treat a number as evidence. Non-negotiable 1 — _"unknown is
@@ -1328,7 +1360,67 @@ communication for completion and quiz results. Nothing emits it: the outcome is 
 own chrome under the frame, which is a tighter capture path than anything the lesson could offer, and
 a listener with no sender is the "column nothing writes" mistake this project has already made twice.
 It arrives with the first lesson that has something to say — with a strict `origin` check on the
-parent side and a schema check on the payload, never `eval` and never trusted structure.
+parent side and a schema check on the payload, never `eval` and never trusted structure. That is still
+true of lessons: the one channel that exists is to the runner below, which is app-owned, not a lesson.
+
+**The exercise runners (FR-X4, 2026-09-24)** are the only routes on this origin allowed to `eval`,
+because running an exercise's code is their job. There are **two pages, because there are two
+policies**, and one bundle serves both:
+
+| Page             | Runs                   | `script-src`                              | `connect-src` |
+| ---------------- | ---------------------- | ----------------------------------------- | ------------- |
+| `/runner`        | JavaScript, TypeScript | `'self' 'unsafe-eval'`                    | `'none'`      |
+| `/runner/python` | Python (Pyodide)       | `'self' 'unsafe-eval' 'wasm-unsafe-eval'` | `'self'`      |
+
+Both add `worker-src blob:` and widen nothing else, and every other defence a lesson has stays in place:
+framed `sandbox="allow-scripts"` without `allow-same-origin`, and only by the app. The JavaScript page
+keeps `connect-src 'none'`, so the agent-written tests that run there can reach nothing (probed: a
+test's `fetch` fails). Only the Python page relaxes it, and only to `'self'`, for the reason below. Each
+page names its languages in `<meta name="mindforge:languages">` and the client refuses any other
+(`runtime-unavailable`), so a run cannot land under the looser policy by being sent to the wrong
+frame; the app picks the page from `runnerUrl` / `pythonRunnerUrl`. The pages and their script are
+Mindforge's own, with no inline script at all. Lesson routes keep the policy above byte for byte, and
+`handler.test.ts` asserts every one of these CSPs exactly.
+
+**Replies carry keys, not sentences.** A run that does not complete answers with a `reason`
+(`RUN_REASONS`: `code-syntax`, `tests-syntax`, `code-load`, `tests-load`, `import-refused`,
+`nothing-registered`, `too-many-tests`, `timeout`, `crashed`, `runtime-unavailable`) that the app words
+in the learner's language, and `message` is only the raw detail beneath it — the compiler's or the
+interpreter's own text, or the refused specifier. Assertion messages (`expected 3 to be 4`) stay as
+test output. A suite registering more than `RESULTS_MAX` tests is refused before any run, because the
+app rejects a longer reply and would read it as a timeout.
+
+- **Code runs in a Worker built from a Blob URL, never on the frame's main thread.** On localhost the
+  app and this origin are same-site and may share a process, so a `while (true)` in the frame would
+  freeze the learner's tab. In a worker it is killed by `terminate()` after `RUNNER_TIMEOUT_MS`
+  (probed: the answer is `timeout` at 5.0s, and the app stays responsive). A Blob URL is the only
+  option: an opaque-origin frame cannot load a worker by URL, and on the JavaScript page `connect-src
+'none'` forbids fetching one anyway. So `Bun.build` inlines both workers' text into the client bundle
+  at first request. **Only the client may value-import `@mindforge/core`**: two builds reading core's
+  source in a process that has core loaded fail in Bun 1.3 ("Unseekable reading file", every runner
+  page a 500), so the workers take types only and the harness mirrors `RESULTS_MAX`.
+- **Both directions are checked.** The runner answers only its parent, only at the app's origin, which
+  it reads from a `<meta>` because inline script is not allowed. It ignores any message whose `origin`
+  is not the app or whose `source` is not `window.parent`, and any payload that fails
+  `RunnerRequestSchema`. The app has to post with target origin `"*"`, because a sandboxed frame's
+  origin is opaque and matches nothing else. It checks `event.source === iframe.contentWindow`, since
+  `event.origin` is the string `"null"`, and parses `RunnerResponseSchema`. A result is data from a
+  frame that ran agent-written tests.
+- **Transpiling is not running.** Sucrase parses TypeScript and ESM into CommonJS on the frame's main
+  thread; it executes nothing. The harness then gives the tests a `require` that resolves `./solution`
+  and nothing else.
+- **The bundle is about 500 KB, mostly sucrase and zod**, and it is cached `immutable` under a content
+  hash (`/runner.js?v=<hash>`), so a rebuild is a new URL rather than a stale script.
+
+**Python in the runner (Phase 5).** Only `/runner/python` adds `'wasm-unsafe-eval'` and has
+`connect-src 'self'`, because Pyodide compiles WebAssembly and fetches its own interpreter and standard
+library. `'self'` reaches this origin only, which serves `/health`, the runners, Pyodide's public files
+and grant-gated workspaces — and the runner frame holds no grant — so a Python run still cannot send
+anything anywhere. `/runner` and every lesson route keep `connect-src 'none'`. Pyodide's five files
+are served from the installed package at `/pyodide/<version>/…` with `Access-Control-Allow-Origin: *`
+and `Cross-Origin-Resource-Policy: cross-origin`, because the sandboxed frame's opaque origin makes
+Pyodide's own fetch cross-origin. The Python worker is kept warm; its start is bounded by
+`PYTHON_LOAD_TIMEOUT_MS` and a run's `RUNNER_TIMEOUT_MS` starts after it.
 
 ### 7.6 Per-user memory (cross-mission)
 
@@ -1445,6 +1537,54 @@ For repeated calls over one mission's context, this is the difference between pa
 
 ---
 
+### 8.6 Hints (FR-H1–H4)
+
+The one Messages API call the API makes itself (`packages/llm/src/hint.ts`). Four decisions:
+
+- **`claude-opus-5` at `effort: "low"`.** A hint is short and latency is the product; effort is the
+  lever, not a smaller model. `max_tokens` is 4,000 because it caps thinking as well as text.
+- **A frozen system prompt** carrying the whole ladder, with `cache_control` — the prefix is shared by
+  every hint on every exercise. The rung, the exercise, the code and the last run go in the user
+  turn, tagged, and the prompt says the tagged content is data rather than instructions.
+- **Server-side refusal fallbacks** (`fallbacks: "default"`, beta `server-side-fallback-2026-07-01`).
+  The call is priced by `response.model`, which a fallback may change; a model missing from the
+  pricing table is recorded unpriced, never as zero (FR-T9).
+- **Billed in the same transaction as the hint.** `recordHint` writes the `llm_calls` row and, when
+  there is an answer, the `exercise_hints` row pointing at it. `llm_calls.id` has no database
+  default — Prisma generates it client-side — so the raw insert supplies `gen_random_uuid()`.
+
+`apps/api/test/setup.ts` deletes `ANTHROPIC_API_KEY` before the integration suite boots, and the hint
+tests stub the generator: `.env.local` carries a real key for teach runs, and without that line a
+green hint test would be a billed one.
+
+### 8.6b Opening a solution is help
+
+"Show solution" is recorded, once per exercise, as an `exercise_hints` row with `kind = 'solution'` at
+level 5 (`RevealSolution`). Before, it was recorded nowhere, and a learner who opened it, pasted it and
+passed first try made the lesson read "too easy" — while a rung-5 hint, which shows less, counted as
+heavy help. Every reader of hints (`lessonStrain`, the summary) now counts it without knowing it is
+special. A whiteboard's reference design cannot be opened before its first review.
+
+### 8.7 Whiteboard reviews (FR-X7–X9)
+
+`packages/llm/src/review.ts`: `claude-opus-5` at `effort: "medium"` — reading a design against a
+checklist is the judgement this call exists for — with `betaZodOutputFormat` for the answer and
+`fallbacks: "default"`. The call is `messages.create`, and the structured output is read by
+`readOutput`, **not** by `messages.parse`: `parse` throws on output that does not parse (a reply cut
+off at `max_tokens`, JSON a fallback got wrong), that throw is not an API error, and a review paid for
+went unrecorded. A review has its own client — three-minute timeout, no retry — because a timed-out
+review may already be billed and a retry bills it again. `RequestReviewSchema` caps the drawing's
+JSON at `SCENE_JSON_MAX` (1 MB), under the database's 2 MB check, so an oversize drawing is refused
+before the model reads it rather than rolled back, bill and all, after. The user turn is an image block (the canvas PNG) followed by the rubric by
+index and `describeScene`'s text, tagged as data. `alignReview` requires exactly one verdict per rubric
+index; anything less is `empty`. Failures classify through the same `classifyCallError` as hints
+(`ModelCallError`, "configuration" or "transient").
+
+`RequestExerciseReview` writes the `llm_calls` row (`purpose: exercise_review`) and the attempt in one
+transaction; `code` holds the scene description so the row records what the reviewer read. The
+attempts endpoint refuses whiteboards (`ExerciseKindMismatch`): a design is graded on the server,
+never by results a browser reports.
+
 ## 9. Algorithms (`packages/core`)
 
 Pure, deterministic, exhaustively unit-tested. These encode the product's opinions, so they're the highest-value tests in the repo.
@@ -1502,6 +1642,23 @@ days, counts active days over the trailing 28, and emits at most one signal
 (`never_on_weekday`) — see §3.9.
 
 ---
+
+### 9.4 How a lesson landed (`exercises/strain.ts`, FR-D1–D4)
+
+Three pure functions and one resolver, all in `packages/core`:
+
+- `exerciseEvidence(facts)` — attempts and hints → attempts to first pass, the highest rung asked
+  before it, minutes from the earliest recorded start to it.
+- `lessonStrain(outcome, evidence[])` — the verdict and its reasons, or an unknown that says which
+  (`in-progress`, `no-exercise`, `not-attempted`). The rules are in the file's header.
+- `nextAdjustment(judged, newest first)` — `bridge`, `harder`, `as-planned`, or null for no signal.
+- `resolveBridges(lessons)` — bridge → target and target → bridge, by slug.
+
+The gathering is `judgeLessons` in `apps/api/src/modules/exercises/infrastructure/`: two queries for
+any number of lessons, taking the caller's transaction so the curriculum reader, the briefing reader
+and the bridge endpoint each judge from the same snapshot they read their lessons in. It is a function
+rather than a provider because its three callers live in three modules, and a provider would make one
+import another's module to reach it.
 
 ## 10. Background jobs
 
