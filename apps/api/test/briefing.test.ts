@@ -218,6 +218,46 @@ describe("the plan in the briefing", () => {
  * briefing that implies the learner has completed nothing when the truth is that
  * nobody looked.
  */
+describe("a curriculum with no module marked open", () => {
+  // Found on 2026-09-24: nothing in the product ever sets a track `active` — every
+  // track a curriculum run writes is `proposed` — so the briefing said "no module is
+  // open, leave the track tag off", and every lesson on a fresh curriculum was
+  // written off-plan, filed under no module, and invisible on the curriculum
+  // screen. The open module is now the one the plan's next lesson is in: the same
+  // `nextLesson` the curriculum screen badges.
+  it("opens the module the plan's next lesson is in", async () => {
+    const track = moduleOf(await gather());
+
+    expect(track.slug).toBe("pg-basics");
+    expect(track.nextLesson?.slug).toBe("query-plans");
+  });
+
+  it("moves to the next module once the plan's next lesson is there", async () => {
+    for (const [seq, slug] of [
+      [1, "query-plans"],
+      [2, "indexes"],
+    ] as const) {
+      await db.$executeRawUnsafe(
+        `update lessons set status = 'generated', seq = $3::int, storage_path = $4,
+           content_hash = 'sha', completed_at = now(), outcome = 'understood'
+          where mission_id = $1::uuid and slug = $2`,
+        missionId,
+        slug,
+        seq,
+        `lessons/000${seq}-${slug}.html`,
+      );
+    }
+
+    expect(moduleOf(await gather()).slug).toBe("rls-basics");
+  });
+
+  it("still prefers a module a person marked open", async () => {
+    await open("rls-basics");
+
+    expect(moduleOf(await gather()).slug).toBe("rls-basics");
+  });
+});
+
 describe("what the briefing says about finished lessons", () => {
   async function finish(slug: string, seq: number, outcome: string | null): Promise<void> {
     await db.$executeRawUnsafe(

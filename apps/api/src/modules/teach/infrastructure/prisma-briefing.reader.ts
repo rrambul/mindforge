@@ -247,15 +247,20 @@ async function readCurrentTrack(tx: Tx, missionId: string): Promise<Tracked<Curr
   const totalTracks = Number(total?.n ?? 0);
   if (totalTracks === 0) return NO_TRACK.noCurriculum;
 
-  const [track] = await tx.$queryRawUnsafe<
-    { id: string; slug: string; name: string; outcome: string | null; position: number }[]
-  >(
+  const [marked] = await tx.$queryRawUnsafe<TrackRow[]>(
     // One row at most: `tracks_one_active_per_mission_key` is a partial unique index.
     `select id, slug, name, outcome, position from tracks
       where mission_id = $1::uuid and status = 'active'`,
     missionId,
   );
 
+  // Nothing in the product sets a track `active` — a curriculum run writes every
+  // track `proposed` — so a module marked open is the exception, and without a
+  // fallback every lesson on a fresh curriculum was written off-plan, under no
+  // module (found 2026-09-24, the Node.js mission). The open module is otherwise
+  // the one the mission's next lesson is in: the same `nextLesson` the
+  // curriculum screen badges, so the run writes what the screen says is next.
+  const track = marked ?? (await nextLessonTrack(tx, missionId));
   if (!track) return NO_TRACK.noneOpen;
 
   const [prerequisites, lessons] = await Promise.all([
@@ -292,34 +297,35 @@ async function readCurrentTrack(tx: Tx, missionId: string): Promise<Tracked<Curr
   };
 }
 
-interface LessonRow {
+interface TrackRow {
   readonly id: string;
-  readonly track_id: string | null;
   readonly slug: string;
-  readonly title: string;
-  readonly intent: string | null;
-  readonly status: string;
-  readonly difficulty: number | null;
-  readonly depth: LessonDepth | null;
-  readonly position: number | null;
-  readonly seq: number | null;
-  readonly completed_at: Date | null;
+  readonly name: string;
+  readonly outcome: string | null;
+  readonly position: number;
 }
 
-/**
- * The open module's plan, ordered and gated by `packages/core`.
- *
- * **The whole mission is loaded, not just this module.** A lesson may depend on
- * one in an earlier module (FR-K2), so a query scoped to the open track would
- * find no prerequisite rows and call every lesson unblocked — which is the exact
- * shape of a wrong answer that looks right: the plan would still be in a sensible
- * order, and the agent would be told to write something the learner cannot follow.
- */
-async function readPlan(
+/** The track of the mission's next lesson, in module order — or null when there is none. */
+async function nextLessonTrack(tx: Tx, missionId: string): Promise<TrackRow | null> {
+  const tracks = await tx.$queryRawUnsafe<TrackRow[]>(
+    `select id, slug, name, outcome, position from tracks
+      where mission_id = $1::uuid and status <> 'dropped'
+      order by position, slug`,
+    missionId,
+  );
+  const { nodes } = await readNodes(tx, missionId);
+  const next = nextLesson(
+    nodes,
+    tracks.map((track) => track.id),
+  );
+  return tracks.find((track) => track.id === next?.trackId) ?? null;
+}
+
+/** Every lesson in the mission as a `LessonNode`, with its prerequisites. */
+async function readNodes(
   tx: Tx,
   missionId: string,
-  trackId: string,
-): Promise<{ plan: readonly PlannedLesson[]; nextLesson: PlannedLesson | null }> {
+): Promise<{ rows: readonly LessonRow[]; nodes: readonly LessonNode[] }> {
   const [rows, edges] = await Promise.all([
     tx.$queryRawUnsafe<LessonRow[]>(
       `select id, track_id, slug, title, intent, status, difficulty, depth, position, seq,
@@ -352,6 +358,39 @@ async function readPlan(
     completed: row.completed_at !== null,
     prerequisiteIds: prerequisites.get(row.id) ?? [],
   }));
+
+  return { rows, nodes };
+}
+
+interface LessonRow {
+  readonly id: string;
+  readonly track_id: string | null;
+  readonly slug: string;
+  readonly title: string;
+  readonly intent: string | null;
+  readonly status: string;
+  readonly difficulty: number | null;
+  readonly depth: LessonDepth | null;
+  readonly position: number | null;
+  readonly seq: number | null;
+  readonly completed_at: Date | null;
+}
+
+/**
+ * The open module's plan, ordered and gated by `packages/core`.
+ *
+ * **The whole mission is loaded, not just this module.** A lesson may depend on
+ * one in an earlier module (FR-K2), so a query scoped to the open track would
+ * find no prerequisite rows and call every lesson unblocked — which is the exact
+ * shape of a wrong answer that looks right: the plan would still be in a sensible
+ * order, and the agent would be told to write something the learner cannot follow.
+ */
+async function readPlan(
+  tx: Tx,
+  missionId: string,
+  trackId: string,
+): Promise<{ plan: readonly PlannedLesson[]; nextLesson: PlannedLesson | null }> {
+  const { rows, nodes } = await readNodes(tx, missionId);
 
   const byId = new Map(rows.map((row) => [row.id, row]));
   const derived = deriveLessons(nodes);
