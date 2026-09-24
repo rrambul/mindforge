@@ -3,7 +3,11 @@
  *
  * ```sh
  * pnpm --filter @mindforge/worker put:workspace -- --mission=<uuid> --from=<dir>
+ * pnpm --filter @mindforge/worker put:workspace -- --mission=<uuid> --delete=<path>,<path>
  * ```
+ *
+ * `--delete` takes workspace-relative paths, named one by one. It is the only way
+ * this script removes anything: a file missing from `--from` is never a deletion.
  *
  * **What this is for.** The agent is not the only thing allowed to write a
  * workspace — non-negotiable 5 says the files are canonical and that a human with
@@ -41,7 +45,9 @@ const BUCKET = "mindforge";
 
 interface Options {
   readonly missionId: string;
-  readonly from: string;
+  readonly from: string | null;
+  /** Workspace-relative paths to remove, each named explicitly. */
+  readonly delete: readonly string[];
 }
 
 function parseOptions(argv: readonly string[]): Options {
@@ -52,11 +58,20 @@ function parseOptions(argv: readonly string[]): Options {
   }
 
   const missionId = flags.get("mission");
-  const from = flags.get("from");
-  if (!missionId || !from) {
-    throw new Error("Usage: put:workspace -- --mission=<uuid> --from=<directory>");
+  const from = flags.get("from") ?? null;
+  const remove = (flags.get("delete") ?? "")
+    .split(",")
+    .map((path) => path.trim())
+    .filter((path) => path !== "");
+  if (!missionId || (from === null && remove.length === 0)) {
+    throw new Error(
+      "Usage: put:workspace -- --mission=<uuid> [--from=<directory>] [--delete=<path>,<path>]",
+    );
   }
-  return { missionId, from };
+  if (remove.some((path) => path.startsWith("/") || path.split("/").includes(".."))) {
+    throw new Error("--delete takes workspace-relative paths, without .. or a leading /");
+  }
+  return { missionId, from, delete: remove };
 }
 
 function requireEnv(name: string): string {
@@ -106,6 +121,25 @@ async function upload(
   }
 }
 
+async function removeObjects(
+  supabaseUrl: string,
+  serviceRoleKey: string,
+  paths: readonly string[],
+): Promise<void> {
+  const response = await fetch(`${supabaseUrl.replace(/\/$/u, "")}/storage/v1/object/${BUCKET}`, {
+    method: "DELETE",
+    headers: {
+      authorization: `Bearer ${serviceRoleKey}`,
+      apikey: serviceRoleKey,
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({ prefixes: paths }),
+  });
+  if (!response.ok) {
+    throw new Error(`Storage refused the deletion: ${response.status} ${await response.text()}`);
+  }
+}
+
 async function main(): Promise<void> {
   const options = parseOptions(process.argv.slice(2));
   const supabaseUrl = requireEnv("SUPABASE_URL");
@@ -135,18 +169,30 @@ async function main(): Promise<void> {
     );
   }
 
-  const relativePaths = (await walk(options.from)).filter((path) => !isExcludedFromSync(path));
-  if (relativePaths.length === 0) throw new Error(`No files under ${options.from}`);
-
   const files = new Map<string, Uint8Array>();
-  for (const path of relativePaths) {
-    files.set(path, new Uint8Array(await readFile(join(options.from, path))));
+  if (options.from !== null) {
+    const relativePaths = (await walk(options.from)).filter((path) => !isExcludedFromSync(path));
+    if (relativePaths.length === 0) throw new Error(`No files under ${options.from}`);
+    for (const path of relativePaths) {
+      files.set(path, new Uint8Array(await readFile(join(options.from, path))));
+    }
   }
 
   const prefix = workspacePrefix(mission.user_id, workspaceKey);
   for (const [path, bytes] of files) {
     await upload(supabaseUrl, serviceRoleKey, `${prefix}/${path}`, bytes);
     process.stdout.write(`  uploaded ${path}\n`);
+  }
+
+  // Storage first, then the index, as for uploads: a row must never outlive the
+  // file it points at by more than the moment between these two lines.
+  if (options.delete.length > 0) {
+    await removeObjects(
+      supabaseUrl,
+      serviceRoleKey,
+      options.delete.map((path) => `${prefix}/${path}`),
+    );
+    for (const path of options.delete) process.stdout.write(`  deleted ${path}\n`);
   }
 
   // `compile()` rather than `init()`, for the reason `api-module-boot.test.ts`
@@ -159,11 +205,11 @@ async function main(): Promise<void> {
       userId: mission.user_id,
       missionId: options.missionId,
       files,
-      // Nothing is deleted from here. This script adds to a workspace; a file
-      // that should go is a deletion the owner makes deliberately, and treating
-      // "not in my staging directory" as "delete it" would let one hand-written
-      // curriculum wipe every lesson a real run had produced.
-      deleted: [],
+      // Only what `--delete` named. A file that should go is a deletion the owner
+      // makes deliberately, and treating "not in my staging directory" as "delete
+      // it" would let one hand-written curriculum wipe every lesson a real run had
+      // produced.
+      deleted: options.delete,
       timezone: mission.timezone,
     });
 
