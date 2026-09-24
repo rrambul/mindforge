@@ -5,10 +5,11 @@ const pkg = (name) =>
   fileURLToPath(new URL(`../../packages/${name}/src/index.ts`, import.meta.url));
 
 export default defineConfig({
-  // Vitest replaces vite.config.ts rather than extending it, so the workspace-root
-  // .env.local has to be pointed at again here — otherwise import.meta.env is empty and
-  // every module that validates it throws at import time.
-  envDir: fileURLToPath(new URL("../..", import.meta.url)),
+  // No `envDir`: the suite does not read `.env.local`. It used to, and CI has no such
+  // file, so every module that validates `import.meta.env` threw at import there — 24
+  // files failing on `main` while every local run passed, because the developer's
+  // file happened to hold `http://localhost:3000`, the origin `test/msw.ts` stubs.
+  // The values are pinned in `test.env` below instead, so a local run is a CI run.
   // Workspace packages resolve to source, not to their built `dist`. A suite that read
   // dist would pass against whatever was built last, so an edit to packages/core would
   // appear to do nothing until someone rebuilt it.
@@ -33,6 +34,13 @@ export default defineConfig({
     server: { deps: { inline: ["@excalidraw/excalidraw"] } },
     globals: false,
     setupFiles: ["./src/test/setup.ts"],
+    // Test values, pinned. `VITE_API_ORIGIN` must match `API` in `src/test/msw.ts`;
+    // nothing here reaches a real server — MSW fails any request it does not stub.
+    env: {
+      VITE_API_ORIGIN: "http://localhost:3000",
+      VITE_SUPABASE_URL: "http://127.0.0.1:54321",
+      VITE_SUPABASE_ANON_KEY: "test-anon-key",
+    },
     // Vitest's default is 5s, which on this suite measures the machine rather than the
     // code. 34 files each build a jsdom and an MSW server — cumulative environment setup
     // runs past four minutes — so when the workers oversubscribe the CPU, a `findBy*`
