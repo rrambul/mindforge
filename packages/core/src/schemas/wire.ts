@@ -1,8 +1,17 @@
 import { z } from "zod";
 
+import { STRAIN_REASONS, STRAIN_VERDICTS } from "../exercises/strain.js";
 import { SUPPORTED_LOCALES } from "../i18n/locales.js";
 import { IsoDateSchema } from "./common.js";
+import {
+  CodeExerciseSchema,
+  SceneElementSchema,
+  TaskExerciseSchema,
+  TestResultSchema,
+  WhiteboardExerciseSchema,
+} from "./exercise.js";
 import { EntryModeSchema, IntentionOutcomeSchema } from "./focus.js";
+import { HINT_RUNGS, HintLevelSchema } from "./hint.js";
 import { LessonOutcomeSchema } from "./lesson.js";
 import { MissionStatusSchema } from "./mission.js";
 import { ThemeSchema } from "./profile.js";
@@ -126,6 +135,51 @@ export const OutcomeCountsSchema = z.object({
 export const LessonDepthSchema = z.enum(["overview", "working", "deep_dive"]);
 export const LessonStatusSchema = z.enum(["planned", "generated"]);
 
+/**
+ * How a lesson landed, from what the learner did (FR-D1, `lessonStrain`).
+ *
+ * A verdict always carries its reasons, and an unknown always says which kind —
+ * "in progress" and "nothing to judge" are different facts, and neither is "in the
+ * zone" (non-negotiable 10).
+ */
+export const StrainViewSchema = z.union([
+  z.object({
+    verdict: z.enum(STRAIN_VERDICTS),
+    reasons: z.array(z.enum(STRAIN_REASONS)).min(1).readonly(),
+  }),
+  z.object({
+    verdict: z.null(),
+    unknown: z.enum(["in-progress", "no-exercise", "not-attempted"]),
+  }),
+]);
+export type StrainView = z.infer<typeof StrainViewSchema>;
+
+/**
+ * What a lesson changed about the plan, as the lesson itself declared it (FR-D4).
+ * `bridgeFor` is resolved to the lesson it names, so the screen can link it; null
+ * when a bridge named a slug this mission does not have.
+ */
+export const LessonAdjustmentViewSchema = z.object({
+  kind: z.enum(["bridge", "harder"]),
+  reason: z.string().nullable(),
+  bridgeFor: z.object({ id: IdSchema, title: z.string() }).nullable(),
+});
+export type LessonAdjustmentView = z.infer<typeof LessonAdjustmentViewSchema>;
+
+/** What the next lesson will do about how the last ones landed (`nextAdjustment`). */
+export const UpcomingAdjustmentSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("bridge"), lessonId: IdSchema, title: z.string() }),
+  z.object({
+    kind: z.literal("harder"),
+    lessons: z
+      .array(z.object({ id: IdSchema, title: z.string() }))
+      .length(2)
+      .readonly(),
+  }),
+  z.object({ kind: z.literal("as-planned") }),
+]);
+export type UpcomingAdjustment = z.infer<typeof UpcomingAdjustmentSchema>;
+
 export const CurriculumLessonSchema = z.object({
   id: IdSchema,
   slug: z.string(),
@@ -141,6 +195,11 @@ export const CurriculumLessonSchema = z.object({
   /** Titles of the prerequisites still unfinished, so the lock reads as a sentence. */
   blockedBy: z.array(z.string()).readonly(),
   dependentCount: z.number().int().nonnegative(),
+  /** How it landed. Planned lessons are `in-progress`: nothing to judge yet. */
+  strain: StrainViewSchema,
+  adjustment: LessonAdjustmentViewSchema.nullable(),
+  /** The bridge lesson already written toward this one, if any — one per lesson (FR-D2). */
+  bridge: z.object({ id: IdSchema, title: z.string() }).nullable(),
 });
 export type CurriculumLesson = z.infer<typeof CurriculumLessonSchema>;
 
@@ -163,6 +222,8 @@ export const CurriculumViewSchema = z.object({
   modules: z.array(CurriculumModuleSchema).readonly(),
   progress: MissionProgressSchema.nullable(),
   nextLessonId: IdSchema.nullable(),
+  /** Null when no finished lesson has been judged yet — no signal, which is not "as planned". */
+  upcoming: UpcomingAdjustmentSchema.nullable(),
 });
 export type CurriculumView = z.infer<typeof CurriculumViewSchema>;
 
@@ -284,6 +345,94 @@ export const LessonViewSchema = z.object({
   view: LessonGrantSchema.nullable(),
 });
 export type LessonView = z.infer<typeof LessonViewSchema>;
+
+// ============================================================================
+// Exercises — `exercises.controller.ts` (FR-X1–X6)
+// ============================================================================
+
+/**
+ * What the learner has done with one exercise so far.
+ *
+ * `firstPassedAt` null with `count > 0` is "tried, not yet passed", which is a
+ * different fact from `count === 0`, "not tried" — and neither is a zero score.
+ */
+export const ExerciseAttemptsSummarySchema = z.object({
+  count: z.number().int().min(0),
+  firstPassedAt: IsoDateTimeSchema.nullable(),
+  /** The code from the most recent attempt, so a reload resumes where you left off. */
+  lastCode: z.string().nullable(),
+  lastPassed: z.boolean().nullable(),
+  lastAt: IsoDateTimeSchema.nullable(),
+  /** What the last attempt said, test by test or rubric item by item — so a reload keeps the feedback. */
+  lastResults: z.array(TestResultSchema).readonly().nullable(),
+  /** A whiteboard's last submitted drawing, so the canvas resumes. Null for code. */
+  lastScene: z.array(SceneElementSchema).readonly().nullable(),
+});
+export type ExerciseAttemptsSummary = z.infer<typeof ExerciseAttemptsSummarySchema>;
+
+/** One hint as it was given (FR-H3). `rung` travels with `level` so no client has to map one to the other. */
+/**
+ * `hint` is a rung the learner asked for; `solution` is the reference solution they
+ * chose to open. Both are help, and a solution counts as the top rung: a pass after
+ * seeing the answer is not a pass worked out alone (non-negotiable 10).
+ */
+export const HINT_KINDS = ["hint", "solution"] as const;
+
+export const HintViewSchema = z.object({
+  kind: z.enum(HINT_KINDS),
+  level: HintLevelSchema,
+  rung: z.enum(HINT_RUNGS),
+  question: z.string().nullable(),
+  answer: z.string(),
+  createdAt: IsoDateTimeSchema,
+});
+export type HintView = z.infer<typeof HintViewSchema>;
+
+const ExerciseProgress = {
+  attempts: ExerciseAttemptsSummarySchema,
+  /** Every hint given, oldest first. Empty is "no help asked for", which is a fact worth showing. */
+  hints: z.array(HintViewSchema).readonly(),
+  /** The highest rung the learner may ask for next — the server's, so the ladder has one rule. */
+  nextHintLevel: HintLevelSchema,
+};
+
+/**
+ * A whiteboard exercise on the wire. `rubric` and `solution` are **null until the
+ * first review**, withheld by the server rather than hidden by the screen: a
+ * checklist of what a good answer covers, shown before the learner draws, is the
+ * answer shown before they draw.
+ */
+export const WhiteboardExerciseViewSchema = WhiteboardExerciseSchema.extend({
+  ...ExerciseProgress,
+  rubric: z.array(z.string()).readonly().nullable(),
+  solution: z.string().nullable(),
+});
+
+export const ExerciseViewSchema = z.discriminatedUnion("kind", [
+  CodeExerciseSchema.extend(ExerciseProgress),
+  WhiteboardExerciseViewSchema,
+  TaskExerciseSchema.extend(ExerciseProgress),
+]);
+export type ExerciseView = z.infer<typeof ExerciseViewSchema>;
+
+export const LessonExercisesViewSchema = z.object({
+  lessonId: IdSchema,
+  /**
+   * The runner page on the lessons origin. From the server, like a lesson's view
+   * URL, so the SPA is never configured with a second copy of the lessons origin
+   * that could disagree with the one the API signs grants for.
+   */
+  runnerUrl: z.url(),
+  /**
+   * The Python runner: its own route, because only Python needs `connect-src 'self'`
+   * to fetch its interpreter. JavaScript and TypeScript run under `connect-src 'none'`.
+   */
+  pythonRunnerUrl: z.url(),
+  /** How this lesson landed so far (FR-D1). */
+  strain: StrainViewSchema,
+  exercises: z.array(ExerciseViewSchema).readonly(),
+});
+export type LessonExercisesView = z.infer<typeof LessonExercisesViewSchema>;
 
 export const ReferenceDocSchema = z.object({
   id: IdSchema,

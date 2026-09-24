@@ -26,7 +26,7 @@ import type { MessageVars, ServerMessageKey } from "../i18n/server-messages.js";
  * means the request itself was malformed.
  */
 export type DomainErrorKind =
-  "unauthenticated" | "forbidden" | "not_found" | "conflict" | "invalid";
+  "unauthenticated" | "forbidden" | "not_found" | "conflict" | "invalid" | "unavailable";
 
 /**
  * One field-level failure.

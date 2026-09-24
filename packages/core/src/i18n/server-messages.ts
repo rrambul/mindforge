@@ -116,6 +116,31 @@ const EN = {
    * have understood. The copy names the way out rather than the rule.
    */
   "error.lesson.not_written": "This lesson hasn't been written yet. Ask for it to be taught first.",
+
+  /**
+   * The lesson exists and is yours, but declares no exercise with that key — most
+   * often because the lesson was regenerated and the exercise renamed.
+   */
+  "error.exercise.not_found":
+    "That exercise isn't in this lesson any more. Reload to see its exercises.",
+  "error.exercise.reviews_unavailable":
+    "Design reviews aren't available on this install: no API key is set, or the one set has no credit.",
+  "error.exercise.review_not_given": "No review came back this time. Try again.",
+  "error.exercise.kind_mismatch": "That isn't something this exercise does.",
+  "error.exercise.no_solution": "This exercise has no reference solution.",
+  "error.exercise.solution_after_review":
+    "The reference design opens after your first review — draw yours first.",
+  "error.teach.bridge_not_needed":
+    "This lesson didn't land too hard, so there's no easier version to write.",
+  "error.teach.bridge_exists": "A smaller step toward this lesson already exists. Start there.",
+  /** A rung above the next one — the ladder is climbed one rung at a time. */
+  "error.exercise.hint_locked": "Hints come one rung at a time. Ask for the next one first.",
+  "error.exercise.hints_unavailable":
+    "Hints aren't available on this install: no API key is set, or the one set has no credit.",
+  "error.exercise.hint_service_busy":
+    "The hint service isn't answering right now. Try again in a moment.",
+  /** Billed, but nothing came back worth showing. */
+  "error.exercise.hint_not_given": "No hint came back this time. Try again.",
 } as const;
 
 export type ServerMessageKey = keyof typeof EN;
@@ -192,6 +217,25 @@ const PT_BR: Readonly<Record<ServerMessageKey, string>> = {
 
   "error.lesson.not_found": "Essa lição não existe mais.",
   "error.lesson.not_written": "Esta lição ainda não foi escrita. Peça para ensiná-la primeiro.",
+
+  "error.exercise.not_found":
+    "Esse exercício não está mais nesta lição. Recarregue para ver os exercícios dela.",
+  "error.exercise.reviews_unavailable":
+    "As revisões de design não estão disponíveis nesta instalação: não há chave de API, ou a chave não tem crédito.",
+  "error.exercise.review_not_given": "Nenhuma revisão voltou desta vez. Tente de novo.",
+  "error.exercise.kind_mismatch": "Isso não é algo que este exercício faz.",
+  "error.exercise.no_solution": "Este exercício não tem solução de referência.",
+  "error.exercise.solution_after_review":
+    "O design de referência abre depois da sua primeira revisão — desenhe o seu primeiro.",
+  "error.teach.bridge_not_needed":
+    "Esta lição não ficou difícil demais, então não há uma versão mais fácil para escrever.",
+  "error.teach.bridge_exists": "Já existe um passo menor em direção a esta lição. Comece por ele.",
+  "error.exercise.hint_locked": "As dicas vêm um degrau de cada vez. Peça a próxima primeiro.",
+  "error.exercise.hints_unavailable":
+    "As dicas não estão disponíveis nesta instalação: não há chave de API, ou a chave não tem crédito.",
+  "error.exercise.hint_service_busy":
+    "O serviço de dicas não está respondendo agora. Tente de novo em instantes.",
+  "error.exercise.hint_not_given": "Nenhuma dica voltou desta vez. Tente de novo.",
 };
 
 const CATALOG: Readonly<Record<Locale, Readonly<Record<ServerMessageKey, string>>>> = {

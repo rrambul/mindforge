@@ -57,6 +57,9 @@ const LESSON = {
   unblocked: true,
   blockedBy: [],
   dependentCount: 2,
+  strain: { verdict: null, unknown: "in-progress" },
+  adjustment: null,
+  bridge: null,
 };
 
 const MODULE = {
@@ -100,6 +103,7 @@ describe("every schema accepts what its handler sends", () => {
         modules: [MODULE],
         progress: { completed: 1, total: 4, modulesNotPlanned: 2 },
         nextLessonId: null,
+        upcoming: null,
       },
     ],
     ["FocusSessionView", FocusSessionViewSchema, SESSION],
@@ -244,6 +248,7 @@ describe("a field that disappears is caught", () => {
       modules: [{ ...MODULE, lessons: [{ ...LESSON, blockedBy: "Prerequisites" }] }],
       progress: null,
       nextLessonId: null,
+      upcoming: null,
     });
 
     expect(result.success).toBe(false);
@@ -288,6 +293,7 @@ describe("nulls that mean something", () => {
         modules: [{ ...MODULE, progress: null, outcomes: null, lessons: [] }],
         progress: null,
         nextLessonId: null,
+        upcoming: null,
       }).success,
     ).toBe(true);
   });
@@ -301,6 +307,7 @@ describe("nulls that mean something", () => {
         modules: [{ ...MODULE, progress: { completed: 0, total: 0 } }],
         progress: null,
         nextLessonId: null,
+        upcoming: null,
       }).success,
     ).toBe(false);
   });
