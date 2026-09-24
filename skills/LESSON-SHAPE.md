@@ -186,6 +186,16 @@ the lesson itself can check without running the learner's code. Lessons run scri
 Make the exercise a step harder than the worked example, not a copy of it with the names changed. It
 should take about 5–15 minutes. Offer the reference solution behind a reveal, never in plain view.
 
+**An exercise may only ask for what this lesson and the lessons before it have taught.** "A step
+harder" means applying the same idea with less help, never needing ideas the curriculum has not
+reached yet. Before you write it, list what a good answer has to contain and check each item against
+this lesson and the learner's earlier ones. If an item comes from a later module (requirements,
+numbers, an API, deep-dive problems, or a concept the plan teaches later), you have two choices:
+hand it to the learner in the prompt, the way a lesson on entities hands over agreed requirements, or
+cut it from the task. A first lesson on the interview clock cannot ask for a ticketing system's peak
+load and double-booking strategy. It can ask the learner to read a run against the clock. A new
+domain is fine for practice, as long as everything it needs that was not taught is given.
+
 ## Mark the two sections
 
 Wrap the exercise and the debrief so they can be told apart from the explanation:
