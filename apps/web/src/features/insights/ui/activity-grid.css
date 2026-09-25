@@ -1,4 +1,4 @@
-/* The year grid (§3.9). Two channels, and the CSS carries one of them. */
+/* The year grid (§3.9). One channel: how much you focused, drawn as how deep the fill is. */
 
 /**
  * The grid scrolls, the page does not.
@@ -8,6 +8,12 @@
  * widen the document would take every other screen sideways with it. `overscroll-behavior-x`
  * stops a swipe that runs off the end of the grid from becoming a browser back-navigation.
  */
+.mf-heatmap-scroll,
+.mf-heatmap-legend {
+  /* One fill, read by the cells and by the legend's ramp, so the key cannot drift from the grid. */
+  --mf-heatmap-fill: var(--mf-ember);
+}
+
 .mf-heatmap-scroll {
   --mf-heatmap-cell: 9px;
   --mf-heatmap-gap: 2px;
@@ -77,30 +83,19 @@
   background-color: var(--mf-sunk);
 }
 
-/* The hue channel. Only a day whose friction was actually logged reads `--mf-cell-hue`, which is
-   set inline from that day's own ember share — so an unmeasured day has no fill to inherit and
-   cannot end up on the temper scale by accident. */
-.mf-heatmap__cell[data-measured="true"] {
-  background-color: var(--mf-cell-hue);
-}
-
 /**
- * A day with focus minutes and **no logged friction**.
+ * A day with focus time. The inline opacity from `intensityOpacity` says how much.
  *
- * Hatched rather than filled, and this is the single most important rule on the screen. Grey is the
- * slag end of the temper scale — "you spent a lot and got little" — which is a *measurement*. A day
- * you simply did not annotate has not been measured, so it gets no hue at all: the presence of the
- * square says the work happened, and the absence of a fill says nobody said what it was worth.
- * Filling it grey would be a lie in exactly the direction §7.2 forbids.
+ * This used to be keyed on `data-measured`, the friction hue channel. The v0.2 refocus removed
+ * friction and the attribute with it, and nothing else filled an active day, so every one of them
+ * rendered in the rest-day grey, only fainter (`e2e/insights.spec.ts`).
  */
-.mf-heatmap__cell[data-measured="false"] {
-  background-color: var(--mf-surface);
-  background-image: repeating-linear-gradient(45deg, var(--mf-scale) 0 1px, transparent 1px 3px);
-  box-shadow: inset 0 0 0 1px var(--mf-scale);
+.mf-heatmap__cell:not([data-empty]) {
+  background-color: var(--mf-heatmap-fill);
 }
 
-/* The legend draws the same three treatments at text size, so the key and the thing it names
-   cannot drift into two different symbols. */
+/* The legend draws the same treatments at text size, so the key and the thing it names cannot
+   drift into two different symbols. */
 .mf-heatmap-key {
   display: inline-block;
   width: 0.85em;
@@ -110,24 +105,8 @@
   background-color: var(--mf-sunk);
 }
 
-.mf-heatmap-key[data-key="ember"] {
-  background-color: var(--mf-ember);
-}
-
-.mf-heatmap-key[data-key="slag"] {
-  background-color: var(--mf-slag);
-}
-
-.mf-heatmap-key[data-key="unmeasured"] {
-  background-color: var(--mf-surface);
-  background-image: repeating-linear-gradient(45deg, var(--mf-scale) 0 1px, transparent 1px 3px);
-  box-shadow: inset 0 0 0 1px var(--mf-scale);
-}
-
 /* The intensity ramp, so "deeper means more" is stated rather than left to be inferred from a year
-   of cells. Drawn at the midpoint of the temper scale on purpose: in ember it would read as a
-   fifth hue key and imply that a deep cell is a productive one, which is the exact conflation of
-   the two channels the legend exists to prevent. */
+   of cells. */
 .mf-heatmap-ramp {
   display: inline-flex;
   align-items: center;
@@ -139,7 +118,7 @@
   width: 0.85em;
   height: 0.85em;
   border-radius: 1px;
-  background-color: color-mix(in oklab, var(--mf-ember) 50%, var(--mf-slag));
+  background-color: var(--mf-heatmap-fill);
 }
 
 .mf-heatmap-legend {
