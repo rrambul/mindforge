@@ -245,6 +245,58 @@ export class PrismaWorkspaceIndexRepository implements WorkspaceIndexRepository 
         // pointing at it survive. `(mission_id, seq)` cannot express this — the
         // planned row has no seq to conflict on — so the claim is its own update,
         // and the insert below only runs when nothing was claimed.
+        // A lesson written off-plan and adopted into the plan afterwards already has a
+        // row of its own, and attempts, sessions and an outcome point at its id. The
+        // plan entry folds into *that* row: it takes the plan's fields and the edges,
+        // and the empty planned row goes. Claiming the other way round gave the planned
+        // row this file's seq, which the written row still held.
+        if (lesson.planSlug !== null && lesson.seq !== null) {
+          const [planned] = await tx.$queryRawUnsafe<{ id: string }[]>(
+            `select id from lessons
+              where mission_id = $1::uuid and slug = $2 and status = 'planned'`,
+            lesson.missionId,
+            lesson.planSlug,
+          );
+          const [written] = await tx.$queryRawUnsafe<{ id: string }[]>(
+            `select id from lessons
+              where mission_id = $1::uuid and seq = $2::int and status = 'generated'`,
+            lesson.missionId,
+            lesson.seq,
+          );
+          if (planned !== undefined && written !== undefined) {
+            await tx.$executeRawUnsafe(
+              `insert into lesson_edges (user_id, lesson_id, prereq_id)
+               select user_id, $2::uuid, prereq_id from lesson_edges
+                where lesson_id = $1::uuid and prereq_id <> $2::uuid
+               on conflict do nothing`,
+              planned.id,
+              written.id,
+            );
+            await tx.$executeRawUnsafe(
+              `insert into lesson_edges (user_id, lesson_id, prereq_id)
+               select user_id, lesson_id, $2::uuid from lesson_edges
+                where prereq_id = $1::uuid and lesson_id <> $2::uuid
+               on conflict do nothing`,
+              planned.id,
+              written.id,
+            );
+            await tx.$executeRawUnsafe(
+              `delete from lesson_edges where lesson_id = $1::uuid or prereq_id = $1::uuid`,
+              planned.id,
+            );
+            await tx.$executeRawUnsafe(
+              `update lessons w
+                  set intent = p.intent, difficulty = p.difficulty, depth = p.depth,
+                      position = p.position, track_id = p.track_id, updated_at = now()
+                 from lessons p
+                where w.id = $2::uuid and p.id = $1::uuid`,
+              planned.id,
+              written.id,
+            );
+            await tx.$executeRawUnsafe(`delete from lessons where id = $1::uuid`, planned.id);
+          }
+        }
+
         const claimed =
           lesson.planSlug === null
             ? 0

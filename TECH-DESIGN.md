@@ -1611,7 +1611,8 @@ moduleProgress = completed planned lessons / planned lessons   -- dropped entrie
 unblocked(l)   = every prerequisite of l is completed
 fundamental(l) = l has dependents; rank by dependent count
 nextLesson     = first unblocked, incomplete planned lesson,
-                 module order then difficulty ascending
+                 module order, then within a module orderModule's order
+orderModule    = prerequisites first; among what is free, difficulty ascending, then position
 ```
 
 `moduleOutcomes` sits beside it (FR-P4) and returns four counts — understood, shaky, lost, and

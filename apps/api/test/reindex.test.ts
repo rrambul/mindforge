@@ -797,6 +797,54 @@ describe("claiming a plan entry", () => {
     expect(rows[0]).toMatchObject({ slug: "query-plans", intent: "Read one aloud" });
   });
 
+  it("folds a lesson written off-plan into the entry it later claims, keeping its own row", async () => {
+    // A lesson the agent wrote outside the plan, adopted into it afterwards. The
+    // written row has attempts, sessions and an outcome pointing at its id, and the
+    // planned row has the plan's fields and the edges; the claim used to try to give
+    // the planned row the written one's seq and fail on (mission_id, seq).
+    const OFF_PLAN = CLAIMING.replace(/\s*<meta name="mindforge:lesson"[^>]*>/u, "");
+    // Its filename slug is not the plan's, as with an agent that named it itself.
+    await run({ "lessons/0001-reading-plans.html": OFF_PLAN });
+    const [written] = await db.$queryRawUnsafe<{ id: string }[]>(
+      `select id from lessons where mission_id = $1::uuid`,
+      missionId,
+    );
+
+    const withSecond = `${PLANNED}| indexes     | Indexes     | Pick one       | 3          | working | query-plans |\n`;
+    await run({ "CURRICULUM.md": withSecond, "lessons/0001-reading-plans.html": CLAIMING });
+
+    const rows = await db.$queryRawUnsafe<
+      {
+        id: string;
+        slug: string;
+        status: string;
+        intent: string | null;
+        difficulty: number | null;
+      }[]
+    >(
+      `select id, slug, status, intent, difficulty from lessons
+        where mission_id = $1::uuid order by slug`,
+      missionId,
+    );
+    expect(
+      rows.map(({ slug, status, intent, difficulty }) => ({ slug, status, intent, difficulty })),
+    ).toEqual([
+      { slug: "indexes", status: "planned", intent: "Pick one", difficulty: 3 },
+      { slug: "query-plans", status: "generated", intent: "Read one aloud", difficulty: 2 },
+    ]);
+    // The written row, not a new one: attempts and sessions point at this id.
+    expect(rows[1]!.id).toBe(written!.id);
+
+    const edges = await db.$queryRawUnsafe<{ lesson: string; prereq: string }[]>(
+      `select l.slug as lesson, p.id as prereq from lesson_edges e
+         join lessons l on l.id = e.lesson_id
+         join lessons p on p.id = e.prereq_id
+        where l.mission_id = $1::uuid`,
+      missionId,
+    );
+    expect(edges).toEqual([{ lesson: "indexes", prereq: written!.id }]);
+  });
+
   it("writes a lesson that claims nothing as its own row", async () => {
     // Off-plan is legal and permanent. It joins the module and the module's
     // denominator; it just does not consume a plan entry.

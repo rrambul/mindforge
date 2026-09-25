@@ -116,14 +116,14 @@ beforeEach(async () => {
 
 describe("the plan in the briefing", () => {
   it("names the first unblocked lesson, not the easiest one", async () => {
-    // `indexes` is difficulty 1 and `query-plans` is 2, so it sorts first in the
-    // module — and a briefing that read the order as the answer would send the
-    // agent to write the lesson the learner cannot follow yet. Dependencies gate;
-    // difficulty only orders.
+    // `indexes` is difficulty 1 and `query-plans` is 2, but `indexes` depends on
+    // `query-plans`, so it is listed after it: a module never shows a lesson above
+    // one it waits on. And the briefing names the unblocked one, which is not the
+    // easiest, so the agent does not write the lesson the learner cannot follow yet.
     await open("pg-basics");
     const module = moduleOf(await gather());
 
-    expect(module.plan.map((l) => l.slug)).toEqual(["indexes", "query-plans"]);
+    expect(module.plan.map((l) => l.slug)).toEqual(["query-plans", "indexes"]);
     expect(module.nextLesson).toMatchObject({ slug: "query-plans", intent: "Read one aloud" });
   });
 

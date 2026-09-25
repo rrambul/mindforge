@@ -140,6 +140,48 @@ describe("orderModule", () => {
     orderModule(lessons);
     expect(lessons.map((l) => l.id)).toEqual(["b", "a"]);
   });
+
+  it("never lists a lesson before one it depends on, however easy it is", () => {
+    // The system-design mission's first module listed "Thinking out loud"
+    // (difficulty 2) above the "complete design" (difficulty 3) it waits on.
+    const ordered = orderModule([
+      lesson("fullrun", { difficulty: 3, position: 5, prerequisiteIds: ["highlevel"] }),
+      lesson("talking", { difficulty: 2, position: 6, prerequisiteIds: ["fullrun"] }),
+      lesson("highlevel", { difficulty: 2, position: 4 }),
+    ]);
+
+    expect(ordered.map((l) => l.id)).toEqual(["highlevel", "fullrun", "talking"]);
+  });
+
+  it("still puts the easiest first among lessons that are free to go next", () => {
+    const ordered = orderModule([
+      lesson("base", { difficulty: 3, position: 1 }),
+      lesson("on-base", { difficulty: 1, position: 2, prerequisiteIds: ["base"] }),
+      lesson("free-hard", { difficulty: 4, position: 3 }),
+      lesson("free-easy", { difficulty: 2, position: 4 }),
+    ]);
+
+    expect(ordered.map((l) => l.id)).toEqual(["free-easy", "base", "on-base", "free-hard"]);
+  });
+
+  it("ignores a prerequisite in another module, which this list does not order", () => {
+    const ordered = orderModule([
+      lesson("later", { difficulty: 2, prerequisiteIds: ["elsewhere"] }),
+      lesson("sooner", { difficulty: 3 }),
+    ]);
+
+    expect(ordered.map((l) => l.id)).toEqual(["later", "sooner"]);
+  });
+
+  it("still finishes when the lessons wait on each other in a cycle", () => {
+    const ordered = orderModule([
+      lesson("a", { difficulty: 2, prerequisiteIds: ["b"] }),
+      lesson("b", { difficulty: 1, prerequisiteIds: ["a"] }),
+      lesson("c", { difficulty: 3, prerequisiteIds: ["c"] }),
+    ]);
+
+    expect(ordered.map((l) => l.id)).toEqual(["c", "b", "a"]);
+  });
 });
 
 describe("moduleProgress", () => {

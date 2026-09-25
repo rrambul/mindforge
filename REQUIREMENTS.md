@@ -141,8 +141,9 @@ rollup.
 - **FR-K6** **Fundamental is derived:** a lesson with dependents is fundamental; the UI badges it
   and can rank by dependent count. Never stored, never hand-set.
 - **FR-K7** **Unblocked is derived:** every dependency completed. The "next lesson" suggestion is
-  the first unblocked, incomplete planned lesson in module order, difficulty ascending within a
-  module.
+  the first unblocked, incomplete planned lesson in module order. Within a module, a lesson is never
+  listed before one it depends on; among the lessons that could come next, the easiest comes first,
+  then the plan's own order.
 
 ### 6.4 Lessons & the teach integration
 

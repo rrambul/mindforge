@@ -57,6 +57,11 @@ written in it.
   That ordering comes from the dependency graph, which you cannot see — you decide what goes _in_ the
   lesson, not which lesson it is. If the briefing names none, teach the most defensible next thing
   inside the module and claim no plan entry.
+- **A gap in the plan is a note, not a lesson.** If you think the plan is missing a lesson, write the
+  one the briefing names anyway, and put the case for the missing one in `NOTES.md`, under the
+  heading `## Curriculum gap worth fixing`. A lesson written outside the plan has no place in its
+  module: the learner sees it after every planned lesson, with no difficulty or depth, and out of the
+  order it was meant to be read in.
 - **Write one lesson and stop.** Modules are built one lesson per run, after the learner has done the
   last one. A run that produces four lessons has guessed at three of them without seeing how the first
   landed.

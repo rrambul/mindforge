@@ -19,9 +19,11 @@
  *    other lessons depend on it, and the more that do the more fundamental it is.
  *    The count is returned rather than a boolean so the UI can rank by it (FR-K6).
  *
- * 3. **Difficulty orders, dependencies gate.** Within a module the plan's own
- *    order is the tie-break and difficulty is the sort; what may be started at all
- *    is decided only by whether every prerequisite is finished (FR-K7).
+ * 3. **Dependencies come first, then difficulty.** Within a module a lesson is
+ *    never listed before one it depends on; among the lessons that could come
+ *    next, the easiest does, with the plan's own order as the tie-break. What may
+ *    be *started* is still decided only by whether every prerequisite is finished
+ *    (FR-K7).
  */
 
 // Type-only, so the graph stays free of zod: it runs in the SPA bundle, and the
@@ -145,7 +147,14 @@ export function deriveLessons(lessons: readonly LessonNode[]): ReadonlyMap<strin
 }
 
 /**
- * Order the lessons within one module: difficulty ascending, then the plan.
+ * Order the lessons within one module: never a lesson before one it depends on,
+ * and otherwise the easiest first, then the plan.
+ *
+ * Difficulty alone used to be the sort, so a difficulty-2 lesson that depends on a
+ * difficulty-3 one was listed above it: "Thinking out loud" above the "complete
+ * design" it waits on, in a module that read top to bottom as the wrong order.
+ * Now each step takes the easiest lesson whose prerequisites *in this module* are
+ * already placed. A prerequisite in another module is not this list's to order.
  *
  * A lesson with no difficulty sorts last rather than first. The alternative reads
  * an absent number as a 0, which would put every unrated lesson at the front of
@@ -154,17 +163,37 @@ export function deriveLessons(lessons: readonly LessonNode[]): ReadonlyMap<strin
  *
  * Ties fall through to the plan's row order, then to the file's sequence, then to
  * the id — so the order is total, and two renders of the same module never
- * disagree.
+ * disagree. A dependency cycle (the parser drops them, so this is a belt) cannot
+ * stall it: when nothing is free, the easiest remaining lesson goes next.
  */
 export function orderModule(lessons: readonly LessonNode[]): readonly LessonNode[] {
-  return [...lessons].sort(
-    (a, b) =>
-      rank(a.difficulty) - rank(b.difficulty) ||
-      rank(a.position) - rank(b.position) ||
-      rank(a.seq) - rank(b.seq) ||
-      // Ids are unique, so this last step only ever decides between two rows the
-      // plan left genuinely indistinguishable — and it always decides the same way.
-      a.id.localeCompare(b.id),
+  const inModule = new Set(lessons.map((lesson) => lesson.id));
+  const waitingOn = new Map(
+    lessons.map((lesson) => [
+      lesson.id,
+      new Set(lesson.prerequisiteIds.filter((id) => id !== lesson.id && inModule.has(id))),
+    ]),
+  );
+
+  let remaining = [...lessons].sort(byEase);
+  const ordered: LessonNode[] = [];
+  while (remaining.length > 0) {
+    const next = remaining.find((lesson) => waitingOn.get(lesson.id)!.size === 0) ?? remaining[0]!;
+    ordered.push(next);
+    remaining = remaining.filter((lesson) => lesson !== next);
+    for (const waiting of waitingOn.values()) waiting.delete(next.id);
+  }
+  return ordered;
+}
+
+function byEase(a: LessonNode, b: LessonNode): number {
+  return (
+    rank(a.difficulty) - rank(b.difficulty) ||
+    rank(a.position) - rank(b.position) ||
+    rank(a.seq) - rank(b.seq) ||
+    // Ids are unique, so this last step only ever decides between two rows the
+    // plan left genuinely indistinguishable — and it always decides the same way.
+    a.id.localeCompare(b.id)
   );
 }
 
