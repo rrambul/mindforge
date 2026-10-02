@@ -16,6 +16,21 @@ export type LessonOutcome = (typeof LESSON_OUTCOMES)[number];
 export const LessonOutcomeSchema = z.enum(LESSON_OUTCOMES);
 
 /**
+ * What a `lessons` row is (FR-E1). An exam is a lesson file that says it is one with
+ * `<meta name="mindforge:kind" content="exam">`, indexed onto the same table so it
+ * gets the reader, the grant and the exercise attempts for nothing — and so every
+ * derivation that counts lessons has to leave it out (FR-E2).
+ */
+export const LESSON_KINDS = ["lesson", "exam"] as const;
+export type LessonKind = (typeof LESSON_KINDS)[number];
+export const LessonKindSchema = z.enum(LESSON_KINDS);
+
+/** A raw `lessons.kind`, narrowed: anything but `exam` is a lesson, which is the column's default. */
+export function asLessonKind(value: string | null | undefined): LessonKind {
+  return value === "exam" ? "exam" : "lesson";
+}
+
+/**
  * Completing a lesson from the reader: one required field, which is what makes the
  * capture two taps — open the tray, pick the outcome (§7.1).
  *

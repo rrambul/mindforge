@@ -141,6 +141,18 @@ const EN = {
     "The hint service isn't answering right now. Try again in a moment.",
   /** Billed, but nothing came back worth showing. */
   "error.exercise.hint_not_given": "No hint came back this time. Try again.",
+
+  /** An exam's result is what its items say (FR-E5); there is no chip to tap. */
+  "error.lesson.is_exam": "An exam has no outcome to mark. Its items say how it went.",
+  /** FR-E5: a pass after seeing the answer is not a pass. */
+  "error.exercise.no_help_in_exam":
+    "There's no help in an exam. Hints and the answer open once you've passed this item.",
+  "error.deadline.module_not_found": "That module isn't in this mission's curriculum.",
+  "error.deadline.module_dropped":
+    "This module was dropped from the curriculum, so there's no deadline to keep for it.",
+  "error.deadline.module_finished": "This module is finished, so nothing is left to be due.",
+  /** FR-U2: a commitment is to a day still ahead, in the learner's timezone. */
+  "error.deadline.in_past": "A deadline can't be in the past. Pick today or a later day.",
 } as const;
 
 export type ServerMessageKey = keyof typeof EN;
@@ -236,6 +248,15 @@ const PT_BR: Readonly<Record<ServerMessageKey, string>> = {
   "error.exercise.hint_service_busy":
     "O serviço de dicas não está respondendo agora. Tente de novo em instantes.",
   "error.exercise.hint_not_given": "Nenhuma dica voltou desta vez. Tente de novo.",
+
+  "error.lesson.is_exam": "Uma prova não tem resultado para marcar. Os itens dela dizem como foi.",
+  "error.exercise.no_help_in_exam":
+    "Não há ajuda numa prova. As dicas e a resposta abrem quando você passar neste item.",
+  "error.deadline.module_not_found": "Esse módulo não está no currículo desta missão.",
+  "error.deadline.module_dropped":
+    "Este módulo saiu do currículo, então não há prazo a cumprir para ele.",
+  "error.deadline.module_finished": "Este módulo está concluído, então não há mais nada com prazo.",
+  "error.deadline.in_past": "Um prazo não pode estar no passado. Escolha hoje ou um dia depois.",
 };
 
 const CATALOG: Readonly<Record<Locale, Readonly<Record<ServerMessageKey, string>>>> = {

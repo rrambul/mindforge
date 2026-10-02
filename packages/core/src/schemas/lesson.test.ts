@@ -1,10 +1,11 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  asLessonKind,
+  asLessonOutcome,
   CompleteLessonSchema,
   LESSON_OUTCOMES,
   LessonOutcomeSchema,
-  asLessonOutcome,
 } from "./lesson.js";
 
 describe("lesson outcomes", () => {
@@ -40,5 +41,14 @@ describe("asLessonOutcome", () => {
     expect(asLessonOutcome("done")).toBeNull();
     expect(asLessonOutcome("")).toBeNull();
     expect(asLessonOutcome(null)).toBeNull();
+  });
+});
+
+describe("asLessonKind", () => {
+  it("reads exam as an exam and anything else as a lesson, the column's default", () => {
+    expect(asLessonKind("exam")).toBe("exam");
+    expect(asLessonKind("lesson")).toBe("lesson");
+    expect(asLessonKind(null)).toBe("lesson");
+    expect(asLessonKind("quiz")).toBe("lesson");
   });
 });

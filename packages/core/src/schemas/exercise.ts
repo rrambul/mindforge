@@ -61,6 +61,12 @@ const ExerciseBase = z.object({
   prompt: z.string().min(1).max(4_000),
   /** What the lesson expects this to take. Phase 3 compares against it; absent is not zero. */
   expectedMinutes: z.number().int().min(1).max(120).nullable().default(null),
+  /**
+   * The slugs of the lessons this exercise examines (FR-E4). Declared by exam items so
+   * a failed one can name what to revisit; optional, and meaningless, on a lesson's
+   * own exercises, which examine the lesson they are in.
+   */
+  covers: z.array(z.string().min(1).max(120)).max(20).optional(),
 });
 
 export const CodeExerciseSchema = ExerciseBase.extend({

@@ -12,7 +12,7 @@ import {
 } from "./exercise.js";
 import { EntryModeSchema, IntentionOutcomeSchema } from "./focus.js";
 import { HINT_RUNGS, HintLevelSchema } from "./hint.js";
-import { LessonOutcomeSchema } from "./lesson.js";
+import { LessonKindSchema, LessonOutcomeSchema } from "./lesson.js";
 import { MissionStatusSchema } from "./mission.js";
 import { ThemeSchema } from "./profile.js";
 
@@ -180,6 +180,98 @@ export const UpcomingAdjustmentSchema = z.discriminatedUnion("kind", [
 ]);
 export type UpcomingAdjustment = z.infer<typeof UpcomingAdjustmentSchema>;
 
+/**
+ * A module's exam (FR-E6), as `examResult` derives it.
+ *
+ * `result` is null for an exam that declares no items — written, and with nothing to
+ * pass, which is not a pass. `revisit` is resolved from slugs to lessons, so the
+ * screen can link what the unpassed items cover.
+ */
+export const ExamResultViewSchema = z.object({
+  total: z.number().int().positive(),
+  passedCount: z.number().int().nonnegative(),
+  checkedPasses: z.number().int().nonnegative(),
+  selfReportedPasses: z.number().int().nonnegative(),
+  attempted: z.boolean(),
+  passed: z.boolean(),
+  passedAt: IsoDateTimeSchema.nullable(),
+  revisit: z.array(z.object({ id: IdSchema, title: z.string() })).readonly(),
+});
+export type ExamResultView = z.infer<typeof ExamResultViewSchema>;
+
+export const ModuleExamViewSchema = z.object({
+  lessonId: IdSchema,
+  title: z.string(),
+  result: ExamResultViewSchema.nullable(),
+});
+export type ModuleExamView = z.infer<typeof ModuleExamViewSchema>;
+
+/** `deadlineStatus`'s shape. Every count is a whole number of the learner's local days. */
+export const DeadlineStatusViewSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("met"), daysEarly: z.number().int().nonnegative() }),
+  z.object({ kind: z.literal("missed"), daysLate: z.number().int().positive() }),
+  z.object({ kind: z.literal("overdue"), daysOver: z.number().int().positive() }),
+  z.object({ kind: z.literal("due-today") }),
+  z.object({ kind: z.literal("on-track"), daysLeft: z.number().int().positive() }),
+  z.object({
+    kind: z.literal("behind"),
+    daysLeft: z.number().int().positive(),
+    daysBehind: z.number().int().positive(),
+  }),
+  z.object({ kind: z.literal("no-projection"), daysLeft: z.number().int().positive() }),
+]);
+export type DeadlineStatusView = z.infer<typeof DeadlineStatusViewSchema>;
+
+/**
+ * The deadline in force, the one first committed, and how many times it moved
+ * (FR-U2). All three always travel together, so no screen can show a date without
+ * being able to say it was moved.
+ */
+export const ModuleDeadlineViewSchema = z.object({
+  dueOn: IsoDateSchema,
+  firstDueOn: IsoDateSchema,
+  moves: z.number().int().nonnegative(),
+  status: DeadlineStatusViewSchema,
+});
+export type ModuleDeadlineView = z.infer<typeof ModuleDeadlineViewSchema>;
+
+/** `projectSchedule`'s shape for one module (FR-U4). */
+export const ProjectionViewSchema = z.discriminatedUnion("status", [
+  z.object({ status: z.literal("finished") }),
+  z.object({
+    status: z.literal("projected"),
+    units: z.number().int().positive(),
+    minutes: z.number().int().nonnegative(),
+    startDay: IsoDateSchema,
+    examDay: IsoDateSchema,
+  }),
+  z.object({
+    status: z.literal("unknown"),
+    reason: z.enum(["not-planned", "after-unplanned", "no-pace", "dropped"]),
+  }),
+]);
+export type ProjectionView = z.infer<typeof ProjectionViewSchema>;
+
+/** What every projection rests on (FR-U1) — or what is missing for there to be one. */
+export const PaceViewSchema = z.discriminatedUnion("status", [
+  z.object({
+    status: z.literal("known"),
+    minutesPerLesson: z.number().nonnegative(),
+    timedLessons: z.number().int().positive(),
+    minutesPerDay: z.number().positive(),
+    windowDays: z.number().int().positive(),
+  }),
+  z.object({
+    status: z.literal("unknown"),
+    missing: z
+      .array(z.enum(["timed-lessons", "recent-time"]))
+      .min(1)
+      .readonly(),
+    timedLessons: z.number().int().nonnegative(),
+  }),
+]);
+export type PaceView = z.infer<typeof PaceViewSchema>;
+
 export const CurriculumLessonSchema = z.object({
   id: IdSchema,
   slug: z.string(),
@@ -214,6 +306,13 @@ export const CurriculumModuleSchema = z.object({
   progress: ModuleProgressSchema.nullable(),
   outcomes: OutcomeCountsSchema.nullable(),
   lessons: z.array(CurriculumLessonSchema).readonly(),
+  /** Null until an exam is written for this module — "not written yet", never "failed". */
+  exam: ModuleExamViewSchema.nullable(),
+  /** Null when the learner has not committed to a date. */
+  deadline: ModuleDeadlineViewSchema.nullable(),
+  projection: ProjectionViewSchema,
+  /** Every lesson completed and the exam passed (FR-E7). Null while it is not. */
+  finishedAt: IsoDateTimeSchema.nullable(),
 });
 export type CurriculumModule = z.infer<typeof CurriculumModuleSchema>;
 
@@ -224,6 +323,16 @@ export const CurriculumViewSchema = z.object({
   nextLessonId: IdSchema.nullable(),
   /** Null when no finished lesson has been judged yet — no signal, which is not "as planned". */
   upcoming: UpcomingAdjustmentSchema.nullable(),
+  /** The learner's local day this view was computed for. Every date below is relative to it. */
+  today: IsoDateSchema,
+  pace: PaceViewSchema,
+  /** The module the learner is in (`currentModule`), where the deadline prompt belongs. */
+  currentModuleId: IdSchema.nullable(),
+  /**
+   * The date proposed for the current module when it has no deadline yet (FR-U2, FR-U5).
+   * `dueOn` is null when there is no estimate to propose from, and the learner picks.
+   */
+  proposal: z.object({ moduleId: IdSchema, dueOn: IsoDateSchema.nullable() }).nullable(),
 });
 export type CurriculumView = z.infer<typeof CurriculumViewSchema>;
 
@@ -337,6 +446,8 @@ export const LessonViewSchema = z.object({
   title: z.string(),
   intent: z.string().nullable(),
   status: LessonStatusSchema,
+  /** An exam is opened in the same reader with no outcome chips (FR-E5). */
+  kind: LessonKindSchema,
   difficulty: z.number().int().min(1).max(5).nullable(),
   depth: LessonDepthSchema.nullable(),
   seq: z.number().int().nullable(),
@@ -430,6 +541,8 @@ export const LessonExercisesViewSchema = z.object({
   pythonRunnerUrl: z.url(),
   /** How this lesson landed so far (FR-D1). */
   strain: StrainViewSchema,
+  /** An exam's items refuse hints and solutions until passed (FR-E5). */
+  kind: LessonKindSchema,
   exercises: z.array(ExerciseViewSchema).readonly(),
 });
 export type LessonExercisesView = z.infer<typeof LessonExercisesViewSchema>;

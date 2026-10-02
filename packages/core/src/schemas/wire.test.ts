@@ -72,6 +72,18 @@ const MODULE = {
   progress: { completed: 1, total: 4 },
   outcomes: { understood: 0, shaky: 1, lost: 0, unrecorded: 0 },
   lessons: [LESSON],
+  exam: null,
+  deadline: null,
+  projection: { status: "unknown", reason: "no-pace" },
+  finishedAt: null,
+};
+
+/** What every curriculum carries besides its modules: the day, the pace, the prompt. */
+const SCHEDULE = {
+  today: "2026-08-08",
+  pace: { status: "unknown", missing: ["timed-lessons"], timedLessons: 1 },
+  currentModuleId: null,
+  proposal: null,
 };
 
 const SESSION = {
@@ -104,6 +116,7 @@ describe("every schema accepts what its handler sends", () => {
         progress: { completed: 1, total: 4, modulesNotPlanned: 2 },
         nextLessonId: null,
         upcoming: null,
+        ...SCHEDULE,
       },
     ],
     ["FocusSessionView", FocusSessionViewSchema, SESSION],
@@ -133,6 +146,7 @@ describe("every schema accepts what its handler sends", () => {
         title: "RLS",
         intent: null,
         status: "generated",
+        kind: "lesson",
         difficulty: null,
         depth: null,
         seq: 1,
@@ -249,6 +263,7 @@ describe("a field that disappears is caught", () => {
       progress: null,
       nextLessonId: null,
       upcoming: null,
+      ...SCHEDULE,
     });
 
     expect(result.success).toBe(false);
@@ -294,6 +309,7 @@ describe("nulls that mean something", () => {
         progress: null,
         nextLessonId: null,
         upcoming: null,
+        ...SCHEDULE,
       }).success,
     ).toBe(true);
   });
@@ -308,6 +324,7 @@ describe("nulls that mean something", () => {
         progress: null,
         nextLessonId: null,
         upcoming: null,
+        ...SCHEDULE,
       }).success,
     ).toBe(false);
   });
@@ -325,6 +342,75 @@ describe("nulls that mean something", () => {
         atLeast: true,
       }).capUsd,
     ).toBeNull();
+  });
+});
+
+describe("exams and deadlines", () => {
+  it("carries a module with an exam half passed, a moved deadline and a projection", () => {
+    const parsed = CurriculumViewSchema.parse({
+      missionId: UUID,
+      modules: [
+        {
+          ...MODULE,
+          exam: {
+            lessonId: UUID,
+            title: "Exam: Basics",
+            result: {
+              total: 4,
+              passedCount: 2,
+              checkedPasses: 1,
+              selfReportedPasses: 1,
+              attempted: true,
+              passed: false,
+              passedAt: null,
+              revisit: [{ id: UUID, title: "Row level security" }],
+            },
+          },
+          deadline: {
+            dueOn: "2026-08-20",
+            firstDueOn: "2026-08-14",
+            moves: 1,
+            status: { kind: "behind", daysLeft: 12, daysBehind: 3 },
+          },
+          projection: {
+            status: "projected",
+            units: 2,
+            minutes: 60,
+            startDay: "2026-08-08",
+            examDay: "2026-08-23",
+          },
+        },
+      ],
+      progress: null,
+      nextLessonId: null,
+      upcoming: null,
+      today: "2026-08-08",
+      pace: {
+        status: "known",
+        minutesPerLesson: 30,
+        timedLessons: 4,
+        minutesPerDay: 4.5,
+        windowDays: 28,
+      },
+      currentModuleId: UUID,
+      proposal: { moduleId: UUID, dueOn: null },
+    });
+
+    expect(parsed.modules[0]?.deadline?.moves).toBe(1);
+  });
+
+  it("refuses a pace that is unknown with nothing missing", () => {
+    expect(
+      CurriculumViewSchema.safeParse({
+        missionId: UUID,
+        modules: [],
+        progress: null,
+        nextLessonId: null,
+        upcoming: null,
+        ...SCHEDULE,
+        pace: { status: "unknown", missing: [], timedLessons: 0 },
+      }).success,
+    ).toBe(false);
   });
 });
 
