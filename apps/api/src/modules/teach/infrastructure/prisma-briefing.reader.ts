@@ -1,5 +1,6 @@
 import {
   deriveLessons,
+  ExerciseDeclarationSchema,
   nextAdjustment,
   nextLesson,
   orderModule,
@@ -13,6 +14,7 @@ import {
   notTracked,
   type BriefingFacts,
   type CurrentTrack,
+  type ExamModule,
   type PlannedLesson,
   type Tracked,
 } from "@mindforge/workspace";
@@ -52,7 +54,7 @@ export class PrismaBriefingReader implements BriefingReader {
   gather(
     userId: string,
     missionId: string,
-    options: { readonly bridgeFor?: string | null } = {},
+    options: { readonly bridgeFor?: string | null; readonly examFor?: string | null } = {},
   ): Promise<BriefingFacts> {
     return this.db.run(userId, async (tx) => {
       const [mission] = await tx.$queryRawUnsafe<{ topic: string }[]>(
@@ -62,7 +64,7 @@ export class PrismaBriefingReader implements BriefingReader {
 
       const [counts] = await tx.$queryRawUnsafe<{ lessons: bigint; records: bigint }[]>(
         `select
-           (select count(*) from lessons where mission_id = $1::uuid) as lessons,
+           (select count(*) from lessons where mission_id = $1::uuid and kind = 'lesson') as lessons,
            (select count(*) from learning_records where mission_id = $1::uuid) as records`,
         missionId,
       );
@@ -71,7 +73,7 @@ export class PrismaBriefingReader implements BriefingReader {
         { seq: number | null; title: string; outcome: string | null }[]
       >(
         `select seq, title, outcome from lessons
-          where mission_id = $1::uuid and completed_at is not null
+          where mission_id = $1::uuid and kind = 'lesson' and completed_at is not null
           order by completed_at desc
           limit $2`,
         missionId,
@@ -98,6 +100,7 @@ export class PrismaBriefingReader implements BriefingReader {
         })),
         lessonOutcomes: outcomes.map(describeOutcome),
         ...(await readAdaptation(tx, missionId, options.bridgeFor ?? null)),
+        ...(await readExamModule(tx, missionId, options.examFor ?? null)),
       } satisfies BriefingFacts;
     });
   }
@@ -158,7 +161,7 @@ async function readAdaptation(
     `select l.id, l.slug, l.title, l.seq, t.slug as track_slug, l.completed_at, l.outcome,
             l.exercises, l.adjustment, l.bridge_for_slug
        from lessons l left join tracks t on t.id = l.track_id
-      where l.mission_id = $1::uuid and l.status = 'generated'`,
+      where l.mission_id = $1::uuid and l.status = 'generated' and l.kind = 'lesson'`,
     missionId,
   );
 
@@ -223,6 +226,94 @@ async function readAdaptation(
   return { lessonLandings, adjustment };
 }
 
+/**
+ * The module an exam run examines, with every written lesson in it (FR-E4).
+ *
+ * Absent rather than null when there is no exam to write, so a lesson run's facts
+ * are byte-identical to what they were before exams existed. Absent too when the
+ * module named has gone — dropped since the button was pressed — which the
+ * briefing says in so many words.
+ */
+async function readExamModule(
+  tx: Tx,
+  missionId: string,
+  examFor: string | null,
+): Promise<{ examModule?: ExamModule }> {
+  if (examFor === null) return {};
+
+  const [track] = await tx.$queryRawUnsafe<TrackRow[]>(
+    `select id, slug, name, outcome, position from tracks
+      where id = $1::uuid and mission_id = $2::uuid and status <> 'dropped'`,
+    examFor,
+    missionId,
+  );
+  if (!track) return {};
+
+  const [[total], lessons] = await Promise.all([
+    tx.$queryRawUnsafe<{ n: bigint }[]>(
+      `select count(*) as n from tracks where mission_id = $1::uuid and status <> 'dropped'`,
+      missionId,
+    ),
+    tx.$queryRawUnsafe<
+      {
+        id: string;
+        seq: number;
+        slug: string;
+        title: string;
+        storage_path: string;
+        outcome: string | null;
+        completed_at: Date | null;
+        exercises: unknown;
+      }[]
+    >(
+      `select id, seq, slug, title, storage_path, outcome, completed_at, exercises from lessons
+        where track_id = $1::uuid and kind = 'lesson' and status = 'generated'
+        order by seq`,
+      track.id,
+    ),
+  ]);
+
+  const strains = await judgeLessons(tx, lessons);
+
+  return {
+    examModule: {
+      slug: track.slug,
+      name: track.name,
+      outcome: track.outcome,
+      position: track.position,
+      totalTracks: Number(total?.n ?? 0),
+      lessons: lessons.map((lesson) => {
+        const strain = strains.get(lesson.id)!;
+        return {
+          seq: lesson.seq,
+          slug: lesson.slug,
+          title: lesson.title,
+          path: lesson.storage_path,
+          outcome: lesson.outcome,
+          landing:
+            strain.verdict === null
+              ? null
+              : `${strain.verdict}: ${strain.reasons.map((r) => REASON_PHRASES[r]).join("; ")}`,
+          exercises: exerciseTitles(lesson.exercises),
+        };
+      }),
+    },
+  };
+}
+
+/**
+ * The titles out of a `lessons.exercises` column, through the same contract the
+ * exercise panel and the exam result read it with — a block those reject is not an
+ * exercise the learner ever saw, and the exam run must not be told it was.
+ */
+function exerciseTitles(exercises: unknown): string[] {
+  if (!Array.isArray(exercises)) return [];
+  return exercises.flatMap((exercise: unknown) => {
+    const parsed = ExerciseDeclarationSchema.safeParse(exercise);
+    return parsed.success ? [parsed.data.title] : [];
+  });
+}
+
 /** The transaction handle `UserScopedDb.run` hands its callback. */
 type Tx = { $queryRawUnsafe<T>(sql: string, ...params: unknown[]): Promise<T> };
 
@@ -276,7 +367,7 @@ async function readCurrentTrack(tx: Tx, missionId: string): Promise<Tracked<Curr
       // listing it here as one the agent must not repeat would be a claim that a
       // lesson exists when the module is precisely still owed it.
       `select seq, title from lessons
-        where track_id = $1::uuid and status = 'generated'
+        where track_id = $1::uuid and status = 'generated' and kind = 'lesson'
         order by seq`,
       track.id,
     ),
@@ -328,9 +419,11 @@ async function readNodes(
 ): Promise<{ rows: readonly LessonRow[]; nodes: readonly LessonNode[] }> {
   const [rows, edges] = await Promise.all([
     tx.$queryRawUnsafe<LessonRow[]>(
+      // Lessons only: an exam is not a node in the lesson graph (FR-E2), and as one
+      // it would be the module's "next lesson" for ever, since nothing completes it.
       `select id, track_id, slug, title, intent, status, difficulty, depth, position, seq,
               completed_at
-         from lessons where mission_id = $1::uuid`,
+         from lessons where mission_id = $1::uuid and kind = 'lesson'`,
       missionId,
     ),
     tx.$queryRawUnsafe<{ lesson_id: string; prereq_id: string }[]>(

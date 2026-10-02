@@ -22,9 +22,13 @@ export interface BriefingReader {
    * `bridgeFor` is a lesson the learner asked an easier version of (FR-D2). When
    * set, it is what the briefing asks for, whatever `nextAdjustment` would say.
    */
+  /**
+   * `examFor` is the module an exam run examines (FR-E3), from the run's input.
+   * When set, the facts carry that module's lessons for the exam section.
+   */
   gather(
     userId: string,
     missionId: string,
-    options?: { readonly bridgeFor?: string | null },
+    options?: { readonly bridgeFor?: string | null; readonly examFor?: string | null },
   ): Promise<BriefingFacts>;
 }

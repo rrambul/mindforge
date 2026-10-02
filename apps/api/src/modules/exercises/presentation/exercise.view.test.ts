@@ -33,6 +33,7 @@ const board = (count: number): ExerciseWithAttempts => ({
   attempts: { ...UNTRIED, count },
   hints: [],
   nextHintLevel: 1,
+  lessonKind: "lesson",
 });
 
 describe("toExerciseView", () => {
@@ -63,8 +64,80 @@ describe("toExerciseView", () => {
       attempts: UNTRIED,
       hints: [],
       nextHintLevel: 1,
+      lessonKind: "lesson",
     });
 
     expect(view).toMatchObject({ kind: "code", solution: "export const x = 1;" });
+  });
+});
+
+describe("toExerciseView on an exam (FR-E5)", () => {
+  const PASSED = { ...UNTRIED, count: 2, firstPassedAt: new Date("2026-10-01T10:00:00Z") };
+  const code = (attempts: typeof UNTRIED | typeof PASSED): ExerciseWithAttempts => ({
+    exercise: {
+      key: "lend-it",
+      kind: "code",
+      language: "javascript",
+      title: "Lend it",
+      prompt: "Write it.",
+      starter: "",
+      tests: 'test("x", () => {});',
+      solution: "export const x = 1;",
+      expectedMinutes: null,
+    },
+    attempts,
+    hints: [],
+    nextHintLevel: 1,
+    lessonKind: "exam",
+  });
+
+  it("does not send an unpassed item's solution — the network tab is not a hint", () => {
+    expect(toExerciseView(code(UNTRIED))).toMatchObject({ solution: null });
+  });
+
+  it("sends it once the item is passed", () => {
+    expect(toExerciseView(code(PASSED))).toMatchObject({ solution: "export const x = 1;" });
+  });
+
+  it("withholds a whiteboard's rubric after a failed review, until the item is passed", () => {
+    const failed = {
+      ...board(1),
+      lessonKind: "exam" as const,
+      attempts: {
+        ...UNTRIED,
+        count: 1,
+        lastResults: [
+          {
+            name: "Sends an idempotency key",
+            passed: false,
+            message: "No key on the request.",
+            verdict: "missing" as const,
+          },
+          {
+            name: "Stores the key with the result",
+            passed: true,
+            message: "Yes.",
+            verdict: "covered" as const,
+          },
+        ],
+      },
+    };
+
+    const view = toExerciseView(failed);
+
+    expect(view).toMatchObject({ rubric: null, solution: null });
+    // The review's own lines name the rubric and say what is missing, which is the
+    // answer by another route: the verdicts stay, the words go.
+    expect(view.attempts.lastResults).toEqual([
+      { name: "#1", passed: false, message: null, verdict: "missing" },
+      { name: "#2", passed: true, message: null, verdict: "covered" },
+    ]);
+  });
+
+  it("sends the rubric and the review in full once the whiteboard item is passed", () => {
+    const view = toExerciseView({ ...board(1), lessonKind: "exam", attempts: PASSED });
+    expect(view).toMatchObject({
+      rubric: ["Sends an idempotency key", "Stores the key with the result"],
+    });
   });
 });

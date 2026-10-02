@@ -148,3 +148,20 @@ export class ExerciseKindMismatch extends DomainError {
     super(`Exercise ${key} is not a ${expected} exercise`);
   }
 }
+
+/**
+ * A hint or a reference solution on an exam item that is not passed yet (FR-E5).
+ *
+ * `conflict`, like a locked hint rung: the item is real and the help exists, and it
+ * opens once the item is passed. A pass after seeing the answer is not a pass, and
+ * the exam is the one place that has to be able to say so.
+ */
+export class NoHelpInExam extends DomainError {
+  readonly kind: DomainErrorKind = "conflict";
+  readonly slug = "no-help-in-exam";
+  readonly detailKey: ServerMessageKey = "error.exercise.no_help_in_exam";
+
+  constructor(key: string) {
+    super(`Exam item "${key}" is not passed yet, so it offers no help`);
+  }
+}

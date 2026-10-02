@@ -43,3 +43,18 @@ export class LessonNotWritten extends DomainError {
     super(`Lesson ${id} is planned and has no content yet`);
   }
 }
+
+/**
+ * An exam is not marked understood, shaky or lost (FR-E5): its result is what its
+ * items say, derived from the attempts. A chip on an exam would be a self-report
+ * sitting where the product promised a test.
+ */
+export class LessonIsExam extends DomainError {
+  readonly kind: DomainErrorKind = "conflict";
+  readonly slug = "lesson-is-exam";
+  readonly detailKey: ServerMessageKey = "error.lesson.is_exam";
+
+  constructor(id: string) {
+    super(`Lesson ${id} is an exam and takes no outcome`);
+  }
+}

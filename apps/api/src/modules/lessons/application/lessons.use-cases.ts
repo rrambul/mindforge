@@ -2,7 +2,7 @@ import type { LessonOutcome } from "@mindforge/core";
 import { Inject, Injectable } from "@nestjs/common";
 
 import { CLOCK, type Clock } from "../../../shared/time/clock.js";
-import { LessonNotFound, LessonNotWritten } from "../domain/errors.js";
+import { LessonIsExam, LessonNotFound, LessonNotWritten } from "../domain/errors.js";
 import {
   LESSON_REPOSITORY,
   type LessonRecord,
@@ -60,6 +60,9 @@ export class GetLesson {
  * (`lessons_planned_not_completed`), and it is said here as well so the answer is
  * a 409 the reader can act on rather than a constraint violation nobody was
  * expecting to meet.
+ *
+ * **Nor can an exam** (FR-E5): its result is derived from its items' attempts, and
+ * an outcome chip would put a self-report where the product promised a test.
  */
 @Injectable()
 export class CompleteLesson {
@@ -73,6 +76,7 @@ export class CompleteLesson {
     const lesson = await this.lessons.findById(userId, lessonId);
     if (lesson === null) throw new LessonNotFound(lessonId);
     if (lesson.status === "planned") throw new LessonNotWritten(lessonId);
+    if (lesson.kind === "exam") throw new LessonIsExam(lessonId);
 
     await this.lessons.setCompletion(userId, lessonId, {
       completedAt: this.clock.now(),

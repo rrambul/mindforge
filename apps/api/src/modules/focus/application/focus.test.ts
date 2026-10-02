@@ -115,6 +115,7 @@ function lessonRecord(id: string, missionId: string): LessonRecord {
     title: "Borrow checker errors",
     intent: null,
     status: "generated",
+    kind: "lesson",
     difficulty: null,
     depth: null,
     seq: 7,

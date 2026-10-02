@@ -1,3 +1,4 @@
+import { moduleAwaitingExam } from "@mindforge/core";
 import { Inject, Injectable } from "@nestjs/common";
 
 import { USER_SCOPED_DB, type UserScopedDb } from "../../../shared/persistence/user-scoped-db.js";
@@ -17,23 +18,39 @@ export class PrismaMissionWorkspaceReader implements MissionWorkspaceReader {
   constructor(@Inject(USER_SCOPED_DB) private readonly db: UserScopedDb) {}
 
   async find(userId: string, missionId: string): Promise<MissionWorkspace | null> {
-    const rows = await this.db.run(userId, (tx) =>
-      tx.$queryRawUnsafe<
-        {
-          id: string;
-          topic: string;
-          status: string;
-          workspace_key: string | null;
-          has_curriculum: boolean;
-        }[]
-      >(
-        // `exists` rather than a count: the question is whether there is a plan at
-        // all, and Postgres stops at the first row.
-        `select m.id, m.topic, m.status, m.workspace_key,
+    const [rows, modules] = await this.db.run(userId, (tx) =>
+      Promise.all([
+        tx.$queryRawUnsafe<
+          {
+            id: string;
+            topic: string;
+            status: string;
+            workspace_key: string | null;
+            has_curriculum: boolean;
+          }[]
+        >(
+          // `exists` rather than a count: the question is whether there is a plan at
+          // all, and Postgres stops at the first row.
+          `select m.id, m.topic, m.status, m.workspace_key,
                 exists (select 1 from tracks t where t.mission_id = m.id) as has_curriculum
            from missions m where m.id = $1::uuid`,
-        missionId,
-      ),
+          missionId,
+        ),
+        // One row per module the curriculum still has, in its order, with what
+        // `moduleAwaitingExam` needs. Exams are counted apart from lessons: an exam
+        // is not a lesson for any count (FR-E2), and "has an exam" is what it asks.
+        tx.$queryRawUnsafe<{ id: string; lessons: bigint; done: bigint; exams: bigint }[]>(
+          `select t.id,
+                  count(l.id) filter (where l.kind = 'lesson') as lessons,
+                  count(l.id) filter (where l.kind = 'lesson' and l.completed_at is not null) as done,
+                  count(l.id) filter (where l.kind = 'exam') as exams
+             from tracks t left join lessons l on l.track_id = t.id
+            where t.mission_id = $1::uuid and t.status <> 'dropped'
+            group by t.id, t.position, t.slug
+            order by t.position, t.slug`,
+          missionId,
+        ),
+      ]),
     );
 
     const row = rows[0];
@@ -45,6 +62,15 @@ export class PrismaMissionWorkspaceReader implements MissionWorkspaceReader {
       status: row.status,
       workspaceKey: row.workspace_key,
       hasCurriculum: row.has_curriculum,
+      examDue: moduleAwaitingExam(
+        modules.map((module) => ({
+          id: module.id,
+          lessonsDone: module.lessons > 0n && module.done === module.lessons,
+          hasExam: module.exams > 0n,
+          // Unused by `moduleAwaitingExam`; it asks only about lessons and exams.
+          finished: false,
+        })),
+      ),
     };
   }
 

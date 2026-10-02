@@ -2,7 +2,7 @@ import { verifyViewToken, type LessonOutcome } from "@mindforge/core";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { FixedClock } from "../../../shared/time/clock.js";
-import { LessonNotFound, LessonNotWritten } from "../domain/errors.js";
+import { LessonIsExam, LessonNotFound, LessonNotWritten } from "../domain/errors.js";
 import type { LessonRecord, LessonRepository } from "../domain/lesson.repository.js";
 import { ClearLessonCompletion, CompleteLesson, GetLesson } from "./lessons.use-cases.js";
 import type { LibraryReader, MissionLibrary } from "./library.port.js";
@@ -36,6 +36,7 @@ function record(over: Partial<LessonRecord> = {}): LessonRecord {
     title: "Borrow checker errors as a debugging tool",
     intent: "Read the error, not the code",
     status: "generated",
+    kind: "lesson",
     difficulty: 4,
     depth: "deep_dive",
     seq: 7,
@@ -181,6 +182,16 @@ describe("CompleteLesson", () => {
     const { complete, lessons } = build(rows);
     await expect(complete.execute(ALICE, LESSON, "understood")).rejects.toBeInstanceOf(
       LessonNotWritten,
+    );
+    expect(lessons.written).toEqual([]);
+  });
+
+  it("refuses an exam — its result is what its items say (FR-E5)", async () => {
+    rows.set(`${ALICE}:${LESSON}`, record({ kind: "exam" }));
+
+    const { complete, lessons } = build(rows);
+    await expect(complete.execute(ALICE, LESSON, "understood")).rejects.toBeInstanceOf(
+      LessonIsExam,
     );
     expect(lessons.written).toEqual([]);
   });

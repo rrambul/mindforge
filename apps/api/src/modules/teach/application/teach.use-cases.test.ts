@@ -218,6 +218,7 @@ describe("TeachRuns", () => {
       status: "active",
       workspaceKey: "postgres-rls",
       hasCurriculum: true,
+      examDue: null,
     });
   });
 
@@ -355,6 +356,7 @@ describe("TeachRuns", () => {
         status: "active",
         workspaceKey: null,
         hasCurriculum: true,
+        examDue: null,
       });
 
       const run = await teach.request(ALICE, MISSION, TZ);
@@ -372,6 +374,7 @@ describe("TeachRuns", () => {
         status: "active",
         workspaceKey: null,
         hasCurriculum: true,
+        examDue: null,
       });
       missions.existingKey = "rls-postgres";
 
@@ -387,6 +390,7 @@ describe("TeachRuns", () => {
         status: "active",
         workspaceKey: null,
         hasCurriculum: true,
+        examDue: null,
       });
 
       await expect(teach.request(ALICE, MISSION, TZ)).rejects.toThrow(WorkspaceKeyUnavailable);
@@ -542,7 +546,12 @@ describe("TeachRuns", () => {
  * produces material with no plan to file it under and no fraction to move.
  */
 describe("choosing the run kind", () => {
-  function withCurriculum(hasCurriculum: boolean): TeachRuns {
+  let runs = new FakeRuns();
+  beforeEach(() => {
+    runs = new FakeRuns();
+  });
+
+  function withCurriculum(hasCurriculum: boolean, examDue: string | null = null): TeachRuns {
     const missions = new FakeMissions();
     missions.missions.set(MISSION, {
       missionId: MISSION,
@@ -550,11 +559,12 @@ describe("choosing the run kind", () => {
       status: "active",
       workspaceKey: "postgres-rls",
       hasCurriculum,
+      examDue,
     });
 
     const clock = new FixedClock(NOW);
     return new TeachRuns(
-      new FakeRuns(),
+      runs,
       missions,
       clock,
       sequentialIds(),
@@ -576,5 +586,17 @@ describe("choosing the run kind", () => {
   it("still takes an explicit kind, which nothing in the app sends", async () => {
     const run = await withCurriculum(false).request(ALICE, MISSION, TZ, "generate_lesson");
     expect(run.kind).toBe("generate_lesson");
+  });
+
+  it("writes a module's exam once its lessons are done, and records which module (FR-E3)", async () => {
+    const run = await withCurriculum(true, "track-ownership").request(ALICE, MISSION, TZ);
+
+    expect(run.kind).toBe("generate_exam");
+    expect(run.input).toMatchObject({ examFor: "track-ownership" });
+  });
+
+  it("names no module on a run that is not an exam", async () => {
+    const run = await withCurriculum(true).request(ALICE, MISSION, TZ);
+    expect(run.input).not.toHaveProperty("examFor");
   });
 });

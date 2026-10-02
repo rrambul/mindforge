@@ -1,12 +1,20 @@
-import { asLessonOutcome, type LessonDepth } from "@mindforge/core";
+import {
+  asLessonOutcome,
+  ExerciseDeclarationSchema,
+  type DeadlineRow,
+  type LessonDepth,
+} from "@mindforge/core";
 import { Inject, Injectable } from "@nestjs/common";
 
 import { USER_SCOPED_DB, type UserScopedDb } from "../../../shared/persistence/user-scoped-db.js";
-import { judgeLessons } from "../../exercises/infrastructure/judge-lessons.js";
+import { judgeLessons, type QueryTx as Tx } from "../../exercises/infrastructure/judge-lessons.js";
 import type {
   CurriculumReader,
   CurriculumRows,
+  ExamItemRow,
+  ExamRow,
   LessonRow,
+  PaceRows,
 } from "../application/curriculum.port.js";
 
 /**
@@ -21,7 +29,7 @@ import type {
 export class PrismaCurriculumReader implements CurriculumReader {
   constructor(@Inject(USER_SCOPED_DB) private readonly db: UserScopedDb) {}
 
-  read(userId: string, missionId: string): Promise<CurriculumRows | null> {
+  read(userId: string, missionId: string, paceSince: Date): Promise<CurriculumRows | null> {
     return this.db.run(userId, async (tx) => {
       // RLS answers the ownership question, so a mission that is not this user's
       // returns no row here and the caller 404s — the same answer as one that does
@@ -73,10 +81,12 @@ export class PrismaCurriculumReader implements CurriculumReader {
             adjustment: string | null;
             adjustment_reason: string | null;
             bridge_for_slug: string | null;
+            kind: string;
           }[]
         >(
           `select id, track_id, slug, title, intent, status, difficulty, depth, position, seq,
-                  completed_at, outcome, exercises, adjustment, adjustment_reason, bridge_for_slug
+                  completed_at, outcome, exercises, adjustment, adjustment_reason, bridge_for_slug,
+                  kind
              from lessons where mission_id = $1::uuid`,
           missionId,
         ),
@@ -88,7 +98,17 @@ export class PrismaCurriculumReader implements CurriculumReader {
         ),
       ]);
 
-      const strains = await judgeLessons(tx, lessons);
+      // Split once, here: everything below about lessons is about lessons, and an
+      // exam is in none of their counts (FR-E2).
+      const examRows = lessons.filter((lesson) => lesson.kind === "exam");
+      const lessonRows = lessons.filter((lesson) => lesson.kind !== "exam");
+
+      const [strains, exams, deadlines, pace] = await Promise.all([
+        judgeLessons(tx, lessonRows),
+        readExams(tx, examRows),
+        readDeadlines(tx, missionId),
+        readPace(tx, missionId, paceSince),
+      ]);
       const trackPrereqs = group(trackEdges.map((row) => [row.track_id, row.name] as const));
       const lessonPrereqs = group(
         lessonEdges.map((row) => [row.lesson_id, row.prereq_id] as const),
@@ -99,7 +119,7 @@ export class PrismaCurriculumReader implements CurriculumReader {
           ...track,
           prerequisites: trackPrereqs.get(track.id) ?? [],
         })),
-        lessons: lessons.map((lesson): LessonRow => ({
+        lessons: lessonRows.map((lesson): LessonRow => ({
           id: lesson.id,
           trackId: lesson.track_id,
           slug: lesson.slug,
@@ -125,9 +145,123 @@ export class PrismaCurriculumReader implements CurriculumReader {
                 }
               : null,
         })),
+        exams,
+        deadlines,
+        pace,
       };
     });
   }
+}
+
+/**
+ * Every exam with its items and every attempt at each (FR-E6).
+ *
+ * The items come from the exam's own `exercises` column, re-validated the way the
+ * exercise panel does, so an item the reindexer could not have written is not an
+ * item here either. Grading follows the kind: a `task` is the learner's word, and
+ * everything else was checked by a test run or a review.
+ */
+async function readExams(
+  tx: Tx,
+  rows: readonly {
+    id: string;
+    track_id: string | null;
+    title: string;
+    seq: number | null;
+    exercises: unknown;
+  }[],
+): Promise<readonly ExamRow[]> {
+  if (rows.length === 0) return [];
+
+  const attempts = await tx.$queryRawUnsafe<
+    { lesson_id: string; exercise_key: string; passed: boolean; created_at: Date }[]
+  >(
+    `select lesson_id, exercise_key, passed, created_at from exercise_attempts
+      where lesson_id = any($1::uuid[])`,
+    rows.map((row) => row.id),
+  );
+
+  return rows.map((row) => {
+    const declared = Array.isArray(row.exercises) ? row.exercises : [];
+    const items = declared.flatMap((raw): ExamItemRow[] => {
+      const parsed = ExerciseDeclarationSchema.safeParse(raw);
+      if (!parsed.success) return [];
+      const exercise = parsed.data;
+      return [
+        {
+          key: exercise.key,
+          covers: exercise.covers ?? [],
+          grading: exercise.kind === "task" ? "self" : "checked",
+          attempts: attempts
+            .filter((a) => a.lesson_id === row.id && a.exercise_key === exercise.key)
+            .map((a) => ({ createdAt: a.created_at, passed: a.passed })),
+        },
+      ];
+    });
+
+    // An exam always has a file and so a seq (`lessons_generated_has_file`); 0 is
+    // only a belt for a row written around that constraint.
+    return { id: row.id, trackId: row.track_id, title: row.title, seq: row.seq ?? 0, items };
+  });
+}
+
+/** Every deadline row for the mission's modules, oldest first, by track. */
+async function readDeadlines(
+  tx: Tx,
+  missionId: string,
+): Promise<ReadonlyMap<string, readonly DeadlineRow[]>> {
+  const rows = await tx.$queryRawUnsafe<{ track_id: string; due_on: string; created_at: Date }[]>(
+    // `::text` on a date is `YYYY-MM-DD`: the day as the learner committed to it,
+    // with no instant and so no timezone to get wrong on the way out.
+    `select d.track_id, d.due_on::text as due_on, d.created_at from module_deadlines d
+       join tracks t on t.id = d.track_id
+      where t.mission_id = $1::uuid
+      order by d.created_at`,
+    missionId,
+  );
+
+  const byTrack = new Map<string, DeadlineRow[]>();
+  for (const row of rows) {
+    const list = byTrack.get(row.track_id) ?? [];
+    list.push({ dueOn: row.due_on, createdAt: row.created_at });
+    byTrack.set(row.track_id, list);
+  }
+  return byTrack;
+}
+
+/**
+ * What the estimate is computed from (FR-U1).
+ *
+ * Minutes per session are floored the way `elapsedMinutes` floors them, so a lesson's
+ * total here is the sum the time tracker would show, never a rounding up of it. A
+ * session still running is not counted: it has no end, and its length is unknown
+ * rather than "so far".
+ */
+async function readPace(tx: Tx, missionId: string, since: Date): Promise<PaceRows> {
+  const [perLesson, [recent]] = await Promise.all([
+    // Every mission's finished lessons, because how long a lesson takes this learner
+    // is about them. RLS keeps it to their own rows.
+    tx.$queryRawUnsafe<{ minutes: number }[]>(
+      `select sum(floor(extract(epoch from (s.ended_at - s.started_at)) / 60))::int as minutes
+         from lessons l join focus_sessions s on s.lesson_id = l.id and s.ended_at is not null
+        where l.kind = 'lesson' and l.completed_at is not null
+        group by l.id`,
+    ),
+    tx.$queryRawUnsafe<{ minutes: number | null }[]>(
+      `select sum(floor(extract(epoch from (s.ended_at - s.started_at)) / 60))::int as minutes
+         from focus_sessions s
+        where s.ended_at is not null and s.started_at >= $2::timestamptz
+          and (s.mission_id = $1::uuid
+               or s.lesson_id in (select id from lessons where mission_id = $1::uuid))`,
+      missionId,
+      since,
+    ),
+  ]);
+
+  return {
+    lessonMinutes: perLesson.map((row) => row.minutes),
+    recentMinutes: recent?.minutes ?? 0,
+  };
 }
 
 function group(pairs: readonly (readonly [string, string])[]): ReadonlyMap<string, string[]> {

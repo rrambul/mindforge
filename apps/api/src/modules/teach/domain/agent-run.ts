@@ -9,7 +9,8 @@
  * mission behind the single-active-run index.
  */
 
-export type AgentRunKind = "generate_lesson" | "generate_curriculum" | "sync_workspace";
+export type AgentRunKind =
+  "generate_lesson" | "generate_curriculum" | "generate_exam" | "sync_workspace";
 
 export type AgentRunStatus =
   | "queued"

@@ -331,12 +331,13 @@ export class PrismaWorkspaceIndexRepository implements WorkspaceIndexRepository 
 
         await tx.$executeRawUnsafe(
           `insert into lessons (id, user_id, mission_id, track_id, seq, slug, title, storage_path,
-             content_hash, exercises, adjustment, adjustment_reason, bridge_for_slug,
+             content_hash, exercises, adjustment, adjustment_reason, bridge_for_slug, kind,
              created_at, updated_at)
            values (gen_random_uuid(), $1::uuid, $2::uuid, $3::uuid, $4::int, $5, $6, $7, $8,
-                   $9::jsonb, $10, $11, $12, now(), now())
+                   $9::jsonb, $10, $11, $12, $13, now(), now())
            on conflict (mission_id, seq) do update
              set track_id = excluded.track_id,
+                 kind = excluded.kind,
                  slug = excluded.slug,
                  title = excluded.title,
                  storage_path = excluded.storage_path,
@@ -363,6 +364,9 @@ export class PrismaWorkspaceIndexRepository implements WorkspaceIndexRepository 
           lesson.adjustment?.kind ?? null,
           lesson.adjustment?.reason ?? null,
           lesson.adjustment?.bridgeFor ?? null,
+          // From the file, like everything here (FR-E1). An exam never reaches the
+          // claim above: the parser drops a plan claim on one.
+          lesson.kind,
         );
       }
     });

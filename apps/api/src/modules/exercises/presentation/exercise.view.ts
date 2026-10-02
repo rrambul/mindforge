@@ -11,13 +11,22 @@ import type { ExerciseWithAttempts, LessonExercises } from "../application/exerc
  * travelled to the browser to be hidden there would be one click in the network
  * tab away. After a review the learner has drawn their own design and been told
  * item by item how it read, and the rubric is the thing they need next.
+ *
+ * **An exam item withholds more, until it is passed** (FR-E5): no solution of any
+ * kind, no rubric even after a review, and a review's lines reduced to their
+ * verdicts — a line that reads "missing: puts a queue between the API and the
+ * workers" is the rubric item, which is the answer. The refusals in the use cases
+ * stop help being *asked for*; this stops it being *sent*.
  */
 export function toExerciseView({
   exercise,
   attempts,
   hints,
   nextHintLevel,
+  lessonKind,
 }: ExerciseWithAttempts): ExerciseView {
+  const sealed = lessonKind === "exam" && attempts.firstPassedAt === null;
+
   const progress = {
     hints: hints.map((hint) => ({
       kind: hint.kind,
@@ -34,16 +43,25 @@ export function toExerciseView({
       lastCode: attempts.lastCode,
       lastPassed: attempts.lastPassed,
       lastAt: attempts.lastAt?.toISOString() ?? null,
-      lastResults: attempts.lastResults,
+      lastResults:
+        sealed && exercise.kind === "whiteboard" && attempts.lastResults !== null
+          ? attempts.lastResults.map((result, index) => ({
+              ...result,
+              name: `#${index + 1}`,
+              message: null,
+            }))
+          : attempts.lastResults,
       lastScene: attempts.lastScene,
     },
   };
 
-  // Code and tasks withhold nothing: their solutions are shown on request, and
-  // there is no checklist whose sight is the answer.
-  if (exercise.kind !== "whiteboard") return { ...exercise, ...progress };
+  // Outside an exam, code and tasks withhold nothing: their solutions are shown on
+  // request, and there is no checklist whose sight is the answer.
+  if (exercise.kind !== "whiteboard") {
+    return { ...exercise, ...progress, solution: sealed ? null : exercise.solution };
+  }
 
-  const reviewed = attempts.count > 0;
+  const reviewed = sealed ? false : attempts.count > 0;
   return {
     ...exercise,
     ...progress,
@@ -58,6 +76,7 @@ export function toLessonExercisesView(listed: LessonExercises): LessonExercisesV
     runnerUrl: listed.runnerUrl,
     pythonRunnerUrl: listed.pythonRunnerUrl,
     strain: listed.strain,
+    kind: listed.kind,
     exercises: listed.exercises.map(toExerciseView),
   };
 }

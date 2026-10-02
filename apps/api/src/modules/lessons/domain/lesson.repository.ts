@@ -1,4 +1,4 @@
-import type { LessonDepth, LessonOutcome, LessonStatus } from "@mindforge/core";
+import type { LessonDepth, LessonKind, LessonOutcome, LessonStatus } from "@mindforge/core";
 
 export const LESSON_REPOSITORY = Symbol("LessonRepository");
 
@@ -20,6 +20,8 @@ export interface LessonRecord {
   readonly title: string;
   readonly intent: string | null;
   readonly status: LessonStatus;
+  /** `exam` for a module's exam (FR-E1): opened in the same reader, with no outcome chips. */
+  readonly kind: LessonKind;
   readonly difficulty: number | null;
   readonly depth: LessonDepth | null;
   readonly seq: number | null;

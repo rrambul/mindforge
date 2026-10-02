@@ -277,6 +277,7 @@ export class ReindexWorkspace {
         planSlug: parsed.planSlug,
         exercises: parsed.exercises,
         adjustment: parsed.adjustment,
+        kind: parsed.kind,
       });
     }
 

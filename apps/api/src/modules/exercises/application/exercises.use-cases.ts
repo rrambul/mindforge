@@ -4,6 +4,7 @@ import {
   ExerciseDeclarationSchema,
   nextAllowedLevel,
   type ExerciseDeclaration,
+  type LessonKind,
   type RecordAttemptInput,
   type ReportTaskInput,
   type RequestHintInput,
@@ -26,6 +27,7 @@ import {
   ExerciseNotFound,
   HintLevelLocked,
   HintNotGiven,
+  NoHelpInExam,
   ReviewNotGiven,
   SolutionUnavailable,
 } from "../domain/errors.js";
@@ -46,6 +48,12 @@ export interface ExerciseWithAttempts {
   readonly hints: readonly HintRecord[];
   /** The highest rung the learner may ask for next (`nextAllowedLevel`). */
   readonly nextHintLevel: number;
+  /**
+   * The kind of the lesson it is in. On every exercise rather than only on the list,
+   * because every endpoint answers with one exercise, and an exam item must be
+   * sealed in each of those answers, not only in the list (FR-E5).
+   */
+  readonly lessonKind: LessonKind;
 }
 
 export interface LessonExercises {
@@ -53,6 +61,8 @@ export interface LessonExercises {
   readonly runnerUrl: string;
   readonly pythonRunnerUrl: string;
   readonly strain: Strain;
+  /** An exam's items offer no help until passed (FR-E5); the panel hides what would be refused. */
+  readonly kind: LessonKind;
   readonly exercises: readonly ExerciseWithAttempts[];
 }
 
@@ -116,6 +126,7 @@ export class ListLessonExercises {
       runnerUrl: this.config.runnerUrl,
       pythonRunnerUrl: this.config.pythonRunnerUrl,
       strain,
+      kind: lesson.kind,
       exercises: valid(declared).map((exercise) => {
         const given = hints.get(exercise.key) ?? [];
         return {
@@ -123,6 +134,7 @@ export class ListLessonExercises {
           attempts: summaries.get(exercise.key) ?? UNTRIED,
           hints: given,
           nextHintLevel: nextAllowedLevel(highestLevel(given)),
+          lessonKind: lesson.kind,
         };
       }),
     };
@@ -228,6 +240,7 @@ export class RequestExerciseHint {
       (entry) => entry.exercise.key === key,
     );
     if (current === undefined) throw new ExerciseNotFound(lessonId, key);
+    refuseHelpInExam(lesson.kind, current);
     const { exercise } = current;
     // Code only, for now: a whiteboard's feedback is its review.
     if (exercise.kind !== "code") throw new ExerciseKindMismatch(key, "code");
@@ -454,6 +467,7 @@ export class RevealSolution {
       (entry) => entry.exercise.key === key,
     );
     if (current === undefined) throw new ExerciseNotFound(lessonId, key);
+    refuseHelpInExam(lesson.kind, current);
 
     const { exercise } = current;
     if (exercise.solution === null) throw new SolutionUnavailable(key, "none");
@@ -471,6 +485,16 @@ export class RevealSolution {
     const { exercises } = await this.list.execute(userId, lessonId);
     // Present: it was found above, and nothing between the two reads removes it.
     return exercises.find((entry) => entry.exercise.key === key)!;
+  }
+}
+
+/**
+ * The exam rule (FR-E5), in one place for both kinds of help: an exam item gives
+ * none until it is passed.
+ */
+function refuseHelpInExam(kind: LessonKind, current: ExerciseWithAttempts): void {
+  if (kind === "exam" && current.attempts.firstPassedAt === null) {
+    throw new NoHelpInExam(current.exercise.key);
   }
 }
 

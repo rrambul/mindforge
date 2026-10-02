@@ -16,6 +16,12 @@ export interface MissionWorkspace {
    * remove.
    */
   readonly hasCurriculum: boolean;
+  /**
+   * The module whose exam the next run should write (`moduleAwaitingExam`, FR-E3):
+   * the first, in curriculum order, with every lesson done and no exam. Null when
+   * none is waiting — and always null without a curriculum.
+   */
+  readonly examDue: string | null;
 }
 
 /**

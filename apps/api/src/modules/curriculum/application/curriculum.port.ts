@@ -1,4 +1,12 @@
-import type { LessonDepth, LessonOutcome, LessonStatus, Strain } from "@mindforge/core";
+import type {
+  DeadlineRow,
+  ExamAttemptFact,
+  ExamGrading,
+  LessonDepth,
+  LessonOutcome,
+  LessonStatus,
+  Strain,
+} from "@mindforge/core";
 
 export const CURRICULUM_READER = Symbol("CurriculumReader");
 
@@ -39,9 +47,45 @@ export interface LessonRow {
   } | null;
 }
 
+/** One item of an exam, with every attempt at it (FR-E6). */
+export interface ExamItemRow {
+  readonly key: string;
+  readonly covers: readonly string[];
+  readonly grading: ExamGrading;
+  readonly attempts: readonly ExamAttemptFact[];
+}
+
+/**
+ * An exam file, read apart from the lessons (FR-E2): it is in none of their counts,
+ * and every derivation below would otherwise have to remember to skip it.
+ */
+export interface ExamRow {
+  readonly id: string;
+  readonly trackId: string | null;
+  readonly title: string;
+  readonly seq: number;
+  readonly items: readonly ExamItemRow[];
+}
+
+/**
+ * What the schedule is estimated from (FR-U1): both measured, neither defaulted.
+ *
+ * `lessonMinutes` is one entry per finished lesson the learner has, across every
+ * mission — how long *they* take over a lesson is about them, not about this
+ * subject. `recentMinutes` is this mission's focus time since `windowStart`.
+ */
+export interface PaceRows {
+  readonly lessonMinutes: readonly number[];
+  readonly recentMinutes: number;
+}
+
 export interface CurriculumRows {
   readonly tracks: readonly TrackRow[];
   readonly lessons: readonly LessonRow[];
+  readonly exams: readonly ExamRow[];
+  /** Every commitment ever made, by track. Append-only, so the history is all here. */
+  readonly deadlines: ReadonlyMap<string, readonly DeadlineRow[]>;
+  readonly pace: PaceRows;
 }
 
 /**
@@ -57,5 +101,9 @@ export interface CurriculumRows {
  * not yours" is itself something to leak.
  */
 export interface CurriculumReader {
-  read(userId: string, missionId: string): Promise<CurriculumRows | null>;
+  /**
+   * `paceSince` is the first instant of the pace window — the start of the learner's
+   * local day 27 days ago — resolved by the caller, which knows their timezone.
+   */
+  read(userId: string, missionId: string, paceSince: Date): Promise<CurriculumRows | null>;
 }

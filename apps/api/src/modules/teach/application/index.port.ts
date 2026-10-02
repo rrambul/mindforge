@@ -1,4 +1,4 @@
-import type { ExerciseDeclaration } from "@mindforge/core";
+import type { ExerciseDeclaration, LessonKind } from "@mindforge/core";
 import type { LessonAdjustment } from "@mindforge/workspace";
 
 export const WORKSPACE_INDEX_REPOSITORY = Symbol("WorkspaceIndexRepository");
@@ -35,6 +35,8 @@ export interface IndexedLesson {
   readonly exercises: readonly ExerciseDeclaration[];
   /** What the file says it changed about the plan (FR-D2–D4). Null for as planned. */
   readonly adjustment: LessonAdjustment | null;
+  /** `exam` when the file declares itself the module's exam (FR-E1). */
+  readonly kind: LessonKind;
 }
 
 /**

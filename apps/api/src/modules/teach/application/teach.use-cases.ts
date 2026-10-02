@@ -26,7 +26,11 @@ import {
 } from "../domain/errors.js";
 import { LESSON_LANDING_READER, type LessonLandingReader } from "./lesson-landing.port.js";
 import { TeachSpend } from "./teach-spend.js";
-import { MISSION_WORKSPACE_READER, type MissionWorkspaceReader } from "./teach.port.js";
+import {
+  MISSION_WORKSPACE_READER,
+  type MissionWorkspace,
+  type MissionWorkspaceReader,
+} from "./teach.port.js";
 import { deriveWorkspaceKey } from "./workspace-key.js";
 
 /**
@@ -60,9 +64,10 @@ export class TeachRuns {
    * Returns 202-shaped data rather than waiting: §6 says long operations never
    * block a request, and a lesson takes minutes.
    *
-   * **The kind is inferred, not chosen** (FR-K1). A mission with no modules needs
-   * a plan before it needs a lesson, so the first press runs `curriculum` and
-   * every press after it runs `teach`. Two reasons it is not a request field:
+   * **The kind is inferred, not chosen** (FR-K1, FR-E3). A mission with no modules
+   * needs a plan before it needs a lesson, so the first press runs `curriculum`; a
+   * module with every lesson done and no exam gets its exam; every other press runs
+   * `teach`. Two reasons it is not a request field:
    * which skill runs is not a decision a browser should be able to make, and the
    * one button the learner sees means "do the next thing" — making them pick the
    * agent would be asking them to know the difference.
@@ -97,7 +102,7 @@ export class TeachRuns {
       throw new DailyBudgetExhausted(budget.spentUsd, budget.capUsd);
     }
 
-    const resolved = kind ?? (mission.hasCurriculum ? "generate_lesson" : "generate_curriculum");
+    const resolved = kind ?? inferKind(mission);
 
     const workspaceKey = await this.ensureWorkspaceKey(userId, mission);
 
@@ -107,7 +112,16 @@ export class TeachRuns {
       kind: resolved,
       // The key is recorded on the run as well as on the mission, so a run's
       // input says which prefix it touched even if the mission is deleted later.
-      input: { workspaceKey, ...extras },
+      // An exam run also records which module it examines, chosen now rather than
+      // when the worker picks it up: the learner pressed the button on the state
+      // they were looking at.
+      input: {
+        workspaceKey,
+        ...extras,
+        ...(resolved === "generate_exam" && mission.examDue !== null
+          ? { examFor: mission.examDue }
+          : {}),
+      },
     });
 
     // `null` is the unique-index violation, not an error to rethrow: one active
@@ -239,4 +253,17 @@ export class TeachRuns {
     // the winner's.
     return this.missions.claimWorkspaceKey(userId, mission.missionId, derived);
   }
+}
+
+/**
+ * Which agent "the next thing" is (FR-K1, FR-E3).
+ *
+ * No curriculum: plan one. A module whose lessons are all done and which has no
+ * exam: write its exam, because finishing a module means sitting it — before the
+ * next module's lessons, which the exam does not lock. Otherwise: the next lesson.
+ */
+function inferKind(mission: MissionWorkspace): AgentRunKind {
+  if (!mission.hasCurriculum) return "generate_curriculum";
+  if (mission.examDue !== null) return "generate_exam";
+  return "generate_lesson";
 }

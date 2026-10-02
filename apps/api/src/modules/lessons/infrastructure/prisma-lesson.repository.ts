@@ -1,4 +1,9 @@
-import { asLessonOutcome, type LessonDepth, type LessonOutcome } from "@mindforge/core";
+import {
+  asLessonKind,
+  asLessonOutcome,
+  type LessonDepth,
+  type LessonOutcome,
+} from "@mindforge/core";
 import { Inject, Injectable } from "@nestjs/common";
 
 import { USER_SCOPED_DB, type UserScopedDb } from "../../../shared/persistence/user-scoped-db.js";
@@ -13,6 +18,7 @@ interface LessonQueryRow {
   readonly title: string;
   readonly intent: string | null;
   readonly status: string;
+  readonly kind: string;
   readonly difficulty: number | null;
   readonly depth: LessonDepth | null;
   readonly seq: number | null;
@@ -37,7 +43,7 @@ export class PrismaLessonRepository implements LessonRepository {
     return this.db.run(userId, async (tx) => {
       const [row] = await tx.$queryRawUnsafe<LessonQueryRow[]>(
         `select l.id, l.mission_id, l.track_id, t.name as module_name, l.slug, l.title, l.intent,
-                l.status, l.difficulty, l.depth, l.seq, l.storage_path, m.workspace_key,
+                l.status, l.kind, l.difficulty, l.depth, l.seq, l.storage_path, m.workspace_key,
                 l.completed_at, l.outcome
            from lessons l
            join missions m on m.id = l.mission_id
@@ -79,6 +85,7 @@ function toRecord(row: LessonQueryRow): LessonRecord {
     // Narrowed rather than cast, like the curriculum reader: the column is CHECKed
     // to these two, and a third would be a migration nobody told this file about.
     status: row.status === "planned" ? "planned" : "generated",
+    kind: asLessonKind(row.kind),
     difficulty: row.difficulty,
     depth: row.depth,
     seq: row.seq,

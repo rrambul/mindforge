@@ -1,4 +1,4 @@
-import type { LessonDepth, LessonOutcome, LessonStatus } from "@mindforge/core";
+import type { LessonDepth, LessonKind, LessonOutcome, LessonStatus } from "@mindforge/core";
 
 import type { OpenedLesson } from "../application/lessons.use-cases.js";
 
@@ -22,6 +22,7 @@ export interface LessonView {
   readonly title: string;
   readonly intent: string | null;
   readonly status: LessonStatus;
+  readonly kind: LessonKind;
   readonly difficulty: number | null;
   readonly depth: LessonDepth | null;
   readonly seq: number | null;
@@ -42,6 +43,7 @@ export function toLessonView(opened: OpenedLesson): LessonView {
     title: lesson.title,
     intent: lesson.intent,
     status: lesson.status,
+    kind: lesson.kind,
     difficulty: lesson.difficulty,
     depth: lesson.depth,
     seq: lesson.seq,

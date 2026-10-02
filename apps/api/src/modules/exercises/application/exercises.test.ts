@@ -12,6 +12,7 @@ import {
   ExerciseNotFound,
   HintLevelLocked,
   HintNotGiven,
+  NoHelpInExam,
   ReviewNotGiven,
 } from "../domain/errors.js";
 import type {
@@ -76,6 +77,7 @@ function lesson(over: Partial<LessonRecord> = {}): LessonRecord {
     title: "Retries",
     intent: null,
     status: "generated",
+    kind: "lesson",
     difficulty: null,
     depth: null,
     seq: 1,
@@ -300,6 +302,7 @@ describe("ListLessonExercises", () => {
         },
         hints: [],
         nextHintLevel: 1,
+        lessonKind: "lesson",
       },
     ]);
   });
@@ -705,6 +708,57 @@ describe("task exercises — run on the learner's machine", () => {
     await expect(
       report().execute(ALICE, LESSON, TASK.key, { passed: true, output: null }),
     ).rejects.toBeInstanceOf(LessonNotWritten);
+  });
+});
+
+describe("an exam gives no help until an item is passed (FR-E5)", () => {
+  const ALICE_CTX = { userId: ALICE, timezone: "UTC", contentLanguage: "en" };
+  const reveal = () =>
+    new RevealSolution(
+      lessons,
+      exercises,
+      new FixedClock(NOW),
+      new ListLessonExercises(lessons, exercises, {
+        runnerUrl: RUNNER,
+        pythonRunnerUrl: `${RUNNER}/python`,
+      }),
+    );
+
+  beforeEach(() => {
+    lessons = new InMemoryLessons(new Map([[`${ALICE}:${LESSON}`, lesson({ kind: "exam" })]]));
+    exercises.declared.set(`${ALICE}:${LESSON}`, [{ ...EXERCISE, solution: "answer" }]);
+  });
+
+  it("says the list is an exam's, so the panel can hide what would be refused", async () => {
+    expect((await build().list.execute(ALICE, LESSON)).kind).toBe("exam");
+  });
+
+  it("refuses a hint and the solution before the item is passed, and calls nobody", async () => {
+    await expect(
+      build().hint.execute(ALICE_CTX, LESSON, EXERCISE.key, {
+        level: 1,
+        code: "",
+        lastRun: null,
+        question: null,
+      }),
+    ).rejects.toBeInstanceOf(NoHelpInExam);
+    await expect(reveal().execute(ALICE, LESSON, EXERCISE.key)).rejects.toBeInstanceOf(
+      NoHelpInExam,
+    );
+    expect(generator.asked).toEqual([]);
+    expect(exercises.revealed).toEqual([]);
+  });
+
+  it("opens the solution once the item is passed", async () => {
+    await build().record.execute(ALICE, LESSON, EXERCISE.key, {
+      code: "x",
+      status: "completed",
+      results: [PASS],
+      startedAt: null,
+    });
+
+    const opened = await reveal().execute(ALICE, LESSON, EXERCISE.key);
+    expect(opened.hints).toMatchObject([{ kind: "solution" }]);
   });
 });
 
