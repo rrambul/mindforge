@@ -222,24 +222,48 @@ much, how often" for one curriculum without thinking.
 
 ---
 
+### M7 — Exams and deadlines — **in progress** (`PLAN-EXAMS.md`)
+
+**Goal:** a module ends in a real test, by a date you committed to.
+
+Decided on 2026-10-02, ahead of the M6 soak, by the person this product is for: _"I need the
+deadline so I don't procrastinate forever to finish a module."_ Two §5 rows came back with it, each
+narrowed to the module: an **exam** per module (the assessments row: self-reported outcomes are not
+proof) and a **deadline** per module (the goals row: progress alone did not end a module).
+
+- **The exam** is a lesson file marked `mindforge:kind="exam"`, written by a `generate_exam` run once
+  the module's lessons are done, covering only what they taught. Taken in the reader with the
+  existing exercise kinds, no hints, passed when every item is (FR-E1–E8).
+- **The deadline** is proposed from your own median minutes per lesson and your pace on the
+  mission over 28 days, committed by you, and moved only visibly — append-only, with the original
+  date on screen (FR-U1–U3, U5).
+- **The schedule** puts every module's exam on a date, committed or projected (FR-U4).
+
+**Done when:** one real module has been taught, examined and finished against a committed date,
+and the schedule for its mission was believable a week before that date.
+
+---
+
 ## 5. Not building (and when that changes)
 
 Cut in the v0.2 refocus. Each returns only if the focused flow is in daily use and the need is
 felt there — not because the code was fun to write.
 
-| Not now                                        | Was          | Revisit when                                                              |
-| ---------------------------------------------- | ------------ | ------------------------------------------------------------------------- |
-| Goals & typed targets                          | M1/M2, built | The curriculum's own progress proves insufficient motivation              |
-| Skills, scores, decay, calibration, the galaxy | M1/M6/M7     | Lesson outcomes prove too coarse to answer "do I know this?"              |
-| Friction tracking, ember/slag                  | M1/M2, built | You catch yourself wanting to log _why_ sessions die, three weeks running |
-| Notes & highlights                             | M1, built    | You leave the app to write things down mid-lesson, repeatedly             |
-| Resource library in-app                        | M1, built    | `RESOURCES.md` (agent-maintained, workspace-only) stops being enough      |
-| Weekly planning & reviews                      | M2, built    | The frequency tracker shows you showing up but drifting                   |
-| Spaced repetition / FSRS                       | M5 (planned) | A finished module fades and you feel it                                   |
-| AI assessments & calibration                   | M6 (planned) | Self-reported outcomes stop being trustworthy                             |
-| Insights & analytics beyond the three trackers | M8 (planned) | The trackers raise questions they can't answer                            |
-| Integrations (Readwise, calendar, GitHub…)     | M9 (planned) | The flow is habitual and manual entry is the bottleneck                   |
-| Multi-user, native apps, gamification          | Never-ish    | Unchanged from v0.1: the last one never — it corrupts the data            |
+The **Was** column uses v0.1's milestone numbers, so its M7 and M8 are not today's M7.
+
+| Not now                                        | Was          | Revisit when                                                                                                                                        |
+| ---------------------------------------------- | ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Goals & typed targets                          | M1/M2, built | The curriculum's own progress proves insufficient motivation. **Partly met 2026-10-02:** a module deadline came back (M7); goals in general did not |
+| Skills, scores, decay, calibration, the galaxy | M1/M6/M7     | Lesson outcomes prove too coarse to answer "do I know this?"                                                                                        |
+| Friction tracking, ember/slag                  | M1/M2, built | You catch yourself wanting to log _why_ sessions die, three weeks running                                                                           |
+| Notes & highlights                             | M1, built    | You leave the app to write things down mid-lesson, repeatedly                                                                                       |
+| Resource library in-app                        | M1, built    | `RESOURCES.md` (agent-maintained, workspace-only) stops being enough                                                                                |
+| Weekly planning & reviews                      | M2, built    | The frequency tracker shows you showing up but drifting                                                                                             |
+| Spaced repetition / FSRS                       | M5 (planned) | A finished module fades and you feel it                                                                                                             |
+| AI assessments & calibration                   | M6 (planned) | Self-reported outcomes stop being trustworthy. **Met for modules 2026-10-02:** the module exam came back (M7); calibration did not                  |
+| Insights & analytics beyond the three trackers | M8 (planned) | The trackers raise questions they can't answer                                                                                                      |
+| Integrations (Readwise, calendar, GitHub…)     | M9 (planned) | The flow is habitual and manual entry is the bottleneck                                                                                             |
+| Multi-user, native apps, gamification          | Never-ish    | Unchanged from v0.1: the last one never — it corrupts the data                                                                                      |
 
 ---
 
@@ -251,7 +275,9 @@ felt there — not because the code was fun to write.
 3. **`packages/core` gets tests before it gets callers.** The dependency graph and progress maths
    are where a silent bug produces confidently wrong numbers.
 4. **Each milestone ends with you using it**, not with the tests passing.
-5. **M6 ends in a three-week soak.** Nothing from §5 gets revisited before that soak has happened.
+5. **M6 ends in a three-week soak.** Nothing from §5 gets revisited before that soak has happened —
+   with two recorded exceptions, both decided by the learner rather than drifted into: hands-on
+   lessons (`PLAN-HANDS-ON.md`, 2026-09-24) and module exams and deadlines (M7, 2026-10-02).
 
 ---
 

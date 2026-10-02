@@ -479,6 +479,33 @@ another user's lesson id — invisible to its owner, but a foreign key into thei
 The summary the panel shows (count, first pass, last code) is derived on read in one grouped query,
 never kept as a counter.
 
+### 3.2d Exams and deadlines (migration `20261002120000_exams_and_deadlines`, FR-E, FR-U)
+
+**An exam is a `lessons` row with `kind = 'exam'`**, not a table of its own. The file is a lesson
+file (`lessons/NNNN-….html`) that declares `<meta name="mindforge:kind" content="exam">`, so the
+workspace layout stays byte-identical to a local one, and the row gets the reader, the view grant,
+`lessons.exercises`, `exercise_attempts`, reviews and self-reports without a second copy of any of
+them. Two CHECKs hold it in shape: `lessons_kind_known` (`lesson` | `exam`) and `lessons_exam_shape`
+(an exam is always `generated`). The plan-claim index is partial on `status = 'planned'`, which an
+exam never is, so an exam cannot claim a plan entry even by accident.
+
+The price is that every reader of `lessons` must decide what an exam is to it. The rule is in
+`packages/core`, where the derivations live: `moduleProgress`, `nextLesson`, `moduleOutcomes` and
+`orderModule` are only ever given lessons, and the readers split rows on `kind` before building
+`LessonNode`s. The readers that do so: the curriculum reader, the briefing reader, the lesson reader
+(which tells the SPA it is an exam), and `export:portfolio`.
+
+**Deadlines are learner data with no file**, like `completed_at`, so they are not on `tracks` (the
+reindexer upserts that table from `CURRICULUM.md`). `module_deadlines` is append-only:
+`(id, user_id, track_id, due_on date, created_at)`. The current deadline is the newest row; the
+first row is the date originally committed; the count is how many times it moved. There is no
+UPDATE policy, and DELETE exists only for account cleanup, as with attempts. `due_on` is a `date`
+— a calendar day in the learner's timezone (§5.2) — because "due on the 14th" is a day, not an
+instant, and storing it as midnight UTC is how a deadline lands on the 13th in São Paulo.
+
+The insert policy checks the **track** as well as `user_id`, for the reason §3.2c gives for attempts:
+without it a learner could hang a deadline off another user's module id.
+
 ### 3.3 The time tracker
 
 ```sql
@@ -912,15 +939,15 @@ the teach button, and still counts in the activity grid — history is history.
 
 NestJS modules, one per bounded context. REST with Zod-validated DTOs from `packages/core`.
 
-| Module       | Key routes                                                                                                                                                  |
-| ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `missions`   | `GET/POST /missions`, `PATCH /missions/:id` (revision recorded on mission-field change), `POST /missions/:id/park`                                          |
-| `focus`      | `POST /focus/sessions/start`, `POST /:id/stop`, `POST /:id/debrief`, `POST /focus/sessions` (manual/backfill)                                               |
-| `teach`      | `POST /missions/:id/teach` → 202, `GET /agent-runs/:id`, `GET /missions/:id/agent-runs`, `GET/POST/DELETE /me/memory…`                                      |
-| `insights`   | `GET /insights/activity`                                                                                                                                    |
-| `curriculum` | `GET /missions/:id/curriculum` — modules, their planned lessons, and every state derived from the graph (FR-K5)                                             |
-| `lessons`    | `GET /lessons/:id` (mints the view grant), `PUT`/`DELETE /lessons/:id/completion`, `GET /missions/:id/reference-docs`, `GET /missions/:id/learning-records` |
-| `account`    | `GET/PATCH /me`, `POST /me/changelog-seen`, `POST /account/export` (planned), `DELETE /account` (planned)                                                   |
+| Module       | Key routes                                                                                                                                                                                                                      |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `missions`   | `GET/POST /missions`, `PATCH /missions/:id` (revision recorded on mission-field change), `POST /missions/:id/park`                                                                                                              |
+| `focus`      | `POST /focus/sessions/start`, `POST /:id/stop`, `POST /:id/debrief`, `POST /focus/sessions` (manual/backfill)                                                                                                                   |
+| `teach`      | `POST /missions/:id/teach` → 202, `GET /agent-runs/:id`, `GET /missions/:id/agent-runs`, `GET/POST/DELETE /me/memory…`                                                                                                          |
+| `insights`   | `GET /insights/activity`                                                                                                                                                                                                        |
+| `curriculum` | `GET /missions/:id/curriculum` — modules, their planned lessons, every state derived from the graph (FR-K5), each module's exam, deadline and projection (FR-E6, FR-U4); `PUT /missions/:id/modules/:moduleId/deadline` (FR-U2) |
+| `lessons`    | `GET /lessons/:id` (mints the view grant), `PUT`/`DELETE /lessons/:id/completion`, `GET /missions/:id/reference-docs`, `GET /missions/:id/learning-records`                                                                     |
+| `account`    | `GET/PATCH /me`, `POST /me/changelog-seen`, `POST /account/export` (planned), `DELETE /account` (planned)                                                                                                                       |
 
 **`GET /lessons/:id` mints a credential, so it answers `Cache-Control: no-store`** — and so does the
 reference list, whose URLs are signed by one grant and expire together. A cached response outliving
@@ -929,6 +956,11 @@ its grant is a reader showing a blank frame with nothing to say about why.
 **Completion is a `PUT`, not a `POST`.** Marking the same lesson understood twice is the same lesson
 understood once, which is what lets the SPA retry without asking whether the first attempt landed.
 `DELETE` clears it — a correction for a mis-tap, not a way to reset progress (FR-P1).
+
+**A deadline is a `PUT` that appends.** The request says what the date should be; the server adds a
+row to `module_deadlines` only when it differs from the one in force, so re-sending the same date is
+not a move and every real move stays on the record (§3.2d). It answers with the whole curriculum,
+because the proposal, the status and the schedule all change with it.
 
 **Long operations never block a request.** Anything touching the LLM returns `202` with an `agent_run_id`; the SPA subscribes to `GET /agent-runs/:id/stream` (SSE) for progress and the terminal result.
 
@@ -1673,6 +1705,40 @@ any number of lessons, taking the caller's transaction so the curriculum reader,
 and the bridge endpoint each judge from the same snapshot they read their lessons in. It is a function
 rather than a provider because its three callers live in three modules, and a provider would make one
 import another's module to reach it.
+
+### 9.5 Exams and the schedule (`exams/exam-result.ts`, `schedule/*.ts`, FR-E6, FR-U1–U4)
+
+- **An exam item is sealed until passed** (`toExerciseView`): no solution, no whiteboard rubric
+  even after a review, and a review's lines reduced to their verdicts. The parser also drops any
+  solution an exam file declares, because the file is readable from the frame.
+- `examResult(items)` — per item `not-tried` / `failed` / `passed` (with attempts to the first
+  pass, and whether that pass was checked by a test or a review or reported by the learner);
+  `passed` only when every item is, and there is at least one; `passedAt` is the latest of the
+  items' first passes; `revisit` is the `covers` slugs of every unpassed item, deduplicated. Null
+  for an exam with no items: nothing to pass is not a pass.
+- `minutesPerLesson(samples)` — the median of the learner's finished, non-exam lessons' bound focus
+  minutes. Lessons with no bound minutes are left out rather than counted as zero. Null below
+  `MIN_TIMED_LESSONS` (3).
+- `dailyPace(minutesInWindow, windowDays)` — minutes ÷ days, rest days included, so a burst week
+  does not read as a habit. Null when the window holds nothing.
+- `estimateModule(...)` — remaining units (unfinished lessons, plus one for the exam until it is
+  passed) × minutes per lesson ÷ pace, rounded **up** to whole days. The projected exam day is
+  today plus that many days. Returns the basis (units, minutes per lesson, pace, samples) with it, so
+  the screen can say what the date rests on. Null with a reason: `not-planned`, `finished`,
+  `too-few-timed-lessons` (with the count), `no-recent-pace`.
+- `projectSchedule(modules, ...)` — the same estimate chained in the order given: each module's
+  projection starts the day the previous one is projected to end, and a finished module consumes no
+  time. Null projections propagate: a module after an unknown one has no projected start. The
+  curriculum use case gives it **the module you are in first**, then the rest in curriculum order.
+  Queued behind an earlier module with work left, that module would be proposed one date and judged
+  against a later one, and read "behind" the moment the learner accepted the date offered.
+- `deadlineStatus(...)` — `met`, `missed` (days late), `overdue` (days over), `due-today`,
+  `on-track`, `behind` (days the projection runs past the date), `no-projection`, or null when there
+  is no deadline. Uses calendar days in the learner's zone, from `calendar.ts`.
+
+Rounding up is the one direction that does not flatter: rounding the days down would make every
+projection a day early, and an estimate that is always slightly optimistic is a deadline that is
+always slightly missed.
 
 ## 10. Background jobs
 

@@ -66,8 +66,10 @@ follow-through measured.
 
 ### Non-goals (v1)
 
-- ❌ Everything in `NORTHSTAR.md` §5 (goals, skills/scoring, friction, notes, resource library,
-  weekly planning, SRS, assessments, insights, integrations)
+- ❌ Everything in `NORTHSTAR.md` §5 (skills/scoring, friction, notes, resource library, weekly
+  planning, SRS, calibration, insights, integrations). Module exams and module deadlines came back
+  from that list on 2026-10-02 (§6.4e, §6.4f); goals in general, and assessments outside a module,
+  did not.
 - ❌ Being a task manager, note-taking app, or LMS
 - ❌ Mobile-native apps (responsive web / PWA is enough)
 - ❌ Replacing the `teach` skill's teaching loop
@@ -95,6 +97,9 @@ busy week; a large one dies of its own weight.
 | **Focus Session**   | A bounded block of attention, usually on a lesson. Start with an intention, end with a ≤30s debrief.                                                  |
 | **Learning Record** | Append-only record of a meaningful learning event, written by the agent. Mirrors `teach`'s `learning-records/`.                                       |
 | **Reference doc**   | Agent-written document you _revisit_ (unlike lessons, which you complete). `reference/*.html` in the workspace.                                       |
+| **Exam**            | The test that ends a module: a lesson file marked `mindforge:kind="exam"`, written after the module's lessons, covering only what they taught.        |
+| **Deadline**        | The date you committed to finish a module and sit its exam by. Proposed from your own pace, committed by you, moved only visibly.                     |
+| **Schedule**        | Every module of a mission in order with its exam date — committed where you set one, projected from your pace where you have not.                     |
 
 **Relationship sketch:** `Mission → Curriculum → Modules → Lessons (+ edges) → Focus Sessions →
 daily activity`. Progress reads off lessons; time reads off sessions; frequency reads off the
@@ -257,6 +262,64 @@ rollup.
   will do — the same `nextAdjustment` the run's briefing is given, so the screen and the agent cannot
   disagree.
 
+### 6.4e Exams — a real test at the end of every module (`PLAN-EXAMS.md`)
+
+- **FR-E1** **An exam is a lesson file that says so**: `lessons/NNNN-….html` with
+  `<meta name="mindforge:kind" content="exam">` and `<meta name="mindforge:track">`, and no
+  `mindforge:lesson` claim. The reindexer writes it onto a `lessons` row with `kind = 'exam'`. One
+  module's exam is the newest exam file filed under it.
+- **FR-E2** **An exam is not a lesson for any derivation.** Module and mission progress, the next
+  lesson, outcome counts, landing judgements, adaptation and the briefing's lesson counts all leave
+  exams out. A module's fraction never gains a denominator for its exam.
+- **FR-E3** **The exam is written when the module's lessons are done.** A press of the teach button
+  on a mission where a module, taken in curriculum order, has every lesson completed and no exam
+  queues `generate_exam` for that module — inferred by the server like every run kind (FR-K1). The
+  run writes exactly one exam and no lessons; a run that writes no exam has failed.
+- **FR-E4** **An exam examines only what was taught.** The briefing gives the run the module's
+  written lessons, how each landed and the exercises each had. Every exam item declares `covers`,
+  the slugs of the lessons it examines. Items prefer checked kinds (`code`, `whiteboard`); a `task`
+  item is allowed for a language the browser cannot run and is shown as self-reported.
+- **FR-E5** **An exam is taken in the reader** with the lesson exercise panel, and with no outcome
+  chips: the result is what the items say. **No help:** hints are refused for an exam item until
+  it is passed, and nothing that is the answer is sent before then (no solution, no rubric, review
+  lines reduced to their verdicts). An exam file carries no solutions; the parser drops any.
+- **FR-E6** **The result is derived on read** (`examResult` in `packages/core`): for each item, not
+  tried, tried and not passed, or passed (first attempt, or after n); how many passes a test or a
+  review checked and how many were self-reported; passed overall only when every item is passed;
+  and the lessons the unpassed items cover, named so the learner knows what to revisit. No pass
+  mark, no score, no celebration.
+- **FR-E7** **A module is finished when every lesson is completed and its exam is passed.** Before
+  the exam exists the module says its exam is not written yet. That is not the same as failed.
+- **FR-E8** **A retake is another attempt**, append-only like every attempt. Nothing is reset; the
+  result says how many sittings it took.
+
+### 6.4f Deadlines and the schedule — a date to finish by (`PLAN-EXAMS.md`)
+
+- **FR-U1** **An estimate from how you actually work** (`estimateModule` in `packages/core`): the
+  module's unfinished lessons, plus its exam counted as one lesson until it is passed, times the
+  median focus minutes of your finished lessons (at least three with focus time bound to them,
+  across every mission), divided by your daily pace on this mission (focus minutes in the last 28
+  local days ÷ 28, rest days included). The result is a projected exam day and the basis it was
+  computed from. **Null with a reason** when either input is missing. It is never a default.
+- **FR-U2** **A deadline is a commitment you make** on the module you are in, proposed from the
+  estimate when one exists, any date from today otherwise. Committing takes one tap when the
+  proposal is accepted. Deadlines are stored append-only (`module_deadlines`): moving one adds a
+  row, and the screen shows the date first committed and how many times it moved. Nothing is
+  deleted to make a date look kept.
+- **FR-U3** **The deadline's state is derived** (`deadlineStatus`): met (finished on or before the
+  date), missed (finished after it, with how many days late), overdue (unfinished past the date, by
+  how many days), due today, on track or behind (the projection against the date), or no
+  projection. Shown plainly, without alarms, celebration or punishment.
+- **FR-U4** **The schedule**: every shown module of a mission with its exam day, committed where the
+  learner set one and otherwise projected, each module starting where the one before it is
+  projected to end (`projectSchedule`). The chain starts with the module the learner is in, then
+  the rest in curriculum order, so the date proposed for that module is the date its deadline is
+  judged against. A projected date is always labelled as projected; a committed one as due.
+- **FR-U5** **The prompt to commit appears once, where it matters**: on the module you are working
+  in, when it has no deadline. Nothing nags about modules you have not started.
+- **FR-U6** "Today" is the learner's local day (§7.4), and a due date is a calendar day in their
+  timezone, never a server-local instant.
+
 ### 6.5 Progress tracker
 
 - **FR-P1** Lesson completion is recorded from the reader with an outcome:
@@ -382,5 +445,8 @@ Open questions live in `NORTHSTAR.md` §7.
 - **Depth** — overview / working / deep_dive: how far below the surface a lesson goes.
 - **Difficulty** — 1–5: how hard the lesson is expected to be for you.
 - **Outcome** — understood / shaky / lost: your verdict on a completed lesson.
+- **Exam** — the test that ends a module, written after its lessons. Passed when every item is.
+- **Deadline** — the date you committed to for finishing a module, exam included.
+- **Projection** — the exam day your recent pace implies. Derived, and labelled as such.
 - **Zone of Proximal Development (ZPD)** — the band where a lesson is hard enough to teach and
   easy enough to finish. Difficulty levels aim at it.

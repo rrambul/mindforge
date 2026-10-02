@@ -7,6 +7,23 @@ nobody can read is a git log with extra steps (`TECH-DESIGN.md` §14.1).
 One version for the whole product. It is a single deployable with a single user; per-package versions
 would be bookkeeping with no reader.
 
+## Unreleased
+
+### Exams and deadlines (M7)
+
+- **Every module ends in an exam.** When you finish a module's last lesson, the teach button writes
+  its exam: four to eight exercises covering only what that module's lessons taught, weighted toward
+  the ones that landed shaky. You take it in the reader with the same editor, runner and whiteboard.
+  There are no hints and no answers until you pass an item, and an exam is passed only when every
+  item is. When an item fails, the screen names the lessons it covered so you know what to reread.
+- **Every module gets a deadline you commit to.** On the module you're in, Mindforge proposes a date
+  from how you actually work: the median time your finished lessons took, and the time you've put
+  into this mission over the last 28 days. Accept it with one tap or pick your own. Moving it later
+  is allowed, and the date you first committed to stays on screen.
+- **The schedule** shows every module's exam date, labelled due if you committed to it and projected
+  if Mindforge worked it out. Without enough history to estimate from, it says what's missing
+  instead of guessing.
+
 ## 0.2.0
 
 Mindforge became one thing. The previous release had nine feature pillars around a core that was

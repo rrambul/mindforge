@@ -32,6 +32,7 @@ Read them from this repository, not from memory, and read them **before** writin
 | A lesson         | `skills/teach/SKILL.md` and `skills/teach/LEARNING-RECORD-FORMAT.md`      |
 | Its shape        | `skills/LESSON-SHAPE.md` — **applies to you in full**                     |
 | Its last pass    | `skills/humanizer/SKILL.md` — the `humanizer` skill, over the prose       |
+| A module's exam  | `skills/EXAM-SHAPE.md` — **applies to you in full**, when one is due      |
 | The mission file | `skills/teach/MISSION-FORMAT.md`                                          |
 
 `skills/teach/` is a verbatim copy of the upstream Claude Code skill and `skills/README.md` forbids
@@ -187,6 +188,26 @@ Then write exactly one lesson, as in step 3, and land it as in step 4. Two detai
 **They can also just press the button.** The app dispatches a real run for the same lesson, chosen
 the same way. That is the product; this is the way that does not cost anything. Say so if they seem
 to think this command is the only route.
+
+## Step 6 — the exam, when a module's lessons are done
+
+When every lesson in a module is finished, the next thing is that module's exam, not the next
+module's first lesson (FR-E3). The curriculum response says so: a module whose `progress` is complete
+and whose `exam` is `null` is waiting for one. Read `skills/EXAM-SHAPE.md` in full first. It binds
+you exactly as it binds a server run.
+
+- **Read every lesson file in the module before writing an item.** An exam may only examine what
+  those lessons taught. Weight it toward the lessons marked shaky or lost, and toward exercises the
+  learner never passed.
+- **One file, `lessons/NNNN-exam-<module-slug>.html`**, with `mindforge:kind` set to `exam` and
+  `mindforge:track` set to the module, and **no** `mindforge:lesson` tag. Every item declares
+  `covers`, the slugs of the lessons it examines.
+- **No learning record.** The learner has not sat it yet.
+
+Land it as in step 4. The module's line on the curriculum screen then shows the exam and its items.
+
+Deadlines are not files. The learner commits one on the curriculum screen (FR-U2), and nothing here
+writes `module_deadlines`.
 
 ## What must be running
 

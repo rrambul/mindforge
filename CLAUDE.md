@@ -180,6 +180,29 @@ broken while the data is perfectly correct. It needs `SUPABASE_URL` and
 `seed:report` prints what the tracker functions actually say about it. Use it before designing
 anything that reads `daily_activity` or module progress.
 
+**M7 — exams and deadlines — is code-complete and unproven by a real run (2026-10-02).** Decided
+ahead of the M6 soak by the learner, and recorded as such in `NORTHSTAR.md` §5 and §6. A module
+ends in an exam that a `generate_exam` run writes once its lessons are done (inferred like every run
+kind, the module carried in `input.examFor`), and it carries a deadline the learner commits to,
+proposed from their own pace. `PLAN-EXAMS.md` has the decisions; FR-E and FR-U are the requirements;
+`TECH-DESIGN.md` §3.2d and §9.5 have the model and the maths.
+
+Three things about it that are easy to get wrong:
+
+- **An exam is a `lessons` row with `kind = 'exam'`**, from `<meta name="mindforge:kind">`, so it
+  gets the reader, the grant and exercise attempts for nothing, and **every reader of `lessons`
+  must leave it out of lesson derivations** (FR-E2). The curriculum reader splits on `kind` before
+  building nodes; the briefing reader, the mission-workspace reader and `export:portfolio` filter
+  in SQL. A new query over `lessons` that forgets this gives a module a denominator it can never
+  finish, since nothing completes an exam.
+- **`module_deadlines` is append-only, with no UPDATE policy.** A move is a new row; the newest is
+  in force, the first is what was committed, and the screen always shows both. Re-sending the date
+  in force writes nothing, because that is not a move.
+- **The estimate refuses to guess** (`schedulePace`): fewer than three finished lessons with focus
+  time bound to them, or no focus time on the mission in 28 days, is null with the reason, and the
+  learner picks the date. Days round up. A default pace would be the inflation non-negotiable 10
+  forbids.
+
 **Five review findings were closed on 2026-08-15**, all of them things that were structurally invisible
 rather than broken on screen. Each is documented where it lives; the short version:
 
