@@ -18,6 +18,7 @@ import {
   type Random,
 } from "./seed-support.js";
 import {
+  examHtml,
   lessonHtml,
   referenceHtml,
   stylesheet,
@@ -629,8 +630,117 @@ async function seedCurriculum(
   await seedLibrary(prisma, userId, mission, workspaceKey, written, tz, files);
 
   await seedPlan(prisma, userId, mission, tracks, bySlug, tally);
+  await seedExamAndDeadline(
+    prisma,
+    userId,
+    mission.id,
+    workspaceKey,
+    tracks,
+    bySlug,
+    seq + 1,
+    tz,
+    files,
+  );
 
   return tracks.length;
+}
+
+/**
+ * One exam and one moved deadline per mission (FR-E6, FR-U2), so the curriculum
+ * screen has each state to show.
+ *
+ * - **The exam** goes on the first module whose seeded lessons are all finished:
+ *   two items, one passed and one failed, so the screen shows "1 of 2" and names
+ *   the lesson to revisit — the state the exam exists for, rather than a clean pass.
+ * - **The deadline** goes on the first module with work left, committed ten days ago
+ *   and moved once two days ago, so "first committed for…, and moved once" renders.
+ */
+async function seedExamAndDeadline(
+  prisma: ReturnType<typeof connect>,
+  userId: string,
+  missionId: string,
+  workspaceKey: string,
+  tracks: readonly TrackSpec[],
+  bySlug: ReadonlyMap<string, string>,
+  seq: number,
+  tz: string,
+  files: WorkspaceUploader | null,
+): Promise<void> {
+  const examined = tracks.find((spec) => spec.lessons.every(([, , outcome]) => outcome !== null));
+  if (examined !== undefined) {
+    const [first, second] = examined.lessons;
+    const items: ExerciseDeclaration[] = [first, second]
+      .filter((lesson) => lesson !== undefined)
+      .map(([slug, title]) =>
+        ExerciseDeclarationSchema.parse({
+          key: `exam-${slug}`,
+          kind: "code",
+          language: "javascript",
+          title: `Apply: ${title}`,
+          prompt: `Use what "${title}" taught on a case it did not show.`,
+          starter: "export function solve(input) {\n}\n",
+          tests:
+            'import { solve } from "./solution";\ntest("solves it", () => expect(solve(2)).toBe(4));\n',
+          // No solution: an exam carries none (`skills/EXAM-SHAPE.md`).
+          covers: [slug],
+        }),
+      );
+    const title = `Exam: ${examined.name}`;
+    const storagePath = `lessons/${String(seq).padStart(4, "0")}-exam-${examined.slug}.html`;
+
+    await files?.put(
+      `workspaces/${userId}/${workspaceKey}/${storagePath}`,
+      examHtml({ title, trackSlug: examined.slug, items }),
+      "text/html; charset=utf-8",
+    );
+    const exam = await prisma.lesson.create({
+      data: {
+        userId,
+        missionId,
+        trackId: bySlug.get(examined.slug)!,
+        kind: "exam",
+        seq,
+        slug: `exam-${examined.slug}`,
+        title,
+        storagePath,
+        contentHash: `seed-${workspaceKey}-exam`,
+        exercises: items,
+      },
+      select: { id: true },
+    });
+
+    for (const [index, item] of items.entries()) {
+      const passed = index === 0;
+      await prisma.exerciseAttempt.create({
+        data: {
+          userId,
+          lessonId: exam.id,
+          exerciseKey: item.key,
+          code: "export function solve(input) { return input * 2; }",
+          status: "completed",
+          results: [{ name: "solves it", passed, message: passed ? null : "expected 4" }],
+          testsPassed: passed ? 1 : 0,
+          testsTotal: 1,
+          passed,
+        },
+      });
+    }
+  }
+
+  const unfinished = tracks.find((spec) => spec.lessons.some(([, , outcome]) => outcome === null));
+  if (unfinished !== undefined) {
+    const trackId = bySlug.get(unfinished.slug)!;
+    // Relative to the database's own clock, like every other "ago" in a seed that
+    // has to look current whenever it is run.
+    await prisma.$executeRawUnsafe(
+      `insert into module_deadlines (user_id, track_id, due_on, created_at) values
+         ($1::uuid, $2::uuid, ((now() at time zone $3)::date + 3), now() - interval '10 days'),
+         ($1::uuid, $2::uuid, ((now() at time zone $3)::date + 9), now() - interval '2 days')`,
+      userId,
+      trackId,
+      tz,
+    );
+  }
 }
 
 interface FinishedLesson {

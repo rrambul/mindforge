@@ -60,7 +60,9 @@ async function main(): Promise<void> {
         name: true,
         status: true,
         mission: { select: { topic: true } },
-        lessons: { select: { completedAt: true, outcome: true } },
+        // Lessons only: an exam is in no fraction (FR-E2), and counted here it is a
+        // lesson nothing ever completes — "3/4" for a module whose lessons are done.
+        lessons: { where: { kind: "lesson" }, select: { completedAt: true, outcome: true } },
       },
     });
 

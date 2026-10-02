@@ -101,6 +101,9 @@ async function run(options: Options): Promise<void> {
             name: true,
             status: true,
             lessons: {
+              // Lessons only: an exam is in no fraction (FR-E2), and counted here it
+              // would be a lesson the public number owes that the private one does not.
+              where: { kind: "lesson" },
               select: { id: true, status: true, completedAt: true },
             },
           },

@@ -136,6 +136,38 @@ ${exercises.map(exerciseSection).join("")}
 }
 
 /**
+ * A module's exam (FR-E1): a lesson file that says it is one, filed under its
+ * module, claiming no plan entry — exactly the tags `skills/EXAM-SHAPE.md` asks for,
+ * so the reindexer would read back the same row the seed writes.
+ */
+export function examHtml(input: {
+  readonly title: string;
+  readonly trackSlug: string;
+  readonly items: readonly ExerciseDeclaration[];
+}): string {
+  return `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="mindforge:kind" content="exam" />
+    <meta name="mindforge:track" content="${escapeHtml(input.trackSlug)}" />
+    <title>${escapeHtml(input.title)}</title>
+    <link rel="stylesheet" href="../assets/lesson.css" />
+  </head>
+  <body>
+    <h1>${escapeHtml(input.title)}</h1>
+    <p>
+      Seeded exam. ${input.items.length} items, no hints, and every attempt is kept. Each item
+      is passed by its tests.
+    </p>
+${input.items.map(exerciseSection).join("")}
+  </body>
+</html>
+`;
+}
+
+/**
  * One exercise as a lesson carries it: the marked section the learner reads, and
  * the declaration the app runs. `<` is escaped inside the JSON so a `</script>` in
  * the test code cannot end the block early.

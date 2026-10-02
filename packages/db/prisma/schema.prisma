@@ -53,19 +53,20 @@ model Profile {
   changelogSeenVersion String?  @map("changelog_seen_version")
   createdAt            DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
-  missions        Mission[]
-  tracks          Track[]
-  focusSessions   FocusSession[]
-  dailyActivity   DailyActivity[]
-  lessons         Lesson[]
+  missions         Mission[]
+  tracks           Track[]
+  focusSessions    FocusSession[]
+  dailyActivity    DailyActivity[]
+  lessons          Lesson[]
   exerciseAttempts ExerciseAttempt[]
   exerciseHints    ExerciseHint[]
-  referenceDocs   ReferenceDoc[]
-  learningRecords LearningRecord[]
-  workspaceFiles  WorkspaceFile[]
-  agentRuns       AgentRun[]
-  llmCalls        LlmCall[]
-  learnerMemories LearnerMemory[]
+  moduleDeadlines  ModuleDeadline[]
+  referenceDocs    ReferenceDoc[]
+  learningRecords  LearningRecord[]
+  workspaceFiles   WorkspaceFile[]
+  agentRuns        AgentRun[]
+  llmCalls         LlmCall[]
+  learnerMemories  LearnerMemory[]
 
   @@map("profiles")
 }
@@ -125,9 +126,9 @@ model MissionRevision {
 /// Written by the `curriculum` skill from `CURRICULUM.md`, which is canonical —
 /// this rebuilds by re-reading a workspace like everything else in the index.
 model Track {
-  id        String @id @default(uuid()) @db.Uuid
-  userId    String @map("user_id") @db.Uuid
-  missionId String @map("mission_id") @db.Uuid
+  id        String  @id @default(uuid()) @db.Uuid
+  userId    String  @map("user_id") @db.Uuid
+  missionId String  @map("mission_id") @db.Uuid
   /// Stable, and what each lesson's `<meta name="mindforge:track">` names.
   /// Renaming the track is free; changing this orphans its module.
   slug      String
@@ -140,17 +141,19 @@ model Track {
   /// proposed | active | done | dropped. A track absent from a regenerated
   /// `CURRICULUM.md` is marked `dropped`, never deleted: the agent rewrites the
   /// file wholesale, and a deletion would take a module of finished lessons.
-  status    String @default("proposed")
+  status    String  @default("proposed")
 
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  profile   Profile     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  mission   Mission     @relation(fields: [missionId], references: [id], onDelete: Cascade)
-  prereqOf  TrackEdge[] @relation("track")
-  requires  TrackEdge[] @relation("trackPrereq")
+  profile   Profile          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  mission   Mission          @relation(fields: [missionId], references: [id], onDelete: Cascade)
+  prereqOf  TrackEdge[]      @relation("track")
+  requires  TrackEdge[]      @relation("trackPrereq")
   lessons   Lesson[]
   agentRuns AgentRun[]
+  /// Append-only commitments to finish this module by a date (FR-U2).
+  deadlines ModuleDeadline[]
 
   @@unique([missionId, slug])
   @@index([userId, missionId, position])
@@ -270,6 +273,12 @@ model Lesson {
   /// two lives, not two rows joined, because two rows means the module's
   /// denominator silently gains a lesson the learner has already finished.
   status      String  @default("generated")
+  /// lesson | exam, from `<meta name="mindforge:kind">` (FR-E1). An exam is a lesson
+  /// file that says it is one, kept on this table so it gets the reader, the grant
+  /// and the exercise attempts for nothing — and so every derivation that counts
+  /// lessons has to leave it out (FR-E2). CHECKed in SQL: an exam is always
+  /// `generated`.
+  kind        String  @default("lesson")
   /// From the filename, never from the document. An H1 is prose the agent
   /// rewrites; the number is the workspace's own ordering, and it is what a
   /// learning record links back to. Mission-global: numbering does not restart
@@ -295,17 +304,17 @@ model Lesson {
   contentHash String? @map("content_hash")
 
   /// One line from `CURRICULUM.md`: what this lesson is for. Null off-plan.
-  intent      String?
+  intent     String?
   /// 1–5, how hard for **this** learner at the level `MISSION.md` records — never
   /// a score for the learner. Null when the plan left it blank, and null is
   /// rendered as unknown rather than as a middling 3 (non-negotiable 10).
-  difficulty  Int?    @db.SmallInt
+  difficulty Int?    @db.SmallInt
   /// overview | working | deep_dive. How far down, not how long.
-  depth       String?
+  depth      String?
   /// Row order within its module in `CURRICULUM.md`. A plan, like
   /// `tracks.position`: what unblocks next comes from `lessonEdges` and
   /// difficulty (FR-K7), and this only breaks ties and orders the display.
-  position    Int?    @db.SmallInt
+  position   Int?    @db.SmallInt
 
   /// Set by the sandboxed reader in M5. Until then it is null for every lesson,
   /// and null means "unread or not yet trackable" — the UI renders neither as a
@@ -319,7 +328,7 @@ model Lesson {
   /// the lesson's `<script type="application/vnd.mindforge.exercise+json">` blocks
   /// are canonical, and this is rebuilt from them on every sync. `[]` for a lesson
   /// that declares none, which is every lesson written before Phase 1.
-  exercises   Json    @default("[]")
+  exercises Json @default("[]")
 
   /// bridge | harder — what this lesson changed about the plan (FR-D2–D4), from
   /// `<meta name="mindforge:adjusted">`. Null for a lesson taught as planned. Index,
@@ -333,18 +342,18 @@ model Lesson {
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  profile Profile          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  mission Mission          @relation(fields: [missionId], references: [id], onDelete: Cascade)
+  profile          Profile           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  mission          Mission           @relation(fields: [missionId], references: [id], onDelete: Cascade)
   /// SetNull, not Cascade: if a track is ever removed by hand the lessons it held
   /// are the expensive artifact and the grouping is the cheap one (non-negotiable 6).
-  track   Track?           @relation(fields: [trackId], references: [id], onDelete: SetNull)
-  records LearningRecord[]
+  track            Track?            @relation(fields: [trackId], references: [id], onDelete: SetNull)
+  records          LearningRecord[]
   /// Lessons this one is a prerequisite of, and the ones it depends on. Read
   /// backwards, `prereqOf` is the fundamental count (FR-K6).
-  prereqOf LessonEdge[] @relation("lesson")
-  requires LessonEdge[] @relation("lessonPrereq")
+  prereqOf         LessonEdge[]      @relation("lesson")
+  requires         LessonEdge[]      @relation("lessonPrereq")
   /// The blocks of attention spent on it (FR-F3). M6's time views read these.
-  focusSessions FocusSession[]
+  focusSessions    FocusSession[]
   /// Every run of an exercise's tests (FR-X5). Learner data, not index.
   exerciseAttempts ExerciseAttempt[]
   /// Every hint asked for (FR-H3). Learner data, like the attempts.
@@ -354,6 +363,7 @@ model Lesson {
   @@index([userId, missionId])
   @@index([trackId, seq])
   @@index([trackId, position])
+  @@index([trackId, kind, seq])
   @@map("lessons")
 }
 
@@ -368,33 +378,33 @@ model Lesson {
 /// Append-only. An attempt is a fact about the past, and "how many tries did it
 /// take" is Phase 3's signal: an update would rewrite it.
 model ExerciseAttempt {
-  id          String   @id @default(uuid()) @db.Uuid
-  userId      String   @map("user_id") @db.Uuid
-  lessonId    String   @map("lesson_id") @db.Uuid
-  exerciseKey String   @map("exercise_key")
+  id          String    @id @default(uuid()) @db.Uuid
+  userId      String    @map("user_id") @db.Uuid
+  lessonId    String    @map("lesson_id") @db.Uuid
+  exerciseKey String    @map("exercise_key")
   code        String
   /// completed | error | timeout (`RUN_STATUSES`).
   status      String
   /// `TestResult[]`, as the runner produced them.
-  results     Json     @default("[]")
-  testsPassed Int      @map("tests_passed")
-  testsTotal  Int      @map("tests_total")
+  results     Json      @default("[]")
+  testsPassed Int       @map("tests_passed")
+  testsTotal  Int       @map("tests_total")
   /// Derived by `attemptPassed` in `packages/core`, stored so "first passed" is a
   /// query rather than a replay of every result.
   passed      Boolean
   /// When the learner first changed the starter code. Null if they never did.
   startedAt   DateTime? @map("started_at") @db.Timestamptz(6)
-  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   /// tests | review | self — who decided "passed". Tests ran in the learner's
   /// browser; a review is a model reading a drawing against the rubric; self is
   /// the learner's own report of a task they ran on their machine.
-  gradedBy    String   @default("tests") @map("graded_by")
+  gradedBy    String    @default("tests") @map("graded_by")
   /// A whiteboard's canvas elements. Present exactly when `gradedBy` is review.
   scene       Json?
   /// The reviewer's one overall sentence.
   feedback    String?
   /// The review's cost row (non-negotiable 9).
-  llmCallId   String?  @map("llm_call_id") @db.Uuid
+  llmCallId   String?   @map("llm_call_id") @db.Uuid
 
   profile Profile  @relation(fields: [userId], references: [id], onDelete: Cascade)
   lesson  Lesson   @relation(fields: [lessonId], references: [id], onDelete: Cascade)
@@ -445,6 +455,30 @@ model ExerciseHint {
 /// Cascade on both sides, unlike `lessons.trackId`. An edge is not an artifact —
 /// it is a statement about two lessons, and when either end is gone it is no
 /// longer about anything.
+/// A commitment to finish a module — its lessons and its exam — by a day (FR-U2).
+///
+/// **Append-only**, with no UPDATE policy: moving a deadline adds a row, so the
+/// newest row is the date in force, the first is what was originally committed, and
+/// the count between them is how many times it moved. `currentDeadline` in
+/// `packages/core` reads them; nothing stores the derived values.
+///
+/// Learner data with no file, like `lessons.completed_at` — which is why it is not
+/// a column on `tracks`, a table the reindexer rewrites from `CURRICULUM.md`.
+model ModuleDeadline {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  trackId   String   @map("track_id") @db.Uuid
+  /// A calendar day in the learner's timezone, never an instant (FR-U6).
+  dueOn     DateTime @map("due_on") @db.Date
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  profile Profile @relation(fields: [userId], references: [id], onDelete: Cascade)
+  track   Track   @relation(fields: [trackId], references: [id], onDelete: Cascade)
+
+  @@index([userId, trackId, createdAt])
+  @@map("module_deadlines")
+}
+
 model LessonEdge {
   userId   String @map("user_id") @db.Uuid
   lessonId String @map("lesson_id") @db.Uuid
@@ -561,7 +595,7 @@ model AgentRun {
   /// scoped to one module.
   trackId   String? @map("track_id") @db.Uuid
 
-  /// generate_lesson | generate_curriculum | sync_workspace
+  /// generate_lesson | generate_curriculum | generate_exam | sync_workspace
   kind   String
   /// queued | running | succeeded | succeeded_with_conflicts | failed | cancelled.
   /// `succeeded_with_conflicts` is a success: the run did its work and kept both
@@ -635,9 +669,9 @@ model LlmCall {
 
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
-  profile  Profile   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  profile  Profile           @relation(fields: [userId], references: [id], onDelete: Cascade)
   /// Set null, not cascade: deleting a run must not delete what it cost.
-  agentRun AgentRun? @relation(fields: [agentRunId], references: [id], onDelete: SetNull)
+  agentRun AgentRun?         @relation(fields: [agentRunId], references: [id], onDelete: SetNull)
   /// The hint this call produced, when it was a hint call (FR-H3).
   hints    ExerciseHint[]
   /// The whiteboard review this call produced, when it was one (Phase 4).
