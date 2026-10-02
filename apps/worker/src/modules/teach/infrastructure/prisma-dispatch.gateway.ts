@@ -9,7 +9,7 @@ import type { BriefingKind } from "@mindforge/workspace";
 import { PRISMA } from "../../../shared/prisma.js";
 import type { QueuedRun, TeachDispatchGateway } from "../application/dispatch.port.js";
 
-import { writeCurriculumPlugin, writeTeachPlugin } from "./teach-plugin.js";
+import { writeCurriculumPlugin, writeExamPlugin, writeTeachPlugin } from "./teach-plugin.js";
 
 @Injectable()
 export class PrismaDispatchGateway implements TeachDispatchGateway {
@@ -33,12 +33,13 @@ export class PrismaDispatchGateway implements TeachDispatchGateway {
         workspace_key: string;
         timezone: string;
         bridge_for: string | null;
+        exam_for: string | null;
       }[]
     >(
-      // Both kinds, and the `in` list is the enumeration on purpose: `agent_runs`
-      // allows kinds this worker cannot run (`sync_workspace`, and the assessment
-      // kinds M6 cut), and claiming one would hold the mission's single-active-run
-      // slot while nothing happened.
+      // The three kinds, and the `in` list is the enumeration on purpose:
+      // `agent_runs` allows a kind this worker cannot run (`sync_workspace`), and
+      // claiming one would hold the mission's single-active-run slot while nothing
+      // happened.
       //
       // **Round-robin by learner, FIFO within one.** The ordering used to be
       // `created_at` alone, which is fair between *runs* and unfair between
@@ -57,12 +58,12 @@ export class PrismaDispatchGateway implements TeachDispatchGateway {
       // only the runnable rows, so this evaluates a handful of times and rides the
       // `(user_id, started_at)` index rather than aggregating every run ever made.
       `select r.id, r.user_id, r.mission_id, r.kind, m.workspace_key, p.timezone,
-              r.input->>'bridgeFor' as bridge_for
+              r.input->>'bridgeFor' as bridge_for, r.input->>'examFor' as exam_for
          from agent_runs r
          join missions m on m.id = r.mission_id
          join profiles p on p.id = r.user_id
         where r.status = 'queued'
-          and r.kind in ('generate_lesson', 'generate_curriculum')
+          and r.kind in ('generate_lesson', 'generate_curriculum', 'generate_exam')
           and m.workspace_key is not null
         order by
           coalesce(
@@ -85,12 +86,16 @@ export class PrismaDispatchGateway implements TeachDispatchGateway {
       missionId: row.mission_id,
       // Narrowed rather than cast: the `in` list above is what the query allows,
       // and a third value here would be a widened filter nobody told this line about.
-      kind: row.kind === "generate_curriculum" ? "generate_curriculum" : "generate_lesson",
+      kind:
+        row.kind === "generate_curriculum" || row.kind === "generate_exam"
+          ? row.kind
+          : "generate_lesson",
       workspaceKey: row.workspace_key,
       timezone: row.timezone,
       // A uuid or nothing: the input is jsonb the API wrote, but a malformed value
       // here would reach a `::uuid` cast in the briefing and fail the whole run.
       bridgeFor: UUID.test(row.bridge_for ?? "") ? row.bridge_for : null,
+      examFor: UUID.test(row.exam_for ?? "") ? row.exam_for : null,
     };
   }
 
@@ -99,7 +104,12 @@ export class PrismaDispatchGateway implements TeachDispatchGateway {
     kind: BriefingKind,
   ): Promise<{ path: string; skills: readonly string[] }> {
     const root = await mkdtemp(join(tmpdir(), `mindforge-plugin-${runId}-`));
-    const write = kind === "generate_curriculum" ? writeCurriculumPlugin : writeTeachPlugin;
+    const write =
+      kind === "generate_curriculum"
+        ? writeCurriculumPlugin
+        : kind === "generate_exam"
+          ? writeExamPlugin
+          : writeTeachPlugin;
     const plugin = await write(root);
     return { path: plugin.path, skills: plugin.skills };
   }

@@ -100,13 +100,12 @@ export class TeachDispatcher implements OnApplicationBootstrap, OnModuleDestroy 
 
     this.busy = true;
     try {
-      const briefing = renderBriefing({
-        ...(await this.briefings.gather(queued.userId, queued.missionId, {
-          bridgeFor: queued.bridgeFor,
-        })),
-        // The facts are the mission's; which agent reads them is the run's.
-        kind: queued.kind,
+      const facts = await this.briefings.gather(queued.userId, queued.missionId, {
+        bridgeFor: queued.bridgeFor,
+        examFor: queued.examFor,
       });
+      // The facts are the mission's; which agent reads them is the run's.
+      const briefing = renderBriefing({ ...facts, kind: queued.kind });
       const plugin = await this.gateway.writePlugin(queued.id, queued.kind);
 
       const outcome = await this.teach.execute({
@@ -119,6 +118,9 @@ export class TeachDispatcher implements OnApplicationBootstrap, OnModuleDestroy 
         skills: plugin.skills,
         kind: queued.kind,
         timezone: queued.timezone,
+        // The slug the briefing named, so the verdict checks the exam against the
+        // module the run was told to examine and nothing looser.
+        examFor: facts.examModule?.slug ?? null,
       });
 
       this.logger.log(

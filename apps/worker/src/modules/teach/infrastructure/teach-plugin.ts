@@ -68,6 +68,25 @@ export async function writeTeachPlugin(destination: string): Promise<WrittenTeac
 }
 
 /**
+ * The teach plugin for an exam run (FR-E3): the same skill and humanizer, with
+ * `EXAM-SHAPE.md` appended after `LESSON-SHAPE.md`.
+ *
+ * The same plugin rather than a third one because an exam is written by the `teach`
+ * skill — grounded in the module's lessons, in the learner's language, in the same
+ * file format — and `EXAM-SHAPE.md` says where it departs from a lesson. Appended
+ * only here, so a lesson run is never told about exams it is not writing.
+ */
+export async function writeExamPlugin(destination: string): Promise<WrittenTeachPlugin> {
+  return write(destination, {
+    skillDir: "teach",
+    addendumFiles: ["UNATTENDED.md", "LESSON-SHAPE.md", "EXAM-SHAPE.md"],
+    docs: FORMAT_DOCS,
+    companions: TEACH_COMPANIONS,
+    compose: buildTeachPlugin,
+  });
+}
+
+/**
  * The `curriculum` plugin, written the same way.
  *
  * A separate directory and a separate call because a run loads exactly one of the

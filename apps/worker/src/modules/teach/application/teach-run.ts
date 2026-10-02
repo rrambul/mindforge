@@ -5,7 +5,13 @@ import {
   type AgentRunResult,
 } from "@mindforge/api/teach";
 import { estimateCostUsd, type LlmUsage } from "@mindforge/llm";
-import { CURRICULUM_FILE, LESSONS_DIR, type BriefingKind, type Change } from "@mindforge/workspace";
+import {
+  CURRICULUM_FILE,
+  LESSONS_DIR,
+  parseLessonHtml,
+  type BriefingKind,
+  type Change,
+} from "@mindforge/workspace";
 import { Inject, Injectable, Logger } from "@nestjs/common";
 
 import {
@@ -111,6 +117,11 @@ export class TeachRun {
     readonly kind: BriefingKind;
     /** The learner's IANA zone, so a record's `Date:` resolves in theirs. */
     readonly timezone: string;
+    /**
+     * The slug of the module an exam run examines (FR-E3). An exam run has done its
+     * job only with a new exam filed under exactly this module; null otherwise.
+     */
+    readonly examFor?: string | null;
   }): Promise<TeachRunOutcome> {
     const { dir, baseline } = await this.sync.materialize(input);
 
@@ -150,7 +161,28 @@ export class TeachRun {
       // writes no lessons on purpose, and asking it for one failed the first real
       // one this project ever dispatched: `CURRICULUM.md` was on disk, the tracks
       // were ready to index, and the run was recorded as a failure.
-      const missing = verdict(input.kind, synced.changes);
+      // An exam run's file is a lesson file, so "wrote something under lessons/" is
+      // not enough. It has to be **new**, say it is an exam, and be filed under the
+      // module the run was queued for. Anything less leaves that module with no exam,
+      // `moduleAwaitingExam` names it again, and every later press queues the same
+      // paid run: a re-saved older exam, or one under the wrong module or none.
+      const added = new Set(
+        synced.changes.filter((change) => change.kind === "added").map((change) => change.path),
+      );
+      const exams =
+        input.kind === "generate_exam" && input.examFor
+          ? (await dir.walk())
+              .filter((file) => added.has(file.path) && lessons.includes(file.path))
+              .filter((file) => {
+                const { parsed } = parseLessonHtml(
+                  file.path.split("/").pop() ?? file.path,
+                  new TextDecoder().decode(file.bytes),
+                );
+                return parsed.kind === "exam" && parsed.trackSlug === input.examFor;
+              })
+              .map((file) => file.path)
+          : [];
+      const missing = verdict(input.kind, synced.changes, exams, input.examFor ?? null);
       if (missing !== null) {
         return this.fail(input, synced.changes, missing);
       }
@@ -416,11 +448,24 @@ export class TeachRun {
  * sees names the artifact, and so adding a third kind is a case rather than a
  * second condition wired into the caller.
  */
-function verdict(kind: BriefingKind, changes: readonly Change[]): string | null {
+function verdict(
+  kind: BriefingKind,
+  changes: readonly Change[],
+  examsWritten: readonly string[],
+  examFor: string | null,
+): string | null {
   if (kind === "generate_curriculum") {
     return wrote(changes, CURRICULUM_FILE)
       ? null
       : "The run finished without writing a curriculum.";
+  }
+
+  if (kind === "generate_exam") {
+    if (examsWritten.length > 0) return null;
+    return examFor === null
+      ? "The run finished without writing an exam: the module it was queued for is no longer in the curriculum."
+      : `The run finished without writing an exam for "${examFor}": a new lesson file with ` +
+          `<meta name="mindforge:kind" content="exam"> and <meta name="mindforge:track" content="${examFor}">.`;
   }
 
   return lessonsIn(changes).length === 0 ? "The run finished without writing a lesson." : null;

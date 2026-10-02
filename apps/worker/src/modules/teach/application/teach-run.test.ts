@@ -141,9 +141,16 @@ function harness(
      * materialize would download it.
      */
     concurrentWrite?: readonly (readonly [string, string])[];
+    /** Files already in Storage before the run, so writing one again is a modification. */
+    stored?: Writes;
   } = {},
 ) {
-  const storage = new Map<string, Uint8Array>([[`${PREFIX}/MISSION.md`, bytes("# Mission")]]);
+  const storage = new Map<string, Uint8Array>([
+    [`${PREFIX}/MISSION.md`, bytes("# Mission")],
+    ...(options.stored ?? []).map(
+      ([path, content]) => [`${PREFIX}/${path}`, bytes(content)] as const,
+    ),
+  ]);
   const disk = new FakeDisk();
   const recorded: RecordedCall[] = [];
   const finished: { status: string; error: string | null; result?: unknown }[] = [];
@@ -282,8 +289,9 @@ function harness(
     kill: () => {
       alive = false;
     },
-    execute: (kind: BriefingKind = "generate_lesson") =>
+    execute: (kind: BriefingKind = "generate_lesson", examFor: string | null = null) =>
       teach.execute({
+        examFor,
         runId: RUN,
         userId: USER,
         missionId: MISSION,
@@ -770,5 +778,53 @@ describe("a curriculum run is judged on a curriculum", () => {
     });
 
     expect((await h.execute("generate_lesson")).status).toBe("failed");
+  });
+});
+
+describe("an exam run is judged on an exam (FR-E3)", () => {
+  const exam = (track: string | null, extra = "") =>
+    '<html><head><title>Exam: Closures</title><meta name="mindforge:kind" content="exam">' +
+    (track === null ? "" : `<meta name="mindforge:track" content="${track}">`) +
+    `</head><body><p>Items.${extra}</p></body></html>`;
+
+  it("succeeds when it wrote a new exam filed under the module it was queued for", async () => {
+    const h = harness([INIT, call("req_1"), result()], {
+      writes: [["lessons/0009-exam-closures.html", exam("closures")]],
+    });
+
+    expect((await h.execute("generate_exam", "closures")).status).toBe("succeeded");
+  });
+
+  it("fails when it wrote an ordinary lesson instead", async () => {
+    // Indexed, that would be a lesson the module never planned, and the module
+    // would still have no exam.
+    const h = harness([INIT, call("req_1"), result()], { writes: WROTE_A_LESSON });
+
+    const outcome = await h.execute("generate_exam", "closures");
+
+    expect(outcome.status).toBe("failed");
+    expect(h.finished.at(-1)?.error).toContain("without writing an exam");
+  });
+
+  it("fails when the exam is filed under another module, or none", async () => {
+    // Indexed, the module it was queued for would still have no exam, and every
+    // press after this would queue the same paid run again.
+    for (const track of ["iterators", null]) {
+      const h = harness([INIT, call("req_1"), result()], {
+        writes: [["lessons/0009-exam-closures.html", exam(track)]],
+      });
+
+      expect((await h.execute("generate_exam", "closures")).status).toBe("failed");
+      expect(h.finished.at(-1)?.error).toContain("closures");
+    }
+  });
+
+  it("fails when it only rewrote an exam that was already there", async () => {
+    const h = harness([INIT, call("req_1"), result()], {
+      stored: [["lessons/0004-exam-closures.html", exam("closures")]],
+      writes: [["lessons/0004-exam-closures.html", exam("closures", " Revised.")]],
+    });
+
+    expect((await h.execute("generate_exam", "closures")).status).toBe("failed");
   });
 });

@@ -171,6 +171,7 @@ describe("what the dispatcher picks up", () => {
       timezone: expect.any(String) as string,
       // An ordinary press of the teach button asks for no bridge.
       bridgeFor: null,
+      examFor: null,
     });
   });
 
@@ -202,6 +203,18 @@ describe("what the dispatcher picks up", () => {
     await queue(ALICE, "generate_curriculum");
 
     expect((await next())?.kind).toBe("generate_curriculum");
+  });
+
+  it("picks up an exam run, with the module it examines (FR-E3)", async () => {
+    const id = await queue(ALICE, "generate_exam");
+    const track = "55555555-5555-4555-8555-555555555555";
+    await admin.$executeRawUnsafe(
+      `update agent_runs set input = jsonb_build_object('examFor', $2::text) where id = $1::uuid`,
+      id,
+      track,
+    );
+
+    expect(await next()).toMatchObject({ id, kind: "generate_exam", examFor: track });
   });
 
   it("ignores a kind this worker cannot run", async () => {
@@ -326,6 +339,13 @@ describe("the plugin a run loads", () => {
     plugins.push(plugin.path);
 
     expect(plugin.skills).toEqual(["mindforge-curriculum:curriculum"]);
+  });
+
+  it("writes the teach skill with the exam shape for an exam run", async () => {
+    const plugin = await gateway.writePlugin("run-exam", "generate_exam");
+    plugins.push(plugin.path);
+
+    expect(plugin.skills).toEqual(["mindforge-teach:teach", "mindforge-teach:humanizer"]);
   });
 
   it("gives each run its own directory", async () => {

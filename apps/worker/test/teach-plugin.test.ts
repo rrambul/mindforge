@@ -5,7 +5,10 @@ import { join } from "node:path";
 import { HUMANIZER_SKILL_REF, TEACH_SKILL_REF } from "@mindforge/workspace";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { writeTeachPlugin } from "../src/modules/teach/infrastructure/teach-plugin.js";
+import {
+  writeExamPlugin,
+  writeTeachPlugin,
+} from "../src/modules/teach/infrastructure/teach-plugin.js";
 
 /**
  * The plugin directory the agent is actually pointed at.
@@ -155,5 +158,24 @@ describe("writeTeachPlugin", () => {
     const second = await readFile(join(destination, "skills/teach/SKILL.md"), "utf8");
 
     expect(second).toBe(first);
+  });
+});
+
+describe("writeExamPlugin (FR-E3)", () => {
+  it("is the teach plugin with the exam shape appended after the lesson shape", async () => {
+    const plugin = await writeExamPlugin(destination);
+    const composed = await readFile(join(destination, "skills/teach/SKILL.md"), "utf8");
+
+    expect(plugin.skills).toEqual([TEACH_SKILL_REF, HUMANIZER_SKILL_REF]);
+    expect(composed.indexOf("The shape of a Mindforge exam")).toBeGreaterThan(
+      composed.indexOf("The shape of a Mindforge lesson"),
+    );
+  });
+
+  it("is never what a lesson run reads", async () => {
+    await writeTeachPlugin(destination);
+    const composed = await readFile(join(destination, "skills/teach/SKILL.md"), "utf8");
+
+    expect(composed).not.toContain("The shape of a Mindforge exam");
   });
 });

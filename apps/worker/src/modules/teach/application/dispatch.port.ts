@@ -26,6 +26,11 @@ export interface QueuedRun {
    * Null for an ordinary press of the teach button.
    */
   readonly bridgeFor: string | null;
+  /**
+   * The module an exam run examines (FR-E3), from the run's input — chosen by the
+   * API when the button was pressed. Null on every other kind.
+   */
+  readonly examFor: string | null;
 }
 
 export interface TeachDispatchGateway {
@@ -54,6 +59,7 @@ export interface TeachDispatchGateway {
    * teach run able to rewrite the plan it is working through, or a curriculum run
    * able to generate the whole module at the moment it knows least. `skills` is
    * that one first, then any companion it writes with — a lesson's humanizer pass.
+   * An exam run loads the teach plugin with `EXAM-SHAPE.md` appended.
    */
   writePlugin(
     runId: string,
