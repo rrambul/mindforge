@@ -69,6 +69,7 @@ export function LessonExercises({ lessonId }: { readonly lessonId: string }) {
       pythonRunnerUrl={query.data.pythonRunnerUrl}
       exercises={query.data.exercises}
       strain={query.data.strain}
+      exam={query.data.kind === "exam"}
     />
   );
 }
@@ -86,12 +87,15 @@ function Workbench({
   pythonRunnerUrl,
   exercises,
   strain,
+  exam,
 }: {
   readonly lessonId: string;
   readonly runnerUrl: string;
   readonly pythonRunnerUrl: string;
   readonly exercises: readonly ExerciseView[];
   readonly strain: StrainView;
+  /** An exam's items offer no help until passed (FR-E5). */
+  readonly exam: boolean;
 }) {
   const { t } = useTranslation("exercise");
   const { t: g } = useTranslation("glossary");
@@ -110,22 +114,43 @@ function Workbench({
         src={runnerUrl}
         exercises={codeOf(exercises).filter((e) => e.language !== "python")}
         python={false}
+        exam={exam}
       />
       <CodeExercises
         lessonId={lessonId}
         src={pythonRunnerUrl}
         exercises={codeOf(exercises).filter((e) => e.language === "python")}
         python
+        exam={exam}
       />
       {exercises.map((exercise) =>
         exercise.kind === "whiteboard" ? (
-          <WhiteboardSlot key={exercise.key} lessonId={lessonId} exercise={exercise} />
+          <WhiteboardSlot
+            key={exercise.key}
+            lessonId={lessonId}
+            exercise={exercise}
+            examLocked={examLocked(exam, exercise)}
+          />
         ) : exercise.kind === "task" ? (
-          <TaskSlot key={exercise.key} lessonId={lessonId} exercise={exercise} />
+          <TaskSlot
+            key={exercise.key}
+            lessonId={lessonId}
+            exercise={exercise}
+            examLocked={examLocked(exam, exercise)}
+          />
         ) : null,
       )}
     </Stack>
   );
+}
+
+/**
+ * The server's rule, mirrored so the panel does not offer what it would refuse: an
+ * exam item gives no help until it is passed (FR-E5). The server still refuses on
+ * its own; this only keeps the button from being a trap.
+ */
+function examLocked(exam: boolean, exercise: ExerciseView): boolean {
+  return exam && exercise.attempts.firstPassedAt === null;
 }
 
 function codeOf(exercises: readonly ExerciseView[]): CodeExerciseView[] {
@@ -138,6 +163,7 @@ function CodeExercises(props: {
   readonly src: string;
   readonly exercises: readonly CodeExerciseView[];
   readonly python: boolean;
+  readonly exam: boolean;
 }) {
   if (props.exercises.length === 0) return null;
   return <RunnerGroup {...props} />;
@@ -148,11 +174,13 @@ function RunnerGroup({
   src,
   exercises,
   python,
+  exam,
 }: {
   readonly lessonId: string;
   readonly src: string;
   readonly exercises: readonly CodeExerciseView[];
   readonly python: boolean;
+  readonly exam: boolean;
 }) {
   const { t } = useTranslation("exercise");
   const runner = useRunner();
@@ -174,7 +202,13 @@ function RunnerGroup({
         frameRef={runner.frameRef}
       />
       {exercises.map((exercise) => (
-        <CodeSlot key={exercise.key} lessonId={lessonId} exercise={exercise} runner={runner} />
+        <CodeSlot
+          key={exercise.key}
+          lessonId={lessonId}
+          exercise={exercise}
+          runner={runner}
+          examLocked={examLocked(exam, exercise)}
+        />
       ))}
     </>
   );
@@ -184,10 +218,12 @@ function CodeSlot({
   lessonId,
   exercise,
   runner,
+  examLocked,
 }: {
   readonly lessonId: string;
   readonly exercise: CodeExerciseView;
   readonly runner: Runner;
+  readonly examLocked: boolean;
 }) {
   const { draft, setCode, reset } = useDraft(lessonId, exercise);
   const record = useRecordAttempt(lessonId);
@@ -240,6 +276,7 @@ function CodeSlot({
   return (
     <ExercisePanel
       exercise={exercise}
+      examLocked={examLocked}
       code={draft.code}
       onCodeChange={setCode}
       onReset={reset}
@@ -271,9 +308,11 @@ function CodeSlot({
 function TaskSlot({
   lessonId,
   exercise,
+  examLocked,
 }: {
   readonly lessonId: string;
   readonly exercise: TaskExerciseView;
+  readonly examLocked: boolean;
 }) {
   const { t: common } = useTranslation("common");
   const report = useReportTask(lessonId);
@@ -282,6 +321,7 @@ function TaskSlot({
   return (
     <TaskPanel
       exercise={exercise}
+      examLocked={examLocked}
       onRevealSolution={() => {
         reveal.mutate(exercise.key);
       }}
@@ -299,9 +339,11 @@ function TaskSlot({
 function WhiteboardSlot({
   lessonId,
   exercise,
+  examLocked,
 }: {
   readonly lessonId: string;
   readonly exercise: WhiteboardExerciseView;
+  readonly examLocked: boolean;
 }) {
   const { t } = useTranslation("exercise");
   const { t: common } = useTranslation("common");
@@ -348,6 +390,7 @@ function WhiteboardSlot({
   return (
     <WhiteboardPanel
       exercise={exercise}
+      examLocked={examLocked}
       initialElements={initial}
       onElementsChange={setElements}
       onReady={(ready) => {

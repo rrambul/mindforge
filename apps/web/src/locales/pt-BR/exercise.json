@@ -143,5 +143,8 @@
       "pass": "Último relato: os testes passam",
       "fail": "Último relato: ainda não"
     }
+  },
+  "exam": {
+    "noHelp": "Sem dicas e sem resposta numa prova. Elas abrem quando você passar neste item."
   }
 }

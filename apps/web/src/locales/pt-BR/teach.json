@@ -10,7 +10,9 @@
     "succeeded": "{count, plural, =0 {Pronto.} one {Pronto — uma lição nova.} other {Pronto — # lições novas.}}",
     "succeeded_with_conflicts": "Pronto, mas alguém editou {count, plural, one {um arquivo} other {# arquivos}} enquanto isso rodava. As duas versões foram mantidas.",
     "failed": "Essa execução não terminou.",
-    "cancelled": "Cancelada."
+    "cancelled": "Cancelada.",
+    "exam_running": "Escrevendo a prova deste módulo. Leva alguns minutos, e você pode sair desta página.",
+    "exam_succeeded": "Pronto. A prova do módulo está pronta."
   },
   "conflict": {
     "heading": "Onde estão as outras versões",
@@ -40,7 +42,10 @@
     "edge_cycle": "Um ciclo de pré-requisitos foi removido aqui, para a ordem continuar fazendo sentido: {node}",
     "prose_over_budget": "Esta lição tem {words} palavras de explicação; o objetivo é no máximo {budget}.",
     "skill_not_invoked": "A skill {skill} foi carregada, mas esta execução nunca a usou; o que ela pede de uma lição pode estar faltando.",
-    "prose_dashes": "Esta lição ainda usa {count} travessões como pontuação, então a revisão do humanizer não terminou."
+    "prose_dashes": "Esta lição ainda usa {count} travessões como pontuação, então a revisão do humanizer não terminou.",
+    "exam_claims_plan": "Uma prova não é uma entrada do plano, então a reivindicação de {value} foi ignorada.",
+    "exam_without_items": "Esta prova não tem itens, então não pode ser aprovada como está.",
+    "exam_carries_solution": "Esta prova trazia uma solução para {value}, então ela foi removida: o arquivo de uma prova pode ser lido pela página."
   },
   "error": {
     "run_already_active": "Esta missão já está sendo ensinada. Acompanhe essa execução ou aguarde ela terminar.",

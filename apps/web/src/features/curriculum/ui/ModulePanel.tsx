@@ -14,6 +14,7 @@ import {
 
 import type { CurriculumLesson, CurriculumModule } from "../api/use-curriculum.js";
 import { LessonLine } from "./LessonLine.js";
+import { ModuleSchedule, type DeadlineControl } from "./ModuleSchedule.js";
 import "./curriculum.css";
 
 interface ModulePanelProps {
@@ -24,6 +25,14 @@ interface ModulePanelProps {
   readonly lessonLink?: (lesson: CurriculumLesson) => ReactNode;
   /** A link to a lesson named by another one, from the app layer. */
   readonly targetLink?: (target: { readonly id: string; readonly title: string }) => ReactNode;
+  /** The learner's local day, from the server. Defaults to none: no prompt can be shown. */
+  readonly today?: string;
+  /** The module the learner is in (FR-U5). */
+  readonly isCurrent?: boolean;
+  /** The date proposed for it, or null with no estimate. Absent with no proposal. */
+  readonly proposedDueOn?: string | null;
+  /** Committing a deadline, from the route. */
+  readonly deadline?: DeadlineControl;
 }
 
 /**
@@ -35,7 +44,16 @@ interface ModulePanelProps {
  * change. A module with no plan says so instead of showing an empty bar
  * (non-negotiable 10, and `moduleProgress` returns null for exactly this).
  */
-export function ModulePanel({ module, nextLessonId, lessonLink, targetLink }: ModulePanelProps) {
+export function ModulePanel({
+  module,
+  nextLessonId,
+  lessonLink,
+  targetLink,
+  today,
+  isCurrent = false,
+  proposedDueOn,
+  deadline,
+}: ModulePanelProps) {
   const { t } = useTranslation("curriculum");
   const { t: g } = useTranslation("glossary");
 
@@ -46,9 +64,7 @@ export function ModulePanel({ module, nextLessonId, lessonLink, targetLink }: Mo
       <Stack gap="tight">
         <Spread>
           <Heading level={2}>{module.name}</Heading>
-          <StatusChip>
-            {dropped ? t("module.dropped") : g(`trackStatus.${module.status}`)}
-          </StatusChip>
+          <StatusChip>{dropped ? t("module.dropped") : statusLabel(module, t, g)}</StatusChip>
         </Spread>
 
         {module.outcome === null ? (
@@ -90,6 +106,19 @@ export function ModulePanel({ module, nextLessonId, lessonLink, targetLink }: Mo
 
         <Outcomes outcomes={module.outcomes} />
 
+        {/* Older bodies have no schedule fields; render the module without them
+            rather than taking the screen down. */}
+        {module.projection == null || today === undefined ? null : (
+          <ModuleSchedule
+            module={module}
+            today={today}
+            isCurrent={isCurrent}
+            {...(proposedDueOn === undefined ? {} : { proposedDueOn })}
+            {...(deadline ? { deadline } : {})}
+            {...(targetLink ? { targetLink } : {})}
+          />
+        )}
+
         {module.lessons.length > 0 ? (
           <ul className="mf-lesson-list" aria-label={t("module.lessons", { module: module.name })}>
             {module.lessons.map((lesson) => (
@@ -106,6 +135,29 @@ export function ModulePanel({ module, nextLessonId, lessonLink, targetLink }: Mo
       </Stack>
     </Card>
   );
+}
+
+/**
+ * The module's chip.
+ *
+ * `done` is the curriculum file's word, and finished is the exam's (FR-E7): a module
+ * is finished when its lessons are completed and its exam is passed, whatever the
+ * plan says. So `done` with every lesson completed and no pass reads "exam to pass",
+ * and `done` with lessons still unread reads as open — an exam is not due on a module
+ * whose lessons are not done, and none will be queued for it (FR-E3). An older body
+ * with no schedule fields keeps the plan's word.
+ */
+function statusLabel(
+  module: CurriculumModule,
+  t: (key: string) => string,
+  g: (key: string) => string,
+): string {
+  if (module.status !== "done" || module.projection == null || module.finishedAt != null) {
+    return g(`trackStatus.${module.status}`);
+  }
+  const lessonsDone =
+    module.progress !== null && module.progress.completed === module.progress.total;
+  return lessonsDone ? t("module.examPending") : g("trackStatus.active");
 }
 
 /**

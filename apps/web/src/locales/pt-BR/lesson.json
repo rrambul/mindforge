@@ -28,5 +28,9 @@
   },
   "easier": {
     "heading": "Esta ficou difícil demais"
+  },
+  "exam": {
+    "chip": "Prova",
+    "noOutcome": "Esta é a prova do módulo. Não há nada para marcar: cada item é aprovado pelos testes ou pela revisão, e toda tentativa fica guardada."
   }
 }

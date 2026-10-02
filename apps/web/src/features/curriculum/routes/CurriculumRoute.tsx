@@ -4,9 +4,15 @@ import { useTranslation } from "react-i18next";
 
 import { ApiError, NetworkError } from "../../../shared/api/problem.js";
 import { Button, Callout, Card, Heading, Row, Stack, Text } from "../../../shared/ui/index.js";
-import { useCurriculum, type Curriculum, type CurriculumLesson } from "../api/use-curriculum.js";
+import {
+  useCurriculum,
+  useSetDeadline,
+  type Curriculum,
+  type CurriculumLesson,
+} from "../api/use-curriculum.js";
 import { MissionProgressPanel } from "../ui/MissionProgressPanel.js";
 import { ModulePanel } from "../ui/ModulePanel.js";
+import { SchedulePanel } from "../ui/SchedulePanel.js";
 
 export interface CurriculumRouteProps {
   readonly missionId: string;
@@ -64,7 +70,9 @@ export function CurriculumRoute({
   plan,
 }: CurriculumRouteProps) {
   const { t } = useTranslation("curriculum");
+  const { t: common } = useTranslation("common");
   const curriculum = useCurriculum(missionId);
+  const setDeadline = useSetDeadline(missionId);
 
   return (
     <Stack gap="loose">
@@ -92,6 +100,8 @@ export function CurriculumRoute({
               <Upcoming upcoming={data.upcoming} />
               {teach}
               {library}
+              {/* Older bodies carry no schedule; the modules are still the point. */}
+              {data.pace == null ? null : <SchedulePanel curriculum={data} />}
               {data.modules.map((module) => (
                 <ModulePanel
                   key={module.id}
@@ -99,6 +109,19 @@ export function CurriculumRoute({
                   nextLessonId={data.nextLessonId}
                   {...(lessonLink ? { lessonLink } : {})}
                   {...(targetLink ? { targetLink } : {})}
+                  {...(data.today == null ? {} : { today: data.today })}
+                  isCurrent={module.id === data.currentModuleId}
+                  {...(data.proposal?.moduleId === module.id
+                    ? { proposedDueOn: data.proposal.dueOn }
+                    : {})}
+                  deadline={{
+                    onCommit: (dueOn) => setDeadline.mutate({ moduleId: module.id, dueOn }),
+                    pending: setDeadline.isPending,
+                    error:
+                      setDeadline.isError && setDeadline.variables?.moduleId === module.id
+                        ? describe(setDeadline.error, common)
+                        : null,
+                  }}
                 />
               ))}
             </Stack>

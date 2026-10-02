@@ -56,6 +56,10 @@ function module(over: Partial<CurriculumModule> = {}): CurriculumModule {
     progress: { completed: 0, total: 1 },
     outcomes: { understood: 0, shaky: 0, lost: 0, unrecorded: 0 },
     lessons: [lesson()],
+    exam: null,
+    deadline: null,
+    projection: { status: "unknown", reason: "no-pace" },
+    finishedAt: null,
     ...over,
   };
 }

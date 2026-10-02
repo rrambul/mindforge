@@ -35,6 +35,8 @@ export interface WhiteboardPanelProps {
   readonly revealPending: boolean;
   /** Why the reveal was not recorded, in the server's words. */
   readonly revealError: string | null;
+  /** An exam item not yet passed: no hints and no solution, said plainly (FR-E5). */
+  readonly examLocked?: boolean;
 }
 
 /**
@@ -59,6 +61,7 @@ export function WhiteboardPanel({
   onRevealSolution,
   revealPending,
   revealError,
+  examLocked = false,
 }: WhiteboardPanelProps) {
   const { t } = useTranslation("exercise");
   const results = exercise.attempts.lastResults;
@@ -100,7 +103,9 @@ export function WhiteboardPanel({
 
         {results === null || results.length === 0 ? null : <Review results={results} />}
 
-        {exercise.solution === null ? null : (
+        {examLocked ? (
+          <Text tone="hint">{t("exam.noHelp")}</Text>
+        ) : exercise.solution === null ? null : (
           <SolutionReveal
             exercise={exercise}
             solution={exercise.solution}

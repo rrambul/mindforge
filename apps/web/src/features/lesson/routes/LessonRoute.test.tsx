@@ -39,6 +39,7 @@ function lesson(over: Partial<Lesson> = {}): Lesson {
     title: "Borrow checker errors",
     intent: "Read the error, not the code",
     status: "generated",
+    kind: "lesson",
     difficulty: 4,
     depth: "deep_dive",
     seq: 7,
@@ -95,6 +96,21 @@ describe("the frame", () => {
 
     expect(await screen.findByText(/nothing to have understood/u)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Understood" })).not.toBeInTheDocument();
+  });
+});
+
+describe("an exam (FR-E5)", () => {
+  it("takes no outcome chip, and says what decides it instead", async () => {
+    returns(lesson({ kind: "exam", title: "Exam: Ownership", moduleName: "Ownership" }));
+    render();
+
+    expect(
+      await screen.findByText(/This is the module's exam\. There's nothing to mark/u),
+    ).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Understood" })).not.toBeInTheDocument();
+    expect(screen.getByText("Exam")).toBeVisible();
+    // An exam examines the module's lessons: it has no difficulty of its own to show.
+    expect(screen.queryByText(/Difficulty/u)).not.toBeInTheDocument();
   });
 });
 

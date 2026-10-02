@@ -107,6 +107,20 @@ describe("after a run", () => {
     expect(await screen.findByText("Done — one new lesson.")).toBeInTheDocument();
   });
 
+  it("calls an exam run's file the exam, not a new lesson (FR-E2)", async () => {
+    runsServer([
+      run({
+        kind: "generate_exam",
+        result: { changes: { added: ["lessons/0009-exam-x.html"], modified: [], deleted: [] } },
+      }),
+    ]);
+
+    renderWithProviders(<TeachPanel missionId={MISSION} />);
+
+    expect(await screen.findByText("Done. The module's exam is ready.")).toBeInTheDocument();
+    expect(screen.queryByText(/new lesson/u)).not.toBeInTheDocument();
+  });
+
   it("counts lessons, not every file the run added", async () => {
     // A run also writes its learning record, reference docs and assets. Counting
     // added files called one lesson and one record "2 new lessons".

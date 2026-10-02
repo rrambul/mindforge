@@ -10,7 +10,9 @@
     "succeeded": "{count, plural, =0 {Done.} one {Done — one new lesson.} other {Done — # new lessons.}}",
     "succeeded_with_conflicts": "Done, but somebody else had edited {count, plural, one {a file} other {# files}} while this was running. Both versions were kept.",
     "failed": "That run didn't finish.",
-    "cancelled": "Cancelled."
+    "cancelled": "Cancelled.",
+    "exam_running": "Writing this module's exam. It takes a few minutes, and you can leave this page.",
+    "exam_succeeded": "Done. The module's exam is ready."
   },
   "conflict": {
     "heading": "Where the other versions are",
@@ -40,7 +42,10 @@
     "edge_cycle": "A prerequisite loop was removed here, so the order still makes sense: {node}",
     "prose_over_budget": "This lesson has {words} words of explanation; lessons aim for {budget} or fewer.",
     "skill_not_invoked": "The {skill} skill was loaded but this run never used it, so what it asks of a lesson may be missing.",
-    "prose_dashes": "{count} dashes are still used as punctuation in this lesson, so the humanizer pass did not finish."
+    "prose_dashes": "{count} dashes are still used as punctuation in this lesson, so the humanizer pass did not finish.",
+    "exam_claims_plan": "An exam isn't a plan entry, so its claim on {value} was ignored.",
+    "exam_without_items": "This exam has no items, so it can't be passed as written.",
+    "exam_carries_solution": "This exam carried a solution for {value}, so it was removed: an exam's file is readable from the page."
   },
   "error": {
     "run_already_active": "This mission is already being taught. Watch that run, or wait for it to finish.",

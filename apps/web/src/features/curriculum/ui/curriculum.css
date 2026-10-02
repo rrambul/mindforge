@@ -56,3 +56,12 @@
   background: var(--mf-surface);
   border-radius: var(--mf-r);
 }
+
+/* The schedule (FR-U4): one row per module, its name against its date. */
+.mf-schedule-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--mf-space-2);
+}

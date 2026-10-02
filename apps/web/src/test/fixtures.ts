@@ -113,6 +113,7 @@ export function lessonResponse(overrides: Partial<LessonView> = {}): LessonView 
     title: "A lesson",
     intent: null,
     status: "generated",
+    kind: "lesson",
     difficulty: null,
     depth: null,
     seq: 1,
@@ -155,6 +156,10 @@ export function curriculumModule(overrides: Partial<CurriculumModule> = {}): Cur
     progress: null,
     outcomes: null,
     lessons: [],
+    exam: null,
+    deadline: null,
+    projection: { status: "unknown", reason: "no-pace" },
+    finishedAt: null,
     ...overrides,
   };
 }
@@ -171,6 +176,10 @@ export function curriculumResponse(overrides: Partial<CurriculumView> = {}): Cur
     progress: null,
     nextLessonId: null,
     upcoming: null,
+    today: "2026-08-08",
+    pace: { status: "unknown", missing: ["timed-lessons", "recent-time"], timedLessons: 0 },
+    currentModuleId: null,
+    proposal: null,
     ...overrides,
   });
 }
@@ -307,6 +316,7 @@ export function lessonExercisesResponse(
     runnerUrl: "http://localhost:3001/runner",
     pythonRunnerUrl: "http://localhost:3001/runner/python",
     strain: { verdict: null, unknown: "in-progress" },
+    kind: "lesson",
     exercises: [exerciseResponse()],
     ...overrides,
   });

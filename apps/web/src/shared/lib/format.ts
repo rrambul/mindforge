@@ -46,6 +46,24 @@ export function formatDay(day: IsoDate, locale: string): string {
   ).format(midnightUtc(day));
 }
 
+/**
+ * A date close enough to now that its year goes without saying: a deadline, a
+ * projected exam (FR-U3, FR-U4). In UTC for the reason `formatDay` gives — an
+ * `IsoDate` is already the learner's own calendar day.
+ */
+export function formatNearDay(day: IsoDate, locale: string): string {
+  return cached(
+    `near:${locale}`,
+    () =>
+      new Intl.DateTimeFormat(locale, {
+        timeZone: "UTC",
+        weekday: "short",
+        day: "numeric",
+        month: "short",
+      }),
+  ).format(midnightUtc(day));
+}
+
 /** Just the month, for the axis above the grid. */
 export function formatMonth(day: IsoDate, locale: string): string {
   return cached(

@@ -152,7 +152,11 @@ function RunStatus({ run }: { readonly run: AgentRunView }) {
       <Text tone="muted">
         {run.status === "succeeded_with_conflicts"
           ? t("status.succeeded_with_conflicts", { count: conflicts.length })
-          : t(`status.${run.status}`, { count: lessons })}
+          : // An exam run writes one file, the exam, and says so rather than
+            // counting it as a lesson (FR-E2).
+            run.kind === "generate_exam" && (run.status === "running" || run.status === "succeeded")
+            ? t(`status.exam_${run.status}`)
+            : t(`status.${run.status}`, { count: lessons })}
       </Text>
 
       {conflicts.length > 0 && (

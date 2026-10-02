@@ -43,6 +43,8 @@ export interface ExercisePanelProps {
   readonly revealPending: boolean;
   /** Why the reveal was not recorded, in the server's words. */
   readonly revealError: string | null;
+  /** An exam item not yet passed: no hints and no solution, said plainly (FR-E5). */
+  readonly examLocked?: boolean;
 }
 
 /**
@@ -72,6 +74,7 @@ export function ExercisePanel({
   onRevealSolution,
   revealPending,
   revealError,
+  examLocked = false,
 }: ExercisePanelProps) {
   const { t } = useTranslation("exercise");
   // The last recorded run, after a reload, until this visit runs its own. Only a run
@@ -131,9 +134,13 @@ export function ExercisePanel({
           </Callout>
         ) : null}
 
-        <HintLadder exercise={exercise} onAsk={onHint} pending={hintPending} error={hintError} />
+        {examLocked ? null : (
+          <HintLadder exercise={exercise} onAsk={onHint} pending={hintPending} error={hintError} />
+        )}
 
-        {exercise.solution === null ? null : (
+        {examLocked ? (
+          <Text tone="hint">{t("exam.noHelp")}</Text>
+        ) : exercise.solution === null ? null : (
           <SolutionReveal
             exercise={exercise}
             solution={exercise.solution}

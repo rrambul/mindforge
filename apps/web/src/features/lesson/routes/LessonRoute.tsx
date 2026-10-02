@@ -105,17 +105,23 @@ export function LessonRoute({ lessonId, back, focus, next, records, exercise }: 
 
           <div className="mf-lesson-tray">
             <Stack gap="tight">
-              <OutcomeTray
-                outcome={lesson.outcome}
-                onRecord={(outcome: LessonOutcome) => {
-                  complete.mutate(outcome);
-                }}
-                onClear={() => {
-                  clear.mutate();
-                }}
-                pending={complete.isPending || clear.isPending}
-                {...(lesson.view === null ? { disabledReason: t("outcome.unwritten") } : {})}
-              />
+              {/* An exam takes no chip: its result is what its items say (FR-E5), and
+                  the server refuses one anyway. */}
+              {lesson.kind === "exam" ? (
+                <Text tone="muted">{t("exam.noOutcome")}</Text>
+              ) : (
+                <OutcomeTray
+                  outcome={lesson.outcome}
+                  onRecord={(outcome: LessonOutcome) => {
+                    complete.mutate(outcome);
+                  }}
+                  onClear={() => {
+                    clear.mutate();
+                  }}
+                  pending={complete.isPending || clear.isPending}
+                  {...(lesson.view === null ? { disabledReason: t("outcome.unwritten") } : {})}
+                />
+              )}
 
               {complete.isError || clear.isError ? (
                 <Callout tone="danger" live>
@@ -149,6 +155,16 @@ export function LessonRoute({ lessonId, back, focus, next, records, exercise }: 
 function Meta({ lesson }: { readonly lesson: Lesson }) {
   const { t } = useTranslation("lesson");
   const { t: c } = useTranslation("curriculum");
+
+  // An exam has no difficulty or depth of its own: it examines the module's lessons.
+  if (lesson.kind === "exam") {
+    return (
+      <Row>
+        <StatusChip>{t("exam.chip")}</StatusChip>
+        {lesson.moduleName === null ? null : <StatusChip>{lesson.moduleName}</StatusChip>}
+      </Row>
+    );
+  }
 
   return (
     <Row>

@@ -4,7 +4,13 @@ import {
   type CurriculumModule,
   type CurriculumView,
 } from "@mindforge/core";
-import { useQuery, type UseQueryResult } from "@tanstack/react-query";
+import {
+  useMutation,
+  useQuery,
+  useQueryClient,
+  type UseMutationResult,
+  type UseQueryResult,
+} from "@tanstack/react-query";
 
 import { api } from "../../../shared/api/http.js";
 import { curriculumKeys } from "../../../shared/api/query-keys.js";
@@ -54,5 +60,28 @@ export function useCurriculum(missionId: string): UseQueryResult<Curriculum> {
     queryFn: ({ signal }) =>
       api.get(`/missions/${missionId}/curriculum`, CurriculumViewSchema, signal),
     staleTime: 0,
+  });
+}
+
+/**
+ * Commit to a date for a module, or move it (FR-U2).
+ *
+ * The response is the whole curriculum — the deadline, its status, the proposal
+ * gone — so it replaces the cache rather than invalidating it: the screen re-renders
+ * from what the server derived, and nothing here works out a status of its own.
+ */
+export function useSetDeadline(
+  missionId: string,
+): UseMutationResult<Curriculum, Error, { readonly moduleId: string; readonly dueOn: string }> {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ moduleId, dueOn }) =>
+      api.put(`/missions/${missionId}/modules/${moduleId}/deadline`, CurriculumViewSchema, {
+        dueOn,
+      }),
+    onSuccess: (curriculum) => {
+      queryClient.setQueryData(curriculumKeys.ofMission(missionId), curriculum);
+    },
   });
 }

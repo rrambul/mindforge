@@ -143,5 +143,8 @@
       "pass": "Last report: tests pass",
       "fail": "Last report: not yet"
     }
+  },
+  "exam": {
+    "noHelp": "No hints and no answer in an exam. They open once you've passed this item."
   }
 }

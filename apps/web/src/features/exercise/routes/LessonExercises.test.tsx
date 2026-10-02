@@ -986,3 +986,45 @@ describe("opening the solution (review #4)", () => {
     ).toBeVisible();
   });
 });
+
+describe("an exam item (FR-E5)", () => {
+  function servesExam(exercises: ExerciseView[]) {
+    server.use(
+      http.get(`${API}/lessons/${LESSON}/exercises`, () =>
+        HttpResponse.json(lessonExercisesResponse({ lessonId: LESSON, kind: "exam", exercises })),
+      ),
+    );
+  }
+
+  it("offers no hint and no solution before it is passed, and says why", async () => {
+    servesExam([exerciseResponse()]);
+    render();
+
+    expect(
+      await screen.findByText(
+        "No hints and no answer in an exam. They open once you've passed this item.",
+      ),
+    ).toBeVisible();
+    expect(screen.queryByRole("button", { name: /Get a hint/u })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Show solution" })).not.toBeInTheDocument();
+  });
+
+  it("opens the solution once the item is passed", async () => {
+    servesExam([
+      exerciseResponse({
+        attempts: {
+          count: 1,
+          firstPassedAt: "2026-10-01T10:00:00.000Z",
+          lastCode: "x",
+          lastPassed: true,
+          lastAt: "2026-10-01T10:00:00.000Z",
+          lastResults: null,
+          lastScene: null,
+        },
+      }),
+    ]);
+    render();
+
+    expect(await screen.findByRole("button", { name: "Show solution" })).toBeVisible();
+  });
+});

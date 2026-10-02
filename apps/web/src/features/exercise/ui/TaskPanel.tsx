@@ -29,6 +29,8 @@ export interface TaskPanelProps {
   readonly revealPending: boolean;
   /** Why the reveal was not recorded, in the server's words. */
   readonly revealError: string | null;
+  /** An exam item not yet passed: no hints and no solution, said plainly (FR-E5). */
+  readonly examLocked?: boolean;
 }
 
 /**
@@ -52,6 +54,7 @@ export function TaskPanel({
   onRevealSolution,
   revealPending,
   revealError,
+  examLocked = false,
 }: TaskPanelProps) {
   const { t } = useTranslation("exercise");
   const [output, setOutput] = useState("");
@@ -135,7 +138,9 @@ export function TaskPanel({
           </details>
         )}
 
-        {exercise.solution === null ? null : (
+        {examLocked ? (
+          <Text tone="hint">{t("exam.noHelp")}</Text>
+        ) : exercise.solution === null ? null : (
           <SolutionReveal
             exercise={exercise}
             solution={exercise.solution}

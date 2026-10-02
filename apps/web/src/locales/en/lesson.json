@@ -28,5 +28,9 @@
   },
   "easier": {
     "heading": "This one landed too hard"
+  },
+  "exam": {
+    "chip": "Exam",
+    "noOutcome": "This is the module's exam. There's nothing to mark: each item is passed by its tests or its review, and every attempt is kept."
   }
 }
