@@ -27,6 +27,11 @@ because it is not about being unattended: it says what a lesson _is_ — five pa
 exercise the learner does — and `/teach-me` binds a person at a terminal to it exactly as the server run
 is bound. `PROSE_BUDGET` in `packages/workspace/src/parse/html.ts` is the same number, measured.
 
+`EXAM-SHAPE.md` is Mindforge's own too, and is appended after `LESSON-SHAPE.md` **only for an exam
+run** (FR-E3). It says what an exam is: four to eight declared exercises covering only what the
+module's lessons taught, each naming the lessons it `covers`, with no hints and no visible answers. A
+lesson run never reads it, so a lesson run is never told about exams it is not writing.
+
 `humanizer/` is vendored the same way as `teach/` — verbatim, never edited, `diff -r skills/humanizer
 ~/.claude/skills/humanizer` empty. The source is [`blader/humanizer`](https://github.com/blader/humanizer),
 MIT, Copyright (c) 2025 Siqi Chen, and `humanizer/LICENSE` travels with it for the same reason

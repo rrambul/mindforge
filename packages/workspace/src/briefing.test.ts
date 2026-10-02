@@ -519,3 +519,73 @@ describe("a bridge run is told one thing", () => {
     expect(ordinary).toContain(`<meta name="mindforge:lesson" content="${NEXT.slug}">`);
   });
 });
+
+describe("an exam run (FR-E3, FR-E4)", () => {
+  const MODULE = {
+    slug: "rls-basics",
+    name: "RLS fundamentals",
+    outcome: "Read a policy and say which rows it lets through",
+    position: 2,
+    totalTracks: 9,
+    lessons: [
+      {
+        seq: 3,
+        slug: "policies-and-roles",
+        title: "Policies and roles",
+        path: "lessons/0003-policies-and-roles.html",
+        outcome: "shaky",
+        landing: "too-hard: they tried the exercise and never passed it",
+        exercises: ["Write a select policy"],
+      },
+      {
+        seq: 4,
+        slug: "policy-evaluation",
+        title: "How a request is judged",
+        path: "lessons/0004-policy-evaluation.html",
+        outcome: null,
+        landing: null,
+        exercises: [],
+      },
+    ],
+  };
+
+  it("names the module, every lesson with its file and how it landed, and the exact tags", () => {
+    const briefing = renderBriefing({ ...RICH, kind: "generate_exam", examModule: MODULE });
+
+    expect(briefing).toContain("**Write the exam for RLS fundamentals** — subtopic 2 of 9.");
+    expect(briefing).toContain("`lessons/0003-policies-and-roles.html`");
+    expect(briefing).toContain(
+      "marked shaky; too-hard: they tried the exercise and never passed it",
+    );
+    expect(briefing).toContain("finished, outcome not recorded; no exercises");
+    expect(briefing).toContain('<meta name="mindforge:kind" content="exam">');
+    expect(briefing).toContain('<meta name="mindforge:track" content="rls-basics">');
+    expect(briefing).toContain("`lessons/NNNN-exam-rls-basics.html`");
+  });
+
+  it("is not told to teach a lesson, adapt, or claim a plan entry", () => {
+    const briefing = renderBriefing({ ...RICH, kind: "generate_exam", examModule: MODULE });
+
+    expect(briefing).not.toContain("## The module you are teaching in");
+    expect(briefing).not.toContain("## What this lesson should do");
+    expect(briefing).not.toContain('content="policy-evaluation">');
+  });
+
+  it("says so, and writes nothing, when the module it was queued for is gone", () => {
+    const briefing = renderBriefing({ ...RICH, kind: "generate_exam" });
+
+    expect(briefing).toContain("the module it named is no longer in this");
+    expect(briefing).toContain("## Exam not written");
+  });
+
+  it("says so when the curriculum recorded no outcome or the module has no lessons", () => {
+    const briefing = renderBriefing({
+      ...RICH,
+      kind: "generate_exam",
+      examModule: { ...MODULE, outcome: null, lessons: [] },
+    });
+
+    expect(briefing).toContain("The curriculum recorded no outcome for this module");
+    expect(briefing).toContain("_None written._");
+  });
+});

@@ -688,3 +688,112 @@ describe("a task exercise", () => {
     },
   );
 });
+
+describe("an exam (FR-E1)", () => {
+  const meta = (name: string, content: string) => `<meta name="${name}" content="${content}">`;
+  const item = (key: string, covers: readonly string[]) =>
+    `<script type="${EXERCISE_SCRIPT_TYPE}">${JSON.stringify({
+      key,
+      kind: "code",
+      language: "javascript",
+      title: "Item",
+      prompt: "Do it.",
+      starter: "",
+      tests: 'import { f } from "./solution";',
+      covers,
+    })}</script>`;
+  const exam = (head: string, body: string) =>
+    `<html><head><title>Exam: Ownership</title>${head}</head><body><p>Six items.</p>${body}</body></html>`;
+
+  it("is a lesson unless the file says otherwise, which every file before exams does", () => {
+    expect(parseLessonHtml("0001-x.html", exam("", "")).parsed.kind).toBe("lesson");
+  });
+
+  it("reads the kind and the lessons each item covers", () => {
+    const { parsed, warnings } = parseLessonHtml(
+      "0009-exam-ownership.html",
+      exam(
+        meta("mindforge:kind", "Exam") + meta("mindforge:track", "ownership"),
+        item("move", ["moves"]) + item("borrow", ["borrowing", "moves"]),
+      ),
+    );
+
+    expect(parsed.kind).toBe("exam");
+    expect(parsed.trackSlug).toBe("ownership");
+    expect(parsed.exercises.map((e) => e.covers)).toEqual([["moves"], ["borrowing", "moves"]]);
+    expect(warnings).toEqual([]);
+  });
+
+  it("drops a plan claim and says so — an exam is not a plan entry", () => {
+    const { parsed, warnings } = parseLessonHtml(
+      "0009-exam.html",
+      exam(meta("mindforge:kind", "exam") + meta("mindforge:lesson", "borrowing"), item("a", [])),
+    );
+
+    expect(parsed.planSlug).toBeNull();
+    expect(warnings).toContainEqual({
+      code: "exam_claims_plan",
+      args: { value: "borrowing", file: "0009-exam.html" },
+    });
+  });
+
+  it("indexes an exam with no items and says it can never be passed", () => {
+    const { parsed, warnings } = parseLessonHtml(
+      "0009-exam.html",
+      exam(meta("mindforge:kind", "exam"), ""),
+    );
+
+    expect(parsed.kind).toBe("exam");
+    expect(warnings).toContainEqual({
+      code: "exam_without_items",
+      args: { file: "0009-exam.html" },
+    });
+  });
+
+  it("reads an adjustment on an exam as nothing — an exam adapts nothing", () => {
+    const { parsed } = parseLessonHtml(
+      "0009-exam.html",
+      exam(meta("mindforge:kind", "exam") + meta("mindforge:adjusted", "harder"), item("a", [])),
+    );
+
+    expect(parsed.adjustment).toBeNull();
+  });
+
+  it("drops an item's solution and says so — an exam file is readable in the frame", () => {
+    // `item` declares one; a lesson keeps it, an exam cannot, because the frame's
+    // own source would be the answer key.
+    const withSolution = item("a", []).replace(
+      '"covers"',
+      '"solution":"export const f = 1;","covers"',
+    );
+    const { parsed, warnings } = parseLessonHtml(
+      "0009-exam.html",
+      exam(meta("mindforge:kind", "exam"), withSolution),
+    );
+
+    expect(parsed.exercises[0]).toMatchObject({ key: "a", solution: null });
+    expect(warnings).toContainEqual({
+      code: "exam_carries_solution",
+      args: { value: "a", file: "0009-exam.html" },
+    });
+  });
+
+  it("reads a kind it does not know as a lesson, and says so", () => {
+    const { parsed, warnings } = parseLessonHtml(
+      "0009-x.html",
+      exam(meta("mindforge:kind", "quiz"), ""),
+    );
+
+    expect(parsed.kind).toBe("lesson");
+    expect(warnings).toContainEqual({
+      code: "value_unknown",
+      args: { field: "mindforge:kind", value: "quiz", file: "0009-x.html" },
+    });
+  });
+
+  it("is never an exam on a reference doc", () => {
+    expect(
+      parseReferenceHtml("cheatsheet.html", exam(meta("mindforge:kind", "exam"), "")).parsed.kind,
+    ).toBe("lesson");
+  });
+});

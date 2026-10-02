@@ -44,7 +44,11 @@ export type WarningCode =
   | "title_ambiguous"
   | "link_unresolved"
   | "prose_over_budget"
-  | "prose_dashes";
+  | "prose_dashes"
+  // Exams (FR-E1)
+  | "exam_claims_plan"
+  | "exam_without_items"
+  | "exam_carries_solution";
 
 export interface ParseWarning {
   readonly code: WarningCode;

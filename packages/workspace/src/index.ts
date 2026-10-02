@@ -74,6 +74,8 @@ export {
   type BriefingKind,
   type BriefingLessonRef,
   type CurrentTrack,
+  type ExamLesson,
+  type ExamModule,
   type NotTracked,
   type PlannedLesson,
   type TrackLesson,

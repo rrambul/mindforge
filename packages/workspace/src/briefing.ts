@@ -124,7 +124,39 @@ export interface CurrentTrack {
  * neither — `NO_TRACK.noCurriculum` says "do not invent a curriculum or write
  * one", which would end a curriculum run with nothing written.
  */
-export type BriefingKind = "generate_lesson" | "generate_curriculum";
+export type BriefingKind = "generate_lesson" | "generate_curriculum" | "generate_exam";
+
+/**
+ * One written lesson of the module being examined (FR-E4), as the exam run reads it.
+ *
+ * The path is given so the agent reads the lesson itself rather than a summary of
+ * it: an exam may only ask for what the lessons actually taught, and the file is
+ * the only place that is written down.
+ */
+export interface ExamLesson {
+  readonly seq: number;
+  /** What an exam item names in `covers`. */
+  readonly slug: string;
+  readonly title: string;
+  /** Workspace-relative, `lessons/0007-x.html`. */
+  readonly path: string;
+  /** understood | shaky | lost, or null when it was finished without one. */
+  readonly outcome: string | null;
+  /** How it landed, judged from what the learner did — or null when it could not be judged. */
+  readonly landing: string | null;
+  /** The titles of the exercises it had. */
+  readonly exercises: readonly string[];
+}
+
+/** The module an exam run is writing the exam for (FR-E3). */
+export interface ExamModule {
+  readonly slug: string;
+  readonly name: string;
+  readonly outcome: string | null;
+  readonly position: number;
+  readonly totalTracks: number;
+  readonly lessons: readonly ExamLesson[];
+}
 
 /**
  * What Mindforge knows about the mission, with no view about the run.
@@ -172,6 +204,13 @@ export interface BriefingFacts {
 
   /** What this lesson should do about it (FR-D2, FR-D3) — `nextAdjustment`, or a bridge the learner asked for. */
   readonly adjustment: BriefingAdjustment;
+
+  /**
+   * The module to examine, gathered only for an exam run (FR-E3). Absent on every
+   * other run, and absent on an exam run whose module no longer exists — which the
+   * briefing says, rather than inventing one.
+   */
+  readonly examModule?: ExamModule;
 }
 
 /** A lesson named by the briefing, with what a bridge needs to point at it. */
@@ -307,6 +346,62 @@ const CURRICULUM_RUN = [
   "The learner presses a second button afterwards, and a `teach` run writes the first lesson",
   "against the plan you leave behind.",
 ].join("\n");
+
+/**
+ * What an exam run is told, in place of the module and adaptation sections.
+ *
+ * The lessons are listed with their paths, outcomes and exercises because
+ * `skills/EXAM-SHAPE.md` asks for exactly two things the agent cannot get anywhere
+ * else: what was taught (the files), and what landed badly (the outcomes and
+ * landings). The tags are spelled out for the same reason the lesson run's are —
+ * the reindexer reads them, and a near miss files the exam under no module.
+ */
+function renderExam(module: ExamModule | undefined): string {
+  if (module === undefined) {
+    return [
+      "This run was queued to write a module's exam, and the module it named is no longer in this",
+      "mission's curriculum. Write nothing under `lessons/`, and record what happened in `NOTES.md`",
+      "under `## Exam not written`. Guessing at a module would put an exam where nobody asked for one.",
+    ].join("\n");
+  }
+
+  const lessons = module.lessons.map((lesson) => {
+    const facts = [
+      lesson.outcome === null ? "finished, outcome not recorded" : `marked ${lesson.outcome}`,
+      ...(lesson.landing === null ? [] : [lesson.landing]),
+      lesson.exercises.length === 0 ? "no exercises" : `exercises: ${lesson.exercises.join("; ")}`,
+    ];
+    return `\`${lesson.slug}\` — **${lesson.title}** (\`${lesson.path}\`)  _(${facts.join("; ")})_`;
+  });
+
+  return [
+    `**Write the exam for ${module.name}** — subtopic ${module.position} of ${module.totalTracks}.`,
+    "",
+    module.outcome === null
+      ? "The curriculum recorded no outcome for this module, so the lessons below are the whole of what it covers."
+      : `What the learner should be able to do after this module: ${module.outcome}`,
+    "",
+    "Every lesson in it is finished. Write **one exam and nothing else** — no lesson, no learning",
+    "record, no reference document — following `EXAM-SHAPE.md`. Read each lesson file below before",
+    "writing an item: the exam may only examine what they taught.",
+    "",
+    "### The module's lessons",
+    "",
+    module.lessons.length === 0 ? "_None written._" : list(lessons),
+    "",
+    "Every item declares `covers` with slugs from the list above.",
+    "",
+    "### The tags",
+    "",
+    "```html",
+    '<meta name="mindforge:kind" content="exam">',
+    `<meta name="mindforge:track" content="${module.slug}">`,
+    "```",
+    "",
+    "No `mindforge:lesson` and no `mindforge:adjusted`. Name it",
+    `\`lessons/NNNN-exam-${module.slug}.html\` with the next free number, titled \`Exam: ${module.name}\`.`,
+  ].join("\n");
+}
 
 function section(heading: string, body: string): string {
   return `## ${heading}\n\n${body.trim()}\n`;
@@ -511,6 +606,8 @@ export function renderBriefing(input: BriefingInput): string {
 
   if (input.kind === "generate_curriculum") {
     parts.push(section("What this run is for", CURRICULUM_RUN));
+  } else if (input.kind === "generate_exam") {
+    parts.push(section("What this run is for", renderExam(input.examModule)));
   } else {
     parts.push(
       section(

@@ -20,7 +20,9 @@
 import {
   EXERCISE_SCRIPT_TYPE,
   ExerciseDeclarationSchema,
+  LESSON_KINDS,
   type ExerciseDeclaration,
+  type LessonKind,
 } from "@mindforge/core";
 import * as cheerio from "cheerio";
 
@@ -51,6 +53,16 @@ const TRACK_META = "mindforge:track";
  * does every lesson written before the plan existed.
  */
 const LESSON_META = "mindforge:lesson";
+
+/**
+ * `<meta name="mindforge:kind">` — `exam` for the test that ends a module (FR-E1).
+ *
+ * Absent means a lesson, which is every file written before exams existed. Declared
+ * by the file for the reason its track is: the file is canonical, and an exam
+ * restored from Storage or written by `/teach-me` in a terminal must still say what
+ * it is without anything outside it agreeing.
+ */
+const KIND_META = "mindforge:kind";
 
 /**
  * The most words of explanation a lesson should carry (`skills/LESSON-SHAPE.md`).
@@ -185,6 +197,8 @@ export interface ParsedHtmlDoc {
   readonly exercises: readonly ExerciseDeclaration[];
   /** What the lesson changed about the plan, or null for a lesson taught as planned. */
   readonly adjustment: LessonAdjustment | null;
+  /** `exam` when the file declares itself one (FR-E1). Always `lesson` on a reference doc. */
+  readonly kind: LessonKind;
 }
 
 /** Attributes that can carry a reference to another file in the workspace. */
@@ -329,6 +343,22 @@ function metaText($: cheerio.CheerioAPI, name: string): string | null {
   return value === "" ? null : value;
 }
 
+function extractKind(
+  $: cheerio.CheerioAPI,
+  filename: string,
+  warnings: ParseWarning[],
+): LessonKind {
+  const declared = metaText($, KIND_META)?.toLowerCase() ?? null;
+  if (declared === null) return "lesson";
+  if ((LESSON_KINDS as readonly string[]).includes(declared)) return declared as LessonKind;
+
+  // An unknown kind is read as a lesson, the safer error: an exam misread as a lesson
+  // shows up in the module's fraction, where it is visible; a lesson misread as an
+  // exam would vanish from it.
+  warnings.push(warn("value_unknown", { field: KIND_META, value: declared, file: filename }));
+  return "lesson";
+}
+
 function extractAdjustment(
   $: cheerio.CheerioAPI,
   filename: string,
@@ -427,19 +457,49 @@ function parseHtml(
     warnings.push(warn("value_duplicated", { field: LESSON_META, value: claimed.join(", ") }));
   }
 
+  const kind = expectSeq ? extractKind($, filename, warnings) : "lesson";
+  const declaredExercises = expectSeq ? extractExercises($, filename, warnings) : [];
+
+  // An exam carries no answers (FR-E5): the file is the frame's own source, readable
+  // by anyone who opens it, so a solution in it is the answer key handed out with the
+  // paper. Dropped from the index — never offered, never revealed — and said, because
+  // the file still holds it and the run that wrote it broke `EXAM-SHAPE.md`.
+  const exercises =
+    kind === "exam"
+      ? declaredExercises.map((exercise) => {
+          if (exercise.solution === null) return exercise;
+          warnings.push(warn("exam_carries_solution", { value: exercise.key, file: filename }));
+          return { ...exercise, solution: null };
+        })
+      : declaredExercises;
+
+  // An exam is not a plan entry (FR-E1): claiming one would take a lesson the module
+  // still owes out of the plan and put the exam in its place. The claim is dropped,
+  // and said, rather than honoured.
+  if (kind === "exam" && claimed.length > 0) {
+    warnings.push(warn("exam_claims_plan", { value: claimed[0]!, file: filename }));
+  }
+  // Nothing to pass is not a pass. The exam still indexes — it is the learner's file —
+  // but the run says it can never be passed as written.
+  if (kind === "exam" && exercises.length === 0) {
+    warnings.push(warn("exam_without_items", { file: filename }));
+  }
+
   return {
     parsed: {
       title,
       seq,
       slug,
       trackSlug: declared[0] ?? null,
-      planSlug: claimed[0] ?? null,
+      planSlug: kind === "exam" ? null : (claimed[0] ?? null),
       assets: [...assets],
       crossLinks: [...crossLinks],
       proseWords,
       // Only a lesson carries exercises; `expectSeq` is what marks one.
-      exercises: expectSeq ? extractExercises($, filename, warnings) : [],
-      adjustment: expectSeq ? extractAdjustment($, filename, warnings) : null,
+      exercises,
+      // An exam adapts nothing: it tests the module as taught.
+      adjustment: expectSeq && kind === "lesson" ? extractAdjustment($, filename, warnings) : null,
+      kind,
     },
     warnings,
     unmapped: {},
