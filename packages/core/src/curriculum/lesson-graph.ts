@@ -166,7 +166,23 @@ export function deriveLessons(lessons: readonly LessonNode[]): ReadonlyMap<strin
  * disagree. A dependency cycle (the parser drops them, so this is a belt) cannot
  * stall it: when nothing is free, the easiest remaining lesson goes next.
  */
-export function orderModule(lessons: readonly LessonNode[]): readonly LessonNode[] {
+/**
+ * How a module's lessons are ordered once dependencies are satisfied.
+ *
+ * `ease` — the easiest first, then the plan's row order (FR-K7): for a mission with
+ * no calendar, where the learner chooses when to do what.
+ * `plan` — the plan's row order, which for a mission planned in weeks **is** the
+ * order of the days (FR-B3). The curriculum run is told to order the rows so day 1
+ * to day 5 build on each other, and listing day 4 before day 3 because it is easier
+ * shows the learner an order they will not take. A lesson with no row — a bridge —
+ * comes after the planned days.
+ */
+export type ModuleOrdering = "ease" | "plan";
+
+export function orderModule(
+  lessons: readonly LessonNode[],
+  ordering: ModuleOrdering = "ease",
+): readonly LessonNode[] {
   const inModule = new Set(lessons.map((lesson) => lesson.id));
   const waitingOn = new Map(
     lessons.map((lesson) => [
@@ -175,7 +191,7 @@ export function orderModule(lessons: readonly LessonNode[]): readonly LessonNode
     ]),
   );
 
-  let remaining = [...lessons].sort(byEase);
+  let remaining = [...lessons].sort(ordering === "plan" ? byPlan : byEase);
   const ordered: LessonNode[] = [];
   while (remaining.length > 0) {
     const next = remaining.find((lesson) => waitingOn.get(lesson.id)!.size === 0) ?? remaining[0]!;
@@ -193,6 +209,15 @@ function byEase(a: LessonNode, b: LessonNode): number {
     rank(a.seq) - rank(b.seq) ||
     // Ids are unique, so this last step only ever decides between two rows the
     // plan left genuinely indistinguishable — and it always decides the same way.
+    a.id.localeCompare(b.id)
+  );
+}
+
+function byPlan(a: LessonNode, b: LessonNode): number {
+  return (
+    rank(a.position) - rank(b.position) ||
+    rank(a.difficulty) - rank(b.difficulty) ||
+    rank(a.seq) - rank(b.seq) ||
     a.id.localeCompare(b.id)
   );
 }
@@ -282,7 +307,8 @@ export function moduleOutcomes(lessons: readonly LessonOutcomeNode[]): OutcomeCo
  *
  * Modules are taken in the order given — the caller owns that, because it comes
  * from `track_edges` and `tracks.position` and not from anything here — and within
- * a module `orderModule` decides.
+ * a module `orderModule` decides, by ease or, for a mission planned in weeks, by
+ * the plan's days.
  *
  * A lesson that is already written but unread is a candidate, and it comes before
  * any planned lesson its module puts after it. Generating a new lesson while an
@@ -296,11 +322,15 @@ export function moduleOutcomes(lessons: readonly LessonOutcomeNode[]): OutcomeCo
 export function nextLesson(
   lessons: readonly LessonNode[],
   moduleOrder: readonly string[],
+  ordering: ModuleOrdering = "ease",
 ): LessonNode | null {
   const derived = deriveLessons(lessons);
 
   for (const trackId of moduleOrder) {
-    const module = orderModule(lessons.filter((lesson) => lesson.trackId === trackId));
+    const module = orderModule(
+      lessons.filter((lesson) => lesson.trackId === trackId),
+      ordering,
+    );
 
     const candidate = module.find(
       (lesson) => !lesson.completed && derived.get(lesson.id)!.unblocked,

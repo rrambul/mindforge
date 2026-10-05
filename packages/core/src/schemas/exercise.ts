@@ -24,8 +24,10 @@ export const EXERCISE_SCRIPT_TYPE = "application/vnd.mindforge.exercise+json";
  * `whiteboard` is a design drawn on a canvas and reviewed against a rubric
  * (Phase 4). `task` is code the learner writes and runs **on their own machine** —
  * for the languages the browser cannot run, Elixir, Rust, Go — and reports back.
+ * `lab` is practice in a real environment the learner owns — an AWS account, a
+ * cluster, a console — reported back the same way (FR-X11).
  */
-export const EXERCISE_KINDS = ["code", "whiteboard", "task"] as const;
+export const EXERCISE_KINDS = ["code", "whiteboard", "task", "lab"] as const;
 export type ExerciseKind = (typeof EXERCISE_KINDS)[number];
 
 /**
@@ -146,10 +148,51 @@ export const TaskExerciseSchema = ExerciseBase.extend({
 });
 export type TaskExercise = z.infer<typeof TaskExerciseSchema>;
 
+/** One step of a lab or its cleanup: an instruction, as plain text. */
+const LabStep = z.string().trim().min(1).max(1_000);
+
+/**
+ * Practice in a real environment the learner owns (FR-X11–X13): their AWS account,
+ * a Kubernetes cluster, a SaaS console.
+ *
+ * Declared only when doing it for real teaches what an in-app exercise cannot. The
+ * app never touches the environment: it shows the steps, the one check that proves
+ * it worked, what it may cost, and how to tear it down, and records what the learner
+ * reports — as their word (`graded_by = 'self'`), like a task.
+ *
+ * **Never a credential.** Nothing here asks for keys or account ids, and the cost
+ * and cleanup are required, because a lab that leaves a NAT gateway running is a
+ * bill the lesson caused.
+ */
+export const LabExerciseSchema = ExerciseBase.extend({
+  kind: z.literal("lab"),
+  /** Where it happens, as a label: `aws`, `gcp`, `kubernetes`. Lowercase, free-form. */
+  platform: z
+    .string()
+    .min(1)
+    .max(30)
+    .regex(/^[a-z0-9+#.-]+$/u, "a lowercase platform name"),
+  /** What to do, in order. Console clicks or commands, one per step. */
+  steps: z.array(LabStep).min(1).max(20),
+  /** The one check that proves it worked: a command or a place to look, and what success reads. */
+  verify: z.object({
+    command: z.string().trim().min(1).max(300),
+    expect: z.string().trim().min(1).max(500),
+  }),
+  /** What it may cost, said before anything is created. "Free tier" is an answer; silence is not. */
+  cost: z.string().trim().min(1).max(300),
+  /** How to tear down everything the steps created. Required: a lab leaves nothing behind. */
+  cleanup: z.array(LabStep).min(1).max(20),
+  /** A reference walkthrough, shown only when asked for, like every other kind's. */
+  solution: z.string().max(8_000).nullable().default(null),
+});
+export type LabExercise = z.infer<typeof LabExerciseSchema>;
+
 export const ExerciseDeclarationSchema = z.discriminatedUnion("kind", [
   CodeExerciseSchema,
   WhiteboardExerciseSchema,
   TaskExerciseSchema,
+  LabExerciseSchema,
 ]);
 export type ExerciseDeclaration = z.infer<typeof ExerciseDeclarationSchema>;
 

@@ -40,6 +40,7 @@ const MISSION = {
   constraints: null,
   currentLevel: null,
   status: "active",
+  calendar: null,
   createdAt: WHEN,
   updatedAt: WHEN,
 };
@@ -60,6 +61,7 @@ const LESSON = {
   strain: { verdict: null, unknown: "in-progress" },
   adjustment: null,
   bridge: null,
+  dueOn: null,
 };
 
 const MODULE = {
@@ -73,7 +75,7 @@ const MODULE = {
   outcomes: { understood: 0, shaky: 1, lost: 0, unrecorded: 0 },
   lessons: [LESSON],
   exam: null,
-  deadline: null,
+  week: null,
   projection: { status: "unknown", reason: "no-pace" },
   finishedAt: null,
 };
@@ -83,7 +85,7 @@ const SCHEDULE = {
   today: "2026-08-08",
   pace: { status: "unknown", missing: ["timed-lessons"], timedLessons: 1 },
   currentModuleId: null,
-  proposal: null,
+  calendar: null,
 };
 
 const SESSION = {
@@ -345,8 +347,8 @@ describe("nulls that mean something", () => {
   });
 });
 
-describe("exams and deadlines", () => {
-  it("carries a module with an exam half passed, a moved deadline and a projection", () => {
+describe("exams and the week calendar", () => {
+  it("carries a module with an exam half passed, its week and a projection", () => {
     const parsed = CurriculumViewSchema.parse({
       missionId: UUID,
       modules: [
@@ -366,11 +368,19 @@ describe("exams and deadlines", () => {
               revisit: [{ id: UUID, title: "Row level security" }],
             },
           },
-          deadline: {
-            dueOn: "2026-08-20",
-            firstDueOn: "2026-08-14",
-            moves: 1,
-            status: { kind: "behind", daysLeft: 12, daysBehind: 3 },
+          week: {
+            index: 2,
+            startsOn: "2026-08-10",
+            examOn: "2026-08-15",
+            endsOn: "2026-08-16",
+            standing: {
+              kind: "in-progress",
+              total: 5,
+              completed: 1,
+              behind: 2,
+              dueToday: 1,
+              examToday: false,
+            },
           },
           projection: {
             status: "projected",
@@ -393,10 +403,10 @@ describe("exams and deadlines", () => {
         windowDays: 28,
       },
       currentModuleId: UUID,
-      proposal: { moduleId: UUID, dueOn: null },
+      calendar: { weeks: 6, startsOn: "2026-08-03", endsOn: "2026-09-13" },
     });
 
-    expect(parsed.modules[0]?.deadline?.moves).toBe(1);
+    expect(parsed.modules[0]?.week?.standing).toMatchObject({ behind: 2 });
   });
 
   it("refuses a pace that is unknown with nothing missing", () => {

@@ -148,3 +148,35 @@ describe("a task's files", () => {
     expect(ReportTaskSchema.parse({ passed: true })).toEqual({ passed: true, output: null });
   });
 });
+
+describe("a lab (FR-X11–X13)", () => {
+  const LAB = {
+    key: "s3-bucket-policy",
+    kind: "lab",
+    title: "Lock a bucket to one role",
+    prompt: "Create a bucket only your role can read.",
+    platform: "aws",
+    steps: ["Create a bucket named mindforge-lab-<your-initials>.", "Attach the policy below."],
+    verify: { command: "aws s3api get-bucket-policy --bucket <name>", expect: "The policy JSON." },
+    cost: "Free tier: one empty bucket costs nothing.",
+    cleanup: ["aws s3 rb s3://<name> --force"],
+  };
+
+  it("takes a platform, steps, one check, a cost and a cleanup", () => {
+    const parsed = ExerciseDeclarationSchema.parse(LAB);
+    expect(parsed).toMatchObject({ kind: "lab", platform: "aws", solution: null });
+  });
+
+  it("refuses a lab with no cost said or nothing to clean up", () => {
+    // A lab that leaves something running is a bill the lesson caused.
+    expect(ExerciseDeclarationSchema.safeParse({ ...LAB, cost: "" }).success).toBe(false);
+    expect(ExerciseDeclarationSchema.safeParse({ ...LAB, cleanup: [] }).success).toBe(false);
+    expect(ExerciseDeclarationSchema.safeParse({ ...LAB, cost: undefined }).success).toBe(false);
+  });
+
+  it("refuses a platform that is not a lowercase label", () => {
+    expect(
+      ExerciseDeclarationSchema.safeParse({ ...LAB, platform: "Amazon Web Services" }).success,
+    ).toBe(false);
+  });
+});

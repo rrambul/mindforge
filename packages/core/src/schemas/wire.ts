@@ -5,6 +5,7 @@ import { SUPPORTED_LOCALES } from "../i18n/locales.js";
 import { IsoDateSchema } from "./common.js";
 import {
   CodeExerciseSchema,
+  LabExerciseSchema,
   SceneElementSchema,
   TaskExerciseSchema,
   TestResultSchema,
@@ -80,6 +81,14 @@ export const IdSchema = z.string().min(1);
 // Missions — `mission.view.ts`
 // ============================================================================
 
+/** A mission's calendar: how many weeks, the first day, the last (FR-B1). */
+export const MissionCalendarViewSchema = z.object({
+  weeks: z.number().int().positive(),
+  startsOn: IsoDateSchema,
+  endsOn: IsoDateSchema,
+});
+export type MissionCalendarView = z.infer<typeof MissionCalendarViewSchema>;
+
 export const MissionViewSchema = z.object({
   id: IdSchema,
   topic: z.string(),
@@ -88,6 +97,8 @@ export const MissionViewSchema = z.object({
   constraints: z.string().nullable(),
   currentLevel: z.string().nullable(),
   status: MissionStatusSchema,
+  /** Null for a mission created before missions had weeks (FR-B1). */
+  calendar: MissionCalendarViewSchema.nullable(),
   createdAt: IsoDateTimeSchema,
   updatedAt: IsoDateTimeSchema,
   // `userId` is deliberately absent, as the view says: the caller is the owner by
@@ -206,34 +217,39 @@ export const ModuleExamViewSchema = z.object({
 });
 export type ModuleExamView = z.infer<typeof ModuleExamViewSchema>;
 
-/** `deadlineStatus`'s shape. Every count is a whole number of the learner's local days. */
-export const DeadlineStatusViewSchema = z.discriminatedUnion("kind", [
-  z.object({ kind: z.literal("met"), daysEarly: z.number().int().nonnegative() }),
-  z.object({ kind: z.literal("missed"), daysLate: z.number().int().positive() }),
-  z.object({ kind: z.literal("overdue"), daysOver: z.number().int().positive() }),
-  z.object({ kind: z.literal("due-today") }),
-  z.object({ kind: z.literal("on-track"), daysLeft: z.number().int().positive() }),
+/** `weekStanding`'s shape (FR-B5). Every count is whole lessons or local days. */
+export const WeekStandingViewSchema = z.discriminatedUnion("kind", [
+  /** No lesson planned for the week yet: unknown, never "on track" (non-negotiable 10). */
+  z.object({ kind: z.literal("not-planned") }),
+  z.object({ kind: z.literal("upcoming"), startsInDays: z.number().int().positive() }),
   z.object({
-    kind: z.literal("behind"),
-    daysLeft: z.number().int().positive(),
-    daysBehind: z.number().int().positive(),
+    kind: z.literal("in-progress"),
+    total: z.number().int().positive(),
+    completed: z.number().int().nonnegative(),
+    /** Unfinished lessons of earlier days. Today's is `dueToday`, not late. */
+    behind: z.number().int().nonnegative(),
+    dueToday: z.number().int().nonnegative(),
+    examToday: z.boolean(),
   }),
-  z.object({ kind: z.literal("no-projection"), daysLeft: z.number().int().positive() }),
+  z.object({ kind: z.literal("finished"), daysLate: z.number().int().nonnegative() }),
+  z.object({
+    kind: z.literal("overdue"),
+    daysOver: z.number().int().positive(),
+    lessonsLeft: z.number().int().nonnegative(),
+    total: z.number().int().positive(),
+  }),
 ]);
-export type DeadlineStatusView = z.infer<typeof DeadlineStatusViewSchema>;
+export type WeekStandingView = z.infer<typeof WeekStandingViewSchema>;
 
-/**
- * The deadline in force, the one first committed, and how many times it moved
- * (FR-U2). All three always travel together, so no screen can show a date without
- * being able to say it was moved.
- */
-export const ModuleDeadlineViewSchema = z.object({
-  dueOn: IsoDateSchema,
-  firstDueOn: IsoDateSchema,
-  moves: z.number().int().nonnegative(),
-  status: DeadlineStatusViewSchema,
+/** A module's week on the calendar (FR-B2, FR-B3). The exam day is its deadline. */
+export const ModuleWeekViewSchema = z.object({
+  index: z.number().int().positive(),
+  startsOn: IsoDateSchema,
+  examOn: IsoDateSchema,
+  endsOn: IsoDateSchema,
+  standing: WeekStandingViewSchema,
 });
-export type ModuleDeadlineView = z.infer<typeof ModuleDeadlineViewSchema>;
+export type ModuleWeekView = z.infer<typeof ModuleWeekViewSchema>;
 
 /** `projectSchedule`'s shape for one module (FR-U4). */
 export const ProjectionViewSchema = z.discriminatedUnion("status", [
@@ -292,6 +308,8 @@ export const CurriculumLessonSchema = z.object({
   adjustment: LessonAdjustmentViewSchema.nullable(),
   /** The bridge lesson already written toward this one, if any — one per lesson (FR-D2). */
   bridge: z.object({ id: IdSchema, title: z.string() }).nullable(),
+  /** The day this lesson is for (FR-B3). Null without a calendar. */
+  dueOn: IsoDateSchema.nullable(),
 });
 export type CurriculumLesson = z.infer<typeof CurriculumLessonSchema>;
 
@@ -308,8 +326,12 @@ export const CurriculumModuleSchema = z.object({
   lessons: z.array(CurriculumLessonSchema).readonly(),
   /** Null until an exam is written for this module — "not written yet", never "failed". */
   exam: ModuleExamViewSchema.nullable(),
-  /** Null when the learner has not committed to a date. */
-  deadline: ModuleDeadlineViewSchema.nullable(),
+  /**
+   * The module's week (FR-B2). Null for a mission with no calendar, and for a module
+   * past the mission's last week, which only a plan with more modules than weeks has.
+   */
+  week: ModuleWeekViewSchema.nullable(),
+  /** At the learner's pace (FR-U1, FR-U4): information beside the calendar, never a date it moves. */
   projection: ProjectionViewSchema,
   /** Every lesson completed and the exam passed (FR-E7). Null while it is not. */
   finishedAt: IsoDateTimeSchema.nullable(),
@@ -326,13 +348,10 @@ export const CurriculumViewSchema = z.object({
   /** The learner's local day this view was computed for. Every date below is relative to it. */
   today: IsoDateSchema,
   pace: PaceViewSchema,
-  /** The module the learner is in (`currentModule`), where the deadline prompt belongs. */
+  /** The module the learner is in (`currentModule`). */
   currentModuleId: IdSchema.nullable(),
-  /**
-   * The date proposed for the current module when it has no deadline yet (FR-U2, FR-U5).
-   * `dueOn` is null when there is no estimate to propose from, and the learner picks.
-   */
-  proposal: z.object({ moduleId: IdSchema, dueOn: IsoDateSchema.nullable() }).nullable(),
+  /** Null for a mission created before it had weeks (FR-B1). */
+  calendar: MissionCalendarViewSchema.nullable(),
 });
 export type CurriculumView = z.infer<typeof CurriculumViewSchema>;
 
@@ -523,6 +542,7 @@ export const ExerciseViewSchema = z.discriminatedUnion("kind", [
   CodeExerciseSchema.extend(ExerciseProgress),
   WhiteboardExerciseViewSchema,
   TaskExerciseSchema.extend(ExerciseProgress),
+  LabExerciseSchema.extend(ExerciseProgress),
 ]);
 export type ExerciseView = z.infer<typeof ExerciseViewSchema>;
 

@@ -70,49 +70,54 @@ describe("MissionStatusSchema", () => {
 });
 
 describe("CreateMissionSchema", () => {
-  it("requires only a topic and defaults the prose fields to null", () => {
-    expect(CreateMissionSchema.parse({ topic: "Rust ownership" })).toEqual({
+  it("requires a topic and its weeks, and defaults the rest to null", () => {
+    expect(CreateMissionSchema.parse({ weeks: 4, topic: "Rust ownership" })).toEqual({
       topic: "Rust ownership",
       why: null,
       successLooksLike: null,
       constraints: null,
       currentLevel: null,
+      weeks: 4,
+      startsOn: null,
     });
   });
 
   it("trims before validating, so whitespace cannot pass a length check", () => {
     // "   " would otherwise satisfy min(3) and store as blank.
-    expect(CreateMissionSchema.parse({ topic: "  Rust ownership  " }).topic).toBe("Rust ownership");
-    expect(CreateMissionSchema.safeParse({ topic: "     " }).success).toBe(false);
+    expect(CreateMissionSchema.parse({ weeks: 4, topic: "  Rust ownership  " }).topic).toBe(
+      "Rust ownership",
+    );
+    expect(CreateMissionSchema.safeParse({ weeks: 4, topic: "     " }).success).toBe(false);
   });
 
   it("normalises an empty prose field to null", () => {
     // So "" and null cannot both mean absent, which every read would then check for.
-    expect(CreateMissionSchema.parse({ topic: "Rust", why: "   " }).why).toBeNull();
-    expect(CreateMissionSchema.parse({ topic: "Rust", why: "" }).why).toBeNull();
+    expect(CreateMissionSchema.parse({ weeks: 4, topic: "Rust", why: "   " }).why).toBeNull();
+    expect(CreateMissionSchema.parse({ weeks: 4, topic: "Rust", why: "" }).why).toBeNull();
   });
 
   it("accepts an explicit null for a prose field", () => {
-    expect(CreateMissionSchema.parse({ topic: "Rust", why: null }).why).toBeNull();
+    expect(CreateMissionSchema.parse({ weeks: 4, topic: "Rust", why: null }).why).toBeNull();
   });
 
   it("rejects a topic below the floor and above the ceiling", () => {
-    expect(CreateMissionSchema.safeParse({ topic: "no" }).success).toBe(false);
-    expect(CreateMissionSchema.safeParse({ topic: "x".repeat(201) }).success).toBe(false);
-    expect(CreateMissionSchema.safeParse({ topic: "x".repeat(200) }).success).toBe(true);
+    expect(CreateMissionSchema.safeParse({ weeks: 4, topic: "no" }).success).toBe(false);
+    expect(CreateMissionSchema.safeParse({ weeks: 4, topic: "x".repeat(201) }).success).toBe(false);
+    expect(CreateMissionSchema.safeParse({ weeks: 4, topic: "x".repeat(200) }).success).toBe(true);
   });
 
   it("caps prose so a paste cannot become an unbounded write", () => {
-    expect(CreateMissionSchema.safeParse({ topic: "Rust", why: "x".repeat(4_001) }).success).toBe(
-      false,
-    );
-    expect(CreateMissionSchema.safeParse({ topic: "Rust", why: "x".repeat(4_000) }).success).toBe(
-      true,
-    );
+    expect(
+      CreateMissionSchema.safeParse({ weeks: 4, topic: "Rust", why: "x".repeat(4_001) }).success,
+    ).toBe(false);
+    expect(
+      CreateMissionSchema.safeParse({ weeks: 4, topic: "Rust", why: "x".repeat(4_000) }).success,
+    ).toBe(true);
   });
 
   it("strips keys a client is not allowed to set", () => {
     const parsed = CreateMissionSchema.parse({
+      weeks: 4,
       topic: "Rust",
       status: "completed",
       userId: "someone-else",
@@ -122,7 +127,38 @@ describe("CreateMissionSchema", () => {
   });
 
   it("rejects a missing topic", () => {
-    expect(CreateMissionSchema.safeParse({ why: "no topic" }).success).toBe(false);
+    expect(CreateMissionSchema.safeParse({ weeks: 4, why: "no topic" }).success).toBe(false);
+  });
+
+  it("requires a length in whole weeks, from one to fifty-two (FR-B1)", () => {
+    expect(CreateMissionSchema.safeParse({ topic: "Rust" }).success).toBe(false);
+    expect(CreateMissionSchema.safeParse({ topic: "Rust", weeks: 0 }).success).toBe(false);
+    expect(CreateMissionSchema.safeParse({ topic: "Rust", weeks: 53 }).success).toBe(false);
+    expect(CreateMissionSchema.safeParse({ topic: "Rust", weeks: 2.5 }).success).toBe(false);
+    // A form posts the number field as a string.
+    expect(CreateMissionSchema.parse({ topic: "Rust", weeks: "6" }).weeks).toBe(6);
+    // Anything else that merely coerces to a number is a malformed body, not a length.
+    expect(CreateMissionSchema.safeParse({ topic: "Rust", weeks: true }).success).toBe(false);
+    expect(CreateMissionSchema.safeParse({ topic: "Rust", weeks: [3] }).success).toBe(false);
+    expect(CreateMissionSchema.safeParse({ topic: "Rust", weeks: "" }).success).toBe(false);
+  });
+
+  it("takes a start day, or none for the next week start", () => {
+    expect(CreateMissionSchema.parse({ topic: "Rust", weeks: 6 }).startsOn).toBeNull();
+    expect(
+      CreateMissionSchema.parse({ topic: "Rust", weeks: 6, startsOn: "2026-10-05" }).startsOn,
+    ).toBe("2026-10-05");
+    expect(
+      CreateMissionSchema.safeParse({ topic: "Rust", weeks: 6, startsOn: "Monday" }).success,
+    ).toBe(false);
+    // A year typed wrong is refused here; the calendar cannot be edited afterwards.
+    expect(
+      CreateMissionSchema.safeParse({ topic: "Rust", weeks: 6, startsOn: "2206-10-05" }).success,
+    ).toBe(false);
+    // An empty date input is "no start chosen", not a malformed one.
+    expect(
+      CreateMissionSchema.parse({ topic: "Rust", weeks: 6, startsOn: "" }).startsOn,
+    ).toBeNull();
   });
 });
 

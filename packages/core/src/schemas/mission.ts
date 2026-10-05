@@ -1,5 +1,8 @@
 import { z } from "zod";
 
+import { MAX_WEEKS, MIN_WEEKS } from "../schedule/weeks.js";
+import { IsoDateSchema } from "./common.js";
+
 /**
  * The mission contract — one definition, three consumers.
  *
@@ -99,6 +102,33 @@ export const CreateMissionSchema = z.object({
   successLooksLike: normalizedProse.default(null),
   constraints: normalizedProse.default(null),
   currentLevel: normalizedProse.default(null),
+  /**
+   * How many weeks the mission takes (FR-B1): one module per week, five lessons and
+   * an exam in each. Required: the curriculum is fitted to it, and a mission with no
+   * length is the open-ended plan this replaced.
+   */
+  // Only a string is converted — the form posts its number field as one. `true` or
+  // `[3]` merely coerce to a number, and a body carrying them is malformed.
+  weeks: z.preprocess(
+    (value) => (typeof value === "string" && value.trim() !== "" ? Number(value) : value),
+    z.number().int().min(MIN_WEEKS).max(MAX_WEEKS),
+  ),
+  /**
+   * The first day of week 1. Must be a week start and not in the past — both checked
+   * by the server, which knows the learner's week start and today. Omitted, it is the
+   * next week start (`firstWeekStart`).
+   */
+  // A date input left empty posts "", which means "the default", not a bad date.
+  // Bounded to plausible years here; "not in the past" and "at most a year ahead" need
+  // today, and the server checks them.
+  startsOn: z
+    .preprocess(
+      (value) => (value === "" ? null : value),
+      IsoDateSchema.refine((day) => day >= "2020-01-01" && day <= "2100-12-31", {
+        error: "Expected a date from 2020 to 2100",
+      }).nullable(),
+    )
+    .default(null),
 });
 
 export type CreateMissionInput = z.infer<typeof CreateMissionSchema>;

@@ -147,12 +147,12 @@ const EN = {
   /** FR-E5: a pass after seeing the answer is not a pass. */
   "error.exercise.no_help_in_exam":
     "There's no help in an exam. Hints and the answer open once you've passed this item.",
-  "error.deadline.module_not_found": "That module isn't in this mission's curriculum.",
-  "error.deadline.module_dropped":
-    "This module was dropped from the curriculum, so there's no deadline to keep for it.",
-  "error.deadline.module_finished": "This module is finished, so nothing is left to be due.",
-  /** FR-U2: a commitment is to a day still ahead, in the learner's timezone. */
-  "error.deadline.in_past": "A deadline can't be in the past. Pick today or a later day.",
+  /** FR-B1: a mission's weeks start on the profile's week start, so its calendar has days 1–7. */
+  "error.mission.start_not_week_start": "A mission starts on the first day of a week.",
+  "error.mission.start_in_past":
+    "A mission can't start in the past. Pick this week's start or a later one.",
+  "error.mission.start_too_far":
+    "A mission starts within the next year. Check the year you picked.",
 } as const;
 
 export type ServerMessageKey = keyof typeof EN;
@@ -252,11 +252,11 @@ const PT_BR: Readonly<Record<ServerMessageKey, string>> = {
   "error.lesson.is_exam": "Uma prova não tem resultado para marcar. Os itens dela dizem como foi.",
   "error.exercise.no_help_in_exam":
     "Não há ajuda numa prova. As dicas e a resposta abrem quando você passar neste item.",
-  "error.deadline.module_not_found": "Esse módulo não está no currículo desta missão.",
-  "error.deadline.module_dropped":
-    "Este módulo saiu do currículo, então não há prazo a cumprir para ele.",
-  "error.deadline.module_finished": "Este módulo está concluído, então não há mais nada com prazo.",
-  "error.deadline.in_past": "Um prazo não pode estar no passado. Escolha hoje ou um dia depois.",
+  "error.mission.start_not_week_start": "Uma missão começa no primeiro dia de uma semana.",
+  "error.mission.start_in_past":
+    "Uma missão não pode começar no passado. Escolha o início desta semana ou de uma depois.",
+  "error.mission.start_too_far":
+    "Uma missão começa dentro do próximo ano. Confira o ano escolhido.",
 };
 
 const CATALOG: Readonly<Record<Locale, Readonly<Record<ServerMessageKey, string>>>> = {

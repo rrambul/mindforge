@@ -376,3 +376,70 @@ describe("moduleOutcomes", () => {
     });
   });
 });
+
+describe("the plan's order, for a mission planned in weeks (FR-B3)", () => {
+  // The AWS week 1: day 3 is harder than day 4, with no edge between them.
+  const week = () => [
+    lesson("day1", { position: 1, difficulty: 1, completed: true }),
+    lesson("day2", { position: 2, difficulty: 2, prerequisiteIds: ["day1"] }),
+    lesson("day3", { position: 3, difficulty: 3, prerequisiteIds: ["day2"] }),
+    lesson("day4", { position: 4, difficulty: 2, prerequisiteIds: ["day2"] }),
+    lesson("day5", { position: 5, difficulty: 3, prerequisiteIds: ["day3", "day4"] }),
+  ];
+
+  it("lists the module in day order, not easiest first", () => {
+    expect(orderModule(week(), "plan").map((l) => l.id)).toEqual([
+      "day1",
+      "day2",
+      "day3",
+      "day4",
+      "day5",
+    ]);
+    // The ease order the curriculum screen used for every mission puts day 4 first.
+    expect(orderModule(week(), "ease").map((l) => l.id)).toEqual([
+      "day1",
+      "day2",
+      "day4",
+      "day3",
+      "day5",
+    ]);
+  });
+
+  it("still never lists a lesson before one it depends on", () => {
+    const ordered = orderModule(
+      [
+        lesson("first-row", { position: 1, prerequisiteIds: ["second-row"] }),
+        lesson("second-row", { position: 2 }),
+      ],
+      "plan",
+    );
+    expect(ordered.map((l) => l.id)).toEqual(["second-row", "first-row"]);
+  });
+
+  it("puts a lesson with no row in the plan, a bridge, after the planned days", () => {
+    const ordered = orderModule(
+      [lesson("bridge", { difficulty: 1 }), lesson("day1", { position: 1, difficulty: 3 })],
+      "plan",
+    );
+    expect(ordered.map((l) => l.id)).toEqual(["day1", "bridge"]);
+  });
+
+  it("breaks ties between rowless lessons by difficulty, then file, then id — always the same way", () => {
+    const ordered = orderModule(
+      [
+        lesson("z", { difficulty: 2 }),
+        lesson("y", { difficulty: 2, seq: 4 }),
+        lesson("x", { difficulty: 2, seq: 4 }),
+        lesson("w", { difficulty: 1 }),
+      ],
+      "plan",
+    );
+    expect(ordered.map((l) => l.id)).toEqual(["w", "x", "y", "z"]);
+  });
+
+  it("makes the next lesson the next day's, once its prerequisites are done", () => {
+    const lessons = week().map((l) => (l.id === "day2" ? { ...l, completed: true } : l));
+    expect(nextLesson(lessons, [TRACK], "plan")!.id).toBe("day3");
+    expect(nextLesson(lessons, [TRACK])!.id).toBe("day4");
+  });
+});
