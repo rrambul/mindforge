@@ -222,7 +222,7 @@ much, how often" for one curriculum without thinking.
 
 ---
 
-### M7 — Exams and deadlines — **in progress** (`PLAN-EXAMS.md`)
+### M7 — Exams and the week calendar — **in progress** (`PLAN-EXAMS.md`, `PLAN-WEEKS.md`)
 
 **Goal:** a module ends in a real test, by a date you committed to.
 
@@ -234,10 +234,11 @@ proof) and a **deadline** per module (the goals row: progress alone did not end 
 - **The exam** is a lesson file marked `mindforge:kind="exam"`, written by a `generate_exam` run once
   the module's lessons are done, covering only what they taught. Taken in the reader with the
   existing exercise kinds, no hints, passed when every item is (FR-E1–E8).
-- **The deadline** is proposed from your own median minutes per lesson and your pace on the
-  mission over 28 days, committed by you, and moved only visibly — append-only, with the original
-  date on screen (FR-U1–U3, U5).
-- **The schedule** puts every module's exam on a date, committed or projected (FR-U4).
+- **The week calendar** (replaced the committed deadlines on 2026-10-04): a mission is created with
+  a length in weeks, one module per week, five lessons on days 1–5 and the exam on day 6. Dates are
+  fixed; falling behind is a count, shown, never a slide (FR-B1–B7). Labs bring practice in a real
+  environment the learner owns, where it makes sense (FR-X11–X13).
+- **The pace projection** stays beside the calendar as one line of information (FR-U4).
 
 **Done when:** one real module has been taught, examined and finished against a committed date,
 and the schedule for its mission was believable a week before that date.

@@ -206,8 +206,10 @@ you exactly as it binds a server run.
 
 Land it as in step 4. The module's line on the curriculum screen then shows the exam and its items.
 
-Deadlines are not files. The learner commits one on the curriculum screen (FR-U2), and nothing here
-writes `module_deadlines`.
+A week's dates are not files either: they are derived from the mission's `weeks` and `starts_on`
+(FR-B1), and nothing here writes them. For a mission planned in weeks, the curriculum step follows
+`skills/curriculum/SKILL.md`'s "A mission planned in weeks": exactly one module per week and five
+lessons in each.
 
 ## What must be running
 

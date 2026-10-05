@@ -180,11 +180,14 @@ broken while the data is perfectly correct. It needs `SUPABASE_URL` and
 `seed:report` prints what the tracker functions actually say about it. Use it before designing
 anything that reads `daily_activity` or module progress.
 
-**M7 — exams and deadlines — is code-complete and unproven by a real run (2026-10-02).** Decided
+**M7 — exams and the week calendar — is code-complete and unproven by a real run.** Decided
 ahead of the M6 soak by the learner, and recorded as such in `NORTHSTAR.md` §5 and §6. A module
 ends in an exam that a `generate_exam` run writes once its lessons are done (inferred like every run
-kind, the module carried in `input.examFor`), and it carries a deadline the learner commits to,
-proposed from their own pace. `PLAN-EXAMS.md` has the decisions; FR-E and FR-U are the requirements;
+kind, the module carried in `input.examFor`). **Since 2026-10-04 a mission is planned in weeks**
+(`PLAN-WEEKS.md`, FR-B): one module per week, five lessons on days 1–5, the exam on day 6, dates
+fixed at creation and derived on read. That replaced the committed per-module deadlines of
+2026-10-02. Lessons may carry a `lab` exercise, practice in an environment the learner owns
+(FR-X11–X13). `PLAN-EXAMS.md` has the decisions; FR-E and FR-U are the requirements;
 `TECH-DESIGN.md` §3.2d and §9.5 have the model and the maths.
 
 Three things about it that are easy to get wrong:
@@ -195,9 +198,14 @@ Three things about it that are easy to get wrong:
   building nodes; the briefing reader, the mission-workspace reader and `export:portfolio` filter
   in SQL. A new query over `lessons` that forgets this gives a module a denominator it can never
   finish, since nothing completes an exam.
-- **`module_deadlines` is append-only, with no UPDATE policy.** A move is a new row; the newest is
-  in force, the first is what was committed, and the screen always shows both. Re-sending the date
-  in force writes nothing, because that is not a move.
+- **The calendar is `missions.weeks` and `starts_on`, plus the week each module was pinned to.**
+  `tracks.week` is set by the reindexer the first time a module is indexed (`pinWeeks`) and never
+  reassigned: deriving it from the plan's order on read moved every later date by a week whenever
+  a revision dropped or inserted a module. A lesson's day is its row in the plan (`lessonDays`), not
+  its place in `orderModule`, and an off-plan lesson has none. Nothing moves a date when the learner
+  falls behind: `behind` counts earlier days' unfinished lessons, today's is "due today", and a week
+  with nothing planned is "not planned", never "on track". A mission from before weeks has no
+  calendar, and every screen must render it without one.
 - **The estimate refuses to guess** (`schedulePace`): fewer than three finished lessons with focus
   time bound to them, or no focus time on the mission in 28 days, is null with the reason, and the
   learner picks the date. Days round up. A default pace would be the inflation non-negotiable 10

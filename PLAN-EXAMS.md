@@ -1,5 +1,9 @@
 # Plan — exams and deadlines
 
+> **Superseded in part, 2026-10-04.** The committed, pace-proposed deadlines below (decisions 7–9,
+> FR-U2, FR-U3, FR-U5, `module_deadlines`, the commit endpoint and its prompt) were replaced by the
+> week calendar in `PLAN-WEEKS.md`. The exams, the pace estimate and the projection stand.
+
 **Status, 2026-10-02:** Phases 1–4 are built and tested; unproven by a real `generate_exam` run. The requirements are FR-E1–E8 (exams) and
 FR-U1–U6 (deadlines and the schedule) in `REQUIREMENTS.md` §6.4e and §6.4f; the data model is
 `TECH-DESIGN.md` §3.2d and the maths §9.5. As each phase lands its detail moves into those docs and

@@ -119,7 +119,8 @@ rollup.
 ### 6.2 Missions
 
 - **FR-M1** Create/edit a Mission: topic, why, success criteria, constraints, current level. Same
-  shape as `teach`'s `MISSION.md` so they round-trip.
+  shape as `teach`'s `MISSION.md` so they round-trip. Creating one also takes its length in weeks
+  and its start (FR-B1), fixed from then on.
 - **FR-M2** Mission history — when and why it changed (append-only revisions).
 - **FR-M3** **WIP limit:** at most 10 active missions; others park. Parking a mission suspends
   nothing destructive — the curriculum and history stay. The limit was 3 until 2026-08-15 — the
@@ -128,7 +129,8 @@ rollup.
 
 ### 6.3 Curriculum & modules
 
-- **FR-K1** One button on a mission proposes a curriculum: **8–15 modules**, ordered
+- **FR-K1** One button on a mission proposes a curriculum: **8–15 modules** (exactly one per week
+  for a mission planned in weeks, FR-B2), ordered
   fundamentals-first, each with a slug, name, one-line outcome, and module-level prerequisites
   (a DAG, cycle-checked).
 - **FR-K2** Each module carries a **planned lesson list**: slug, title, one-line intent,
@@ -148,7 +150,9 @@ rollup.
 - **FR-K7** **Unblocked is derived:** every dependency completed. The "next lesson" suggestion is
   the first unblocked, incomplete planned lesson in module order. Within a module, a lesson is never
   listed before one it depends on; among the lessons that could come next, the easiest comes first,
-  then the plan's own order.
+  then the plan's own order. **A mission planned in weeks is the exception** (FR-B3): its modules are
+  listed and taught in the plan's day order, and its modules in the order of their weeks, because that
+  is the order the learner takes them in.
 
 ### 6.4 Lessons & the teach integration
 
@@ -222,6 +226,17 @@ rollup.
   attempt graded by the learner (`graded_by = 'self'`) and shown as self-reported, never as a checked
   pass. With no clock behind it, a task can land too hard or in the zone, never too easy.
 
+- **FR-X11** **Lab exercises** (`kind: "lab"`) for practice in a real environment the learner owns —
+  an AWS account, a cluster, a SaaS console: the platform, the steps, the one check that proves it
+  worked and what success looks like, what it may cost, and the cleanup. Declared only when doing it
+  for real teaches something the app cannot; the agent chooses between `code`, `task`, `whiteboard`
+  and `lab` per lesson.
+- **FR-X12** **A lab is self-reported** (`graded_by = 'self'`) through the same report as a task, and
+  shown as the learner's word. Its cleanup is always shown, and the report field says never to paste
+  credentials.
+- **FR-X13** **A lab never asks for access.** No credentials, keys or account ids are requested,
+  stored or sent to a model; the lab tells the learner what to run in their own terminal or console.
+
 ### 6.4c Hints — help when you're stuck, never the answer first (`PLAN-HANDS-ON.md` Phase 2)
 
 - **FR-H1** **A ladder of five rungs** — a question, a clue, the idea, the shape of a solution, the
@@ -293,32 +308,34 @@ rollup.
 - **FR-E8** **A retake is another attempt**, append-only like every attempt. Nothing is reset; the
   result says how many sittings it took.
 
-### 6.4f Deadlines and the schedule — a date to finish by (`PLAN-EXAMS.md`)
+### 6.4f The week calendar (`PLAN-WEEKS.md`)
 
-- **FR-U1** **An estimate from how you actually work** (`estimateModule` in `packages/core`): the
-  module's unfinished lessons, plus its exam counted as one lesson until it is passed, times the
-  median focus minutes of your finished lessons (at least three with focus time bound to them,
-  across every mission), divided by your daily pace on this mission (focus minutes in the last 28
-  local days ÷ 28, rest days included). The result is a projected exam day and the basis it was
-  computed from. **Null with a reason** when either input is missing. It is never a default.
-- **FR-U2** **A deadline is a commitment you make** on the module you are in, proposed from the
-  estimate when one exists, any date from today otherwise. Committing takes one tap when the
-  proposal is accepted. Deadlines are stored append-only (`module_deadlines`): moving one adds a
-  row, and the screen shows the date first committed and how many times it moved. Nothing is
-  deleted to make a date look kept.
-- **FR-U3** **The deadline's state is derived** (`deadlineStatus`): met (finished on or before the
-  date), missed (finished after it, with how many days late), overdue (unfinished past the date, by
-  how many days), due today, on track or behind (the projection against the date), or no
-  projection. Shown plainly, without alarms, celebration or punishment.
-- **FR-U4** **The schedule**: every shown module of a mission with its exam day, committed where the
-  learner set one and otherwise projected, each module starting where the one before it is
-  projected to end (`projectSchedule`). The chain starts with the module the learner is in, then
-  the rest in curriculum order, so the date proposed for that module is the date its deadline is
-  judged against. A projected date is always labelled as projected; a committed one as due.
-- **FR-U5** **The prompt to commit appears once, where it matters**: on the module you are working
-  in, when it has no deadline. Nothing nags about modules you have not started.
-- **FR-U6** "Today" is the learner's local day (§7.4), and a due date is a calendar day in their
-  timezone, never a server-local instant.
+The committed, pace-proposed module deadlines of `PLAN-EXAMS.md` (FR-U2, FR-U3, FR-U5) were
+replaced on 2026-10-04 by a calendar fixed when the mission is created. FR-U1 (the pace estimate),
+FR-U4 (the projected schedule) and FR-U6 (local days) stand, as information beside the calendar.
+
+- **FR-B1** **A mission is planned in weeks.** Creating one takes a number of weeks (1–52) and a
+  start, which defaults to the next week start in the learner's profile (today, if today is one), and
+  is at most a year ahead.
+  Both are fixed at creation. A mission created before this has no calendar and works as before.
+- **FR-B2** **One module per week, five lessons per module.** The curriculum run is told the shape,
+  and the reindexer warns when `CURRICULUM.md` does not have exactly one module per week and five
+  lessons in each. A module keeps the week it was first given when the plan was indexed — a revision
+  never moves a date — and a lesson's day is its row in the plan; an off-plan lesson has no day.
+- **FR-B3** **Days 1–5 are lessons, day 6 is the exam, day 7 is rest**, counted from the week start.
+  The module's exam day is its deadline.
+- **FR-B4** **The calendar is fixed.** Nothing slides when the learner falls behind, and nothing is
+  locked when they work ahead. Every date is derived on read in `packages/core`.
+- **FR-B5** **Behind is a count, stated plainly**: for the week in progress, how many lessons of
+  earlier days are unfinished, out of the module's own total, with today's lesson shown as due today
+  rather than late; for a week that has ended, whether its module finished on time, late (by how many
+  days) or not yet. A week with nothing planned says so and is never "on track". No alarms, no
+  streaks, no celebration.
+- **FR-B6** **The curriculum screen shows the weeks**: each module with its dates, its five lessons
+  against their days, and its exam day, the week in progress first in attention. The pace projection
+  sits beside each week as one line.
+- **FR-B7** **A lesson run knows its day.** The briefing tells the agent which week and day the
+  lesson is for, so it is pitched as one day's work.
 
 ### 6.5 Progress tracker
 

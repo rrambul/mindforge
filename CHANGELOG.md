@@ -9,20 +9,24 @@ would be bookkeeping with no reader.
 
 ## Unreleased
 
-### Exams and deadlines (M7)
+### Exams and missions in weeks (M7)
 
 - **Every module ends in an exam.** When you finish a module's last lesson, the teach button writes
   its exam: four to eight exercises covering only what that module's lessons taught, weighted toward
   the ones that landed shaky. You take it in the reader with the same editor, runner and whiteboard.
   There are no hints and no answers until you pass an item, and an exam is passed only when every
   item is. When an item fails, the screen names the lessons it covered so you know what to reread.
-- **Every module gets a deadline you commit to.** On the module you're in, Mindforge proposes a date
-  from how you actually work: the median time your finished lessons took, and the time you've put
-  into this mission over the last 28 days. Accept it with one tap or pick your own. Moving it later
-  is allowed, and the date you first committed to stays on screen.
-- **The schedule** shows every module's exam date, labelled due if you committed to it and projected
-  if Mindforge worked it out. Without enough history to estimate from, it says what's missing
-  instead of guessing.
+- **Missions are planned in weeks.** When you create a mission you say how many weeks it takes. The
+  curriculum fits the subject into that: one module a week, five lessons on weekdays (one a day),
+  and the module's test on day six. The dates are set when you create it and don't move. If you fall
+  behind, the screen says how many lessons behind you are, plainly, and you can always work ahead.
+- **Practical labs.** Where doing it for real teaches more than reading, like setting something up in
+  your own AWS account, a lesson can carry a lab: what it may cost (shown first), the steps, one check
+  that proves it worked, and how to clean up afterwards. You report how it went, and the app never
+  asks for your keys.
+- **The schedule** shows each week against its dates and where it stands, with one line on where
+  your actual pace would put the test. Without enough history to estimate from, it says what's
+  missing instead of guessing.
 
 ## 0.2.0
 
