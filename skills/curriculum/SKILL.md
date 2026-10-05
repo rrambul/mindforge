@@ -73,7 +73,8 @@ what `MISSION.md` says the user can already do — never the user against the su
 
 ## Plan every module's lessons
 
-For each track, write its `## Module: <slug>` table: three to eight lessons, each with a stable slug,
+For each track, write its `## Module: <slug>` table: three to eight lessons (exactly five for a mission
+planned in weeks, below), each with a stable slug,
 a title, a one-line intent, a difficulty of 1–5, a depth, and its prerequisite lessons. The full
 column rules are in [CURRICULUM-FORMAT.md](./CURRICULUM-FORMAT.md).
 
@@ -93,6 +94,20 @@ Plan every track's module, including the ones the user will reach last. If you g
 say what a late track's lessons are — because they depend on what the earlier ones reveal — plan the
 smallest honest list and say so in `NOTES.md`. A short module is revisable; an invented one is a plan
 the user has to discover is wrong.
+
+## A mission planned in weeks
+
+When the mission has a length in weeks — `BRIEFING.md` says so, or the user told you — the curriculum
+is fitted to it, not the other way round:
+
+- **Exactly one track per week**, as many tracks as weeks, in the order they will be taught.
+- **Exactly five lessons per module**, one per day on days 1 to 5. Each is one day's work at the time
+  per day the mission's constraints give. Order them so day 1 to day 5 build on each other.
+- **Day 6 is the module's exam**, written later by its own run. It is not a lesson; do not plan it.
+
+When the subject is bigger than the weeks, cut scope rather than cramming: a sixth lesson in a week
+or two subtopics in one module breaks the calendar the learner planned around. Say what you cut in
+`NOTES.md`. When the subject is smaller, go deeper rather than padding with review lessons.
 
 ## Revising
 

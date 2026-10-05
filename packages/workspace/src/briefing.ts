@@ -126,6 +126,18 @@ export interface CurrentTrack {
  */
 export type BriefingKind = "generate_lesson" | "generate_curriculum" | "generate_exam";
 
+/** A mission planned in weeks, as a run needs to know it (FR-B1, FR-B7). */
+export interface BriefingCalendar {
+  readonly weeks: number;
+  /** The first day of week 1, `YYYY-MM-DD`. */
+  readonly startsOn: string;
+  /**
+   * The week and day of the lesson this run writes, when it writes the planned next
+   * one. Absent on a curriculum run and on a lesson run off the plan.
+   */
+  readonly lesson?: { readonly week: number; readonly day: number; readonly date: string };
+}
+
 /**
  * One written lesson of the module being examined (FR-E4), as the exam run reads it.
  *
@@ -204,6 +216,12 @@ export interface BriefingFacts {
 
   /** What this lesson should do about it (FR-D2, FR-D3) — `nextAdjustment`, or a bridge the learner asked for. */
   readonly adjustment: BriefingAdjustment;
+
+  /**
+   * The mission's week calendar (FR-B1), absent for a mission created before weeks.
+   * A curriculum run is told the shape it must fit; a lesson run, which day it is for.
+   */
+  readonly calendar?: BriefingCalendar;
 
   /**
    * The module to examine, gathered only for an exam run (FR-E3). Absent on every
@@ -400,6 +418,39 @@ function renderExam(module: ExamModule | undefined): string {
     "",
     "No `mindforge:lesson` and no `mindforge:adjusted`. Name it",
     `\`lessons/NNNN-exam-${module.slug}.html\` with the next free number, titled \`Exam: ${module.name}\`.`,
+  ].join("\n");
+}
+
+/**
+ * A weekly mission's shape, for the curriculum run (FR-B2).
+ *
+ * Stated as numbers the reindexer then checks, because a curriculum of nine
+ * modules for a six-week mission is a calendar with three weeks nobody has.
+ */
+function renderWeeks(calendar: BriefingCalendar): string {
+  return [
+    `**This mission is planned in ${calendar.weeks} ${calendar.weeks === 1 ? "week" : "weeks"},**`,
+    `starting ${calendar.startsOn}. The learner chose that length, and the curriculum fits the`,
+    "subject into it rather than the other way round:",
+    "",
+    `- **Exactly ${calendar.weeks} ${calendar.weeks === 1 ? "track" : "tracks"}**, one per week, in the order they will be taught.`,
+    "- **Exactly five lessons in each module**, one per day on days 1 to 5. Each is one day's work for",
+    "  this learner, at the time per day `MISSION.md` gives under constraints.",
+    "- **Day 6 is the module's exam**, written later by another run. Do not plan it as a lesson.",
+    "",
+    "Order each module's five lessons so day 1 to day 5 build on each other. When the subject is",
+    "bigger than the weeks, cut scope and say what you cut in `NOTES.md` under",
+    "`## Curriculum questions`; never squeeze a sixth lesson into a week or a second module into one.",
+  ].join("\n");
+}
+
+/** Which day a lesson run is writing for (FR-B7). */
+function renderDay(lesson: NonNullable<BriefingCalendar["lesson"]>): string {
+  return [
+    `This is **day ${lesson.day} of week ${lesson.week}** (${lesson.date}). It is one day's work: pitch`,
+    "it so the learner can finish the lesson and its exercise in one sitting, at the time per day",
+    "`MISSION.md` gives. A lesson that needs two days is two lessons, and that is a case for",
+    "`NOTES.md`, not for this file.",
   ].join("\n");
 }
 
@@ -606,6 +657,9 @@ export function renderBriefing(input: BriefingInput): string {
 
   if (input.kind === "generate_curriculum") {
     parts.push(section("What this run is for", CURRICULUM_RUN));
+    if (input.calendar !== undefined) {
+      parts.push(section("The shape this curriculum must have", renderWeeks(input.calendar)));
+    }
   } else if (input.kind === "generate_exam") {
     parts.push(section("What this run is for", renderExam(input.examModule)));
   } else {
@@ -658,6 +712,9 @@ export function renderBriefing(input: BriefingInput): string {
       ),
     );
     parts.push(section("What this lesson should do", renderAdjustment(input.adjustment)));
+    if (input.calendar?.lesson !== undefined) {
+      parts.push(section("The day this lesson is for", renderDay(input.calendar.lesson)));
+    }
   }
 
   parts.push(

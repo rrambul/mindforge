@@ -38,6 +38,8 @@ belongs.
 Every lesson has one. It is something the learner **does**, not something they read and nod at:
 
 - **Programming:** write, fix, complete or predict code.
+- **Operating a platform:** do it for real in an environment the learner owns — a lab (below) —
+  when that is what the lesson is about. Not every lesson in a practical mission needs one.
 - **System design:** sketch a design for a stated problem, then check it against a list of what a good
   answer covers.
 - **Anything else:** a worked task with a concrete result the learner can check.
@@ -138,6 +140,51 @@ lesson gives every file and the command, the learner runs it in their own termin
   read both against each test line by line before writing the lesson.
 - The learner's result is **their report**, recorded and shown as self-reported — never as a pass the
   app checked.
+
+### Practice in a real environment is a lab
+
+When the lesson is about operating a real platform — an AWS service, a cluster, a SaaS console — and
+doing it for real teaches something reading and an in-app exercise cannot, **declare a lab**. The
+learner does it in an environment they own; the app shows the steps, the check, the cost and the
+cleanup, and records what they report.
+
+```html
+<script type="application/vnd.mindforge.exercise+json">
+  {
+    "key": "lock-the-bucket",
+    "kind": "lab",
+    "platform": "aws",
+    "title": "Lock a bucket to one role",
+    "prompt": "In your own AWS account, create a bucket only one role can read, then prove it.",
+    "steps": [
+      "Create a bucket named mindforge-lab-<your-initials>, with Block Public Access left on.",
+      "Attach a bucket policy that allows s3:GetObject to one role and nothing else."
+    ],
+    "verify": {
+      "command": "aws s3 cp s3://mindforge-lab-<your-initials>/hello.txt - --profile mindforge-reader",
+      "expect": "The file's contents as the role, and AccessDenied as yourself."
+    },
+    "cost": "Free tier: one bucket with one small object costs nothing.",
+    "cleanup": ["aws s3 rb s3://mindforge-lab-<your-initials> --force"],
+    "expectedMinutes": 20
+  }
+</script>
+```
+
+- **Choose it only when it earns its place.** A lesson about what IAM evaluation _is_ is better served
+  by a code or whiteboard exercise; a lesson about writing a bucket policy that actually locks a bucket
+  is a lab. Many lessons in a practical mission still need none.
+- **`verify` is one check that proves it worked**: the command to run (or the console page to look at)
+  and what success reads like, including the failure that proves the restriction holds.
+- **`cost` is said before anything is created.** Prefer the free tier and the smallest resource that
+  teaches the point, and say what is not free. "Free tier" is an answer; saying nothing is not.
+- **`cleanup` tears down everything the steps created**, in order. A lab that leaves a NAT gateway or
+  an instance running is a bill the lesson caused.
+- **Never ask for credentials, keys or account ids**, and never put any in the lesson. The learner
+  runs the commands with their own CLI profile; placeholders like `<your-initials>` are theirs to fill.
+- Least privilege in what the steps create: a lab that opens a bucket to the internet to make the
+  check pass has taught the wrong lesson.
+- The learner's result is **their report**, recorded as self-reported, like a task.
 
 ### Design exercises are drawn and reviewed
 

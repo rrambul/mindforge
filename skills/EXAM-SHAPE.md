@@ -37,7 +37,8 @@ ideas, or ask for the thing the lessons built toward.
   `<script type="application/vnd.mindforge.exercise+json">`, with a unique `key`.
 - **Prefer kinds that are checked.** `code` (JavaScript, TypeScript, Python) runs tests in the app,
   and `whiteboard` is reviewed against a rubric. Use `task` only for a language the browser cannot
-  run, and know that the app shows a task's pass as self-reported.
+  run, and `lab` only when the module was about operating a real platform and its lessons had labs.
+  The app shows a task's or a lab's pass as self-reported.
 - **Every item declares `covers`**, the slugs of the lessons it examines, from the briefing's list:
 
   ```json

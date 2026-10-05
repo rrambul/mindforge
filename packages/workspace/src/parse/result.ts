@@ -48,7 +48,9 @@ export type WarningCode =
   // Exams (FR-E1)
   | "exam_claims_plan"
   | "exam_without_items"
-  | "exam_carries_solution";
+  | "exam_carries_solution"
+  // Weeks (FR-B2)
+  | "curriculum_off_weeks";
 
 export interface ParseWarning {
   readonly code: WarningCode;

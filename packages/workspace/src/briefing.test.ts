@@ -589,3 +589,39 @@ describe("an exam run (FR-E3, FR-E4)", () => {
     expect(briefing).toContain("_None written._");
   });
 });
+
+describe("a mission planned in weeks (FR-B2, FR-B7)", () => {
+  const CALENDAR = { weeks: 6, startsOn: "2026-10-05" };
+
+  it("tells a curriculum run the exact shape: one module a week, five lessons each", () => {
+    const briefing = renderBriefing({ ...EMPTY, kind: "generate_curriculum", calendar: CALENDAR });
+
+    expect(briefing).toContain("**This mission is planned in 6 weeks,**");
+    expect(briefing).toContain("**Exactly 6 tracks**, one per week");
+    expect(briefing).toContain("**Exactly five lessons in each module**");
+    expect(briefing).toContain("**Day 6 is the module's exam**");
+  });
+
+  it("says nothing about weeks to a mission without them", () => {
+    expect(renderBriefing({ ...EMPTY, kind: "generate_curriculum" })).not.toContain("weeks,**");
+  });
+
+  it("tells a lesson run which day it is writing for", () => {
+    const briefing = renderBriefing({
+      ...RICH,
+      calendar: { ...CALENDAR, lesson: { week: 2, day: 3, date: "2026-10-14" } },
+    });
+
+    expect(briefing).toContain("This is **day 3 of week 2** (2026-10-14). It is one day's work");
+  });
+
+  it("says one week, not one weeks", () => {
+    const briefing = renderBriefing({
+      ...EMPTY,
+      kind: "generate_curriculum",
+      calendar: { weeks: 1, startsOn: "2026-10-05" },
+    });
+    expect(briefing).toContain("planned in 1 week,**");
+    expect(briefing).toContain("**Exactly 1 track**, one per week");
+  });
+});

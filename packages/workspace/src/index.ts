@@ -69,6 +69,7 @@ export {
   notTracked,
   renderBriefing,
   type BriefingAdjustment,
+  type BriefingCalendar,
   type BriefingFacts,
   type BriefingInput,
   type BriefingKind,
