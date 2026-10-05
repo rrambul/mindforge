@@ -155,7 +155,7 @@ describe("the loop", () => {
 
   it("binds a session to a mission", async () => {
     const mission = JSON.parse(
-      (await post("/v1/missions", alice, { topic: "Rust ownership" })).body,
+      (await post("/v1/missions", alice, { weeks: 4, topic: "Rust ownership" })).body,
     ) as { id: string };
 
     const started = await startSession(alice, { missionId: mission.id });

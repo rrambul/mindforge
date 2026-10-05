@@ -1,8 +1,21 @@
-import { MISSION_WIP_LIMIT, type CreateMissionInput } from "@mindforge/core";
+import {
+  calendarDaysBetween,
+  firstWeekStart,
+  isWeekStart,
+  localDay,
+  MAX_START_AHEAD_DAYS,
+  MISSION_WIP_LIMIT,
+  type CreateMissionInput,
+} from "@mindforge/core";
 import { Inject, Injectable } from "@nestjs/common";
 import { ID_GENERATOR, type IdGenerator } from "../../../shared/ids/id-generator.js";
 import { CLOCK, type Clock } from "../../../shared/time/clock.js";
-import { WipLimitReached } from "../domain/errors.js";
+import {
+  MissionStartInPast,
+  MissionStartNotWeekStart,
+  MissionStartTooFar,
+  WipLimitReached,
+} from "../domain/errors.js";
 import { Mission } from "../domain/mission.js";
 import { MISSION_REPOSITORY, type MissionRepository } from "../domain/mission.repository.js";
 
@@ -34,15 +47,39 @@ export class CreateMission {
     @Inject(ID_GENERATOR) private readonly ids: IdGenerator,
   ) {}
 
-  async execute(userId: string, input: CreateMissionInput): Promise<Mission> {
+  /**
+   * `learner` is the profile's timezone and week start: "today" and "a week start"
+   * are both the learner's, and the calendar is fixed by them at this moment (FR-B1).
+   */
+  async execute(
+    userId: string,
+    input: CreateMissionInput,
+    learner: { readonly timezone: string; readonly weekStartsOn: number },
+  ): Promise<Mission> {
+    const now = this.clock.now();
+    const today = localDay(now, learner.timezone);
+    const startsOn = input.startsOn ?? firstWeekStart(today, learner.weekStartsOn);
+    if (!isWeekStart(startsOn, learner.weekStartsOn)) throw new MissionStartNotWeekStart(startsOn);
+    if (calendarDaysBetween(today, startsOn) < 0) throw new MissionStartInPast(startsOn, today);
+    if (calendarDaysBetween(today, startsOn) > MAX_START_AHEAD_DAYS) {
+      throw new MissionStartTooFar(startsOn, today);
+    }
+
     const active = await this.missions.countActive(userId);
     if (active >= MISSION_WIP_LIMIT) throw new WipLimitReached(MISSION_WIP_LIMIT);
 
     const mission = Mission.create({
       id: this.ids.next(),
       userId,
-      fields: input,
-      now: this.clock.now(),
+      fields: {
+        topic: input.topic,
+        why: input.why,
+        successLooksLike: input.successLooksLike,
+        constraints: input.constraints,
+        currentLevel: input.currentLevel,
+      },
+      calendar: { weeks: input.weeks, startsOn },
+      now,
     });
 
     await this.missions.create(userId, mission);

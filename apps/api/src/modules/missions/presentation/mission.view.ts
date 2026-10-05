@@ -1,4 +1,4 @@
-import type { MissionView } from "@mindforge/core";
+import { missionEndsOn, type MissionView } from "@mindforge/core";
 import type { Mission } from "../domain/mission.js";
 
 export type { MissionView };
@@ -27,6 +27,14 @@ export function toMissionView(mission: Mission): MissionView {
     constraints: snapshot.constraints,
     currentLevel: snapshot.currentLevel,
     status: snapshot.status,
+    calendar:
+      snapshot.calendar === null
+        ? null
+        : {
+            weeks: snapshot.calendar.weeks,
+            startsOn: snapshot.calendar.startsOn,
+            endsOn: missionEndsOn(snapshot.calendar.startsOn, snapshot.calendar.weeks),
+          },
     createdAt: snapshot.createdAt.toISOString(),
     updatedAt: snapshot.updatedAt.toISOString(),
   };

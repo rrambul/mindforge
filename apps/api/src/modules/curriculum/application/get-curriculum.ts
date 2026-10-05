@@ -1,12 +1,13 @@
 import {
   addDays,
-  currentDeadline,
   currentModule,
   dayBounds,
-  deadlineStatus,
   deriveLessons,
   examResult,
+  lessonDays,
+  lessonDueOn,
   localDay,
+  missionEndsOn,
   missionProgress,
   moduleFinishedAt,
   moduleOutcomes,
@@ -18,6 +19,8 @@ import {
   projectSchedule,
   resolveBridges,
   schedulePace,
+  weekOf,
+  weekStanding,
   type Bridges,
   type CurriculumLesson,
   type CurriculumModule,
@@ -25,12 +28,11 @@ import {
   type ExamResultView,
   type IsoDate,
   type LessonNode,
-  type ModuleDeadlineView,
   type ModuleWork,
   type PaceResult,
   type PaceView,
-  type Projection,
   type UpcomingAdjustment,
+  type Week,
 } from "@mindforge/core";
 import { Inject, Injectable, NotFoundException } from "@nestjs/common";
 
@@ -102,13 +104,44 @@ export class GetCurriculum {
       id === undefined ? null : { id, title: titles.get(id) ?? "" };
 
     const shown = rows.tracks.filter((track) => isShown(track, rows.lessons));
-    const order = shown.map((track) => track.id);
+    // The order modules are taken in: their pinned weeks when the mission has a
+    // calendar — a revision may reorder the plan, never the weeks — and the plan's
+    // order otherwise. `rows.tracks` already arrives in the plan's order.
+    const order = [...shown]
+      .sort((a, b) =>
+        // A module with no week goes after the weeks; 53 is past the last there can be.
+        rows.calendar === null ? 0 : (a.week ?? 53) - (b.week ?? 53),
+      )
+      .map((track) => track.id);
 
     const slugs = new Map(rows.lessons.map((lesson) => [lesson.slug, lesson]));
     const exams = new Map(shown.map((track) => [track.id, examOf(track.id, rows.exams)]));
 
-    const modules = shown.map((track): Omit<CurriculumModule, "deadline" | "projection"> => {
+    // Each module's week is the one it was pinned to when the plan was first
+    // indexed (FR-B4), never re-derived from the plan's order: a revision that drops
+    // or inserts a module must not move a date. A week past the mission's last has
+    // no dates to show.
+    const { calendar } = rows;
+    const weeks = new Map<string, Week>();
+    if (calendar !== null) {
+      for (const track of shown) {
+        if (track.week !== null && track.week <= calendar.weeks) {
+          weeks.set(track.id, weekOf(calendar.startsOn, track.week));
+        }
+      }
+    }
+
+    // A mission planned in weeks is listed, and taught, in the plan's day order; one
+    // without a calendar easiest first (FR-K7, FR-B3). One choice for the list, the
+    // "Next" badge and the briefing alike.
+    const ordering = calendar === null ? "ease" : "plan";
+    const dayOf = new Map<string, number>();
+    const modules = shown.map((track): Omit<CurriculumModule, "week" | "projection"> => {
       const inModule = nodes.filter((node) => node.trackId === track.id);
+      const week = weeks.get(track.id) ?? null;
+      // The plan's own row order (FR-B3), not the easiest-first order the list uses.
+      const days = lessonDays(inModule);
+      for (const [id, day] of days) dayOf.set(id, day);
       const exam = exams.get(track.id) ?? null;
       const result = exam === null ? null : examResult(exam.items);
       const finishedAt = moduleFinishedAt(
@@ -130,7 +163,7 @@ export class GetCurriculum {
             outcome: byId.get(node.id)!.outcome,
           })),
         ),
-        lessons: orderModule(inModule).map((node) => {
+        lessons: orderModule(inModule, ordering).map((node) => {
           const row = byId.get(node.id)!;
           const state = derived.get(node.id)!;
 
@@ -159,6 +192,7 @@ export class GetCurriculum {
                     bridgeFor: linked(bridges.target.get(row.id)),
                   },
             bridge: linked(bridges.bridgeOf.get(row.id)),
+            dueOn: dueOn(week, days.get(node.id)),
           };
         }),
         exam:
@@ -171,7 +205,7 @@ export class GetCurriculum {
 
     // The module the learner is in (FR-U5), decided before the schedule because the
     // schedule starts with it.
-    const next = nextLesson(nodes, order);
+    const next = nextLesson(nodes, order, ordering);
     const current = currentModule(
       modules
         .filter((module) => module.status !== "dropped")
@@ -185,11 +219,12 @@ export class GetCurriculum {
       next?.trackId ?? null,
     );
 
-    // The schedule (FR-U4): every shown module, **starting with the one you are in**,
-    // then the rest in curriculum order. Queued behind an earlier module with work
-    // left, the module you are in would be proposed one date and judged against a
-    // later one — "behind" the moment you accepted the date the screen offered. A
-    // dropped module is still listed (it may hold finished lessons) and takes no time.
+    // The pace projection (FR-U4): every shown module, **starting with the one you
+    // are in**, then the rest in curriculum order. Information beside the calendar
+    // (FR-B4), never a date it moves: "at your pace, this week's exam lands on…".
+    // Queued behind an earlier module with work left, the module you are in would
+    // be projected from a day you are not going to start it on. A dropped module is
+    // still listed (it may hold finished lessons) and takes no time.
     const pace = schedulePace(rows.pace);
     const work = modules.map((module): ModuleWork => ({
       id: module.id,
@@ -209,16 +244,30 @@ export class GetCurriculum {
     );
 
     const withSchedule = modules.map((module): CurriculumModule => {
-      const projection = schedule.get(module.id)!;
+      const week = weeks.get(module.id) ?? null;
       return {
         ...module,
-        projection,
-        deadline: deadlineView(rows.deadlines.get(module.id) ?? [], {
-          today,
-          finishedOn:
-            module.finishedAt === null ? null : localDay(new Date(module.finishedAt), timezone),
-          projectedOn: projection.status === "projected" ? projection.examDay : null,
-        }),
+        projection: schedule.get(module.id)!,
+        week:
+          week === null
+            ? null
+            : {
+                ...week,
+                standing: weekStanding(
+                  {
+                    week,
+                    lessons: module.lessons.map((lesson) => ({
+                      day: dayOf.get(lesson.id) ?? null,
+                      completed: lesson.completed,
+                    })),
+                    finishedOn:
+                      module.finishedAt === null
+                        ? null
+                        : localDay(new Date(module.finishedAt), timezone),
+                  },
+                  today,
+                ),
+              },
       };
     });
 
@@ -237,13 +286,10 @@ export class GetCurriculum {
       today,
       pace: paceView(pace),
       currentModuleId: current,
-      // Only for the module the learner is in, and only while it has no deadline
-      // (FR-U5). Its own projection, which the schedule starts with: the date proposed
-      // is the date the deadline is then judged against.
-      proposal:
-        current === null || rows.deadlines.has(current)
+      calendar:
+        calendar === null
           ? null
-          : { moduleId: current, dueOn: proposedDay(schedule.get(current)!) },
+          : { ...calendar, endsOn: missionEndsOn(calendar.startsOn, calendar.weeks) },
     };
   }
 }
@@ -279,28 +325,15 @@ function toResultView(
   };
 }
 
-function deadlineView(
-  history: Parameters<typeof currentDeadline>[0],
-  facts: { today: IsoDate; finishedOn: IsoDate | null; projectedOn: IsoDate | null },
-): ModuleDeadlineView | null {
-  const deadline = currentDeadline(history);
-  if (deadline === null) return null;
-  return {
-    dueOn: deadline.dueOn,
-    firstDueOn: deadline.firstDueOn,
-    moves: deadline.moves,
-    status: deadlineStatus({ dueOn: deadline.dueOn, ...facts }),
-  };
+/** A lesson's date: its day of its module's week, or none without either. */
+function dueOn(week: Week | null, day: number | undefined): IsoDate | null {
+  return week === null || day === undefined ? null : lessonDueOn(week, day);
 }
 
 function paceView(pace: PaceResult): PaceView {
   return pace.status === "known"
     ? { status: "known", ...pace.pace }
     : { status: "unknown", missing: pace.missing, timedLessons: pace.timedLessons };
-}
-
-function proposedDay(projection: Projection): IsoDate | null {
-  return projection.status === "projected" ? projection.examDay : null;
 }
 
 /**

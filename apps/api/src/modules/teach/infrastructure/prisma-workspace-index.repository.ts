@@ -1,3 +1,4 @@
+import { MAX_WEEKS, pinWeeks } from "@mindforge/core";
 import { Inject, Injectable } from "@nestjs/common";
 
 import { USER_SCOPED_DB, type UserScopedDb } from "../../../shared/persistence/user-scoped-db.js";
@@ -76,6 +77,8 @@ export class PrismaWorkspaceIndexRepository implements WorkspaceIndexRepository 
           present,
         );
       }
+
+      await pinTrackWeeks(tx, missionId);
 
       // Edges are rebuilt rather than upserted: unlike a track, an edge carries
       // no state the file does not have, and a prerequisite the curriculum
@@ -478,5 +481,49 @@ export class PrismaWorkspaceIndexRepository implements WorkspaceIndexRepository 
         [...paths],
       );
     });
+  }
+}
+
+/**
+ * Give each module of a mission planned in weeks the week it will keep (FR-B4).
+ *
+ * After the upsert and the dropping, so a revised plan's new modules take the next
+ * free weeks and its dropped ones keep theirs. `pinWeeks` decides; this only reads
+ * and writes. A mission with no calendar gets no weeks.
+ */
+async function pinTrackWeeks(
+  tx: {
+    $queryRawUnsafe<T>(sql: string, ...params: unknown[]): Promise<T>;
+    $executeRawUnsafe(sql: string, ...params: unknown[]): Promise<number>;
+  },
+  missionId: string,
+): Promise<void> {
+  const [mission] = await tx.$queryRawUnsafe<{ weeks: number | null }[]>(
+    `select weeks from missions where id = $1::uuid`,
+    missionId,
+  );
+  if (mission?.weeks == null) return;
+
+  const tracks = await tx.$queryRawUnsafe<
+    { id: string; week: number | null; position: number; status: string }[]
+  >(`select id, week, position, status from tracks where mission_id = $1::uuid`, missionId);
+
+  const pinned = pinWeeks(
+    tracks.map((track) => ({
+      id: track.id,
+      week: track.week,
+      position: track.position,
+      dropped: track.status === "dropped",
+    })),
+  );
+  for (const [id, week] of pinned) {
+    // Past week 52 there is no week to give — the column is CHECKed to a year — and
+    // the reindexer's shape warning has already said the plan has too many modules.
+    if (week > MAX_WEEKS) continue;
+    await tx.$executeRawUnsafe(
+      `update tracks set week = $2::smallint where id = $1::uuid and week is null`,
+      id,
+      week,
+    );
   }
 }

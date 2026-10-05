@@ -61,7 +61,7 @@ function get(url: string, user: TestUser | null, extra: Record<string, string> =
 }
 
 async function createMission(user: TestUser, topic: string): Promise<MissionResponse> {
-  const response = await post("/v1/missions", user, { topic });
+  const response = await post("/v1/missions", user, { weeks: 4, topic });
   expect(response.statusCode, response.body).toBe(201);
   return JSON.parse(response.body) as MissionResponse;
 }
@@ -132,6 +132,7 @@ describe("authentication", () => {
 describe("creating a mission", () => {
   it("creates one and returns the view shape", async () => {
     const response = await post("/v1/missions", alice, {
+      weeks: 4,
       topic: "Rust ownership",
       why: "I keep fighting the borrow checker",
     });
@@ -146,6 +147,43 @@ describe("creating a mission", () => {
     // The caller is the owner by construction, so echoing it back would be noise a
     // client could start keying off.
     expect(mission).not.toHaveProperty("userId");
+  });
+
+  it("plans it in weeks from the next week start, with a last day to match (FR-B1)", async () => {
+    const response = await post("/v1/missions", alice, { weeks: 3, topic: "AWS by doing" });
+    expect(response.statusCode, response.body).toBe(201);
+    const { calendar } = JSON.parse(response.body) as MissionResponse & {
+      calendar: { weeks: number; startsOn: string; endsOn: string };
+    };
+
+    expect(calendar.weeks).toBe(3);
+    // Three weeks end on the twenty-first day, the rest day of week 3.
+    const days =
+      (Date.parse(`${calendar.endsOn}T00:00:00Z`) - Date.parse(`${calendar.startsOn}T00:00:00Z`)) /
+      86_400_000;
+    expect(days).toBe(20);
+  });
+
+  it("refuses a mission with no length, and a start that is not a week start", async () => {
+    const noWeeks = await post("/v1/missions", alice, { topic: "Open-ended" });
+    expect(noWeeks.statusCode).toBe(422);
+
+    const [row] = await db.$queryRawUnsafe<{ week_starts_on: number; tomorrow: string }[]>(
+      `select week_starts_on,
+              ((now() at time zone timezone)::date
+                + (((week_starts_on - extract(dow from (now() at time zone timezone))::int + 7) % 7) + 1))::text
+                as tomorrow
+         from profiles where id = $1::uuid`,
+      alice.id,
+    );
+    // The day after this week's start is never a week start.
+    const response = await post("/v1/missions", alice, {
+      weeks: 3,
+      topic: "Mid-week",
+      startsOn: row!.tomorrow,
+    });
+    expect(response.statusCode).toBe(422);
+    expect(response.body).toContain("mission-start-not-week-start");
   });
 
   it("writes a row owned by the authenticated user", async () => {
@@ -165,13 +203,13 @@ describe("creating a mission", () => {
 
   it("stores an empty prose field as null, not as an empty string", async () => {
     // Otherwise "" and null both mean absent, and every read has to check for both.
-    const response = await post("/v1/missions", alice, { topic: "Rust", why: "" });
+    const response = await post("/v1/missions", alice, { weeks: 4, topic: "Rust", why: "" });
     expect((JSON.parse(response.body) as MissionResponse).why).toBeNull();
   });
 
   describe("validation", () => {
     it("reports a too-short topic as 422 with a field error", async () => {
-      const response = await post("/v1/missions", alice, { topic: "no" });
+      const response = await post("/v1/missions", alice, { weeks: 4, topic: "no" });
 
       expect(response.statusCode).toBe(422);
       const problem = JSON.parse(response.body) as ProblemResponse;
@@ -181,7 +219,7 @@ describe("creating a mission", () => {
     });
 
     it("reports a missing topic", async () => {
-      const response = await post("/v1/missions", alice, { why: "no topic given" });
+      const response = await post("/v1/missions", alice, { weeks: 4, why: "no topic given" });
       expect(response.statusCode).toBe(422);
       expect((JSON.parse(response.body) as ProblemResponse).errors[0]?.field).toBe("topic");
     });
@@ -191,6 +229,7 @@ describe("creating a mission", () => {
       // honour; the schema strips it rather than rejecting, so an over-eager client
       // still works.
       const response = await post("/v1/missions", alice, {
+        weeks: 4,
         topic: "Rust ownership",
         status: "completed",
         userId: bob.id,
@@ -212,7 +251,7 @@ describe("creating a mission", () => {
         await createMission(alice, `Mission ${i}`);
       }
 
-      const response = await post("/v1/missions", alice, { topic: "One too many" });
+      const response = await post("/v1/missions", alice, { weeks: 4, topic: "One too many" });
 
       expect(response.statusCode).toBe(409);
       const problem = JSON.parse(response.body) as ProblemResponse;
@@ -236,7 +275,9 @@ describe("creating a mission", () => {
       const first = await createMission(alice, "To be parked");
       for (let i = 1; i < MISSION_WIP_LIMIT; i += 1) await createMission(alice, `Mission ${i}`);
 
-      await expect(post("/v1/missions", alice, { topic: "Blocked" })).resolves.toMatchObject({
+      await expect(
+        post("/v1/missions", alice, { weeks: 4, topic: "Blocked" }),
+      ).resolves.toMatchObject({
         statusCode: 409,
       });
 
@@ -333,6 +374,7 @@ describe("editing a mission (FR-M1, FR-M2)", () => {
 
   it("clears a field when sent null, and leaves omitted fields alone", async () => {
     const created = await post("/v1/missions", alice, {
+      weeks: 4,
       topic: "Rust",
       why: "borrow checker",
       constraints: "evenings",
@@ -472,7 +514,7 @@ describe("translated error detail (§5.2, §6.1)", () => {
         method: "POST",
         url: "/v1/missions",
         headers: { ...bearer(alice), "accept-language": "en-US,en;q=0.9" },
-        payload: { topic: "Uma a mais" },
+        payload: { topic: "Uma a mais", weeks: 4 },
       });
 
       expect(response.statusCode).toBe(409);

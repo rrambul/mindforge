@@ -422,13 +422,21 @@ export class ReportTaskResult {
       (candidate) => candidate.key === key,
     );
     if (exercise === undefined) throw new ExerciseNotFound(lessonId, key);
-    if (exercise.kind !== "task") throw new ExerciseKindMismatch(key, "task");
+    // A task and a lab are both reported, never checked (FR-X10, FR-X12).
+    if (exercise.kind !== "task" && exercise.kind !== "lab") {
+      throw new ExerciseKindMismatch(key, "task");
+    }
 
     await this.exercises.recordReport(userId, {
       lessonId,
       exerciseKey: key,
       output: input.output ?? "",
-      result: { name: exercise.command, passed: input.passed, message: null },
+      // Named for what was run: the task's test command, or the lab's check.
+      result: {
+        name: exercise.kind === "task" ? exercise.command : exercise.verify.command,
+        passed: input.passed,
+        message: null,
+      },
       createdAt: this.clock.now(),
     });
 

@@ -74,6 +74,16 @@ export class PrismaMissionWorkspaceReader implements MissionWorkspaceReader {
     };
   }
 
+  async weeks(userId: string, missionId: string): Promise<number | null> {
+    const [row] = await this.db.run(userId, (tx) =>
+      tx.$queryRawUnsafe<{ weeks: number | null }[]>(
+        `select weeks from missions where id = $1::uuid`,
+        missionId,
+      ),
+    );
+    return row?.weeks ?? null;
+  }
+
   async takenKeys(userId: string): Promise<readonly string[]> {
     const rows = await this.db.run(userId, (tx) =>
       tx.$queryRawUnsafe<{ workspace_key: string }[]>(

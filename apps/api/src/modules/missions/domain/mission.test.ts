@@ -17,7 +17,13 @@ const FIELDS: MissionFields = {
 };
 
 function newMission(overrides: Partial<MissionFields> = {}): Mission {
-  return Mission.create({ id: ID, userId: USER, fields: { ...FIELDS, ...overrides }, now: NOW });
+  return Mission.create({
+    id: ID,
+    userId: USER,
+    fields: { ...FIELDS, ...overrides },
+    calendar: { weeks: 4, startsOn: "2026-08-10" },
+    now: NOW,
+  });
 }
 
 function snapshotOf(overrides: Partial<MissionSnapshot> = {}): MissionSnapshot {
@@ -26,6 +32,7 @@ function snapshotOf(overrides: Partial<MissionSnapshot> = {}): MissionSnapshot {
     userId: USER,
     status: "active",
     workspaceKey: null,
+    calendar: null,
     createdAt: NOW,
     updatedAt: NOW,
     ...FIELDS,

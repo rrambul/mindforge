@@ -1,4 +1,4 @@
-import { dayBounds, isIsoDate, resolveTimeZone } from "@mindforge/core";
+import { dayBounds, isIsoDate, resolveTimeZone, weeklyShapeGaps } from "@mindforge/core";
 import {
   about,
   CURRICULUM_FILE,
@@ -15,6 +15,7 @@ import {
   REFERENCE_DIR,
   sha256,
   warn,
+  type ParsedCurriculum,
   type ParseWarning,
 } from "@mindforge/workspace";
 import { Inject, Injectable } from "@nestjs/common";
@@ -30,6 +31,7 @@ import {
   type IndexedTrack,
   type WorkspaceIndexRepository,
 } from "./index.port.js";
+import { MISSION_WORKSPACE_READER, type MissionWorkspaceReader } from "./teach.port.js";
 
 /**
  * Parsed workspace files → Postgres (FR-T2, FR-T5, FR-T6).
@@ -101,6 +103,7 @@ export class ReindexWorkspace {
     @Inject(WORKSPACE_INDEX_REPOSITORY) private readonly index: WorkspaceIndexRepository,
     @Inject(CLOCK) private readonly clock: Clock,
     private readonly missions: UpdateMission,
+    @Inject(MISSION_WORKSPACE_READER) private readonly workspaces: MissionWorkspaceReader,
   ) {}
 
   async execute(input: ReindexInput): Promise<ReindexResult> {
@@ -193,8 +196,40 @@ export class ReindexWorkspace {
     }
 
     await this.index.savePlannedLessons(input.userId, input.missionId, planned);
+    await this.checkWeeks(input, parsed, warnings);
 
     return { trackIds, plannedLessons: planned.length };
+  }
+
+  /**
+   * A mission planned in weeks promises one module per week and five lessons in each
+   * (FR-B2). A plan that does not keep it still indexes — it is the learner's file,
+   * and a week with four lessons is still four lessons — and the run says what is
+   * off, so the calendar's odd week 7 of 6 is explained rather than discovered.
+   */
+  private async checkWeeks(
+    input: ReindexInput,
+    parsed: ParsedCurriculum,
+    warnings: ParseWarning[],
+  ): Promise<void> {
+    const weeks = await this.workspaces.weeks(input.userId, input.missionId);
+    if (weeks === null) return;
+
+    const counts = parsed.tracks.map(
+      (track) => parsed.lessons.filter((lesson) => lesson.trackSlug === track.slug).length,
+    );
+    const gaps = weeklyShapeGaps(weeks, counts);
+    if (gaps === null) return;
+
+    warnings.push(
+      ...about(CURRICULUM_FILE, [
+        warn("curriculum_off_weeks", {
+          weeks,
+          modules: gaps.modules,
+          offModules: gaps.offModules.length === 0 ? "none" : gaps.offModules.join(", "),
+        }),
+      ]),
+    );
   }
 
   /**

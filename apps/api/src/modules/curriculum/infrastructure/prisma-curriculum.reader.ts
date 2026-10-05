@@ -1,9 +1,4 @@
-import {
-  asLessonOutcome,
-  ExerciseDeclarationSchema,
-  type DeadlineRow,
-  type LessonDepth,
-} from "@mindforge/core";
+import { asLessonOutcome, ExerciseDeclarationSchema, type LessonDepth } from "@mindforge/core";
 import { Inject, Injectable } from "@nestjs/common";
 
 import { USER_SCOPED_DB, type UserScopedDb } from "../../../shared/persistence/user-scoped-db.js";
@@ -34,8 +29,12 @@ export class PrismaCurriculumReader implements CurriculumReader {
       // RLS answers the ownership question, so a mission that is not this user's
       // returns no row here and the caller 404s — the same answer as one that does
       // not exist, because "yours or not" is itself worth not leaking.
-      const [mission] = await tx.$queryRawUnsafe<{ id: string }[]>(
-        `select id from missions where id = $1::uuid`,
+      const [mission] = await tx.$queryRawUnsafe<
+        { id: string; weeks: number | null; starts_on: string | null }[]
+      >(
+        // `::text` on a date is `YYYY-MM-DD`: the learner's own day, with no instant
+        // to shift across midnight on the way out.
+        `select id, weeks, starts_on::text as starts_on from missions where id = $1::uuid`,
         missionId,
       );
       if (!mission) return null;
@@ -49,9 +48,10 @@ export class PrismaCurriculumReader implements CurriculumReader {
             outcome: string | null;
             position: number;
             status: string;
+            week: number | null;
           }[]
         >(
-          `select id, slug, name, outcome, position, status from tracks
+          `select id, slug, name, outcome, position, status, week from tracks
             where mission_id = $1::uuid order by position, slug`,
           missionId,
         ),
@@ -103,10 +103,9 @@ export class PrismaCurriculumReader implements CurriculumReader {
       const examRows = lessons.filter((lesson) => lesson.kind === "exam");
       const lessonRows = lessons.filter((lesson) => lesson.kind !== "exam");
 
-      const [strains, exams, deadlines, pace] = await Promise.all([
+      const [strains, exams, pace] = await Promise.all([
         judgeLessons(tx, lessonRows),
         readExams(tx, examRows),
-        readDeadlines(tx, missionId),
         readPace(tx, missionId, paceSince),
       ]);
       const trackPrereqs = group(trackEdges.map((row) => [row.track_id, row.name] as const));
@@ -146,7 +145,10 @@ export class PrismaCurriculumReader implements CurriculumReader {
               : null,
         })),
         exams,
-        deadlines,
+        calendar:
+          mission.weeks === null || mission.starts_on === null
+            ? null
+            : { weeks: mission.weeks, startsOn: mission.starts_on },
         pace,
       };
     });
@@ -191,7 +193,9 @@ async function readExams(
         {
           key: exercise.key,
           covers: exercise.covers ?? [],
-          grading: exercise.kind === "task" ? "self" : "checked",
+          // A task and a lab are the learner's word (FR-X10, FR-X12); everything else
+          // was checked by a test run or a review.
+          grading: exercise.kind === "task" || exercise.kind === "lab" ? "self" : "checked",
           attempts: attempts
             .filter((a) => a.lesson_id === row.id && a.exercise_key === exercise.key)
             .map((a) => ({ createdAt: a.created_at, passed: a.passed })),
@@ -203,30 +207,6 @@ async function readExams(
     // only a belt for a row written around that constraint.
     return { id: row.id, trackId: row.track_id, title: row.title, seq: row.seq ?? 0, items };
   });
-}
-
-/** Every deadline row for the mission's modules, oldest first, by track. */
-async function readDeadlines(
-  tx: Tx,
-  missionId: string,
-): Promise<ReadonlyMap<string, readonly DeadlineRow[]>> {
-  const rows = await tx.$queryRawUnsafe<{ track_id: string; due_on: string; created_at: Date }[]>(
-    // `::text` on a date is `YYYY-MM-DD`: the day as the learner committed to it,
-    // with no instant and so no timezone to get wrong on the way out.
-    `select d.track_id, d.due_on::text as due_on, d.created_at from module_deadlines d
-       join tracks t on t.id = d.track_id
-      where t.mission_id = $1::uuid
-      order by d.created_at`,
-    missionId,
-  );
-
-  const byTrack = new Map<string, DeadlineRow[]>();
-  for (const row of rows) {
-    const list = byTrack.get(row.track_id) ?? [];
-    list.push({ dueOn: row.due_on, createdAt: row.created_at });
-    byTrack.set(row.track_id, list);
-  }
-  return byTrack;
 }
 
 /**

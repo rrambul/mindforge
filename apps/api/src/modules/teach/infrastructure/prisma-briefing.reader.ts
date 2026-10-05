@@ -1,17 +1,22 @@
 import {
   deriveLessons,
   ExerciseDeclarationSchema,
+  lessonDays,
+  lessonDueOn,
   nextAdjustment,
   nextLesson,
   orderModule,
   resolveBridges,
+  weekOf,
   type LessonDepth,
   type LessonNode,
+  type ModuleOrdering,
   type StrainReason,
 } from "@mindforge/core";
 import {
   NO_TRACK,
   notTracked,
+  type BriefingCalendar,
   type BriefingFacts,
   type CurrentTrack,
   type ExamModule,
@@ -57,8 +62,10 @@ export class PrismaBriefingReader implements BriefingReader {
     options: { readonly bridgeFor?: string | null; readonly examFor?: string | null } = {},
   ): Promise<BriefingFacts> {
     return this.db.run(userId, async (tx) => {
-      const [mission] = await tx.$queryRawUnsafe<{ topic: string }[]>(
-        `select topic from missions where id = $1::uuid`,
+      const [mission] = await tx.$queryRawUnsafe<
+        { topic: string; weeks: number | null; starts_on: string | null }[]
+      >(
+        `select topic, weeks, starts_on::text as starts_on from missions where id = $1::uuid`,
         missionId,
       );
 
@@ -89,11 +96,18 @@ export class PrismaBriefingReader implements BriefingReader {
         ZPD_LIMIT,
       );
 
+      // A mission planned in weeks is taught in the plan's day order, one without a
+      // calendar easiest first: the same choice the curriculum screen makes, so the
+      // run writes the lesson the screen calls next (FR-K7, FR-B3).
+      const ordering: ModuleOrdering = mission?.weeks == null ? "ease" : "plan";
+      const currentTrack = await readCurrentTrack(tx, missionId, ordering);
+
       return {
         missionTopic: mission?.topic ?? null,
         lessonCount: Number(counts?.lessons ?? 0),
         recordCount: Number(counts?.records ?? 0),
-        currentTrack: await readCurrentTrack(tx, missionId),
+        currentTrack,
+        ...(await readCalendar(tx, missionId, mission, currentTrack)),
         zpdCandidates: records.map((record) => ({
           next: record.next,
           fromRecord: record.storage_path.split("/").pop() ?? record.storage_path,
@@ -227,6 +241,59 @@ async function readAdaptation(
 }
 
 /**
+ * The mission's week calendar, and the day of the lesson this run writes (FR-B2,
+ * FR-B7).
+ *
+ * Absent for a mission created before weeks, so its briefing is byte-identical to
+ * before. The week is the one the module was pinned to and the day comes from
+ * `lessonDays` — the same two facts the curriculum screen reads — so the run is told
+ * the day the learner sees, and neither side has a rule of its own (non-negotiable 3).
+ */
+async function readCalendar(
+  tx: Tx,
+  missionId: string,
+  mission: { weeks: number | null; starts_on: string | null } | undefined,
+  currentTrack: BriefingFacts["currentTrack"],
+): Promise<{ calendar?: BriefingCalendar }> {
+  if (!mission || mission.weeks === null || mission.starts_on === null) return {};
+
+  const calendar = { weeks: mission.weeks, startsOn: mission.starts_on };
+  if ("status" in currentTrack || currentTrack.nextLesson === null) return { calendar };
+
+  const [track] = await tx.$queryRawUnsafe<{ id: string; week: number | null }[]>(
+    `select id, week from tracks where mission_id = $1::uuid and slug = $2`,
+    missionId,
+    currentTrack.slug,
+  );
+  if (!track || track.week === null || track.week > mission.weeks) return { calendar };
+
+  const lessons = await tx.$queryRawUnsafe<
+    { id: string; slug: string; status: string; position: number | null }[]
+  >(
+    `select id, slug, status, position from lessons where track_id = $1::uuid and kind = 'lesson'`,
+    track.id,
+  );
+  // The planned row, not any row with the slug: slugs are unique among planned rows
+  // only, and a written lesson may share one (§3.2b).
+  const next = lessons.find(
+    (lesson) => lesson.status === "planned" && lesson.slug === currentTrack.nextLesson!.slug,
+  );
+  const day = next === undefined ? undefined : lessonDays(lessons).get(next.id);
+  if (day === undefined) return { calendar };
+
+  return {
+    calendar: {
+      ...calendar,
+      lesson: {
+        week: track.week,
+        day,
+        date: lessonDueOn(weekOf(mission.starts_on, track.week), day),
+      },
+    },
+  };
+}
+
+/**
  * The module an exam run examines, with every written lesson in it (FR-E4).
  *
  * Absent rather than null when there is no exam to write, so a lesson run's facts
@@ -326,7 +393,11 @@ type Tx = { $queryRawUnsafe<T>(sql: string, ...params: unknown[]): Promise<T> };
  * off a decision rather than the only option — and collapsing them into one
  * `null` would leave the briefing unable to say which.
  */
-async function readCurrentTrack(tx: Tx, missionId: string): Promise<Tracked<CurrentTrack>> {
+async function readCurrentTrack(
+  tx: Tx,
+  missionId: string,
+  ordering: ModuleOrdering,
+): Promise<Tracked<CurrentTrack>> {
   const [total] = await tx.$queryRawUnsafe<{ n: bigint }[]>(
     // `dropped` tracks are excluded from the denominator: they are retained so a
     // module of finished lessons survives a regenerated curriculum, not because
@@ -351,7 +422,7 @@ async function readCurrentTrack(tx: Tx, missionId: string): Promise<Tracked<Curr
   // module (found 2026-09-24, the Node.js mission). The open module is otherwise
   // the one the mission's next lesson is in: the same `nextLesson` the
   // curriculum screen badges, so the run writes what the screen says is next.
-  const track = marked ?? (await nextLessonTrack(tx, missionId));
+  const track = marked ?? (await nextLessonTrack(tx, missionId, ordering));
   if (!track) return NO_TRACK.noneOpen;
 
   const [prerequisites, lessons] = await Promise.all([
@@ -373,7 +444,7 @@ async function readCurrentTrack(tx: Tx, missionId: string): Promise<Tracked<Curr
     ),
   ]);
 
-  const plan = await readPlan(tx, missionId, track.id);
+  const plan = await readPlan(tx, missionId, track.id, ordering);
 
   return {
     slug: track.slug,
@@ -397,17 +468,24 @@ interface TrackRow {
 }
 
 /** The track of the mission's next lesson, in module order — or null when there is none. */
-async function nextLessonTrack(tx: Tx, missionId: string): Promise<TrackRow | null> {
+async function nextLessonTrack(
+  tx: Tx,
+  missionId: string,
+  ordering: ModuleOrdering,
+): Promise<TrackRow | null> {
   const tracks = await tx.$queryRawUnsafe<TrackRow[]>(
+    // A module's pinned week first, when it has one: the calendar's order is the
+    // order the learner takes modules in, even after a revision reorders the plan.
     `select id, slug, name, outcome, position from tracks
       where mission_id = $1::uuid and status <> 'dropped'
-      order by position, slug`,
+      order by week nulls last, position, slug`,
     missionId,
   );
   const { nodes } = await readNodes(tx, missionId);
   const next = nextLesson(
     nodes,
     tracks.map((track) => track.id),
+    ordering,
   );
   return tracks.find((track) => track.id === next?.trackId) ?? null;
 }
@@ -482,6 +560,7 @@ async function readPlan(
   tx: Tx,
   missionId: string,
   trackId: string,
+  ordering: ModuleOrdering,
 ): Promise<{ plan: readonly PlannedLesson[]; nextLesson: PlannedLesson | null }> {
   const { rows, nodes } = await readNodes(tx, missionId);
 
@@ -505,8 +584,11 @@ async function readPlan(
     };
   };
 
-  const module = orderModule(nodes.filter((node) => node.trackId === trackId));
-  const next = nextLesson(nodes, [trackId]);
+  const module = orderModule(
+    nodes.filter((node) => node.trackId === trackId),
+    ordering,
+  );
+  const next = nextLesson(nodes, [trackId], ordering);
 
   return {
     plan: module.map(brief),

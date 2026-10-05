@@ -60,3 +60,39 @@ export class MissionNotParked extends DomainError {
     super(`Only a parked mission can be resumed; this one is ${status}`);
   }
 }
+
+/**
+ * Week 1 begins on a week start (FR-B1), so the calendar's days 1–5 are the
+ * learner's lesson days and day 6 their exam day. `invalid`: the field is wrong.
+ */
+export class MissionStartNotWeekStart extends DomainError {
+  readonly kind: DomainErrorKind = "invalid";
+  readonly slug = "mission-start-not-week-start";
+  readonly detailKey: ServerMessageKey = "error.mission.start_not_week_start";
+
+  constructor(startsOn: string) {
+    super(`A mission starts on a week start; ${startsOn} is not one`);
+  }
+}
+
+/** A calendar whose first days are already overdue is a mission that starts behind. */
+export class MissionStartInPast extends DomainError {
+  readonly kind: DomainErrorKind = "invalid";
+  readonly slug = "mission-start-in-past";
+  readonly detailKey: ServerMessageKey = "error.mission.start_in_past";
+
+  constructor(startsOn: string, today: string) {
+    super(`A mission cannot start on ${startsOn}, before today (${today})`);
+  }
+}
+
+/** More than a year ahead is a year typed wrong, and the calendar cannot be edited. */
+export class MissionStartTooFar extends DomainError {
+  readonly kind: DomainErrorKind = "invalid";
+  readonly slug = "mission-start-too-far";
+  readonly detailKey: ServerMessageKey = "error.mission.start_too_far";
+
+  constructor(startsOn: string, today: string) {
+    super(`A mission cannot start on ${startsOn}, more than a year after today (${today})`);
+  }
+}

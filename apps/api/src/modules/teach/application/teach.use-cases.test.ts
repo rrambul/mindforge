@@ -133,6 +133,10 @@ class FakeMissions implements MissionWorkspaceReader {
     return Promise.resolve(this.missions.get(missionId) ?? null);
   }
 
+  weeks(): Promise<number | null> {
+    return Promise.resolve(null);
+  }
+
   takenKeys(): Promise<readonly string[]> {
     return Promise.resolve([...this.missions.values()].flatMap((m) => m.workspaceKey ?? []));
   }

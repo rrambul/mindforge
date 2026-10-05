@@ -37,6 +37,13 @@ export interface MissionWorkspace {
 export interface MissionWorkspaceReader {
   find(userId: string, missionId: string): Promise<MissionWorkspace | null>;
 
+  /**
+   * How many weeks the mission is planned in (FR-B1), or null for one from before
+   * weeks — one column, for the reindexer's shape check, without `find`'s per-module
+   * counts.
+   */
+  weeks(userId: string, missionId: string): Promise<number | null>;
+
   /** Every key this user has already taken, for `deriveWorkspaceKey`. */
   takenKeys(userId: string): Promise<readonly string[]>;
 

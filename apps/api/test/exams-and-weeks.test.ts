@@ -12,12 +12,13 @@ import { ReindexWorkspace } from "../src/modules/teach/application/reindex-works
 import { adminDb, bearer, bootApp, deleteUsers, signUp, type TestUser } from "./support/stack.js";
 
 /**
- * Exams and deadlines, over HTTP, against the real database (FR-E1–E8, FR-U1–U6).
+ * Exams and the week calendar, over HTTP, against the real database (FR-E1–E8,
+ * FR-U1, FR-U4, FR-B1–B5).
  *
  * The failures this is here for are the quiet ones: an exam counted as a lesson, so
- * a module's fraction gains a denominator it can never finish; a deadline moved by
- * rewriting the row, so "moved twice" reads as "kept"; a schedule that guesses a
- * pace it never measured. Each test names the wrong answer.
+ * a module's fraction gains a denominator it can never finish; a lesson on the wrong
+ * day of its week; a projection that guesses a pace it never measured. Each test
+ * names the wrong answer.
  */
 
 let app: NestFastifyApplication;
@@ -320,7 +321,7 @@ describe("an exam run's briefing (FR-E4)", () => {
   });
 });
 
-describe("the schedule", () => {
+describe("the pace projection", () => {
   it("refuses to guess a pace it never measured (FR-U1)", async () => {
     const view = await curriculum();
 
@@ -333,8 +334,6 @@ describe("the schedule", () => {
       status: "unknown",
       reason: "no-pace",
     });
-    // The prompt still appears, with no date to propose: the learner picks.
-    expect(view.proposal).toEqual({ moduleId: moduleNamed(view, "ownership").id, dueOn: null });
   });
 
   it("projects from the median of timed lessons and the 28-day pace, chained by module", async () => {
@@ -359,88 +358,117 @@ describe("the schedule", () => {
       startDay: await todayUtc(9),
       examDay: await todayUtc(18),
     });
-    // Ownership waits on its exam, so it is the module you are in — and the date
-    // proposed for it is its own estimate from today.
+    // Ownership waits on its exam, so it is the module you are in.
     expect(view.currentModuleId).toBe(moduleNamed(view, "ownership").id);
-    expect(view.proposal?.dueOn).toBe(await todayUtc(9));
   });
 });
 
-describe("a deadline", () => {
-  it("is committed, moved visibly, and never rewritten (FR-U2)", async () => {
+describe("a mission planned in weeks (FR-B1–B5)", () => {
+  /** Plan the mission in `weeks` weeks from this week's start in Alice's profile. */
+  async function planInWeeks(weeks: number): Promise<string> {
+    const [row] = await db.$queryRawUnsafe<{ starts_on: string }[]>(
+      `update missions m set weeks = $2::smallint,
+              starts_on = (now() at time zone p.timezone)::date
+                - ((extract(dow from (now() at time zone p.timezone))::int - p.week_starts_on + 7) % 7)
+         from profiles p
+        where m.id = $1::uuid and p.id = m.user_id
+       returning m.starts_on::text as starts_on`,
+      missionId,
+      weeks,
+    );
+    // Re-indexed, as a curriculum run after creation would: that is where weeks are pinned.
+    await reindex.execute({
+      userId: alice.id,
+      missionId,
+      files: new Map([["CURRICULUM.md", encoder.encode(CURRICULUM)]]),
+      deleted: [],
+      timezone: "UTC",
+    });
+    return row!.starts_on;
+  }
+
+  it("puts module k on week k, its lessons on days 1–5 and its exam on day 6", async () => {
+    const startsOn = await planInWeeks(2);
     const view = await curriculum();
+
+    expect(view.calendar).toMatchObject({ weeks: 2, startsOn });
     const ownership = moduleNamed(view, "ownership");
-    const url = `/v1/missions/${missionId}/modules/${ownership.id}/deadline`;
+    expect(ownership.week).toMatchObject({ index: 1, startsOn });
+    expect(ownership.lessons.map((lesson) => lesson.dueOn)).toEqual([
+      startsOn,
+      await dayAfter(startsOn, 1),
+    ]);
+    expect(ownership.week?.examOn).toBe(await dayAfter(startsOn, 5));
+    expect(moduleNamed(view, "traits").week?.index).toBe(2);
+  });
 
-    const first = await todayUtc(10);
-    const committed = await request("PUT", url, alice, { dueOn: first });
-    expect(committed.statusCode).toBe(200);
-    expect(moduleNamed(committed.json<CurriculumView>(), "ownership").deadline).toMatchObject({
-      dueOn: first,
-      firstDueOn: first,
-      moves: 0,
-      status: { kind: "no-projection", daysLeft: 10 },
+  it("keeps every module's week when a revision drops one — no date moves (FR-B4)", async () => {
+    await planInWeeks(2);
+    const before = moduleNamed(await curriculum(), "traits").week;
+
+    // The revision drops the first module and keeps the second.
+    const revised = CURRICULUM.replace(/\| 1 +\| ownership[^\n]*\n/u, "").replace(
+      /## Module: ownership[\s\S]*?(?=## Module: traits)/u,
+      "",
+    );
+    await reindex.execute({
+      userId: alice.id,
+      missionId,
+      files: new Map([["CURRICULUM.md", encoder.encode(revised)]]),
+      deleted: [],
+      timezone: "UTC",
     });
-    expect(committed.json<CurriculumView>().proposal).toBeNull();
 
-    // The same date again is not a move.
-    await request("PUT", url, alice, { dueOn: first });
-    const later = await todayUtc(14);
-    const moved = await request("PUT", url, alice, { dueOn: later });
-
-    expect(moduleNamed(moved.json<CurriculumView>(), "ownership").deadline).toMatchObject({
-      dueOn: later,
-      firstDueOn: first,
-      moves: 1,
+    const after = await curriculum();
+    expect(moduleNamed(after, "traits").week).toMatchObject({
+      index: 2,
+      startsOn: before!.startsOn,
     });
-    const rows = await db.$queryRawUnsafe<unknown[]>(
-      `select id from module_deadlines where track_id = $1::uuid`,
-      ownership.id,
-    );
-    expect(rows).toHaveLength(2);
   });
 
-  it("refuses a day before today in the learner's timezone (FR-U6)", async () => {
-    const ownership = moduleNamed(await curriculum(), "ownership");
-    const response = await request(
-      "PUT",
-      `/v1/missions/${missionId}/modules/${ownership.id}/deadline`,
-      alice,
-      { dueOn: await todayUtc(-1) },
-    );
+  it("tells a lesson run the day the screen shows", async () => {
+    await planInWeeks(2);
+    const view = await curriculum();
+    const next = view.modules.flatMap((m) => m.lessons).find((l) => l.id === view.nextLessonId)!;
 
-    expect(response.statusCode).toBe(422);
-    expect(response.json<{ type: string }>().type).toContain("deadline-in-past");
+    const facts = await app
+      .get<BriefingReader>(BRIEFING_READER, { strict: false })
+      .gather(alice.id, missionId);
+
+    expect(facts.calendar?.lesson).toEqual({ week: 1, day: 1, date: next.dueOn });
   });
 
-  it("is another learner's to set, never yours", async () => {
-    const ownership = moduleNamed(await curriculum(), "ownership");
-    const response = await request(
-      "PUT",
-      `/v1/missions/${missionId}/modules/${ownership.id}/deadline`,
-      bob,
-      { dueOn: await todayUtc(3) },
-    );
+  it("has no calendar for a mission from before weeks", async () => {
+    const view = await curriculum();
 
-    expect(response.statusCode).toBe(404);
+    expect(view.calendar).toBeNull();
+    expect(moduleNamed(view, "ownership").week).toBeNull();
   });
 
-  it("refuses a finished module, whose date can no longer be kept or missed", async () => {
-    await finish("moves", 1, 0);
-    await finish("borrowing", 2, 0);
-    await writeExam();
-    const id = await examId();
-    await attempt(id, "move-it", true);
-    await attempt(id, "lend-it", true);
+  it("indexes a plan off its weeks, and says what is off (FR-B2)", async () => {
+    await planInWeeks(2);
+    const result = await reindex.execute({
+      userId: alice.id,
+      missionId,
+      files: new Map([["CURRICULUM.md", encoder.encode(CURRICULUM)]]),
+      deleted: [],
+      timezone: "UTC",
+    });
 
-    const ownership = moduleNamed(await curriculum(), "ownership");
-    const response = await request(
-      "PUT",
-      `/v1/missions/${missionId}/modules/${ownership.id}/deadline`,
-      alice,
-      { dueOn: await todayUtc(3) },
-    );
-
-    expect(response.statusCode).toBe(409);
+    // Two modules for two weeks, with two and one lessons rather than five.
+    expect(result.warnings).toContainEqual({
+      code: "curriculum_off_weeks",
+      args: { weeks: 2, modules: 2, offModules: "1, 2" },
+      path: "CURRICULUM.md",
+    });
   });
 });
+
+async function dayAfter(day: string, days: number): Promise<string> {
+  const [row] = await db.$queryRawUnsafe<{ day: string }[]>(
+    `select ($1::date + $2::int)::text as day`,
+    day,
+    days,
+  );
+  return row!.day;
+}

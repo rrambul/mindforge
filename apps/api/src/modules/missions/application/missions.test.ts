@@ -6,6 +6,9 @@ import {
   MissionNotActive,
   MissionNotFound,
   MissionNotParked,
+  MissionStartInPast,
+  MissionStartNotWeekStart,
+  MissionStartTooFar,
   WipLimitReached,
 } from "../domain/errors.js";
 import { Mission, type MissionRevisionDraft } from "../domain/mission.js";
@@ -25,7 +28,12 @@ const INPUT: CreateMissionInput = {
   successLooksLike: null,
   constraints: null,
   currentLevel: null,
+  weeks: 6,
+  startsOn: null,
 };
+
+/** Monday-start weeks, in UTC: NOW (Wed Aug 5) defaults to a start on Monday Aug 10. */
+const LEARNER = { timezone: "UTC", weekStartsOn: 1 };
 
 /**
  * The repository interface makes a fake trivial, which is the point of §13.2's
@@ -87,6 +95,7 @@ class InMemoryMissions implements MissionRepository {
       currentLevel: null,
       status,
       workspaceKey: null,
+      calendar: null,
       createdAt: NOW,
       updatedAt: NOW,
     });
@@ -105,7 +114,7 @@ describe("CreateMission", () => {
   });
 
   it("creates an active mission with a generated id", async () => {
-    const mission = await create.execute(ALICE, INPUT);
+    const mission = await create.execute(ALICE, INPUT, LEARNER);
 
     expect(mission.id).toBe("00000000-0000-4000-8000-000000000001");
     expect(mission.status).toBe("active");
@@ -113,31 +122,66 @@ describe("CreateMission", () => {
     expect(mission.createdAt).toEqual(NOW);
   });
 
+  it("plans it in weeks, starting on the next week start by default (FR-B1)", async () => {
+    const mission = await create.execute(ALICE, INPUT, LEARNER);
+
+    expect(mission.calendar).toEqual({ weeks: 6, startsOn: "2026-08-10" });
+  });
+
+  it("starts today when today is a week start", async () => {
+    const mission = await create.execute(ALICE, INPUT, { timezone: "UTC", weekStartsOn: 3 });
+
+    expect(mission.calendar?.startsOn).toBe("2026-08-05");
+  });
+
+  it("takes a later week start the learner chose", async () => {
+    const mission = await create.execute(ALICE, { ...INPUT, startsOn: "2026-08-17" }, LEARNER);
+
+    expect(mission.calendar?.startsOn).toBe("2026-08-17");
+  });
+
+  it("refuses a start that is not a week start, or is in the past", async () => {
+    await expect(
+      create.execute(ALICE, { ...INPUT, startsOn: "2026-08-11" }, LEARNER),
+    ).rejects.toBeInstanceOf(MissionStartNotWeekStart);
+    await expect(
+      create.execute(ALICE, { ...INPUT, startsOn: "2026-08-03" }, LEARNER),
+    ).rejects.toBeInstanceOf(MissionStartInPast);
+    await expect(missions.countActive(ALICE)).resolves.toBe(0);
+  });
+
+  it("refuses a start more than a year ahead — a year typed wrong, on a calendar that cannot be edited", async () => {
+    // Monday Aug 9 2027 is 369 days after Wednesday Aug 5 2026.
+    await expect(
+      create.execute(ALICE, { ...INPUT, startsOn: "2027-08-09" }, LEARNER),
+    ).rejects.toBeInstanceOf(MissionStartTooFar);
+  });
+
   it("persists it under the caller's id", async () => {
-    const mission = await create.execute(ALICE, INPUT);
+    const mission = await create.execute(ALICE, INPUT, LEARNER);
     await expect(missions.findById(ALICE, mission.id)).resolves.not.toBeNull();
     await expect(missions.findById(BOB, mission.id)).resolves.toBeNull();
   });
 
   it(`allows exactly ${MISSION_WIP_LIMIT} active missions`, async () => {
     for (let i = 0; i < MISSION_WIP_LIMIT; i += 1) {
-      await create.execute(ALICE, { ...INPUT, topic: `Mission ${i}` });
+      await create.execute(ALICE, { ...INPUT, topic: `Mission ${i}` }, LEARNER);
     }
     await expect(missions.countActive(ALICE)).resolves.toBe(MISSION_WIP_LIMIT);
   });
 
   it("refuses the one past the limit (FR-M4)", async () => {
     for (let i = 0; i < MISSION_WIP_LIMIT; i += 1) {
-      await create.execute(ALICE, { ...INPUT, topic: `Mission ${i}` });
+      await create.execute(ALICE, { ...INPUT, topic: `Mission ${i}` }, LEARNER);
     }
-    await expect(create.execute(ALICE, INPUT)).rejects.toBeInstanceOf(WipLimitReached);
+    await expect(create.execute(ALICE, INPUT, LEARNER)).rejects.toBeInstanceOf(WipLimitReached);
   });
 
   it("reports the limit in the error, so the message can name a number", async () => {
     for (let i = 0; i < MISSION_WIP_LIMIT; i += 1) {
-      await create.execute(ALICE, { ...INPUT, topic: `Mission ${i}` });
+      await create.execute(ALICE, { ...INPUT, topic: `Mission ${i}` }, LEARNER);
     }
-    await expect(create.execute(ALICE, INPUT)).rejects.toMatchObject({
+    await expect(create.execute(ALICE, INPUT, LEARNER)).rejects.toMatchObject({
       slug: "wip-limit-reached",
       detailVars: { limit: MISSION_WIP_LIMIT },
     });
@@ -147,17 +191,17 @@ describe("CreateMission", () => {
     // The whole point of parking: it is the pressure valve that makes the limit
     // livable. If parked missions counted, the limit would just be a wall.
     for (let i = 0; i < MISSION_WIP_LIMIT; i += 1) missions.seed(ALICE, `Parked ${i}`, "parked");
-    await expect(create.execute(ALICE, INPUT)).resolves.toBeInstanceOf(Mission);
+    await expect(create.execute(ALICE, INPUT, LEARNER)).resolves.toBeInstanceOf(Mission);
   });
 
   it.each(["completed", "abandoned"] as const)("does not count a %s mission", async (status) => {
     for (let i = 0; i < MISSION_WIP_LIMIT; i += 1) missions.seed(ALICE, `Old ${i}`, status);
-    await expect(create.execute(ALICE, INPUT)).resolves.toBeInstanceOf(Mission);
+    await expect(create.execute(ALICE, INPUT, LEARNER)).resolves.toBeInstanceOf(Mission);
   });
 
   it("counts each user's missions separately", async () => {
     for (let i = 0; i < MISSION_WIP_LIMIT; i += 1) missions.seed(BOB, `Bob ${i}`, "active");
-    await expect(create.execute(ALICE, INPUT)).resolves.toBeInstanceOf(Mission);
+    await expect(create.execute(ALICE, INPUT, LEARNER)).resolves.toBeInstanceOf(Mission);
   });
 });
 

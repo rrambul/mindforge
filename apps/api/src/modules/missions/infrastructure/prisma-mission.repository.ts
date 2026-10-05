@@ -16,6 +16,8 @@ interface MissionRow {
   currentLevel: string | null;
   status: string;
   workspaceKey: string | null;
+  weeks: number | null;
+  startsOn: Date | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -30,6 +32,8 @@ const MISSION_COLUMNS = {
   currentLevel: true,
   status: true,
   workspaceKey: true,
+  weeks: true,
+  startsOn: true,
   createdAt: true,
   updatedAt: true,
 } as const;
@@ -101,6 +105,13 @@ export class PrismaMissionRepository implements MissionRepository {
           constraints: snapshot.constraints,
           currentLevel: snapshot.currentLevel,
           status: snapshot.status,
+          // A `date` column: midnight UTC of the learner's own day, which is how
+          // Prisma writes one. Read back with `slice(0, 10)`, it is the same day.
+          weeks: snapshot.calendar?.weeks ?? null,
+          startsOn:
+            snapshot.calendar === null
+              ? null
+              : new Date(`${snapshot.calendar.startsOn}T00:00:00.000Z`),
           createdAt: snapshot.createdAt,
           updatedAt: snapshot.updatedAt,
         },
@@ -174,6 +185,11 @@ function toSnapshot(row: MissionRow): MissionSnapshot {
     // row becomes an entity.
     status: toStatus(row.status),
     workspaceKey: row.workspaceKey,
+    // Both or neither (`missions_calendar_shape`); read defensively all the same.
+    calendar:
+      row.weeks === null || row.startsOn === null
+        ? null
+        : { weeks: row.weeks, startsOn: row.startsOn.toISOString().slice(0, 10) },
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };

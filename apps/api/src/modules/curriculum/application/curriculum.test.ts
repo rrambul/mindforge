@@ -1,7 +1,6 @@
-import { FixedClock, type DeadlineRow } from "@mindforge/core";
+import { FixedClock } from "@mindforge/core";
 import { describe, expect, it } from "vitest";
 
-import { DeadlineInPast, ModuleDropped, ModuleFinished, ModuleNotFound } from "../domain/errors.js";
 import type {
   CurriculumReader,
   CurriculumRows,
@@ -10,12 +9,10 @@ import type {
   PaceRows,
   TrackRow,
 } from "./curriculum.port.js";
-import type { DeadlineWriter } from "./deadline.port.js";
 import { GetCurriculum } from "./get-curriculum.js";
-import { SetDeadline } from "./set-deadline.js";
 
 /**
- * The curriculum's read side and the one write beside it (FR-K5, FR-E6, FR-U1–U5).
+ * The curriculum's read side (FR-K5, FR-E6, FR-U1, FR-U4, FR-B1–B5).
  *
  * The maths is `packages/core`'s and tested there. What is tested here is the join:
  * that exams are kept out of the lessons, that the schedule is chained over the
@@ -38,6 +35,7 @@ function track(id: string, over: Partial<TrackRow> = {}): TrackRow {
     outcome: null,
     position: 1,
     status: "proposed",
+    week: null,
     prerequisites: [],
     ...over,
   };
@@ -87,26 +85,12 @@ class FakeReader implements CurriculumReader {
   }
 }
 
-class FakeWriter implements DeadlineWriter {
-  readonly appended: { trackId: string; dueOn: string }[] = [];
-  constructor(private readonly reader: FakeReader) {}
-
-  append(_userId: string, trackId: string, dueOn: string): Promise<void> {
-    this.appended.push({ trackId, dueOn });
-    // Behave like the table: the next read sees the row.
-    const rows = this.reader.rows!;
-    const history = [...(rows.deadlines.get(trackId) ?? []), { dueOn, createdAt: NOW }];
-    this.reader.rows = { ...rows, deadlines: new Map([...rows.deadlines, [trackId, history]]) };
-    return Promise.resolve();
-  }
-}
-
 function rows(over: Partial<CurriculumRows> = {}): CurriculumRows {
   return {
     tracks: [track("t1"), track("t2", { position: 2 })],
     lessons: [lesson("l1", "t1"), lesson("l2", "t2")],
     exams: [],
-    deadlines: new Map(),
+    calendar: null,
     pace: NO_PACE,
     ...over,
   };
@@ -202,7 +186,7 @@ describe("GetCurriculum — exams", () => {
   });
 });
 
-describe("GetCurriculum — the schedule", () => {
+describe("GetCurriculum — the pace projection", () => {
   const PACE: PaceRows = { lessonMinutes: [20, 30, 40], recentMinutes: 280 };
 
   it("says what is missing rather than projecting from nothing", async () => {
@@ -214,10 +198,9 @@ describe("GetCurriculum — the schedule", () => {
       timedLessons: 0,
     });
     expect(view.modules[0]!.projection).toEqual({ status: "unknown", reason: "no-pace" });
-    expect(view.proposal).toEqual({ moduleId: "t1", dueOn: null });
   });
 
-  it("chains modules and proposes the current one's own estimate", async () => {
+  it("chains modules from the one you are in", async () => {
     // 30 min a lesson, 10 a day. t1: 1 lesson + exam = 6 days → Oct 6. t2: 6 more → Oct 12.
     const view = await curriculum(new FakeReader(rows({ pace: PACE }))).execute(USER, MISSION, TZ);
 
@@ -233,34 +216,24 @@ describe("GetCurriculum — the schedule", () => {
       startDay: "2026-10-07",
       examDay: "2026-10-12",
     });
-    expect(view.proposal).toEqual({ moduleId: "t1", dueOn: "2026-10-06" });
   });
 
-  it("starts the chain at the module you are in, so the date it proposes is the one it judges", async () => {
-    // t1 still has a lesson; t2's lessons are done and its exam is not passed, so t2
-    // is the module you are in. Queued behind t1, the date proposed for t2 would be
-    // marked "behind" the moment it was accepted.
-    const reader = new FakeReader(
-      rows({
-        pace: PACE,
-        lessons: [lesson("l1", "t1"), lesson("l2", "t2", { completedAt: AT })],
-      }),
-    );
-    const view = await curriculum(reader).execute(USER, MISSION, TZ);
+  it("starts the chain at a module waiting on its exam, ahead of an earlier one with lessons left", async () => {
+    const view = await curriculum(
+      new FakeReader(
+        rows({
+          pace: PACE,
+          lessons: [lesson("l1", "t1"), lesson("l2", "t2", { completedAt: AT })],
+        }),
+      ),
+    ).execute(USER, MISSION, TZ);
 
     expect(view.currentModuleId).toBe("t2");
-    // The exam alone: 30 minutes at 10 a day, 3 days, from today.
     expect(view.modules[1]!.projection).toMatchObject({
       startDay: "2026-10-01",
       examDay: "2026-10-03",
     });
-    expect(view.proposal).toEqual({ moduleId: "t2", dueOn: "2026-10-03" });
-    // t1 waits behind it.
     expect(view.modules[0]!.projection).toMatchObject({ startDay: "2026-10-04" });
-
-    const set = new SetDeadline(curriculum(reader), new FakeWriter(reader));
-    const after = await set.execute(USER, MISSION, "t2", TZ, { dueOn: "2026-10-03" });
-    expect(after.modules[1]!.deadline?.status).toEqual({ kind: "on-track", daysLeft: 2 });
   });
 
   it("puts a dropped module outside the chain", async () => {
@@ -278,31 +251,212 @@ describe("GetCurriculum — the schedule", () => {
     expect(view.modules[1]!.projection).toMatchObject({ startDay: "2026-10-01" });
   });
 
-  it("shows a deadline with its history and status, and stops proposing", async () => {
-    const history: DeadlineRow[] = [
-      { dueOn: "2026-10-03", createdAt: new Date("2026-09-25T12:00:00Z") },
-      { dueOn: "2026-10-05", createdAt: new Date("2026-09-28T12:00:00Z") },
-    ];
+  it("has no current module when nothing is left", async () => {
     const view = await curriculum(
-      new FakeReader(rows({ pace: PACE, deadlines: new Map([["t1", history]]) })),
+      new FakeReader(rows({ tracks: [track("t1")], lessons: [] })),
     ).execute(USER, MISSION, TZ);
 
-    expect(view.modules[0]!.deadline).toEqual({
-      dueOn: "2026-10-05",
-      firstDueOn: "2026-10-03",
-      moves: 1,
-      // Projected for the 6th, due on the 5th.
-      status: { kind: "behind", daysLeft: 4, daysBehind: 1 },
+    expect(view.currentModuleId).toBeNull();
+  });
+});
+
+describe("GetCurriculum — the week calendar (FR-B1–B5)", () => {
+  // Week 1 starts Sunday Sep 27; São Paulo's "today" is Thursday Oct 1.
+  const CALENDAR = { weeks: 3, startsOn: "2026-09-27" };
+  const five = (trackId: string, done: number) =>
+    Array.from({ length: 5 }, (_, i) =>
+      lesson(`${trackId}-l${i + 1}`, trackId, {
+        position: i + 1,
+        difficulty: i + 1,
+        completedAt: i < done ? AT : null,
+      }),
+    );
+  const weekly = (over: Partial<CurriculumRows> = {}) =>
+    rows({
+      calendar: CALENDAR,
+      tracks: [track("t1", { week: 1 }), track("t2", { position: 2, week: 2 })],
+      lessons: [...five("t1", 2), ...five("t2", 0)],
+      ...over,
     });
-    expect(view.modules[1]!.deadline).toBeNull();
-    expect(view.proposal).toBeNull();
+
+  it("has no calendar, no weeks and no days for a mission from before weeks", async () => {
+    const view = await curriculum(new FakeReader(rows())).execute(USER, MISSION, TZ);
+
+    expect(view.calendar).toBeNull();
+    expect(view.modules[0]!.week).toBeNull();
+    expect(view.modules[0]!.lessons[0]!.dueOn).toBeNull();
   });
 
-  it("dates a finished module's deadline from the local day it was finished", async () => {
+  it("puts a module on the week it was pinned to, lessons on days 1–5, the exam on day 6", async () => {
+    const view = await curriculum(new FakeReader(weekly())).execute(USER, MISSION, TZ);
+
+    expect(view.calendar).toEqual({ ...CALENDAR, endsOn: "2026-10-17" });
+    expect(view.modules[0]!.week).toMatchObject({
+      index: 1,
+      startsOn: "2026-09-27",
+      examOn: "2026-10-02",
+      endsOn: "2026-10-03",
+    });
+    expect(view.modules[0]!.lessons.map((l) => l.dueOn)).toEqual([
+      "2026-09-27",
+      "2026-09-28",
+      "2026-09-29",
+      "2026-09-30",
+      "2026-10-01",
+    ]);
+    expect(view.modules[1]!.week).toMatchObject({ index: 2, startsOn: "2026-10-04" });
+  });
+
+  it("keeps a module's week when a revision moves it in the plan — dates never move", async () => {
+    // The plan now lists t2 first, and a dropped t0 sits ahead of both. The weeks
+    // were pinned before; nothing on the calendar moves.
+    const view = await curriculum(
+      new FakeReader(
+        weekly({
+          tracks: [
+            track("t0", { status: "dropped", position: 0, week: 3 }),
+            track("t2", { position: 1, week: 2 }),
+            track("t1", { position: 2, week: 1 }),
+          ],
+          lessons: [lesson("l0", "t0", { completedAt: AT }), ...five("t1", 2), ...five("t2", 0)],
+        }),
+      ),
+    ).execute(USER, MISSION, TZ);
+
+    const byId = new Map(view.modules.map((module) => [module.id, module]));
+    expect(byId.get("t1")!.week?.index).toBe(1);
+    expect(byId.get("t2")!.week?.index).toBe(2);
+    // A dropped module keeps its slot, and its finished lesson keeps its date.
+    expect(byId.get("t0")!.week?.index).toBe(3);
+  });
+
+  it("gives a lesson its day from the plan's row order, not the easiest-first list", async () => {
+    // Row 2 is harder than row 3; the list shows row 3 first, the calendar does not.
+    const view = await curriculum(
+      new FakeReader(
+        weekly({
+          tracks: [track("t1", { week: 1 })],
+          lessons: [
+            lesson("first", "t1", { position: 1, difficulty: 1 }),
+            lesson("hard", "t1", { position: 2, difficulty: 4 }),
+            lesson("easy", "t1", { position: 3, difficulty: 2 }),
+            // A bridge: off-plan, no row, no day.
+            lesson("bridge", "t1", { position: null, difficulty: null }),
+          ],
+        }),
+      ),
+    ).execute(USER, MISSION, TZ);
+
+    const due = new Map(view.modules[0]!.lessons.map((l) => [l.id, l.dueOn]));
+    expect(due.get("hard")).toBe("2026-09-28");
+    expect(due.get("easy")).toBe("2026-09-29");
+    expect(due.get("bridge")).toBeNull();
+  });
+
+  it("lists a week in day order and calls the next day's lesson next, not the easiest", async () => {
+    // Day 3 is harder than day 4. Days 1 and 2 are done.
+    const view = await curriculum(
+      new FakeReader(
+        weekly({
+          tracks: [track("t1", { week: 1 })],
+          lessons: [
+            lesson("d1", "t1", { position: 1, difficulty: 1, completedAt: AT }),
+            lesson("d2", "t1", { position: 2, difficulty: 2, completedAt: AT }),
+            lesson("d3", "t1", { position: 3, difficulty: 3 }),
+            lesson("d4", "t1", { position: 4, difficulty: 2 }),
+          ],
+        }),
+      ),
+    ).execute(USER, MISSION, TZ);
+
+    expect(view.modules[0]!.lessons.map((l) => l.id)).toEqual(["d1", "d2", "d3", "d4"]);
+    expect(view.nextLessonId).toBe("d3");
+  });
+
+  it("takes modules in the order of their weeks, even when a revision reordered the plan", async () => {
+    const view = await curriculum(
+      new FakeReader(
+        weekly({
+          tracks: [
+            track("later", { position: 1, week: 2 }),
+            track("first", { position: 2, week: 1 }),
+          ],
+          lessons: [
+            lesson("l-later", "later", { position: 1 }),
+            lesson("l-first", "first", { position: 1 }),
+          ],
+        }),
+      ),
+    ).execute(USER, MISSION, TZ);
+
+    expect(view.nextLessonId).toBe("l-first");
+  });
+
+  it("still lists a mission without weeks easiest first", async () => {
     const view = await curriculum(
       new FakeReader(
         rows({
-          lessons: [lesson("l1", "t1", { completedAt: AT }), lesson("l2", "t2")],
+          tracks: [track("t1")],
+          lessons: [
+            lesson("hard", "t1", { position: 1, difficulty: 3 }),
+            lesson("easy", "t1", { position: 2, difficulty: 1 }),
+          ],
+        }),
+      ),
+    ).execute(USER, MISSION, TZ);
+
+    expect(view.modules[0]!.lessons.map((l) => l.id)).toEqual(["easy", "hard"]);
+  });
+
+  it("counts only earlier days as behind, out of the module's own total", async () => {
+    const view = await curriculum(new FakeReader(weekly())).execute(USER, MISSION, TZ);
+
+    // Thursday: Sunday to Wednesday are past, two done; Thursday's is due today.
+    expect(view.modules[0]!.week!.standing).toEqual({
+      kind: "in-progress",
+      total: 5,
+      completed: 2,
+      behind: 2,
+      dueToday: 1,
+      examToday: false,
+    });
+    expect(view.modules[1]!.week!.standing).toEqual({ kind: "upcoming", startsInDays: 3 });
+  });
+
+  it("says a week with no lessons planned is not planned", async () => {
+    const view = await curriculum(new FakeReader(weekly({ lessons: [] }))).execute(
+      USER,
+      MISSION,
+      TZ,
+    );
+
+    expect(view.modules[0]!.week!.standing).toEqual({ kind: "not-planned" });
+  });
+
+  it("gives no dates to a week past the mission's last, or a module never pinned", async () => {
+    const view = await curriculum(
+      new FakeReader(
+        weekly({
+          calendar: { weeks: 1, startsOn: "2026-09-27" },
+          tracks: [track("t1", { week: 1 }), track("t2", { position: 2, week: 2 })],
+        }),
+      ),
+    ).execute(USER, MISSION, TZ);
+    expect(view.modules[0]!.week?.index).toBe(1);
+    expect(view.modules[1]!.week).toBeNull();
+
+    const unpinned = await curriculum(
+      new FakeReader(weekly({ tracks: [track("t1"), track("t2", { position: 2 })] })),
+    ).execute(USER, MISSION, TZ);
+    expect(unpinned.modules[0]!.week).toBeNull();
+  });
+
+  it("dates a finished week from the local day the module was finished", async () => {
+    const view = await curriculum(
+      new FakeReader(
+        weekly({
+          tracks: [track("t1", { week: 1 })],
+          lessons: [...five("t1", 5)],
           exams: [
             exam("t1", {
               items: [
@@ -310,103 +464,16 @@ describe("GetCurriculum — the schedule", () => {
                   key: "a",
                   covers: [],
                   grading: "checked",
-                  // 01:00 UTC on the 23rd is the 22nd in São Paulo.
-                  attempts: [{ createdAt: new Date("2026-09-23T01:00:00Z"), passed: true }],
+                  // 01:00 UTC on Oct 3 is still Oct 2 in São Paulo: the exam day, on time.
+                  attempts: [{ createdAt: new Date("2026-10-03T01:00:00Z"), passed: true }],
                 },
               ],
             }),
           ],
-          deadlines: new Map([["t1", [{ dueOn: "2026-09-22", createdAt: AT }]]]),
         }),
       ),
     ).execute(USER, MISSION, TZ);
 
-    expect(view.modules[0]!.deadline?.status).toEqual({ kind: "met", daysEarly: 0 });
-  });
-
-  it("has no current module, and no proposal, when nothing is left", async () => {
-    const view = await curriculum(
-      new FakeReader(rows({ tracks: [track("t1")], lessons: [] })),
-    ).execute(USER, MISSION, TZ);
-
-    expect(view.currentModuleId).toBeNull();
-    expect(view.proposal).toBeNull();
-  });
-});
-
-describe("SetDeadline", () => {
-  function setup(over: Partial<CurriculumRows> = {}) {
-    const reader = new FakeReader(rows(over));
-    const writer = new FakeWriter(reader);
-    return { writer, set: new SetDeadline(curriculum(reader), writer) };
-  }
-
-  it("commits a date and answers with the curriculum that shows it", async () => {
-    const { writer, set } = setup();
-
-    const view = await set.execute(USER, MISSION, "t1", TZ, { dueOn: "2026-10-10" });
-
-    expect(writer.appended).toEqual([{ trackId: "t1", dueOn: "2026-10-10" }]);
-    expect(view.modules[0]!.deadline).toMatchObject({ dueOn: "2026-10-10", moves: 0 });
-  });
-
-  it("accepts today — the learner's today — and refuses yesterday", async () => {
-    const { set } = setup();
-
-    await expect(
-      set.execute(USER, MISSION, "t1", TZ, { dueOn: "2026-10-01" }),
-    ).resolves.toBeTruthy();
-    await expect(
-      set.execute(USER, MISSION, "t1", TZ, { dueOn: "2026-09-30" }),
-    ).rejects.toBeInstanceOf(DeadlineInPast);
-  });
-
-  it("writes nothing when the date is the one already in force — that is not a move", async () => {
-    const { writer, set } = setup({
-      deadlines: new Map([["t1", [{ dueOn: "2026-10-10", createdAt: AT }]]]),
-    });
-
-    await set.execute(USER, MISSION, "t1", TZ, { dueOn: "2026-10-10" });
-
-    expect(writer.appended).toEqual([]);
-  });
-
-  it("refuses a module the curriculum does not show", async () => {
-    await expect(
-      setup().set.execute(USER, MISSION, "nope", TZ, { dueOn: "2026-10-10" }),
-    ).rejects.toBeInstanceOf(ModuleNotFound);
-  });
-
-  it("refuses a dropped module", async () => {
-    const { set } = setup({
-      tracks: [track("t1", { status: "dropped" })],
-      lessons: [lesson("l1", "t1", { completedAt: AT })],
-    });
-
-    await expect(
-      set.execute(USER, MISSION, "t1", TZ, { dueOn: "2026-10-10" }),
-    ).rejects.toBeInstanceOf(ModuleDropped);
-  });
-
-  it("refuses a finished module, whose date can no longer be met or missed", async () => {
-    const { set } = setup({
-      lessons: [lesson("l1", "t1", { completedAt: AT })],
-      exams: [
-        exam("t1", {
-          items: [
-            {
-              key: "a",
-              covers: [],
-              grading: "checked",
-              attempts: [{ createdAt: AT, passed: true }],
-            },
-          ],
-        }),
-      ],
-    });
-
-    await expect(
-      set.execute(USER, MISSION, "t1", TZ, { dueOn: "2026-10-10" }),
-    ).rejects.toBeInstanceOf(ModuleFinished);
+    expect(view.modules[0]!.week!.standing).toEqual({ kind: "finished", daysLate: 0 });
   });
 });

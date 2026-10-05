@@ -42,7 +42,7 @@ const CURRICULUM_ONLY = `# Curriculum
 | 2     | iam-deep   | IAM in anger     | iam-basics    |
 `;
 
-function harness() {
+function harness(weeks: number | null = null) {
   const saved = {
     lessons: [] as IndexedLesson[],
     docs: [] as IndexedReferenceDoc[],
@@ -92,7 +92,12 @@ function harness() {
   return {
     saved,
     update,
-    reindex: new ReindexWorkspace(index, new FixedClock(NOW), missions),
+    reindex: new ReindexWorkspace(index, new FixedClock(NOW), missions, {
+      find: () => Promise.resolve(null),
+      weeks: () => Promise.resolve(weeks),
+      takenKeys: () => Promise.resolve([]),
+      claimWorkspaceKey: (_u, _m, key) => Promise.resolve(key),
+    }),
   };
 }
 
@@ -437,6 +442,24 @@ describe("the module tables", () => {
 | policy-anatomy | Anatomy of a policy | Name a part  | 1          | overview | —              |
 | policy-reading | Reading one         | Say what for | 2          | working  | policy-anatomy |
 `;
+
+  it("says when a mission planned in weeks has a plan off its weeks (FR-B2)", async () => {
+    // Two weeks promised; two modules, the first with two lessons and the second with none.
+    h = harness(2);
+    const result = await run({ "CURRICULUM.md": PLANNED });
+
+    expect(result.warnings).toContainEqual({
+      code: "curriculum_off_weeks",
+      args: { weeks: 2, modules: 2, offModules: "1, 2" },
+      path: "CURRICULUM.md",
+    });
+  });
+
+  it("says nothing about weeks to a mission without them", async () => {
+    const result = await run({ "CURRICULUM.md": PLANNED });
+
+    expect(result.warnings.map((warning) => warning.code)).not.toContain("curriculum_off_weeks");
+  });
 
   it("writes each module's lessons against the track they were planned under", async () => {
     const result = await run({ "CURRICULUM.md": PLANNED });

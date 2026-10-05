@@ -1,5 +1,8 @@
 import {
+  MAX_WEEKS,
+  MIN_WEEKS,
   MISSION_CONTENT_FIELDS,
+  type IsoDate,
   type MissionContentField,
   type MissionFields,
   type MissionStatus,
@@ -26,11 +29,22 @@ export interface MissionRevisionDraft {
 /** Recorded when an edit arrives without one. See UpdateMissionSchema. */
 export const UNSPECIFIED_REASON = "unspecified";
 
+/**
+ * A mission planned in weeks (FR-B1): how many, and the first day of week 1. Fixed at
+ * creation — nothing edits it afterwards, because the curriculum is fitted to it.
+ */
+export interface MissionCalendar {
+  readonly weeks: number;
+  readonly startsOn: IsoDate;
+}
+
 export interface MissionSnapshot extends MissionFields {
   readonly id: string;
   readonly userId: string;
   readonly status: MissionStatus;
   readonly workspaceKey: string | null;
+  /** Null for a mission created before missions had weeks. */
+  readonly calendar: MissionCalendar | null;
   readonly createdAt: Date;
   readonly updatedAt: Date;
 }
@@ -58,13 +72,21 @@ export class Mission {
     private currentLevelValue: string | null,
     private statusValue: MissionStatus,
     private readonly workspaceKeyValue: string | null,
+    readonly calendar: MissionCalendar | null,
     readonly createdAt: Date,
     private updatedAtValue: Date,
   ) {
     assertTopic(topicValue);
+    if (calendar !== null) assertWeeks(calendar.weeks);
   }
 
-  static create(input: { id: string; userId: string; fields: MissionFields; now: Date }): Mission {
+  static create(input: {
+    id: string;
+    userId: string;
+    fields: MissionFields;
+    calendar: MissionCalendar;
+    now: Date;
+  }): Mission {
     return new Mission(
       input.id,
       input.userId,
@@ -79,6 +101,7 @@ export class Mission {
       // Assigned when the teach workspace is first materialised (M3), never here:
       // the key is set once so that renaming a mission cannot move files.
       null,
+      input.calendar,
       input.now,
       input.now,
     );
@@ -96,6 +119,7 @@ export class Mission {
       snapshot.currentLevel,
       snapshot.status,
       snapshot.workspaceKey,
+      snapshot.calendar,
       snapshot.createdAt,
       snapshot.updatedAt,
     );
@@ -129,6 +153,7 @@ export class Mission {
       userId: this.userId,
       status: this.statusValue,
       workspaceKey: this.workspaceKeyValue,
+      calendar: this.calendar,
       createdAt: this.createdAt,
       updatedAt: this.updatedAtValue,
       ...this.fields,
@@ -222,5 +247,11 @@ const proseSlot = {
 function assertTopic(topic: string): void {
   if (topic.trim() === "") {
     throw new RangeError("Mission topic cannot be blank");
+  }
+}
+
+function assertWeeks(weeks: number): void {
+  if (!Number.isInteger(weeks) || weeks < MIN_WEEKS || weeks > MAX_WEEKS) {
+    throw new RangeError(`A mission lasts ${MIN_WEEKS} to ${MAX_WEEKS} whole weeks, not ${weeks}`);
   }
 }

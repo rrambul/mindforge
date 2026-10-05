@@ -53,7 +53,7 @@ export class MissionsController {
     @CurrentUser() user: RequestContext,
     @Body(zodPipe(CreateMissionSchema)) body: CreateMissionInput,
   ): Promise<MissionView> {
-    return toMissionView(await this.createMission.execute(user.userId, body));
+    return toMissionView(await this.createMission.execute(user.userId, body, user));
   }
 
   @Get(":id")

@@ -1,7 +1,7 @@
 import type {
-  DeadlineRow,
   ExamAttemptFact,
   ExamGrading,
+  IsoDate,
   LessonDepth,
   LessonOutcome,
   LessonStatus,
@@ -18,6 +18,8 @@ export interface TrackRow {
   readonly outcome: string | null;
   readonly position: number;
   readonly status: string;
+  /** The week this module was pinned to (FR-B4); null without a calendar. */
+  readonly week: number | null;
   /** Names, in reading order — what the module is built on (FR-K1). */
   readonly prerequisites: readonly string[];
 }
@@ -83,8 +85,8 @@ export interface CurriculumRows {
   readonly tracks: readonly TrackRow[];
   readonly lessons: readonly LessonRow[];
   readonly exams: readonly ExamRow[];
-  /** Every commitment ever made, by track. Append-only, so the history is all here. */
-  readonly deadlines: ReadonlyMap<string, readonly DeadlineRow[]>;
+  /** The mission's calendar (FR-B1); null for a mission created before weeks. */
+  readonly calendar: { readonly weeks: number; readonly startsOn: IsoDate } | null;
   readonly pace: PaceRows;
 }
 
