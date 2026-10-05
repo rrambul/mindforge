@@ -24,6 +24,7 @@ function mission(overrides: Partial<Mission> = {}): Mission {
     constraints: null,
     currentLevel: null,
     status: "active",
+    calendar: null,
     createdAt: "2026-08-05T12:00:00.000Z",
     updatedAt: "2026-08-05T12:00:00.000Z",
     ...overrides,
@@ -111,6 +112,7 @@ describe("creating a mission", () => {
       screen.getByLabelText("What do you want to get better at?"),
       "Rust lifetimes",
     );
+    await userEvent.type(screen.getByLabelText("How many weeks?"), "6");
     await userEvent.click(screen.getByRole("button", { name: "Create mission" }));
 
     await waitFor(() => {
@@ -120,8 +122,39 @@ describe("creating a mission", () => {
         successLooksLike: null,
         constraints: null,
         currentLevel: null,
+        weeks: 6,
+        // Empty: the server picks the next week start.
+        startsOn: null,
       });
     });
+  });
+
+  it("asks how many weeks, and refuses a mission without them (FR-B1)", async () => {
+    listReturns([]);
+    const posted = vi.fn();
+    server.use(
+      http.post(`${API}/missions`, () => {
+        posted();
+        return HttpResponse.json(mission(), { status: 201 });
+      }),
+    );
+
+    renderWithProviders(<MissionsRoute />);
+    await userEvent.click(await screen.findByRole("button", { name: "Start your first mission" }));
+    await userEvent.type(screen.getByLabelText("What do you want to get better at?"), "Rust");
+    await userEvent.click(screen.getByRole("button", { name: "Create mission" }));
+
+    expect(await screen.findByText("How many weeks, as a whole number.")).toBeInTheDocument();
+    expect(posted).not.toHaveBeenCalled();
+  });
+
+  it("shows a mission's weeks and dates on its card", async () => {
+    listReturns([
+      mission({ calendar: { weeks: 6, startsOn: "2026-10-05", endsOn: "2026-11-15" } }),
+    ]);
+    renderWithProviders(<MissionsRoute />);
+
+    expect(await screen.findByText(/^6 weeks · Mon, Oct 5 – Sun, Nov 15$/u)).toBeInTheDocument();
   });
 
   it("refuses a too-short topic without asking the server", async () => {
@@ -162,6 +195,7 @@ describe("creating a mission", () => {
     renderWithProviders(<MissionsRoute />);
     await userEvent.click(await screen.findByRole("button", { name: "New mission" }));
     await userEvent.type(screen.getByLabelText("What do you want to get better at?"), "One more");
+    await userEvent.type(screen.getByLabelText("How many weeks?"), "4");
     await userEvent.click(screen.getByRole("button", { name: "Create mission" }));
 
     const alert = await screen.findByRole("alert");
@@ -189,6 +223,7 @@ describe("creating a mission", () => {
       screen.getByLabelText("What do you want to get better at?"),
       "Long enough to pass the client",
     );
+    await userEvent.type(screen.getByLabelText("How many weeks?"), "4");
     await userEvent.click(screen.getByRole("button", { name: "Create mission" }));
 
     // Translated from the `code`, next to the field it belongs to.

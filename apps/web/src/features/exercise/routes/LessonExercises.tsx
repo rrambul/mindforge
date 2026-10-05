@@ -21,10 +21,16 @@ import {
   useRevealSolution,
 } from "../api/use-exercises.js";
 import { useRunner, type Runner, type RunOutcome } from "../api/use-runner.js";
-import type { CodeExerciseView, TaskExerciseView, WhiteboardExerciseView } from "../model/kinds.js";
+import type {
+  CodeExerciseView,
+  LabExerciseView,
+  TaskExerciseView,
+  WhiteboardExerciseView,
+} from "../model/kinds.js";
 import { useDraft } from "../model/use-draft.js";
 import { useSceneDraft } from "../model/use-scene-draft.js";
 import { ExercisePanel } from "../ui/ExercisePanel.js";
+import { LabPanel } from "../ui/LabPanel.js";
 import { RunnerFrame } from "../ui/RunnerFrame.js";
 import { TaskPanel } from "../ui/TaskPanel.js";
 import { WhiteboardPanel } from "../ui/WhiteboardPanel.js";
@@ -133,6 +139,13 @@ function Workbench({
           />
         ) : exercise.kind === "task" ? (
           <TaskSlot
+            key={exercise.key}
+            lessonId={lessonId}
+            exercise={exercise}
+            examLocked={examLocked(exam, exercise)}
+          />
+        ) : exercise.kind === "lab" ? (
+          <LabSlot
             key={exercise.key}
             lessonId={lessonId}
             exercise={exercise}
@@ -320,6 +333,38 @@ function TaskSlot({
 
   return (
     <TaskPanel
+      exercise={exercise}
+      examLocked={examLocked}
+      onRevealSolution={() => {
+        reveal.mutate(exercise.key);
+      }}
+      revealPending={reveal.isPending}
+      revealError={reveal.isError ? describe(reveal.error, common) : null}
+      onReport={(passed, output) => {
+        report.mutate({ key: exercise.key, input: { passed, output } });
+      }}
+      pending={report.isPending}
+      error={report.isError ? describe(report.error, common) : null}
+    />
+  );
+}
+
+/** A lab in the learner's own environment, reported back like a task (FR-X11, FR-X12). */
+function LabSlot({
+  lessonId,
+  exercise,
+  examLocked,
+}: {
+  readonly lessonId: string;
+  readonly exercise: LabExerciseView;
+  readonly examLocked: boolean;
+}) {
+  const { t: common } = useTranslation("common");
+  const report = useReportTask(lessonId);
+  const reveal = useRevealSolution(lessonId);
+
+  return (
+    <LabPanel
       exercise={exercise}
       examLocked={examLocked}
       onRevealSolution={() => {

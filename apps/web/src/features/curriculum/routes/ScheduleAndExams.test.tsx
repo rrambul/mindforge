@@ -1,10 +1,9 @@
 import { screen, within } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { describe, expect, it, vi } from "vitest";
 
-import { curriculumModule, curriculumResponse } from "../../../test/fixtures.js";
-import { API, problemResponse, server } from "../../../test/msw.js";
+import { curriculumLesson, curriculumModule, curriculumResponse } from "../../../test/fixtures.js";
+import { API, server } from "../../../test/msw.js";
 import { renderWithProviders } from "../../../test/render.js";
 import type { Curriculum, CurriculumModule } from "../api/use-curriculum.js";
 import { CurriculumRoute } from "./CurriculumRoute.js";
@@ -160,92 +159,110 @@ describe("a module's exam", () => {
   });
 });
 
-describe("a deadline", () => {
-  it("prompts the module you are in, prefilled with the proposal, and commits in one tap", async () => {
-    let sent: unknown = null;
-    server.use(
-      http.put(`${API}/missions/${MISSION}/modules/${MODULE}/deadline`, async ({ request }) => {
-        sent = await request.json();
-        return HttpResponse.json(
-          curriculumResponse({
-            missionId: MISSION,
-            today: "2026-10-01",
-            modules: [
-              module({
-                deadline: {
-                  dueOn: "2026-10-09",
-                  firstDueOn: "2026-10-09",
-                  moves: 0,
-                  status: { kind: "no-projection", daysLeft: 8 },
-                },
-              }),
-            ],
-            currentModuleId: MODULE,
-          }),
-        );
-      }),
-    );
-    returns({
-      modules: [module()],
-      currentModuleId: MODULE,
-      proposal: { moduleId: MODULE, dueOn: "2026-10-09" },
-    });
-    render();
+describe("a module's week (FR-B3–B5)", () => {
+  const WEEK = { index: 2, startsOn: "2026-10-04", examOn: "2026-10-09", endsOn: "2026-10-10" };
 
-    const field = await screen.findByLabelText("Deadline for Ownership");
-    expect(field).toHaveValue("2026-10-09");
-    expect(field).toHaveAttribute("min", "2026-10-01");
-    expect(field).toHaveAttribute("max", "2100-12-31");
-
-    await userEvent.click(screen.getByRole("button", { name: "Commit" }));
-
-    expect(sent).toEqual({ dueOn: "2026-10-09" });
-    expect(
-      await screen.findByText(/in 8 days\. No projection to compare it with yet\./u),
-    ).toBeInTheDocument();
-    // The prompt is gone; moving is a second, quieter choice.
-    expect(screen.getByRole("button", { name: "Move the deadline" })).toBeInTheDocument();
-  });
-
-  it("asks the learner to pick when there is no estimate to propose from", async () => {
-    returns({
-      modules: [module()],
-      currentModuleId: MODULE,
-      proposal: { moduleId: MODULE, dueOn: null },
-    });
-    render();
-
-    const field = await screen.findByLabelText("Deadline for Ownership");
-    expect(field).toHaveValue("");
-    expect(
-      screen.getByText("There's no estimate yet, so pick the date yourself."),
-    ).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Commit" })).toBeDisabled();
-  });
-
-  it("does not ask about a module you are not in", async () => {
-    returns({ modules: [module()], currentModuleId: null, proposal: null });
-    render();
-
-    await screen.findByRole("heading", { name: "Ownership" });
-    expect(screen.queryByLabelText("Deadline for Ownership")).not.toBeInTheDocument();
-  });
-
-  it("never shows a moved date without the one first committed to", async () => {
+  it("shows the week's dates and how far behind it is, once and plainly", async () => {
     returns({
       modules: [
         module({
-          deadline: {
-            dueOn: "2026-10-12",
-            firstDueOn: "2026-10-05",
-            moves: 2,
-            status: { kind: "behind", daysLeft: 11, daysBehind: 3 },
+          week: {
+            ...WEEK,
+            standing: {
+              kind: "in-progress",
+              total: 5,
+              completed: 1,
+              behind: 2,
+              dueToday: 1,
+              examToday: false,
+            },
           },
+        }),
+      ],
+    });
+    render();
+
+    expect(await screen.findByText(/^Week 2 · .+ · exam on /u)).toBeInTheDocument();
+    expect(
+      screen.getByText("2 lessons behind: 1 of 5 done. Today's lesson is still to do."),
+    ).toBeInTheDocument();
+  });
+
+  it("says a week with nothing planned is not planned — never on track", async () => {
+    returns({ modules: [module({ week: { ...WEEK, standing: { kind: "not-planned" } } })] });
+    render();
+
+    expect(
+      await screen.findByText("No lessons are planned for this week yet."),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/On track/u)).not.toBeInTheDocument();
+  });
+
+  it("says on track, not a celebration, when nothing due is unfinished", async () => {
+    returns({
+      modules: [
+        module({
+          week: {
+            ...WEEK,
+            standing: {
+              kind: "in-progress",
+              total: 4,
+              completed: 3,
+              behind: 0,
+              dueToday: 0,
+              examToday: false,
+            },
+          },
+        }),
+      ],
+    });
+    render();
+
+    // Out of the module's own four lessons, not an assumed five.
+    expect(await screen.findByText("On track: 3 of 4 lessons done.")).toBeInTheDocument();
+  });
+
+  it("says a week that ended unfinished ended, with what is left", async () => {
+    returns({
+      modules: [
+        module({
+          week: { ...WEEK, standing: { kind: "overdue", daysOver: 3, lessonsLeft: 2, total: 5 } },
+        }),
+      ],
+    });
+    render();
+
+    expect(
+      await screen.findByText("This week ended 3 days ago with 2 lessons left."),
+    ).toBeInTheDocument();
+  });
+
+  it("says a late finish once, with how late", async () => {
+    returns({
+      modules: [
+        module({
+          progress: { completed: 3, total: 3 },
+          finishedAt: "2026-10-12T12:00:00.000Z",
+          projection: { status: "finished" },
+          week: { ...WEEK, standing: { kind: "finished", daysLate: 3 } },
+        }),
+      ],
+    });
+    render();
+
+    expect(await screen.findByText("Finished 3 days after its exam day.")).toBeInTheDocument();
+  });
+
+  it("puts the pace projection beside the week as information, not a new date", async () => {
+    returns({
+      modules: [
+        module({
+          week: { ...WEEK, standing: { kind: "upcoming", startsInDays: 2 } },
           projection: {
             status: "projected",
             units: 3,
             minutes: 90,
-            startDay: "2026-10-01",
+            startDay: "2026-10-04",
             examDay: "2026-10-15",
           },
         }),
@@ -253,54 +270,72 @@ describe("a deadline", () => {
     });
     render();
 
-    expect(
-      await screen.findByText(/in 11 days\. At your pace the exam lands on/u),
-    ).toHaveTextContent("3 days late");
-    expect(screen.getByText(/First committed for .+, and moved 2 times\./u)).toBeInTheDocument();
+    expect(await screen.findByText("Starts in 2 days.")).toBeInTheDocument();
+    expect(screen.getByText(/^At your pace, the exam lands on /u)).toBeInTheDocument();
   });
 
-  it("says a missed deadline once, with how late, and no more", async () => {
+  it("shows each lesson's day", async () => {
     returns({
       modules: [
         module({
-          progress: { completed: 3, total: 3 },
-          finishedAt: "2026-09-30T12:00:00.000Z",
-          projection: { status: "finished" },
-          deadline: {
-            dueOn: "2026-09-27",
-            firstDueOn: "2026-09-27",
-            moves: 0,
-            status: { kind: "missed", daysLate: 3 },
+          week: { ...WEEK, standing: { kind: "upcoming", startsInDays: 2 } },
+          lessons: [curriculumLesson({ title: "Handlers and events", dueOn: "2026-10-05" })],
+        }),
+      ],
+    });
+    render();
+
+    const line = (await screen.findByText("Handlers and events")).closest("li")!;
+    expect(within(line).getByText(/^Mon, Oct 5 · /u)).toBeInTheDocument();
+  });
+});
+
+describe("the overview", () => {
+  it("lists the weeks with where each stands, for a mission planned in weeks", async () => {
+    returns({
+      calendar: { weeks: 2, startsOn: "2026-09-27", endsOn: "2026-10-10" },
+      modules: [
+        module({
+          week: {
+            index: 1,
+            startsOn: "2026-09-27",
+            examOn: "2026-10-02",
+            endsOn: "2026-10-03",
+            standing: {
+              kind: "in-progress",
+              total: 5,
+              completed: 3,
+              behind: 2,
+              dueToday: 0,
+              examToday: false,
+            },
+          },
+        }),
+        module({
+          id: "55555555-5555-4555-8555-555555555555",
+          name: "Traits",
+          week: {
+            index: 2,
+            startsOn: "2026-10-04",
+            examOn: "2026-10-09",
+            endsOn: "2026-10-10",
+            standing: { kind: "upcoming", startsInDays: 3 },
           },
         }),
       ],
     });
     render();
 
-    expect(await screen.findByText(/Finished 3 days after its deadline/u)).toBeInTheDocument();
+    const weeks = within(await screen.findByRole("region", { name: "Weeks" }));
+    expect(
+      weeks.getByText(/^2 weeks, .+ Lessons on days 1–5, the exam on day 6\.$/u),
+    ).toBeInTheDocument();
+    expect(weeks.getByText("Week 1 · Ownership")).toBeInTheDocument();
+    expect(weeks.getByText("2 lessons behind")).toBeInTheDocument();
+    expect(weeks.getByText(/^starts /u)).toBeInTheDocument();
   });
 
-  it("shows the server's reason when a commit is refused", async () => {
-    server.use(
-      http.put(`${API}/missions/${MISSION}/modules/${MODULE}/deadline`, () =>
-        problemResponse(422, "deadline-in-past", "A deadline can't be in the past."),
-      ),
-    );
-    returns({
-      modules: [module()],
-      currentModuleId: MODULE,
-      proposal: { moduleId: MODULE, dueOn: "2026-10-09" },
-    });
-    render();
-
-    await userEvent.click(await screen.findByRole("button", { name: "Commit" }));
-
-    expect(await screen.findByText("A deadline can't be in the past.")).toBeInTheDocument();
-  });
-});
-
-describe("the schedule", () => {
-  it("labels a committed date as due and a derived one as projected", async () => {
+  it("labels projected exam days for a mission from before weeks", async () => {
     returns({
       pace: {
         status: "known",
@@ -311,16 +346,6 @@ describe("the schedule", () => {
       },
       modules: [
         module({
-          deadline: {
-            dueOn: "2026-10-09",
-            firstDueOn: "2026-10-09",
-            moves: 0,
-            status: { kind: "on-track", daysLeft: 8 },
-          },
-        }),
-        module({
-          id: "55555555-5555-4555-8555-555555555555",
-          name: "Traits",
           projection: {
             status: "projected",
             units: 4,
@@ -334,7 +359,6 @@ describe("the schedule", () => {
     render();
 
     const schedule = within(await screen.findByRole("region", { name: "Schedule" }));
-    expect(schedule.getByText(/^exam due /u)).toBeInTheDocument();
     expect(schedule.getByText(/^exam projected /u)).toBeInTheDocument();
     expect(
       schedule.getByText(
@@ -344,7 +368,6 @@ describe("the schedule", () => {
   });
 
   it("shows a slow pace as the small number it is, never as zero", async () => {
-    // 13 minutes in 28 days is 0.46 a day: measured, and not nothing.
     returns({
       pace: {
         status: "known",
@@ -359,7 +382,6 @@ describe("the schedule", () => {
 
     const schedule = within(await screen.findByRole("region", { name: "Schedule" }));
     expect(schedule.getByText(/and 0\.46 minutes a day/u)).toBeInTheDocument();
-    expect(schedule.queryByText(/and 0 minutes a day/u)).not.toBeInTheDocument();
   });
 
   it("says what is missing instead of projecting from nothing", async () => {
@@ -371,7 +393,7 @@ describe("the schedule", () => {
 
     const schedule = within(await screen.findByRole("region", { name: "Schedule" }));
     expect(
-      schedule.getByText(/No projections yet\. .+and there is 1\. They also need some focus time/u),
+      schedule.getByText(/No projections yet\. .+and there is 1\. They need some focus time/u),
     ).toBeInTheDocument();
     expect(schedule.getByText("no date yet")).toBeInTheDocument();
   });

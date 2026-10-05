@@ -29,7 +29,8 @@
     "lockedBy": "Waiting on {lessons}",
     "lockedUnnamed": "Waiting on an earlier lesson",
     "read": "Read",
-    "reread": "Read again"
+    "reread": "Read again",
+    "dueOn": "{date}"
   },
   "depth": {
     "overview": "Overview",
@@ -72,36 +73,41 @@
     "selfReported": "{count, plural, one {# of those passes is self-reported.} other {# of those passes are self-reported.}}",
     "revisit": "To revisit:"
   },
-  "deadline": {
-    "commitLabel": "Deadline for {module}",
-    "commit": "Commit",
-    "move": "Move the deadline",
-    "moveAction": "Move it",
-    "moveHint": "The date you first committed to stays on screen.",
-    "proposed": "Proposed from your pace: {date}. Change it if you know better.",
-    "noEstimate": "There's no estimate yet, so pick the date yourself.",
-    "met": "{count, plural, =0 {Finished on its deadline, {date}.} one {Finished # day before its deadline, {date}.} other {Finished # days before its deadline, {date}.}}",
-    "missed": "{count, plural, one {Finished # day after its deadline, {date}.} other {Finished # days after its deadline, {date}.}}",
-    "overdue": "{count, plural, one {Due {date}. # day past it, and not finished.} other {Due {date}. # days past it, and not finished.}}",
-    "dueToday": "Due today.",
-    "onTrack": "{count, plural, one {Due {date}, in # day. At your pace the exam lands on {projected}.} other {Due {date}, in # days. At your pace the exam lands on {projected}.}}",
-    "behind": "{count, plural, one {Due {date}, in # day. At your pace the exam lands on {projected}, {behind, plural, one {# day} other {# days}} late.} other {Due {date}, in # days. At your pace the exam lands on {projected}, {behind, plural, one {# day} other {# days}} late.}}",
-    "noProjection": "{count, plural, one {Due {date}, in # day. No projection to compare it with yet.} other {Due {date}, in # days. No projection to compare it with yet.}}",
-    "moved": "{count, plural, one {First committed for {first}, and moved once.} other {First committed for {first}, and moved # times.}}"
-  },
   "projection": {
     "examOn": "Projected exam: {date}",
-    "afterUnplanned": "No projection: an earlier module has no lessons planned yet."
+    "afterUnplanned": "No projection: an earlier module has no lessons planned yet.",
+    "atYourPace": "At your pace, the exam lands on {date}."
   },
   "schedule": {
     "heading": "Schedule",
     "basis": "{count, plural, one {Projected from {minutes} minutes a lesson (# timed lesson) and {perDay} minutes a day on this mission over the last {days} days. Each exam counts as one more lesson.} other {Projected from {minutes} minutes a lesson (the median of # timed lessons) and {perDay} minutes a day on this mission over the last {days} days. Each exam counts as one more lesson.}}",
     "unknown": "No projections yet.",
     "needsTimedLessons": "{count, plural, =0 {They need three finished lessons with focus time on them, and there are none yet.} one {They need three finished lessons with focus time on them, and there is #.} other {They need three finished lessons with focus time on them, and there are #.}}",
-    "needsRecentTime": "They also need some focus time on this mission in the last 28 days.",
+    "needsRecentTime": "They need some focus time on this mission in the last 28 days.",
     "finished": "finished",
-    "due": "exam due {date}",
     "projected": "exam projected {date}",
-    "noDate": "no date yet"
+    "noDate": "no date yet",
+    "weeksHeading": "Weeks",
+    "calendar": "{count, plural, one {# week} other {# weeks}}, {from} – {to}. Lessons on days 1–5, the exam on day 6.",
+    "weekName": "Week {index} · {name}",
+    "startsOn": "starts {date}",
+    "onTrack": "on track",
+    "behind": "{count, plural, one {# lesson behind} other {# lessons behind}}",
+    "finishedLate": "{count, plural, one {finished # day late} other {finished # days late}}",
+    "overdue": "{count, plural, one {ended # day ago, not finished} other {ended # days ago, not finished}}",
+    "notPlanned": "not planned yet"
+  },
+  "week": {
+    "dates": "Week {index} · {from} – {to} · exam on {exam}",
+    "upcoming": "{count, plural, one {Starts tomorrow.} other {Starts in # days.}}",
+    "onTrack": "On track: {completed} of {total} lessons done.",
+    "behind": "{count, plural, one {# lesson behind: {completed} of {total} done.} other {# lessons behind: {completed} of {total} done.}}",
+    "examToday": "Today is the exam day.",
+    "finishedOnTime": "Finished by its exam day.",
+    "finishedLate": "{count, plural, one {Finished # day after its exam day.} other {Finished # days after its exam day.}}",
+    "overdue": "{count, plural, one {This week ended # day ago with {left, plural, one {# lesson} other {# lessons}} left.} other {This week ended # days ago with {left, plural, one {# lesson} other {# lessons}} left.}}",
+    "overdueExam": "{count, plural, one {This week ended # day ago. Its lessons are done; its exam is not passed.} other {This week ended # days ago. Its lessons are done; its exam is not passed.}}",
+    "notPlanned": "No lessons are planned for this week yet.",
+    "dueToday": "{count, plural, one {Today's lesson is still to do.} other {# lessons for today are still to do.}}"
   }
 }

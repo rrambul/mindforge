@@ -63,6 +63,7 @@ export function missionResponse(overrides: Partial<MissionView> = {}): MissionVi
     constraints: null,
     currentLevel: null,
     status: "active",
+    calendar: null,
     createdAt: WHEN,
     updatedAt: WHEN,
     ...overrides,
@@ -141,6 +142,7 @@ export function curriculumLesson(overrides: Partial<CurriculumLesson> = {}): Cur
     strain: { verdict: null, unknown: "in-progress" },
     adjustment: null,
     bridge: null,
+    dueOn: null,
     ...overrides,
   };
 }
@@ -157,7 +159,7 @@ export function curriculumModule(overrides: Partial<CurriculumModule> = {}): Cur
     outcomes: null,
     lessons: [],
     exam: null,
-    deadline: null,
+    week: null,
     projection: { status: "unknown", reason: "no-pace" },
     finishedAt: null,
     ...overrides,
@@ -179,7 +181,7 @@ export function curriculumResponse(overrides: Partial<CurriculumView> = {}): Cur
     today: "2026-08-08",
     pace: { status: "unknown", missing: ["timed-lessons", "recent-time"], timedLessons: 0 },
     currentModuleId: null,
-    proposal: null,
+    calendar: null,
     ...overrides,
   });
 }
@@ -214,6 +216,7 @@ export function activityGridResponse(overrides: Partial<ActivityGridView> = {}):
 type CodeExerciseResponse = Extract<ExerciseView, { kind: "code" }>;
 type WhiteboardExerciseResponse = Extract<ExerciseView, { kind: "whiteboard" }>;
 type TaskExerciseResponse = Extract<ExerciseView, { kind: "task" }>;
+type LabExerciseResponse = Extract<ExerciseView, { kind: "lab" }>;
 
 export function exerciseResponse(
   overrides: Partial<CodeExerciseResponse> = {},
@@ -301,6 +304,29 @@ export function taskExerciseResponse(
     solution:
       "defmodule Clock do\n  def receive(local, received), do: max(local, received) + 1\nend\n",
     expectedMinutes: 10,
+    attempts: EMPTY_ATTEMPTS,
+    hints: [],
+    nextHintLevel: 1,
+    ...overrides,
+  });
+}
+
+/** A lab in the learner's own AWS account, not yet reported (FR-X11). */
+export function labExerciseResponse(
+  overrides: Partial<LabExerciseResponse> = {},
+): LabExerciseResponse {
+  return asKind("lab", {
+    key: "lock-the-bucket",
+    kind: "lab",
+    platform: "aws",
+    title: "Lock a bucket to one role",
+    prompt: "Create a bucket only one role can read.",
+    steps: ["Create the bucket.", "Attach the policy."],
+    verify: { command: "aws s3api get-bucket-policy --bucket x", expect: "The policy JSON." },
+    cost: "Free tier: one empty bucket costs nothing.",
+    cleanup: ["aws s3 rb s3://x --force"],
+    solution: null,
+    expectedMinutes: 20,
     attempts: EMPTY_ATTEMPTS,
     hints: [],
     nextHintLevel: 1,

@@ -94,3 +94,11 @@
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
+
+/* A lab's steps and cleanup (FR-X11): numbered, because the order is the instruction. */
+.mf-exercise-steps {
+  margin: 0;
+  padding-left: var(--mf-space-4);
+  display: grid;
+  gap: var(--mf-space-1);
+}

@@ -16,7 +16,9 @@
       "title": "O que você quer melhorar, e por quê?",
       "why": "O porquê não é enfeite. Tudo que o app faz depois lê isso — o que sugerir, o que revisar, o que abandonar quando o tempo é curto.",
       "topic": "No que você está trabalhando?",
-      "reason": "Por que isso, agora?"
+      "reason": "Por que isso, agora?",
+      "weeks": "Quantas semanas?",
+      "weeksHint": "Um módulo por semana, com cinco lições e uma prova em cada."
     },
     "focus": {
       "title": "Faça 15 minutos agora.",

@@ -181,7 +181,7 @@ function displayName(language: string): string {
 type CopyState = "idle" | "copied" | "failed";
 
 /** A file or a command, with a copy button that says when copying did not work. */
-function CopyBlock({
+export function CopyBlock({
   heading,
   text,
   copyLabel,

@@ -16,7 +16,9 @@
       "title": "What do you want to get better at, and why?",
       "why": "The why is not decoration. Everything the app does later reads it — what to suggest, what to review, what to drop when you are short of time.",
       "topic": "What are you working on?",
-      "reason": "Why this, now?"
+      "reason": "Why this, now?",
+      "weeks": "How many weeks?",
+      "weeksHint": "One module a week, five lessons and a test in each."
     },
     "focus": {
       "title": "Do 15 minutes on it now.",

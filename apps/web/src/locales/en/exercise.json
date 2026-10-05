@@ -146,5 +146,34 @@
   },
   "exam": {
     "noHelp": "No hints and no answer in an exam. They open once you've passed this item."
+  },
+  "lab": {
+    "eyebrow": "Lab · in your {platform}",
+    "cost": "What this may cost",
+    "steps": "Do this in your own account",
+    "verify": "Check it worked",
+    "copyVerify": "Copy the check",
+    "expect": "You should see: {expect}",
+    "output": "Paste what the check printed (optional)",
+    "noSecrets": "Never paste keys, tokens or passwords. Remove any before you report.",
+    "report": {
+      "pass": "It worked",
+      "fail": "Not yet"
+    },
+    "last": {
+      "pass": "Last report: it worked",
+      "fail": "Last report: not yet"
+    },
+    "attempts": {
+      "tried": "You reported {count, plural, one {# try} other {# tries}}, not working yet",
+      "passedFirst": "You reported it working on the first try",
+      "passed": "You reported it working · {count, plural, one {# report} other {# reports}} in total"
+    },
+    "cleanup": "Clean up when you're done",
+    "solution": {
+      "show": "Show the walkthrough",
+      "hide": "Hide the walkthrough",
+      "heading": "A reference walkthrough"
+    }
   }
 }

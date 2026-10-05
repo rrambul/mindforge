@@ -44,6 +44,7 @@ test("a mission's curriculum is reachable from its card", async ({ page }) => {
   await page.getByRole("link", { name: "Missions" }).click();
   await page.getByRole("button", { name: "Start your first mission" }).click();
   await page.getByLabel("What do you want to get better at?").fill(TOPIC);
+  await page.getByLabel("How many weeks?").fill("4");
   await page.getByRole("button", { name: "Create mission" }).click();
 
   const card = page.getByRole("article").filter({ hasText: TOPIC });

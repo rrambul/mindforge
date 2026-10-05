@@ -1,6 +1,8 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   CreateMissionSchema,
+  MAX_WEEKS,
+  MIN_WEEKS,
   type CreateMissionFormValues,
   type CreateMissionInput,
 } from "@mindforge/core";
@@ -37,7 +39,17 @@ export function NewMissionForm({ onSubmit, pending, onCancel, serverErrors }: Ne
     formState: { errors },
   } = useForm<CreateMissionFormValues, unknown, CreateMissionInput>({
     resolver: zodResolver(CreateMissionSchema),
-    defaultValues: { topic: "", why: "", successLooksLike: "", constraints: "", currentLevel: "" },
+    defaultValues: {
+      topic: "",
+      why: "",
+      successLooksLike: "",
+      constraints: "",
+      currentLevel: "",
+      // Empty on purpose: the length is the learner's decision, and a prefilled
+      // number is one they would accept without making it (FR-B1).
+      weeks: "",
+      startsOn: "",
+    },
   });
 
   /**
@@ -76,6 +88,26 @@ export function NewMissionForm({ onSubmit, pending, onCancel, serverErrors }: Ne
           rows={2}
           {...register("successLooksLike")}
           error={errorFor("successLooksLike", errors.successLooksLike?.type)}
+        />
+
+        <Field
+          label={t("new.weeks")}
+          hint={t("new.weeksHint")}
+          type="number"
+          inputMode="numeric"
+          min={MIN_WEEKS}
+          max={MAX_WEEKS}
+          width="short"
+          {...register("weeks")}
+          error={errorFor("weeks", errors.weeks?.type)}
+        />
+
+        <Field
+          label={t("new.startsOn")}
+          hint={t("new.startsOnHint")}
+          type="date"
+          {...register("startsOn")}
+          error={errorFor("startsOn", errors.startsOn?.type)}
         />
 
         <Row>

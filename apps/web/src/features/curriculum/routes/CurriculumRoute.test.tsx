@@ -41,6 +41,7 @@ function lesson(over: Partial<CurriculumLesson> = {}): CurriculumLesson {
     strain: { verdict: null, unknown: "in-progress" },
     adjustment: null,
     bridge: null,
+    dueOn: null,
     ...over,
   };
 }
@@ -57,7 +58,7 @@ function module(over: Partial<CurriculumModule> = {}): CurriculumModule {
     outcomes: { understood: 0, shaky: 0, lost: 0, unrecorded: 0 },
     lessons: [lesson()],
     exam: null,
-    deadline: null,
+    week: null,
     projection: { status: "unknown", reason: "no-pace" },
     finishedAt: null,
     ...over,

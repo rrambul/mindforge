@@ -1,3 +1,4 @@
+import { MAX_WEEKS, MIN_WEEKS } from "@mindforge/core";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
@@ -15,7 +16,11 @@ import type { FirstRunState, FirstRunStep } from "../lib/first-run-state.js";
 
 export interface FirstRunHandlers {
   /** Returns the id of what it created, so the next step can hang off it. */
-  readonly createMission: (input: { topic: string; why: string | null }) => Promise<string>;
+  readonly createMission: (input: {
+    topic: string;
+    why: string | null;
+    weeks: number;
+  }) => Promise<string>;
   readonly startFocus: (input: { missionId: string; intention: string }) => Promise<void>;
 }
 
@@ -55,6 +60,10 @@ export function FirstRunTour({
 
   const [topic, setTopic] = useState("");
   const [why, setWhy] = useState("");
+  const [weeks, setWeeks] = useState("");
+  const weekCount = Number(weeks);
+  const weeksValid =
+    Number.isInteger(weekCount) && weekCount >= MIN_WEEKS && weekCount <= MAX_WEEKS;
   const [intention, setIntention] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -108,15 +117,27 @@ export function FirstRunTour({
               value={why}
               onChange={(event) => setWhy(event.target.value)}
             />
+            <Field
+              label={t("step.mission.weeks")}
+              hint={t("step.mission.weeksHint")}
+              type="number"
+              inputMode="numeric"
+              min={MIN_WEEKS}
+              max={MAX_WEEKS}
+              width="short"
+              value={weeks}
+              onChange={(event) => setWeeks(event.target.value)}
+            />
             <Row>
               <Button
                 variant="primary"
-                disabled={topic.trim() === "" || busy}
+                disabled={topic.trim() === "" || !weeksValid || busy}
                 onClick={() =>
                   void run(async () => {
                     const missionId = await handlers.createMission({
                       topic: topic.trim(),
                       why: why.trim() === "" ? null : why.trim(),
+                      weeks: weekCount,
                     });
                     onAdvance({ step: "focus", missionId });
                   })

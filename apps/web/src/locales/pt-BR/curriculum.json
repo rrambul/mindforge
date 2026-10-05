@@ -29,7 +29,8 @@
     "lockedBy": "Aguardando {lessons}",
     "lockedUnnamed": "Aguardando uma lição anterior",
     "read": "Ler",
-    "reread": "Ler de novo"
+    "reread": "Ler de novo",
+    "dueOn": "{date}"
   },
   "depth": {
     "overview": "Visão geral",
@@ -72,36 +73,41 @@
     "selfReported": "{count, plural, one {# dessas aprovações é autodeclarada.} other {# dessas aprovações são autodeclaradas.}}",
     "revisit": "Para rever:"
   },
-  "deadline": {
-    "commitLabel": "Prazo para {module}",
-    "commit": "Assumir",
-    "move": "Mudar o prazo",
-    "moveAction": "Mudar",
-    "moveHint": "A data que você assumiu primeiro continua na tela.",
-    "proposed": "Proposto pelo seu ritmo: {date}. Mude se você souber melhor.",
-    "noEstimate": "Ainda não há estimativa, então escolha a data você mesmo.",
-    "met": "{count, plural, =0 {Concluído no prazo, {date}.} one {Concluído # dia antes do prazo, {date}.} other {Concluído # dias antes do prazo, {date}.}}",
-    "missed": "{count, plural, one {Concluído # dia depois do prazo, {date}.} other {Concluído # dias depois do prazo, {date}.}}",
-    "overdue": "{count, plural, one {Prazo {date}. # dia além dele, e não concluído.} other {Prazo {date}. # dias além dele, e não concluído.}}",
-    "dueToday": "O prazo é hoje.",
-    "onTrack": "{count, plural, one {Prazo {date}, em # dia. No seu ritmo a prova cai em {projected}.} other {Prazo {date}, em # dias. No seu ritmo a prova cai em {projected}.}}",
-    "behind": "{count, plural, one {Prazo {date}, em # dia. No seu ritmo a prova cai em {projected}, {behind, plural, one {# dia} other {# dias}} depois.} other {Prazo {date}, em # dias. No seu ritmo a prova cai em {projected}, {behind, plural, one {# dia} other {# dias}} depois.}}",
-    "noProjection": "{count, plural, one {Prazo {date}, em # dia. Ainda não há projeção para comparar.} other {Prazo {date}, em # dias. Ainda não há projeção para comparar.}}",
-    "moved": "{count, plural, one {Assumido primeiro para {first}, e mudado uma vez.} other {Assumido primeiro para {first}, e mudado # vezes.}}"
-  },
   "projection": {
     "examOn": "Prova projetada: {date}",
-    "afterUnplanned": "Sem projeção: um módulo anterior ainda não tem lições planejadas."
+    "afterUnplanned": "Sem projeção: um módulo anterior ainda não tem lições planejadas.",
+    "atYourPace": "No seu ritmo, a prova cai em {date}."
   },
   "schedule": {
     "heading": "Cronograma",
     "basis": "{count, plural, one {Projetado a partir de {minutes} minutos por lição (# lição cronometrada) e {perDay} minutos por dia nesta missão nos últimos {days} dias. Cada prova conta como mais uma lição.} other {Projetado a partir de {minutes} minutos por lição (a mediana de # lições cronometradas) e {perDay} minutos por dia nesta missão nos últimos {days} dias. Cada prova conta como mais uma lição.}}",
     "unknown": "Ainda sem projeções.",
     "needsTimedLessons": "{count, plural, =0 {Elas precisam de três lições concluídas com tempo de foco, e ainda não há nenhuma.} one {Elas precisam de três lições concluídas com tempo de foco, e há #.} other {Elas precisam de três lições concluídas com tempo de foco, e há #.}}",
-    "needsRecentTime": "Também precisam de algum tempo de foco nesta missão nos últimos 28 dias.",
+    "needsRecentTime": "Elas precisam de algum tempo de foco nesta missão nos últimos 28 dias.",
     "finished": "concluído",
-    "due": "prova com prazo {date}",
     "projected": "prova projetada {date}",
-    "noDate": "sem data ainda"
+    "noDate": "sem data ainda",
+    "weeksHeading": "Semanas",
+    "calendar": "{count, plural, one {# semana} other {# semanas}}, {from} – {to}. Lições nos dias 1 a 5, a prova no dia 6.",
+    "weekName": "Semana {index} · {name}",
+    "startsOn": "começa {date}",
+    "onTrack": "em dia",
+    "behind": "{count, plural, one {# lição atrasada} other {# lições atrasadas}}",
+    "finishedLate": "{count, plural, one {concluído # dia atrasado} other {concluído # dias atrasado}}",
+    "overdue": "{count, plural, one {terminou há # dia, sem concluir} other {terminou há # dias, sem concluir}}",
+    "notPlanned": "ainda não planejada"
+  },
+  "week": {
+    "dates": "Semana {index} · {from} – {to} · prova em {exam}",
+    "upcoming": "{count, plural, one {Começa amanhã.} other {Começa em # dias.}}",
+    "onTrack": "Em dia: {completed} de {total} lições concluídas.",
+    "behind": "{count, plural, one {# lição atrasada: {completed} de {total} concluídas.} other {# lições atrasadas: {completed} de {total} concluídas.}}",
+    "examToday": "Hoje é o dia da prova.",
+    "finishedOnTime": "Concluído até o dia da prova.",
+    "finishedLate": "{count, plural, one {Concluído # dia depois do dia da prova.} other {Concluído # dias depois do dia da prova.}}",
+    "overdue": "{count, plural, one {Esta semana terminou há # dia com {left, plural, one {# lição} other {# lições}} por fazer.} other {Esta semana terminou há # dias com {left, plural, one {# lição} other {# lições}} por fazer.}}",
+    "overdueExam": "{count, plural, one {Esta semana terminou há # dia. As lições estão feitas; a prova não foi aprovada.} other {Esta semana terminou há # dias. As lições estão feitas; a prova não foi aprovada.}}",
+    "notPlanned": "Ainda não há lições planejadas para esta semana.",
+    "dueToday": "{count, plural, one {A lição de hoje ainda está por fazer.} other {# lições de hoje ainda estão por fazer.}}"
   }
 }

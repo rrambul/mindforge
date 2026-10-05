@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
+import { formatNearDay } from "../../../shared/lib/format.js";
 import { Button, Card, Heading, Row, Spread, StatusChip, Text } from "../../../shared/ui/index.js";
 import type { Mission } from "../api/use-missions.js";
 
@@ -44,7 +45,7 @@ export function MissionCard({
   teach,
   curriculum,
 }: MissionCardProps) {
-  const { t } = useTranslation("missions");
+  const { t, i18n } = useTranslation("missions");
   const { t: g } = useTranslation("glossary");
 
   const parked = mission.status === "parked";
@@ -63,6 +64,17 @@ export function MissionCard({
           detail view — and its absence is stated rather than left as empty space, because a mission
           without one is worth noticing. */}
       {mission.why ? <Text>{mission.why}</Text> : <Text tone="hint">{t("card.noWhy")}</Text>}
+
+      {/* `== null` so a body from before weeks renders no line rather than failing. */}
+      {mission.calendar == null ? null : (
+        <Text tone="muted">
+          {t("card.calendar", {
+            count: mission.calendar.weeks,
+            from: formatNearDay(mission.calendar.startsOn, i18n.language),
+            to: formatNearDay(mission.calendar.endsOn, i18n.language),
+          })}
+        </Text>
+      )}
 
       {/* Shown on a parked mission too: the plan is still worth reading when you
           are not working on it. */}

@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
+import { formatNearDay } from "../../../shared/lib/format.js";
 import { strainWords } from "../../../shared/lib/strain.js";
 import { Row, StatusChip, Text } from "../../../shared/ui/index.js";
 import type { CurriculumLesson } from "../api/use-curriculum.js";
@@ -40,7 +41,7 @@ interface LessonLineProps {
  * something the plan never stated (non-negotiable 10).
  */
 export function LessonLine({ lesson, isNext, link, targetLink }: LessonLineProps) {
-  const { t } = useTranslation("curriculum");
+  const { t, i18n } = useTranslation("curriculum");
   const { t: g } = useTranslation("glossary");
   const strain = strainWords(lesson.strain, g);
 
@@ -71,6 +72,10 @@ export function LessonLine({ lesson, isNext, link, targetLink }: LessonLineProps
       {lesson.intent === null ? null : <Text tone="hint">{lesson.intent}</Text>}
 
       <Text tone="hint">
+        {/* Its day on the week's calendar (FR-B3), when the mission has one. */}
+        {lesson.dueOn == null
+          ? ""
+          : `${t("lesson.dueOn", { date: formatNearDay(lesson.dueOn, i18n.language) })} · `}
         {lesson.difficulty === null
           ? t("lesson.difficultyUnknown")
           : t("lesson.difficulty", { level: lesson.difficulty })}

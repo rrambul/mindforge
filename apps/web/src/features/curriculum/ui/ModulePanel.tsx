@@ -14,7 +14,7 @@ import {
 
 import type { CurriculumLesson, CurriculumModule } from "../api/use-curriculum.js";
 import { LessonLine } from "./LessonLine.js";
-import { ModuleSchedule, type DeadlineControl } from "./ModuleSchedule.js";
+import { ModuleSchedule } from "./ModuleSchedule.js";
 import "./curriculum.css";
 
 interface ModulePanelProps {
@@ -25,14 +25,6 @@ interface ModulePanelProps {
   readonly lessonLink?: (lesson: CurriculumLesson) => ReactNode;
   /** A link to a lesson named by another one, from the app layer. */
   readonly targetLink?: (target: { readonly id: string; readonly title: string }) => ReactNode;
-  /** The learner's local day, from the server. Defaults to none: no prompt can be shown. */
-  readonly today?: string;
-  /** The module the learner is in (FR-U5). */
-  readonly isCurrent?: boolean;
-  /** The date proposed for it, or null with no estimate. Absent with no proposal. */
-  readonly proposedDueOn?: string | null;
-  /** Committing a deadline, from the route. */
-  readonly deadline?: DeadlineControl;
 }
 
 /**
@@ -44,16 +36,7 @@ interface ModulePanelProps {
  * change. A module with no plan says so instead of showing an empty bar
  * (non-negotiable 10, and `moduleProgress` returns null for exactly this).
  */
-export function ModulePanel({
-  module,
-  nextLessonId,
-  lessonLink,
-  targetLink,
-  today,
-  isCurrent = false,
-  proposedDueOn,
-  deadline,
-}: ModulePanelProps) {
+export function ModulePanel({ module, nextLessonId, lessonLink, targetLink }: ModulePanelProps) {
   const { t } = useTranslation("curriculum");
   const { t: g } = useTranslation("glossary");
 
@@ -108,15 +91,8 @@ export function ModulePanel({
 
         {/* Older bodies have no schedule fields; render the module without them
             rather than taking the screen down. */}
-        {module.projection == null || today === undefined ? null : (
-          <ModuleSchedule
-            module={module}
-            today={today}
-            isCurrent={isCurrent}
-            {...(proposedDueOn === undefined ? {} : { proposedDueOn })}
-            {...(deadline ? { deadline } : {})}
-            {...(targetLink ? { targetLink } : {})}
-          />
+        {module.projection == null ? null : (
+          <ModuleSchedule module={module} {...(targetLink ? { targetLink } : {})} />
         )}
 
         {module.lessons.length > 0 ? (

@@ -81,6 +81,9 @@ export function FirstRun() {
           successLooksLike: null,
           constraints: null,
           currentLevel: null,
+          weeks: input.weeks,
+          // The next week start, chosen by the server from the learner's profile.
+          startsOn: null,
         });
         return mission.id;
       }),

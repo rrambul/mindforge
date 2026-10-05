@@ -146,5 +146,34 @@
   },
   "exam": {
     "noHelp": "Sem dicas e sem resposta numa prova. Elas abrem quando você passar neste item."
+  },
+  "lab": {
+    "eyebrow": "Laboratório · na sua conta {platform}",
+    "cost": "Quanto isso pode custar",
+    "steps": "Faça isto na sua própria conta",
+    "verify": "Confira se funcionou",
+    "copyVerify": "Copiar a verificação",
+    "expect": "Você deve ver: {expect}",
+    "output": "Cole o que a verificação imprimiu (opcional)",
+    "noSecrets": "Nunca cole chaves, tokens ou senhas. Remova-os antes de reportar.",
+    "report": {
+      "pass": "Funcionou",
+      "fail": "Ainda não"
+    },
+    "last": {
+      "pass": "Último relato: funcionou",
+      "fail": "Último relato: ainda não"
+    },
+    "attempts": {
+      "tried": "Você relatou {count, plural, one {# tentativa} other {# tentativas}}, ainda sem funcionar",
+      "passedFirst": "Você relatou que funcionou na primeira tentativa",
+      "passed": "Você relatou que funcionou · {count, plural, one {# relato} other {# relatos}} no total"
+    },
+    "cleanup": "Limpe tudo quando terminar",
+    "solution": {
+      "show": "Mostrar o passo a passo",
+      "hide": "Esconder o passo a passo",
+      "heading": "Um passo a passo de referência"
+    }
   }
 }

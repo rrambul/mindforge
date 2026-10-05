@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   EMPTY_ATTEMPTS,
+  labExerciseResponse,
   lessonExercisesResponse,
   taskExerciseResponse,
 } from "../../../test/fixtures.js";
@@ -268,5 +269,49 @@ describe("what a task's history says", () => {
     // The app saw none of this run; a bare "passed" would claim it had.
     expect(region.textContent).not.toMatch(/(^|[^d] )passed/u);
     expect(region.textContent).toMatch(/You reported a pass/u);
+  });
+});
+
+describe("a lab in your own account (FR-X11–X13)", () => {
+  function servesLab() {
+    server.use(
+      http.get(`${API}/lessons/${LESSON}/exercises`, () =>
+        HttpResponse.json(
+          lessonExercisesResponse({ lessonId: LESSON, exercises: [labExerciseResponse()] }),
+        ),
+      ),
+    );
+  }
+
+  it("shows the cost before the steps, the check, and the cleanup", async () => {
+    servesLab();
+    renderWithProviders(<LessonExercises lessonId={LESSON} />);
+
+    const cost = await screen.findByText("Free tier: one empty bucket costs nothing.");
+    const firstStep = screen.getByText("Create the bucket.");
+    // The cost comes first in the document: it is read before anything is created.
+    expect(cost.compareDocumentPosition(firstStep) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.getByText("aws s3api get-bucket-policy --bucket x")).toBeVisible();
+    expect(screen.getByText("You should see: The policy JSON.")).toBeVisible();
+    expect(screen.getByText("aws s3 rb s3://x --force")).toBeVisible();
+    expect(
+      screen.getByText("Never paste keys, tokens or passwords. Remove any before you report."),
+    ).toBeVisible();
+  });
+
+  it("reports it working as the learner's word, through the same report as a task", async () => {
+    servesLab();
+    const sent: ReportTaskInput[] = [];
+    server.use(
+      http.post(`${API}/lessons/${LESSON}/exercises/:key/reports`, async ({ request }) => {
+        sent.push((await request.json()) as ReportTaskInput);
+        return HttpResponse.json(labExerciseResponse(), { status: 201 });
+      }),
+    );
+    renderWithProviders(<LessonExercises lessonId={LESSON} />);
+
+    await userEvent.click(await screen.findByRole("button", { name: "It worked" }));
+
+    await waitFor(() => expect(sent).toEqual([{ passed: true, output: null }]));
   });
 });

@@ -1,7 +1,8 @@
 import { expect, test, type Page } from "@playwright/test";
 
 /**
- * A module's exam and deadline, end to end (§13.2, M7, FR-E5–E7, FR-U2–U5).
+ * A module's exam, the week calendar and a lab, end to end (§13.2, M7, FR-E5–E7, FR-B1–B6,
+ * FR-X11).
  *
  * The same reason `lesson.spec.ts` exists: the schedule is derived in
  * `packages/core`, read by the API from three tables, parsed by the SPA, and
@@ -10,13 +11,11 @@ import { expect, test, type Page } from "@playwright/test";
  * differently from every other, which only a real frame and a real row can show.
  *
  * **It signs in as the seeded developer**, for the reason `lesson.spec.ts` gives:
- * `seed:rich` writes the exam file, its attempts and a moved deadline, and nothing
- * else produces them without a paid run. `E2E_SEED_EMAIL` and `E2E_SEED_PASSWORD`
+ * `seed:rich` writes the exam file, its attempts, a mission planned in weeks and a
+ * lesson with a lab, and nothing else produces them without a paid run. `E2E_SEED_EMAIL` and `E2E_SEED_PASSWORD`
  * point it at another seeded account, so it can run locally without reseeding — and
  * so wiping — the developer's own.
- *
- * It commits a deadline, so it expects a freshly seeded account each run. CI seeds
- * one.
+
  */
 
 const SEEDED = {
@@ -32,29 +31,59 @@ async function signIn(page: Page): Promise<void> {
   await expect(page.getByRole("button", { name: "Sign out" })).toBeVisible();
 }
 
-async function openRust(page: Page): Promise<void> {
+async function openMission(page: Page, topic: string): Promise<void> {
   await page.getByRole("link", { name: "Missions" }).click();
   await page
     .getByRole("article")
-    .filter({ hasText: "Rust, properly" })
+    .filter({ hasText: topic })
     .getByRole("link", { name: "Curriculum" })
     .click();
   await expect(page).toHaveURL(/\/missions\/[0-9a-f-]{36}$/u);
   await expect(page.getByText("Loading")).toHaveCount(0);
 }
 
-test("the schedule labels a committed date as due and a derived one as projected", async ({
+const openRust = (page: Page) => openMission(page, "Rust, properly");
+
+test("a mission planned in weeks shows each week against its dates", async ({ page }) => {
+  await signIn(page);
+  await openMission(page, "AWS serverless, by doing");
+
+  const weeks = page.getByRole("region", { name: "Weeks" });
+  await expect(weeks).toBeVisible();
+  await expect(
+    weeks.getByText(/^3 weeks, .+ Lessons on days 1–5, the exam on day 6\.$/u),
+  ).toBeVisible();
+  // `seed:rich` puts week 1 behind today and week 2 around it.
+  await expect(weeks.getByText("Week 1 · Storage and permissions")).toBeVisible();
+  await expect(weeks.getByText("Week 3 · HTTP APIs")).toBeVisible();
+
+  const week1 = page.getByRole("region", { name: "Storage and permissions" });
+  await expect(week1.getByText(/^Week 1 · .+ · exam on /u)).toBeVisible();
+  // Its lessons are done and its exam half passed: the week ended, the module did not.
+  await expect(week1.getByText(/its exam is not passed\.$/u)).toBeVisible();
+});
+
+test("a lesson can carry a lab in your own account, cost first and cleanup last", async ({
   page,
 }) => {
   await signIn(page);
-  await openRust(page);
+  await openMission(page, "AWS serverless, by doing");
 
-  const schedule = page.getByRole("region", { name: "Schedule" });
-  await expect(schedule).toBeVisible();
-  // `seed:rich` commits a deadline on the first module with work left, and moves it.
-  await expect(schedule.getByText(/^exam due /u)).toHaveCount(1);
-  await expect(schedule.getByText(/^exam projected /u).first()).toBeVisible();
-  await expect(page.getByText(/First committed for .+, and moved once\./u)).toBeVisible();
+  const week1 = page.getByRole("region", { name: "Storage and permissions" });
+  await week1
+    .getByRole("listitem")
+    .filter({ hasText: "Bucket policies in practice" })
+    .getByRole("link", { name: /^Read/u })
+    .click();
+  await expect(page).toHaveURL(/\/lessons\/[0-9a-f-]{36}$/u);
+
+  await expect(
+    page.getByText("Free tier: one bucket with one small object costs nothing."),
+  ).toBeVisible();
+  await expect(page.getByText("Clean up when you're done")).toBeVisible();
+  await expect(
+    page.getByText("Never paste keys, tokens or passwords. Remove any before you report."),
+  ).toBeVisible();
 });
 
 test("a half-passed exam names what to revisit, and the reader gives it no chip and no help", async ({
@@ -84,20 +113,4 @@ test("a half-passed exam names what to revisit, and the reader gives it no chip 
     page.getByText("No hints and no answer in an exam. They open once you've passed this item."),
   ).toHaveCount(1);
   await expect(page.getByRole("button", { name: /Get a hint/u })).toHaveCount(1);
-});
-
-test("the module you are in asks for a deadline, prefilled, and commits it in one tap", async ({
-  page,
-}) => {
-  await signIn(page);
-  await openRust(page);
-
-  // Its lessons are done and its exam is not passed, so it is the module you are in.
-  const field = page.getByLabel("Deadline for Syntax and tooling");
-  await expect(field).toHaveValue(/^\d{4}-\d{2}-\d{2}$/u);
-  await page.getByRole("button", { name: "Commit" }).click();
-
-  const module = page.getByRole("region", { name: "Syntax and tooling" });
-  await expect(module.getByText(/^Due .+, in \d+ days?\./u)).toBeVisible();
-  await expect(module.getByRole("button", { name: "Move the deadline" })).toBeVisible();
 });

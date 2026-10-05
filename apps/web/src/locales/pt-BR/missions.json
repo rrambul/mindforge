@@ -18,7 +18,11 @@
     "successLooksLike": "Como seria ter chegado lá?",
     "submit": "Criar missão",
     "creating": "Criando",
-    "open": "Nova missão"
+    "open": "Nova missão",
+    "weeks": "Quantas semanas?",
+    "weeksHint": "Um módulo por semana: uma lição em cada um dos cinco primeiros dias e uma prova no dia 6. O currículo se ajusta a isso.",
+    "startsOn": "Começando em",
+    "startsOnHint": "O primeiro dia de uma semana. Deixe vazio para começar na próxima."
   },
   "card": {
     "park": "Pausar",
@@ -26,13 +30,24 @@
     "parking": "Pausando",
     "unparking": "Retomando",
     "noWhy": "Nenhum motivo registrado ainda.",
-    "openCurriculum": "Currículo"
+    "openCurriculum": "Currículo",
+    "calendar": "{count, plural, one {# semana} other {# semanas}} · {from} – {to}"
   },
   "field": {
     "topic": {
       "too_small": "No mínimo 3 caracteres.",
       "too_big": "Isso é longo demais para um tópico — tente uma frase mais curta.",
       "invalid_type": "O tópico é obrigatório."
+    },
+    "weeks": {
+      "too_small": "Pelo menos uma semana.",
+      "too_big": "No máximo 52 semanas.",
+      "invalid_type": "Quantas semanas, em número inteiro.",
+      "invalid_value": "Quantas semanas, em número inteiro."
+    },
+    "startsOn": {
+      "custom": "Uma data, como 2026-10-05.",
+      "invalid_type": "Uma data, como 2026-10-05."
     }
   }
 }

@@ -18,7 +18,11 @@
     "successLooksLike": "What would it look like to have got there?",
     "submit": "Create mission",
     "creating": "Creating",
-    "open": "New mission"
+    "open": "New mission",
+    "weeks": "How many weeks?",
+    "weeksHint": "One module a week: a lesson on each of the first five days, and a test on day 6. The curriculum is fitted to this.",
+    "startsOn": "Starting",
+    "startsOnHint": "The first day of a week. Leave it empty to start on the next one."
   },
   "card": {
     "park": "Park",
@@ -26,13 +30,24 @@
     "parking": "Parking",
     "unparking": "Resuming",
     "noWhy": "No reason recorded yet.",
-    "openCurriculum": "Curriculum"
+    "openCurriculum": "Curriculum",
+    "calendar": "{count, plural, one {# week} other {# weeks}} · {from} – {to}"
   },
   "field": {
     "topic": {
       "too_small": "At least 3 characters.",
       "too_big": "That's too long for a topic — try a shorter phrase.",
       "invalid_type": "A topic is required."
+    },
+    "weeks": {
+      "too_small": "At least one week.",
+      "too_big": "At most 52 weeks.",
+      "invalid_type": "How many weeks, as a whole number.",
+      "invalid_value": "How many weeks, as a whole number."
+    },
+    "startsOn": {
+      "custom": "A date, like 2026-10-05.",
+      "invalid_type": "A date, like 2026-10-05."
     }
   }
 }

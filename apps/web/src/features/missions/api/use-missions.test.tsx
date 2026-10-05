@@ -26,6 +26,7 @@ const MISSION: Mission = {
   constraints: null,
   currentLevel: null,
   status: "active",
+  calendar: null,
   createdAt: "2026-08-05T12:00:00.000Z",
   updatedAt: "2026-08-05T12:00:00.000Z",
 };
@@ -114,6 +115,8 @@ describe("useCreateMission", () => {
       successLooksLike: null,
       constraints: null,
       currentLevel: null,
+      weeks: 4,
+      startsOn: null,
     });
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
@@ -137,6 +140,8 @@ describe("useCreateMission", () => {
       successLooksLike: null,
       constraints: null,
       currentLevel: null,
+      weeks: 4,
+      startsOn: null,
     });
 
     await waitFor(() => expect(result.current.isError).toBe(true));

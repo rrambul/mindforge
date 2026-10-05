@@ -55,6 +55,7 @@ async function completeTour(): Promise<void> {
   await userEvent.click(await screen.findByRole("button", { name: "Start" }));
 
   await userEvent.type(screen.getByLabelText("What are you working on?"), "Rust ownership");
+  await userEvent.type(screen.getByLabelText("How many weeks?"), "4");
   await userEvent.type(screen.getByLabelText("Why this, now?"), "so I can review Rust PRs");
   await userEvent.click(screen.getByRole("button", { name: "Next" }));
 
@@ -193,6 +194,7 @@ describe("skipping and resuming", () => {
 
     await userEvent.click(await screen.findByRole("button", { name: "Start" }));
     await userEvent.type(screen.getByLabelText("What are you working on?"), "Rust");
+    await userEvent.type(screen.getByLabelText("How many weeks?"), "4");
     await userEvent.click(screen.getByRole("button", { name: "Next" }));
     await screen.findByLabelText("What does done look like for these 15 minutes?");
     unmount();
@@ -212,6 +214,7 @@ describe("skipping and resuming", () => {
 
     await userEvent.click(await screen.findByRole("button", { name: "Start" }));
     await userEvent.type(screen.getByLabelText("What are you working on?"), "Rust");
+    await userEvent.type(screen.getByLabelText("How many weeks?"), "4");
     await userEvent.click(screen.getByRole("button", { name: "Next" }));
     await screen.findByLabelText("What does done look like for these 15 minutes?");
     unmount();
@@ -243,6 +246,7 @@ describe("when a step is refused", () => {
 
     const box = screen.getByLabelText("What are you working on?");
     await userEvent.type(box, "Rust ownership");
+    await userEvent.type(screen.getByLabelText("How many weeks?"), "4");
     await userEvent.click(screen.getByRole("button", { name: "Next" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent("That topic is too long.");
@@ -258,6 +262,7 @@ describe("when a step is refused", () => {
     renderWithProviders(<FirstRun />);
     await userEvent.click(await screen.findByRole("button", { name: "Start" }));
     await userEvent.type(screen.getByLabelText("What are you working on?"), "Rust");
+    await userEvent.type(screen.getByLabelText("How many weeks?"), "4");
     await userEvent.click(screen.getByRole("button", { name: "Next" }));
 
     await screen.findByRole("alert");
