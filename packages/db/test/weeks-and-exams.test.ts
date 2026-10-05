@@ -2,14 +2,12 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createPrismaClient } from "../src/client.js";
 
 /**
- * `module_deadlines` (FR-U2) and `lessons.kind` (FR-E1): isolation, and the
- * constraints that carry the design.
+ * The two shapes this milestone's tables carry (FR-B1, FR-E1): a mission's calendar
+ * is both of its facts or neither, and an exam is always a written lesson.
  *
- * The same hole `exercise_attempts` closes: the insert policy checks the **track**
- * as well as the owner, so a learner cannot hang a deadline off another user's
- * module id. Measured the same way — remove the track half of the insert policy and
- * "refuses a deadline of your own on another user's module" is the one test that
- * fails.
+ * No new table, so no new RLS policy: `weeks` and `starts_on` are columns on
+ * `missions`, whose policies `rls.test.ts` already proves. `module_deadlines` was
+ * dropped by `20261004120000_weekly_missions`, and the test that it is gone is here.
  */
 
 const ADMIN_URL =
@@ -21,27 +19,8 @@ const BOB = "e6e6e6e6-e6e6-4e6e-8e6e-e6e6e6e6e6e6";
 
 const admin = createPrismaClient(ADMIN_URL);
 
-type TxClient = Omit<
-  typeof admin,
-  "$transaction" | "$connect" | "$disconnect" | "$on" | "$extends"
->;
-
-function asUser<T>(userId: string, sql: string, ...params: unknown[]): Promise<T> {
-  return admin.$transaction<T>(async (tx: TxClient) => {
-    await tx.$executeRawUnsafe(`set local role authenticated`);
-    await tx.$executeRawUnsafe(
-      `select set_config('request.jwt.claims', $1, true)`,
-      JSON.stringify({ sub: userId, role: "authenticated" }),
-    );
-    return await tx.$queryRawUnsafe(sql, ...params);
-  });
-}
-
 const trackOf: Record<string, string> = {};
 const missionOf: Record<string, string> = {};
-
-const INSERT = `insert into module_deadlines (user_id, track_id, due_on)
-  values ($1::uuid, $2::uuid, $3::date) returning id`;
 
 async function seedUser(id: string): Promise<void> {
   await admin.$executeRawUnsafe(
@@ -79,7 +58,6 @@ beforeAll(async () => {
     const { missionId, trackId } = await seedTrack(user);
     trackOf[user] = trackId;
     missionOf[user] = missionId;
-    await admin.$executeRawUnsafe(INSERT, user, trackId, "2026-10-14");
   }
 });
 
@@ -88,62 +66,36 @@ afterAll(async () => {
   await admin.$disconnect();
 });
 
-describe("row-level security on module_deadlines", () => {
-  it("shows each user only their own deadlines", async () => {
-    const rows = await asUser<{ user_id: string }[]>(ALICE, `select user_id from module_deadlines`);
-
-    expect(rows.map((r) => r.user_id)).toEqual([ALICE]);
-  });
-
-  it("lets a learner commit a deadline on their own module", async () => {
-    const rows = await asUser<unknown[]>(ALICE, INSERT, ALICE, trackOf[ALICE], "2026-10-20");
-
-    expect(rows).toHaveLength(1);
-  });
-
-  it("refuses a deadline owned by someone else", async () => {
-    await expect(asUser(ALICE, INSERT, BOB, trackOf[BOB], "2026-10-20")).rejects.toThrow(
-      /row-level security/u,
-    );
-  });
-
-  it("refuses a deadline of your own on another user's module", async () => {
-    await expect(asUser(ALICE, INSERT, ALICE, trackOf[BOB], "2026-10-20")).rejects.toThrow(
-      /row-level security/u,
-    );
-  });
-
-  it("does not let a deadline be rewritten, even by its owner", async () => {
-    // A move is a new row. Rewriting the first one would turn "moved twice" into
-    // "kept the date it was given".
-    const updated = await asUser<unknown[]>(
+describe("missions_calendar_shape", () => {
+  const insertMission = (weeks: number | null, startsOn: string | null) =>
+    admin.$executeRawUnsafe(
+      `insert into missions (id, user_id, topic, status, weeks, starts_on, created_at, updated_at)
+       values (gen_random_uuid(), $1::uuid, 'Weeks', 'active', $2::smallint, $3::date, now(), now())`,
       ALICE,
-      `update module_deadlines set due_on = '2026-12-31' where user_id = $1::uuid returning id`,
-      ALICE,
+      weeks,
+      startsOn,
     );
 
-    expect(updated).toEqual([]);
+  it("takes both facts, or neither for a mission from before weeks", async () => {
+    await expect(insertMission(6, "2026-10-05")).resolves.toBe(1);
+    await expect(insertMission(null, null)).resolves.toBe(1);
   });
 
-  it("lets the owner delete their own, and nobody else's", async () => {
-    const deleted = await asUser<unknown[]>(
-      ALICE,
-      `delete from module_deadlines where user_id = $1::uuid returning id`,
-      BOB,
-    );
-    expect(deleted).toEqual([]);
-
-    const bobs = await admin.$queryRawUnsafe<unknown[]>(
-      `select id from module_deadlines where user_id = $1::uuid`,
-      BOB,
-    );
-    expect(bobs).toHaveLength(1);
+  it("refuses a length with no start, or a start with no length", async () => {
+    await expect(insertMission(6, null)).rejects.toThrow(/missions_calendar_shape/u);
+    await expect(insertMission(null, "2026-10-05")).rejects.toThrow(/missions_calendar_shape/u);
   });
 
-  it("refuses a date in the wrong century", async () => {
-    await expect(
-      admin.$executeRawUnsafe(INSERT, ALICE, trackOf[ALICE], "2206-10-14"),
-    ).rejects.toThrow(/module_deadlines_due_on_plausible/u);
+  it("refuses a length outside one to fifty-two weeks", async () => {
+    await expect(insertMission(0, "2026-10-05")).rejects.toThrow(/missions_calendar_shape/u);
+    await expect(insertMission(53, "2026-10-05")).rejects.toThrow(/missions_calendar_shape/u);
+  });
+
+  it("has no module_deadlines table any more — the calendar replaced it", async () => {
+    const [row] = await admin.$queryRawUnsafe<{ exists: boolean }[]>(
+      `select to_regclass('public.module_deadlines') is not null as exists`,
+    );
+    expect(row!.exists).toBe(false);
   });
 });
 
@@ -180,5 +132,30 @@ describe("lessons.kind", () => {
 
   it("refuses a planned exam — the plan does not plan exams", async () => {
     await expect(insertLesson("exam", "planned", 11)).rejects.toThrow(/lessons_exam_shape/u);
+  });
+});
+
+describe("tracks.week (FR-B4)", () => {
+  const insertTrack = (slug: string, week: number | null) =>
+    admin.$executeRawUnsafe(
+      `insert into tracks (id, user_id, mission_id, slug, name, position, status, week, created_at, updated_at)
+       values (gen_random_uuid(), $1::uuid, $2::uuid, $3, $3, 9, 'proposed', $4::smallint, now(), now())`,
+      ALICE,
+      missionOf[ALICE],
+      slug,
+      week,
+    );
+
+  it("gives one module per week of a mission, whatever the plan does later", async () => {
+    await expect(insertTrack("week-three", 3)).resolves.toBe(1);
+    await expect(insertTrack("also-three", 3)).rejects.toThrow(/tracks_one_per_week_key/u);
+    // No calendar, no week: as many as you like.
+    await expect(insertTrack("no-week-a", null)).resolves.toBe(1);
+    await expect(insertTrack("no-week-b", null)).resolves.toBe(1);
+  });
+
+  it("refuses a week outside one to fifty-two", async () => {
+    await expect(insertTrack("week-zero", 0)).rejects.toThrow(/tracks_week_range/u);
+    await expect(insertTrack("week-53", 53)).rejects.toThrow(/tracks_week_range/u);
   });
 });

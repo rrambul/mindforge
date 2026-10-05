@@ -177,7 +177,11 @@ function exerciseSection(exercise: ExerciseDeclaration): string {
   return `
     <section data-mindforge="exercise">
       <h2>${escapeHtml(exercise.title)}</h2>
-      <p>The editor is beside this lesson. Run the tests until they pass.</p>
+      <p>${
+        exercise.kind === "lab"
+          ? "The lab is beside this lesson: its cost, its steps, the check and the cleanup."
+          : "The editor is beside this lesson. Run the tests until they pass."
+      }</p>
     </section>
     <script type="${EXERCISE_SCRIPT_TYPE}">
 ${json}

@@ -1,8 +1,10 @@
 import {
   addDays,
+  calendarDaysBetween,
   dayOfWeek,
   eachDay,
   ExerciseDeclarationSchema,
+  firstWeekStart,
   type ExerciseDeclaration,
   type IsoDate,
 } from "@mindforge/core";
@@ -98,6 +100,32 @@ interface TrackSpec {
  * rather than as an exercise panel that silently renders nothing.
  */
 const EXERCISES: Readonly<Record<string, readonly ExerciseDeclaration[]>> = {
+  "bucket-policies": [
+    ExerciseDeclarationSchema.parse({
+      key: "lock-the-bucket",
+      kind: "lab",
+      platform: "aws",
+      title: "Lock a bucket to one role",
+      prompt:
+        "In your own AWS account, create a bucket only one role can read, then prove it from the CLI.",
+      steps: [
+        "Create a bucket named mindforge-lab-<your-initials>, with Block Public Access left on.",
+        "Create a role named mindforge-reader that your user can assume.",
+        "Attach a bucket policy that allows s3:GetObject to that role's ARN and nothing else.",
+        "Upload any small text file, then try to read it as yourself and as the role.",
+      ],
+      verify: {
+        command:
+          "aws s3 cp s3://mindforge-lab-<your-initials>/hello.txt - --profile mindforge-reader",
+        expect: "The file's contents as the role, and AccessDenied when you run it as yourself.",
+      },
+      cost: "Free tier: one bucket with one small object costs nothing.",
+      cleanup: [
+        "aws s3 rb s3://mindforge-lab-<your-initials> --force",
+        "Delete the mindforge-reader role in IAM.",
+      ],
+    }),
+  ],
   "moves-and-copies": [
     ExerciseDeclarationSchema.parse({
       key: "longest-word",
@@ -361,6 +389,62 @@ const DIST_TRACKS: readonly TrackSpec[] = [
   },
 ];
 
+/**
+ * A mission planned in weeks (FR-B1): three modules of five lessons, one per day.
+ *
+ * Week 1 was done Sunday to Thursday as planned, and its exam is half passed, so the
+ * week is over and the module is not finished. Two lessons of week 2 were done over
+ * the weekend, ahead of their days; the rest of the plan is ahead. One lesson carries
+ * a lab in a real AWS account (FR-X11) — the practical kind this mission is for.
+ */
+const AWS_TRACKS: readonly TrackSpec[] = [
+  {
+    slug: "s3-and-iam",
+    name: "Storage and permissions",
+    outcome: "Lock an S3 bucket to one role and prove nobody else can read it.",
+    prereqs: [],
+    status: "active",
+    lessons: [
+      ["iam-users-and-roles", "Users, roles and who is asking", "understood"],
+      ["policy-documents", "Reading a policy document", "understood"],
+      ["s3-buckets", "Buckets, objects and their owners", "shaky"],
+      ["bucket-policies", "Bucket policies in practice", "understood"],
+      ["least-privilege", "Least privilege, measured", "understood"],
+    ],
+  },
+  {
+    slug: "lambda",
+    name: "Lambda",
+    outcome: "Deploy a function that reacts to an upload and logs what it saw.",
+    prereqs: ["s3-and-iam"],
+    status: "proposed",
+    lessons: [
+      ["handlers-and-events", "Handlers and events", "understood"],
+      ["execution-roles", "Execution roles", "understood"],
+    ],
+    planned: [
+      ["packaging", "Packaging and layers", 3, "working", ["handlers-and-events"]],
+      ["s3-triggers", "Triggers from S3", 3, "working", ["execution-roles"]],
+      ["observability", "Logs and metrics", 2, "overview", ["s3-triggers"]],
+    ],
+  },
+  {
+    slug: "api-gateway",
+    name: "HTTP APIs",
+    outcome: "Put a Lambda behind an HTTP API with auth and a sane error shape.",
+    prereqs: ["lambda"],
+    status: "proposed",
+    lessons: [],
+    planned: [
+      ["routes-and-integrations", "Routes and integrations", 2, "overview", []],
+      ["request-validation", "Validating a request", 3, "working", ["routes-and-integrations"]],
+      ["jwt-authorizers", "JWT authorizers", 4, "working", ["request-validation"]],
+      ["error-shapes", "Errors a client can use", 3, "working", ["request-validation"]],
+      ["throttling", "Throttling and quotas", 3, "overview", ["jwt-authorizers"]],
+    ],
+  },
+];
+
 async function main(): Promise<void> {
   const options = parseOptions(process.argv.slice(2));
   const prisma = connect();
@@ -380,7 +464,10 @@ async function main(): Promise<void> {
     // the data is perfectly correct.
     const files = workspaceUploader();
 
-    const missions = await seedMissions(prisma, userId, from);
+    // A week start 7–13 days ago, so week 1 is over and week 2 holds today. The
+    // profile's weeks start on Sunday (`configureProfile`), and so does this.
+    const awsStartsOn = firstWeekStart(addDays(today, -13), 0);
+    const missions = await seedMissions(prisma, userId, from, awsStartsOn);
     const finishedByMission = new Map<string, FinishedLesson[]>();
     const lessons = {
       count: 0,
@@ -413,6 +500,23 @@ async function main(): Promise<void> {
         lessons,
         files,
         finishedByMission,
+      )) +
+      (await seedCurriculum(
+        prisma,
+        userId,
+        missions[3]!,
+        "aws-serverless",
+        AWS_TRACKS,
+        from,
+        // The day before week 1, so its first lesson lands on day 1.
+        calendarDaysBetween(from, awsStartsOn) - 1,
+        tz,
+        lessons,
+        files,
+        finishedByMission,
+        // One lesson a day, the cadence a weekly mission is planned at.
+        1,
+        true,
       ));
 
     const activeDays = chooseActiveDays(from, today, r);
@@ -453,6 +557,7 @@ async function seedMissions(
   prisma: ReturnType<typeof connect>,
   userId: string,
   from: IsoDate,
+  awsStartsOn: IsoDate,
 ): Promise<Named[]> {
   const specs = [
     {
@@ -481,6 +586,17 @@ async function seedMissions(
       workspaceKey: "sight-reading",
       offset: 45,
     },
+    {
+      // Planned in weeks (FR-B1), created the day before its first week.
+      topic: "AWS serverless, by doing",
+      why: "I can read the docs; I have never deployed anything I would trust.",
+      successLooksLike: "An upload triggers a function behind an authenticated API, in my account.",
+      status: "active",
+      workspaceKey: "aws-serverless",
+      offset: calendarDaysBetween(from, awsStartsOn) - 1,
+      weeks: 3,
+      startsOn: awsStartsOn,
+    },
   ];
 
   const created: Named[] = [];
@@ -495,6 +611,9 @@ async function seedMissions(
           successLooksLike: spec.successLooksLike,
           status: spec.status,
           workspaceKey: spec.workspaceKey,
+          ...("weeks" in spec
+            ? { weeks: spec.weeks, startsOn: new Date(`${spec.startsOn}T00:00:00.000Z`) }
+            : {}),
           createdAt,
           updatedAt: createdAt,
         },
@@ -524,6 +643,10 @@ async function seedCurriculum(
   tally: { count: number; completed: number; planned: number },
   files: WorkspaceUploader | null,
   finishedByMission: Map<string, FinishedLesson[]>,
+  /** Days between finished lessons; omitted, the irregular 4–6 of the older missions. */
+  stepDays?: number,
+  /** The mission is planned in weeks, so its modules are pinned to them. */
+  weekly?: boolean,
 ): Promise<number> {
   const bySlug = new Map<string, string>();
 
@@ -537,6 +660,9 @@ async function seedCurriculum(
         outcome: spec.outcome,
         position: index + 1,
         status: spec.status,
+        // A weekly mission's module is pinned to its week as the reindexer would pin
+        // it (`pinWeeks`): module k, week k.
+        ...(weekly === true ? { week: index + 1 } : {}),
       },
       select: { id: true },
     });
@@ -568,7 +694,7 @@ async function seedCurriculum(
       seq += 1;
       tally.count += 1;
       // Lessons complete every few days; the last ones land well inside the window.
-      day = addDays(day, 4 + (seq % 3));
+      day = addDays(day, stepDays ?? 4 + (seq % 3));
       const completedAt = outcome === null ? null : at(day, 21, 30, tz);
       if (outcome !== null) tally.completed += 1;
 
@@ -630,32 +756,18 @@ async function seedCurriculum(
   await seedLibrary(prisma, userId, mission, workspaceKey, written, tz, files);
 
   await seedPlan(prisma, userId, mission, tracks, bySlug, tally);
-  await seedExamAndDeadline(
-    prisma,
-    userId,
-    mission.id,
-    workspaceKey,
-    tracks,
-    bySlug,
-    seq + 1,
-    tz,
-    files,
-  );
+  await seedExam(prisma, userId, mission.id, workspaceKey, tracks, bySlug, seq + 1, files);
 
   return tracks.length;
 }
 
 /**
- * One exam and one moved deadline per mission (FR-E6, FR-U2), so the curriculum
- * screen has each state to show.
- *
- * - **The exam** goes on the first module whose seeded lessons are all finished:
- *   two items, one passed and one failed, so the screen shows "1 of 2" and names
- *   the lesson to revisit — the state the exam exists for, rather than a clean pass.
- * - **The deadline** goes on the first module with work left, committed ten days ago
- *   and moved once two days ago, so "first committed for…, and moved once" renders.
+ * One exam per mission (FR-E6), on the first module whose seeded lessons are all
+ * finished: two items, one passed and one failed, so the screen shows "1 of 2" and
+ * names the lesson to revisit — the state the exam exists for, rather than a clean
+ * pass.
  */
-async function seedExamAndDeadline(
+async function seedExam(
   prisma: ReturnType<typeof connect>,
   userId: string,
   missionId: string,
@@ -663,10 +775,13 @@ async function seedExamAndDeadline(
   tracks: readonly TrackSpec[],
   bySlug: ReadonlyMap<string, string>,
   seq: number,
-  tz: string,
   files: WorkspaceUploader | null,
 ): Promise<void> {
-  const examined = tracks.find((spec) => spec.lessons.every(([, , outcome]) => outcome !== null));
+  // `every` is true of an empty list, and a module with nothing written has nothing
+  // to examine.
+  const examined = tracks.find(
+    (spec) => spec.lessons.length > 0 && spec.lessons.every(([, , outcome]) => outcome !== null),
+  );
   if (examined !== undefined) {
     const [first, second] = examined.lessons;
     const items: ExerciseDeclaration[] = [first, second]
@@ -725,21 +840,6 @@ async function seedExamAndDeadline(
         },
       });
     }
-  }
-
-  const unfinished = tracks.find((spec) => spec.lessons.some(([, , outcome]) => outcome === null));
-  if (unfinished !== undefined) {
-    const trackId = bySlug.get(unfinished.slug)!;
-    // Relative to the database's own clock, like every other "ago" in a seed that
-    // has to look current whenever it is run.
-    await prisma.$executeRawUnsafe(
-      `insert into module_deadlines (user_id, track_id, due_on, created_at) values
-         ($1::uuid, $2::uuid, ((now() at time zone $3)::date + 3), now() - interval '10 days'),
-         ($1::uuid, $2::uuid, ((now() at time zone $3)::date + 9), now() - interval '2 days')`,
-      userId,
-      trackId,
-      tz,
-    );
   }
 }
 

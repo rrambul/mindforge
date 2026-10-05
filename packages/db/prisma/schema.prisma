@@ -60,7 +60,6 @@ model Profile {
   lessons          Lesson[]
   exerciseAttempts ExerciseAttempt[]
   exerciseHints    ExerciseHint[]
-  moduleDeadlines  ModuleDeadline[]
   referenceDocs    ReferenceDoc[]
   learningRecords  LearningRecord[]
   workspaceFiles   WorkspaceFile[]
@@ -72,24 +71,31 @@ model Profile {
 }
 
 model Mission {
-  id               String   @id @default(uuid()) @db.Uuid
-  userId           String   @map("user_id") @db.Uuid
+  id               String    @id @default(uuid()) @db.Uuid
+  userId           String    @map("user_id") @db.Uuid
   topic            String
   why              String?
-  successLooksLike String?  @map("success_looks_like")
+  successLooksLike String?   @map("success_looks_like")
   constraints      String?
-  currentLevel     String?  @map("current_level")
+  currentLevel     String?   @map("current_level")
   /// active | parked | completed | abandoned. Parked is not archived — the
   /// curriculum and its history stay (FR-M3).
-  status           String   @default("active")
+  status           String    @default("active")
   /// Storage prefix under `workspaces/<user_id>/`. Set once at first
   /// materialisation: renaming a mission must not move files. Unique per user,
   /// not globally — the path is already scoped by user id, and a global unique
   /// would let the first account to claim `rust` take it from everyone and leak
   /// that it had, through the 409.
-  workspaceKey     String?  @map("workspace_key")
-  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt        DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  workspaceKey     String?   @map("workspace_key")
+  /// How many weeks: one module per week, five lessons and an exam in each
+  /// (FR-B1, FR-B2). Null for a mission created before missions had weeks, and
+  /// null together with `startsOn` — CHECKed in SQL (`missions_calendar_shape`).
+  weeks            Int?      @db.SmallInt
+  /// The first day of week 1, a week start in the learner's profile. A calendar
+  /// day, never an instant. Fixed at creation (FR-B4).
+  startsOn         DateTime? @map("starts_on") @db.Date
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   profile         Profile           @relation(fields: [userId], references: [id], onDelete: Cascade)
   revisions       MissionRevision[]
@@ -142,18 +148,21 @@ model Track {
   /// `CURRICULUM.md` is marked `dropped`, never deleted: the agent rewrites the
   /// file wholesale, and a deletion would take a module of finished lessons.
   status    String  @default("proposed")
+  /// The week this module was first given, for a mission planned in weeks
+  /// (FR-B4). Pinned by the reindexer (`pinWeeks`) and never reassigned, so a
+  /// revised plan cannot move a date. A partial unique index on `(mission_id, week)`
+  /// lives in SQL only.
+  week      Int?    @db.SmallInt
 
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  profile   Profile          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  mission   Mission          @relation(fields: [missionId], references: [id], onDelete: Cascade)
-  prereqOf  TrackEdge[]      @relation("track")
-  requires  TrackEdge[]      @relation("trackPrereq")
+  profile   Profile     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  mission   Mission     @relation(fields: [missionId], references: [id], onDelete: Cascade)
+  prereqOf  TrackEdge[] @relation("track")
+  requires  TrackEdge[] @relation("trackPrereq")
   lessons   Lesson[]
   agentRuns AgentRun[]
-  /// Append-only commitments to finish this module by a date (FR-U2).
-  deadlines ModuleDeadline[]
 
   @@unique([missionId, slug])
   @@index([userId, missionId, position])
@@ -455,30 +464,6 @@ model ExerciseHint {
 /// Cascade on both sides, unlike `lessons.trackId`. An edge is not an artifact —
 /// it is a statement about two lessons, and when either end is gone it is no
 /// longer about anything.
-/// A commitment to finish a module — its lessons and its exam — by a day (FR-U2).
-///
-/// **Append-only**, with no UPDATE policy: moving a deadline adds a row, so the
-/// newest row is the date in force, the first is what was originally committed, and
-/// the count between them is how many times it moved. `currentDeadline` in
-/// `packages/core` reads them; nothing stores the derived values.
-///
-/// Learner data with no file, like `lessons.completed_at` — which is why it is not
-/// a column on `tracks`, a table the reindexer rewrites from `CURRICULUM.md`.
-model ModuleDeadline {
-  id        String   @id @default(uuid()) @db.Uuid
-  userId    String   @map("user_id") @db.Uuid
-  trackId   String   @map("track_id") @db.Uuid
-  /// A calendar day in the learner's timezone, never an instant (FR-U6).
-  dueOn     DateTime @map("due_on") @db.Date
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-
-  profile Profile @relation(fields: [userId], references: [id], onDelete: Cascade)
-  track   Track   @relation(fields: [trackId], references: [id], onDelete: Cascade)
-
-  @@index([userId, trackId, createdAt])
-  @@map("module_deadlines")
-}
-
 model LessonEdge {
   userId   String @map("user_id") @db.Uuid
   lessonId String @map("lesson_id") @db.Uuid
