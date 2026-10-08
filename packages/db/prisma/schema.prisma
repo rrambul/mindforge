@@ -94,6 +94,9 @@ model Mission {
   /// The first day of week 1, a week start in the learner's profile. A calendar
   /// day, never an instant. Fixed at creation (FR-B4).
   startsOn         DateTime? @map("starts_on") @db.Date
+  /// `assets/banner.svg` when the workspace has one, else null (FR-T10). Set by
+  /// the reindexer, CHECKed to that one path in SQL (`missions_banner_path`).
+  bannerPath       String?   @map("banner_path")
   createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt        DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
 
