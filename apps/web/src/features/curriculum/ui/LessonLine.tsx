@@ -44,6 +44,7 @@ export function LessonLine({ lesson, isNext, link, targetLink }: LessonLineProps
   const { t, i18n } = useTranslation("curriculum");
   const { t: g } = useTranslation("glossary");
   const strain = strainWords(lesson.strain, g);
+  const bridge = lesson.adjustment?.kind === "bridge";
 
   const state = lesson.completed
     ? "completed"
@@ -72,16 +73,28 @@ export function LessonLine({ lesson, isNext, link, targetLink }: LessonLineProps
       {lesson.intent === null ? null : <Text tone="hint">{lesson.intent}</Text>}
 
       <Text tone="hint">
-        {/* Its day on the week's calendar (FR-B3), when the mission has one. */}
-        {lesson.dueOn == null
-          ? ""
-          : `${t("lesson.dueOn", { date: formatNearDay(lesson.dueOn, i18n.language) })} · `}
-        {lesson.difficulty === null
-          ? t("lesson.difficultyUnknown")
-          : t("lesson.difficulty", { level: lesson.difficulty })}
-        {" · "}
-        {lesson.depth === null ? t("lesson.depthUnknown") : t(`depth.${lesson.depth}`)}
-        {lesson.status === "planned" ? ` · ${t("lesson.notWrittenYet")}` : ""}
+        {[
+          // Its day on the week's calendar (FR-B3), when the mission has one.
+          lesson.dueOn == null
+            ? null
+            : t("lesson.dueOn", { date: formatNearDay(lesson.dueOn, i18n.language) }),
+          // A bridge has no row in the plan, so no day, difficulty or depth: it says
+          // what it is instead of three blanks that read as something missing.
+          bridge ? t("lesson.bridge") : null,
+          lesson.difficulty === null
+            ? bridge
+              ? null
+              : t("lesson.difficultyUnknown")
+            : t("lesson.difficulty", { level: lesson.difficulty }),
+          lesson.depth === null
+            ? bridge
+              ? null
+              : t("lesson.depthUnknown")
+            : t(`depth.${lesson.depth}`),
+          lesson.status === "planned" ? t("lesson.notWrittenYet") : null,
+        ]
+          .filter((part) => part !== null)
+          .join(" · ")}
       </Text>
 
       {/* How it landed: only once it was judged. An unknown verdict renders nothing —

@@ -1,13 +1,14 @@
 import { useTranslation } from "react-i18next";
 
 import { CurriculumRoute } from "../features/curriculum/routes/CurriculumRoute.js";
+import { MissionBanner } from "../features/library/ui/MissionBanner.js";
 import { useMissions } from "../features/missions/api/use-missions.js";
 import { TeachPanel } from "../features/teach/ui/TeachPanel.js";
 import { RouterLink, Row } from "../shared/ui/index.js";
 
 /**
  * One mission's curriculum, composed with the things the feature may not
- * import (§2.2 rule 6): the mission it belongs to, the teach trigger, and the two
+ * import (§2.2 rule 6): the mission it belongs to, its banner, the teach trigger, and the two
  * routes that lead out of it — a lesson, and the library.
  *
  * The id arrives as a prop rather than from `useParams` here: reading it inside the
@@ -31,6 +32,7 @@ export function CurriculumScreen({ missionId }: { readonly missionId: string }) 
     <CurriculumRoute
       missionId={missionId}
       {...(mission ? { topic: mission.topic } : {})}
+      banner={<MissionBanner missionId={missionId} />}
       teach={<TeachPanel missionId={missionId} />}
       plan={<TeachPanel missionId={missionId} label={t("empty.action")} />}
       library={

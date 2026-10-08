@@ -1,7 +1,9 @@
 import {
   LearningRecordSchema,
+  MissionBannerSchema,
   ReferenceDocSchema,
   type LearningRecord,
+  type MissionBanner,
   type ReferenceDoc,
 } from "@mindforge/core";
 import { useQuery, type UseQueryResult } from "@tanstack/react-query";
@@ -43,7 +45,26 @@ export const libraryKeys = {
   referenceDocs: (missionId: string) => ["library", "reference", missionId] as const,
   records: (missionId: string, lessonId?: string) =>
     ["library", "records", missionId, lessonId ?? null] as const,
+  banner: (missionId: string) => ["library", "banner", missionId] as const,
 };
+
+/**
+ * Twenty minutes against a thirty-minute grant. The URL is signed, so a fetch is a
+ * new URL and a new download of the same picture; refetching on every focus would
+ * redraw the top of the page for nothing. An image already drawn stays drawn after
+ * its grant expires, and the next refetch lands well before a fresh mount could
+ * be handed a dead one.
+ */
+const BANNER_STALE_MS = 20 * 60 * 1000;
+
+/** The mission's banner (FR-T10): a signed URL, or null when there is none. */
+export function useMissionBanner(missionId: string): UseQueryResult<MissionBanner> {
+  return useQuery({
+    queryKey: libraryKeys.banner(missionId),
+    queryFn: ({ signal }) => api.get(`/missions/${missionId}/banner`, MissionBannerSchema, signal),
+    staleTime: BANNER_STALE_MS,
+  });
+}
 
 /**
  * `staleTime: 0`, for the same reason the lesson query has it: every URL in the

@@ -13,6 +13,8 @@ export interface CurriculumRouteProps {
   readonly missionId: string;
   /** The mission's topic, from the route that already has it. */
   readonly topic?: string;
+  /** The mission's banner above its heading (FR-T10), from the library feature. */
+  readonly banner?: ReactNode;
   /** "Teach me the next thing", handed in by the app layer (§2.2 rule 6). */
   readonly teach?: ReactNode;
   /**
@@ -58,6 +60,7 @@ export interface CurriculumRouteProps {
 export function CurriculumRoute({
   missionId,
   topic,
+  banner,
   teach,
   lessonLink,
   targetLink,
@@ -69,6 +72,7 @@ export function CurriculumRoute({
 
   return (
     <Stack gap="loose">
+      {banner}
       <Heading level={1}>{topic ?? t("heading")}</Heading>
 
       <Loaded query={curriculum}>

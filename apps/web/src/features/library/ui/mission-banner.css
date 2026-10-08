@@ -1,0 +1,11 @@
+/* The mission's banner (FR-T10). A fixed 4:1 frame, so artwork drawn at any size
+   crops rather than reflowing the page, and a phone gets a strip, not a poster. */
+.mf-mission-banner {
+  display: block;
+  width: 100%;
+  aspect-ratio: 4 / 1;
+  object-fit: cover;
+  border: 1px solid var(--mf-scale);
+  border-radius: var(--mf-r-lg);
+  background: var(--mf-ground);
+}

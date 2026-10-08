@@ -91,6 +91,21 @@ function render() {
 }
 
 describe("the modules", () => {
+  it("puts the mission's banner above its heading (FR-T10)", async () => {
+    returns({ modules: [module()] });
+    renderWithProviders(
+      <CurriculumRoute
+        missionId={MISSION}
+        topic="Postgres RLS"
+        banner={<div data-testid="banner" />}
+      />,
+    );
+
+    const heading = await screen.findByRole("heading", { level: 1, name: "Postgres RLS" });
+    const banner = screen.getByTestId("banner");
+    expect(banner.compareDocumentPosition(heading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
   it("shows each module with what it is for and how far through it you are", async () => {
     returns({ modules: [module({ progress: { completed: 2, total: 7 } })] });
     render();
@@ -157,6 +172,34 @@ describe("the lessons", () => {
     expect(
       within(unrated).getByText(/Difficulty not recorded · Depth not recorded/u),
     ).toBeInTheDocument();
+  });
+
+  it("calls a bridge a bridge rather than a lesson the plan forgot to rate", async () => {
+    returns({
+      modules: [
+        module({
+          lessons: [
+            lesson({
+              slug: "step",
+              title: "Does this statement apply?",
+              status: "generated",
+              difficulty: null,
+              depth: null,
+              adjustment: {
+                kind: "bridge",
+                reason: "Finished 0002 only after seeing the shape of the solution",
+                bridgeFor: { id: crypto.randomUUID(), title: "Users, roles and policies" },
+              },
+            }),
+          ],
+        }),
+      ],
+    });
+    render();
+
+    const line = (await screen.findByText("Does this statement apply?")).closest("li")!;
+    expect(within(line).getByText("Bridge lesson, no day of its own")).toBeInTheDocument();
+    expect(within(line).queryByText(/not recorded/u)).toBeNull();
   });
 
   it("says what a locked lesson is waiting for", async () => {

@@ -25,6 +25,7 @@
     "difficulty": "Difficulty {level} of 5",
     "difficultyUnknown": "Difficulty not recorded",
     "depthUnknown": "Depth not recorded",
+    "bridge": "Bridge lesson, no day of its own",
     "notWrittenYet": "not written yet",
     "lockedBy": "Waiting on {lessons}",
     "lockedUnnamed": "Waiting on an earlier lesson",
