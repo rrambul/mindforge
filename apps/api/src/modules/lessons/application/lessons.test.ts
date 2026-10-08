@@ -5,8 +5,8 @@ import { FixedClock } from "../../../shared/time/clock.js";
 import { LessonIsExam, LessonNotFound, LessonNotWritten } from "../domain/errors.js";
 import type { LessonRecord, LessonRepository } from "../domain/lesson.repository.js";
 import { ClearLessonCompletion, CompleteLesson, GetLesson } from "./lessons.use-cases.js";
-import type { LibraryReader, MissionLibrary } from "./library.port.js";
-import { ReadLearningRecords, ReadReferenceLibrary } from "./read-library.js";
+import type { LibraryReader, MissionBannerFile, MissionLibrary } from "./library.port.js";
+import { ReadLearningRecords, ReadMissionBanner, ReadReferenceLibrary } from "./read-library.js";
 import { ViewGrants } from "./view-grants.js";
 
 /**
@@ -242,6 +242,10 @@ describe("the reference library", () => {
     learningRecords(): Promise<null> {
       return Promise.resolve(null);
     }
+
+    banner(): Promise<null> {
+      return Promise.resolve(null);
+    }
   }
 
   function libraryOf(library: MissionLibrary | null): ReadReferenceLibrary {
@@ -307,6 +311,10 @@ describe("learning records", () => {
       this.asked = { missionId, lessonId };
       return Promise.resolve([]);
     }
+
+    banner(): Promise<null> {
+      return Promise.resolve(null);
+    }
   }
 
   it("passes the lesson filter through, which is what links a record to its lesson", async () => {
@@ -320,10 +328,54 @@ describe("learning records", () => {
     const reader: LibraryReader = {
       referenceDocs: () => Promise.resolve(null),
       learningRecords: () => Promise.resolve(null),
+      banner: () => Promise.resolve(null),
     };
 
     await expect(new ReadLearningRecords(reader).execute(ALICE, MISSION)).rejects.toMatchObject({
       status: 404,
     });
+  });
+});
+
+describe("the mission banner (FR-T10)", () => {
+  function bannerOf(file: MissionBannerFile | null): ReadMissionBanner {
+    const reader: LibraryReader = {
+      referenceDocs: () => Promise.resolve(null),
+      learningRecords: () => Promise.resolve(null),
+      banner: () => Promise.resolve(file),
+    };
+    return new ReadMissionBanner(reader, new ViewGrants(CONFIG, new FixedClock(NOW)));
+  }
+
+  it("signs a URL for the banner inside the mission's own workspace", async () => {
+    const view = await bannerOf({ workspaceKey: "rust", storagePath: "assets/banner.svg" }).execute(
+      ALICE,
+      MISSION,
+    );
+
+    const url = new URL(view.url!);
+    expect(url.pathname.endsWith("/assets/banner.svg")).toBe(true);
+    const grant = await verifyViewToken(url.pathname.split("/")[2]!, SECRET, NOW.getTime() / 1000);
+    expect(grant?.prefix).toBe(`workspaces/${ALICE}/rust`);
+    expect(view.expiresAt).not.toBeNull();
+  });
+
+  it("mints nothing when the workspace has no banner, so the page draws nothing", async () => {
+    const view = await bannerOf({ workspaceKey: "rust", storagePath: null }).execute(
+      ALICE,
+      MISSION,
+    );
+
+    expect(view).toEqual({ url: null, expiresAt: null });
+  });
+
+  it("mints nothing for a mission that has never been materialised", async () => {
+    const view = await bannerOf({ workspaceKey: null, storagePath: null }).execute(ALICE, MISSION);
+
+    expect(view).toEqual({ url: null, expiresAt: null });
+  });
+
+  it("404s a mission that is not yours", async () => {
+    await expect(bannerOf(null).execute(ALICE, MISSION)).rejects.toMatchObject({ status: 404 });
   });
 });

@@ -482,6 +482,18 @@ export class PrismaWorkspaceIndexRepository implements WorkspaceIndexRepository 
       );
     });
   }
+
+  async saveBanner(userId: string, missionId: string, path: string | null): Promise<void> {
+    await this.db.run(userId, async (tx) => {
+      // `updated_at` is left alone: it is when the learner last changed the
+      // mission, and a picture landing is not that.
+      await tx.$executeRawUnsafe(
+        `update missions set banner_path = $2 where id = $1::uuid`,
+        missionId,
+        path,
+      );
+    });
+  }
 }
 
 /**

@@ -50,6 +50,7 @@ function harness(weeks: number | null = null) {
     forgotten: [] as string[],
     tracks: [] as IndexedTrack[],
     planned: [] as IndexedPlannedLesson[],
+    banners: [] as (string | null)[],
   };
 
   /** Track slugs the mission already has, for the run that writes no curriculum. */
@@ -80,6 +81,10 @@ function harness(weeks: number | null = null) {
     },
     forgetPaths: (_u, _m, paths) => {
       saved.forgotten.push(...paths);
+      return Promise.resolve();
+    },
+    saveBanner: (_u, _m, path) => {
+      saved.banners.push(path);
       return Promise.resolve();
     },
   };
@@ -184,6 +189,33 @@ describe("which files become rows", () => {
     });
 
     expect(h.saved.forgotten).toEqual(["lessons/0007-rls.html"]);
+  });
+});
+
+describe("the banner (FR-T10)", () => {
+  it("records the banner a sync carries", async () => {
+    await run({ "assets/banner.svg": "<svg/>" });
+
+    expect(h.saved.banners).toEqual(["assets/banner.svg"]);
+  });
+
+  it("clears it when the sync deletes it", async () => {
+    await h.reindex.execute({
+      userId: USER,
+      missionId: MISSION,
+      files: new Map(),
+      deleted: ["assets/banner.svg"],
+      timezone: "UTC",
+    });
+
+    expect(h.saved.banners).toEqual([null]);
+  });
+
+  it("leaves it alone when the sync neither carries nor deletes it", async () => {
+    // A `put:workspace` of one lesson has decided nothing about the banner.
+    await run({ "lessons/0007-rls.html": LESSON, "assets/other.svg": "<svg/>" });
+
+    expect(h.saved.banners).toEqual([]);
   });
 });
 

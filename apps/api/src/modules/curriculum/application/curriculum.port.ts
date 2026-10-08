@@ -88,6 +88,8 @@ export interface CurriculumRows {
   /** The mission's calendar (FR-B1); null for a mission created before weeks. */
   readonly calendar: { readonly weeks: number; readonly startsOn: IsoDate } | null;
   readonly pace: PaceRows;
+  /** When the mission was created: the pace window starts no earlier (FR-U1). */
+  readonly missionCreatedAt: Date;
 }
 
 /**

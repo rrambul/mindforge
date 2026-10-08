@@ -38,8 +38,16 @@ export interface MissionLibrary {
   readonly referenceDocs: readonly ReferenceDocRow[];
 }
 
+/** Whether a mission's workspace holds a banner, and where its files live. */
+export interface MissionBannerFile {
+  /** The mission's Storage prefix segment. Null before the first teach run. */
+  readonly workspaceKey: string | null;
+  /** Workspace-relative, as the reindexer recorded it. Null when there is none. */
+  readonly storagePath: string | null;
+}
+
 /**
- * The two browsable collections a workspace produces.
+ * The two browsable collections a workspace produces, and its banner.
  *
  * Both return null when the mission is not this user's — the same answer as one
  * that does not exist, because "it exists but is not yours" is itself something to
@@ -59,4 +67,10 @@ export interface LibraryReader {
     missionId: string,
     lessonId?: string,
   ): Promise<readonly LearningRecordRow[] | null>;
+
+  /**
+   * The banner, if the workspace has one (FR-T10). `missions.banner_path`, which
+   * the reindexer sets and clears from the files, by either route that lands them.
+   */
+  banner(userId: string, missionId: string): Promise<MissionBannerFile | null>;
 }

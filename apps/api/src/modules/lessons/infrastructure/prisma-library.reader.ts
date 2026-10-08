@@ -4,6 +4,7 @@ import { USER_SCOPED_DB, type UserScopedDb } from "../../../shared/persistence/u
 import type {
   LearningRecordRow,
   LibraryReader,
+  MissionBannerFile,
   MissionLibrary,
 } from "../application/library.port.js";
 
@@ -108,6 +109,17 @@ export class PrismaLibraryReader implements LibraryReader {
         next: row.next,
         recordedAt: row.recorded_at,
       }));
+    });
+  }
+
+  banner(userId: string, missionId: string): Promise<MissionBannerFile | null> {
+    return this.db.run(userId, async (tx) => {
+      const [mission] = await tx.$queryRawUnsafe<
+        { workspace_key: string | null; banner_path: string | null }[]
+      >(`select workspace_key, banner_path from missions where id = $1::uuid`, missionId);
+      if (mission === undefined) return null;
+
+      return { workspaceKey: mission.workspace_key, storagePath: mission.banner_path };
     });
   }
 }

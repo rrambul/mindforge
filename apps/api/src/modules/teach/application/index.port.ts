@@ -176,4 +176,7 @@ export interface WorkspaceIndexRepository {
 
   /** Rows for files the workspace no longer has, so a deleted lesson leaves the library. */
   forgetPaths(userId: string, missionId: string, paths: readonly string[]): Promise<void>;
+
+  /** Record the mission's banner, or that it has none (FR-T10). */
+  saveBanner(userId: string, missionId: string, path: string | null): Promise<void>;
 }

@@ -1,14 +1,19 @@
-import { UuidSchema } from "@mindforge/core";
+import { UuidSchema, type MissionBanner } from "@mindforge/core";
 import { Controller, Get, Header, Param, Query } from "@nestjs/common";
 import { z } from "zod";
 
 import { CurrentUser } from "../../../shared/auth/current-user.decorator.js";
 import type { RequestContext } from "../../../shared/auth/request-context.js";
 import { zodPipe } from "../../../shared/validation/zod-validation.pipe.js";
-import { ReadLearningRecords, ReadReferenceLibrary } from "../application/read-library.js";
+import {
+  ReadLearningRecords,
+  ReadMissionBanner,
+  ReadReferenceLibrary,
+} from "../application/read-library.js";
 
 /**
- * `/v1/missions/:id/reference-docs` and `/v1/missions/:id/learning-records` (FR-T6).
+ * `/v1/missions/:id/reference-docs` and `/v1/missions/:id/learning-records` (FR-T6),
+ * and the mission's banner (FR-T10), which is one more signed workspace file.
  *
  * Under the mission, unlike the reader: neither collection means anything without
  * one, and a top-level list of every reference doc you own across every topic is a
@@ -49,7 +54,19 @@ export class LibraryController {
   constructor(
     private readonly reference: ReadReferenceLibrary,
     private readonly records: ReadLearningRecords,
+    private readonly banners: ReadMissionBanner,
   ) {}
+
+  /** Signed, so never cached — the reason `reference-docs` gives below. */
+  @Get(":missionId/banner")
+  @Header("Cache-Control", "no-store")
+  async banner(
+    @CurrentUser() user: RequestContext,
+    @Param("missionId", zodPipe(UuidSchema)) missionId: string,
+  ): Promise<MissionBanner> {
+    const banner = await this.banners.execute(user.userId, missionId);
+    return { url: banner.url, expiresAt: banner.expiresAt?.toISOString() ?? null };
+  }
 
   /**
    * Every URL in the list is signed and expires together, so this response must

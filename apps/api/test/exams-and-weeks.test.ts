@@ -343,10 +343,21 @@ describe("the pace projection", () => {
     await finish("moves", 1, 28);
     await finish("borrowing", 2, 30);
     await finish("traits", 3, 32);
+    // A mission older than the window, so the window is the full 28 days. One made a
+    // moment ago is measured over the one day it has existed (`paceWindowDays`).
+    await db.$executeRawUnsafe(
+      `update missions set created_at = now() - interval '60 days' where id = $1::uuid`,
+      missionId,
+    );
 
     const view = await curriculum();
 
-    expect(view.pace).toMatchObject({ status: "known", minutesPerLesson: 30, timedLessons: 3 });
+    expect(view.pace).toMatchObject({
+      status: "known",
+      minutesPerLesson: 30,
+      timedLessons: 3,
+      windowDays: 28,
+    });
     expect(moduleNamed(view, "ownership").projection).toEqual({
       status: "projected",
       units: 1,

@@ -57,6 +57,37 @@ export class ReadReferenceLibrary {
   }
 }
 
+export interface MissionBannerView {
+  readonly url: string | null;
+  readonly expiresAt: Date | null;
+}
+
+/**
+ * The mission's banner (FR-T10): a signed URL for `assets/banner.svg`, or nothing.
+ *
+ * Nothing is minted when there is no banner, for the reason the library gives:
+ * a working token for a file that does not exist is a grant with no purpose, and
+ * the page would draw a broken image where it should draw nothing at all.
+ */
+@Injectable()
+export class ReadMissionBanner {
+  constructor(
+    @Inject(LIBRARY_READER) private readonly library: LibraryReader,
+    private readonly grants: ViewGrants,
+  ) {}
+
+  async execute(userId: string, missionId: string): Promise<MissionBannerView> {
+    const found = await this.library.banner(userId, missionId);
+    if (found === null) throw new NotFoundException("mission_not_found");
+    if (found.workspaceKey === null || found.storagePath === null) {
+      return { url: null, expiresAt: null };
+    }
+
+    const grant = await this.grants.mint(userId, found.workspaceKey);
+    return { url: viewUrlFor(grant, found.storagePath), expiresAt: grant.expiresAt };
+  }
+}
+
 @Injectable()
 export class ReadLearningRecords {
   constructor(@Inject(LIBRARY_READER) private readonly library: LibraryReader) {}

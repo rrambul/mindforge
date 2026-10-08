@@ -92,6 +92,8 @@ function rows(over: Partial<CurriculumRows> = {}): CurriculumRows {
     exams: [],
     calendar: null,
     pace: NO_PACE,
+    // Long before NOW, so the pace window is the whole 28 days unless a test says so.
+    missionCreatedAt: new Date("2026-01-01T12:00:00Z"),
     ...over,
   };
 }
@@ -216,6 +218,16 @@ describe("GetCurriculum — the pace projection", () => {
       startDay: "2026-10-07",
       examDay: "2026-10-12",
     });
+  });
+
+  it("measures a young mission's pace over the days it has existed, not 28", async () => {
+    // Created on Sep 28, local; today is Oct 1: four days, so 280 minutes is 70 a day.
+    // Over 28 days it was 10, and the projection put the exam weeks too late.
+    const view = await curriculum(
+      new FakeReader(rows({ pace: PACE, missionCreatedAt: new Date("2026-09-28T15:00:00Z") })),
+    ).execute(USER, MISSION, TZ);
+
+    expect(view.pace).toMatchObject({ status: "known", minutesPerDay: 70, windowDays: 4 });
   });
 
   it("starts the chain at a module waiting on its exam, ahead of an earlier one with lessons left", async () => {
@@ -421,6 +433,42 @@ describe("GetCurriculum — the week calendar (FR-B1–B5)", () => {
       examToday: false,
     });
     expect(view.modules[1]!.week!.standing).toEqual({ kind: "upcoming", startsInDays: 3 });
+  });
+
+  it("lists a bridge after the lesson it bridges, and counts it in the week like the bar does", async () => {
+    // The AWS mission's week 1 on Oct 7: 0002 landed too hard, the run wrote a step
+    // toward it, and it had dropped to the bottom with "2 of 5" over "2 of 6".
+    const bridge = lesson("bridge", "t1", {
+      position: null,
+      difficulty: null,
+      seq: 3,
+      adjustment: { kind: "bridge", reason: "too hard", bridgeForSlug: "t1-l2" },
+    });
+    const view = await curriculum(
+      new FakeReader(weekly({ lessons: [...five("t1", 2), bridge, ...five("t2", 0)] })),
+    ).execute(USER, MISSION, TZ);
+
+    const week1 = view.modules[0]!;
+    expect(week1.lessons.map((l) => l.id)).toEqual([
+      "t1-l1",
+      "t1-l2",
+      "bridge",
+      "t1-l3",
+      "t1-l4",
+      "t1-l5",
+    ]);
+    // Taken next: it is the step before the rest of the week.
+    expect(view.nextLessonId).toBe("bridge");
+    expect(week1.progress).toEqual({ completed: 2, total: 6 });
+    // Six in the count, and still no day of its own: never behind, never due.
+    expect(week1.week!.standing).toMatchObject({ total: 6, completed: 2, behind: 2, dueToday: 1 });
+  });
+
+  it("opens a module once a lesson in it is finished, whatever the plan proposed", async () => {
+    const view = await curriculum(new FakeReader(weekly())).execute(USER, MISSION, TZ);
+
+    expect(view.modules[0]!.status).toBe("active");
+    expect(view.modules[1]!.status).toBe("proposed");
   });
 
   it("says a week with no lessons planned is not planned", async () => {

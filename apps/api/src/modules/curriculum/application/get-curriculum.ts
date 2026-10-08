@@ -12,10 +12,12 @@ import {
   moduleFinishedAt,
   moduleOutcomes,
   moduleProgress,
+  moduleStatus,
   nextAdjustment,
   nextLesson,
   orderModule,
   PACE_WINDOW_DAYS,
+  paceWindowDays,
   projectSchedule,
   resolveBridges,
   schedulePace,
@@ -88,8 +90,6 @@ export class GetCurriculum {
     const rows = await this.curriculum.read(userId, missionId, paceSince);
     if (rows === null) throw new NotFoundException("mission_not_found");
 
-    const nodes = rows.lessons.map(toNode);
-    const derived = deriveLessons(nodes);
     const titles = new Map(rows.lessons.map((lesson) => [lesson.id, lesson.title]));
     const byId = new Map(rows.lessons.map((lesson) => [lesson.id, lesson]));
     const bridges = resolveBridges(
@@ -102,6 +102,9 @@ export class GetCurriculum {
     );
     const linked = (id: string | undefined) =>
       id === undefined ? null : { id, title: titles.get(id) ?? "" };
+
+    const nodes = rows.lessons.map((lesson) => toNode(lesson, bridges.target.get(lesson.id)));
+    const derived = deriveLessons(nodes);
 
     const shown = rows.tracks.filter((track) => isShown(track, rows.lessons));
     // The order modules are taken in: their pinned weeks when the mission has a
@@ -154,7 +157,7 @@ export class GetCurriculum {
         slug: track.slug,
         name: track.name,
         outcome: track.outcome,
-        status: track.status,
+        status: moduleStatus(track.status, moduleProgress(inModule)),
         prerequisites: track.prerequisites,
         progress: moduleProgress(inModule),
         outcomes: moduleOutcomes(
@@ -225,7 +228,10 @@ export class GetCurriculum {
     // Queued behind an earlier module with work left, the module you are in would
     // be projected from a day you are not going to start it on. A dropped module is
     // still listed (it may hold finished lessons) and takes no time.
-    const pace = schedulePace(rows.pace);
+    const pace = schedulePace({
+      ...rows.pace,
+      windowDays: paceWindowDays(localDay(rows.missionCreatedAt, timezone), today),
+    });
     const work = modules.map((module): ModuleWork => ({
       id: module.id,
       dropped: module.status === "dropped",
@@ -371,7 +377,7 @@ function upcoming(lessons: readonly LessonRow[], bridges: Bridges): UpcomingAdju
   return { kind: "as-planned" };
 }
 
-function toNode(lesson: LessonRow): LessonNode {
+function toNode(lesson: LessonRow, bridgeForId: string | undefined): LessonNode {
   return {
     id: lesson.id,
     trackId: lesson.trackId,
@@ -381,6 +387,7 @@ function toNode(lesson: LessonRow): LessonNode {
     seq: lesson.seq,
     completed: lesson.completedAt !== null,
     prerequisiteIds: lesson.prerequisiteIds,
+    bridgeForId: bridgeForId ?? null,
   };
 }
 

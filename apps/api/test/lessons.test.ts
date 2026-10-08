@@ -1,7 +1,7 @@
 import { verifyViewToken } from "@mindforge/core";
 import type { PrismaClient } from "@mindforge/db";
 import type { NestFastifyApplication } from "@nestjs/platform-fastify";
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import type { LessonView } from "../src/modules/lessons/presentation/lesson.view.js";
 import type {
@@ -296,6 +296,53 @@ describe("the library (FR-T6)", () => {
   it("404s both collections for a mission that is not yours", async () => {
     expect((await get(`/v1/missions/${missionId}/reference-docs`, bob)).statusCode).toBe(404);
     expect((await get(`/v1/missions/${missionId}/learning-records`, bob)).statusCode).toBe(404);
+  });
+});
+
+describe("the mission banner (FR-T10)", () => {
+  async function indexed(path: string | null) {
+    await db.$executeRawUnsafe(
+      `update missions set banner_path = $2 where id = $1::uuid`,
+      missionId,
+      path,
+    );
+  }
+
+  afterEach(async () => {
+    await indexed(null);
+  });
+
+  it("offers nothing until the reindexer has seen a banner", async () => {
+    const response = await get(`/v1/missions/${missionId}/banner`, alice);
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({ url: null, expiresAt: null });
+  });
+
+  it("signs the banner inside the mission's own workspace", async () => {
+    await indexed("assets/banner.svg");
+
+    const response = await get(`/v1/missions/${missionId}/banner`, alice);
+    expect(response.headers["cache-control"]).toBe("no-store");
+
+    const body = response.json<{ url: string; expiresAt: string }>();
+    const url = new URL(body.url);
+    const grant = await verifyViewToken(
+      url.pathname.split("/")[2]!,
+      SECRET,
+      Math.floor(Date.now() / 1000),
+    );
+    expect(grant?.prefix).toBe(`workspaces/${alice.id}/${WORKSPACE_KEY}`);
+    expect(url.pathname.endsWith("/assets/banner.svg")).toBe(true);
+  });
+
+  it("404s a mission that is not yours", async () => {
+    await indexed("assets/banner.svg");
+
+    expect((await get(`/v1/missions/${missionId}/banner`, bob)).statusCode).toBe(404);
+  });
+
+  it("refuses any path but the banner's, so the column cannot aim the page at a lesson", async () => {
+    await expect(indexed("lessons/0001-x.html")).rejects.toThrow(/missions_banner_path/u);
   });
 });
 

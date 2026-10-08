@@ -30,11 +30,12 @@ export class PrismaCurriculumReader implements CurriculumReader {
       // returns no row here and the caller 404s — the same answer as one that does
       // not exist, because "yours or not" is itself worth not leaking.
       const [mission] = await tx.$queryRawUnsafe<
-        { id: string; weeks: number | null; starts_on: string | null }[]
+        { id: string; weeks: number | null; starts_on: string | null; created_at: Date }[]
       >(
         // `::text` on a date is `YYYY-MM-DD`: the learner's own day, with no instant
         // to shift across midnight on the way out.
-        `select id, weeks, starts_on::text as starts_on from missions where id = $1::uuid`,
+        `select id, weeks, starts_on::text as starts_on, created_at
+           from missions where id = $1::uuid`,
         missionId,
       );
       if (!mission) return null;
@@ -150,6 +151,7 @@ export class PrismaCurriculumReader implements CurriculumReader {
             ? null
             : { weeks: mission.weeks, startsOn: mission.starts_on },
         pace,
+        missionCreatedAt: mission.created_at,
       };
     });
   }

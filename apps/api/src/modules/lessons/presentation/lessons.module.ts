@@ -8,7 +8,11 @@ import {
   GetLesson,
 } from "../application/lessons.use-cases.js";
 import { LIBRARY_READER } from "../application/library.port.js";
-import { ReadLearningRecords, ReadReferenceLibrary } from "../application/read-library.js";
+import {
+  ReadLearningRecords,
+  ReadMissionBanner,
+  ReadReferenceLibrary,
+} from "../application/read-library.js";
 import { ViewGrants } from "../application/view-grants.js";
 import { LESSON_REPOSITORY } from "../domain/lesson.repository.js";
 import { PrismaLessonRepository } from "../infrastructure/prisma-lesson.repository.js";
@@ -37,6 +41,7 @@ import { LibraryController } from "./library.controller.js";
     ClearLessonCompletion,
     ReadReferenceLibrary,
     ReadLearningRecords,
+    ReadMissionBanner,
     ViewGrants,
     { provide: LESSON_REPOSITORY, useClass: PrismaLessonRepository },
     { provide: LIBRARY_READER, useClass: PrismaLibraryReader },

@@ -1,6 +1,7 @@
 import { dayBounds, isIsoDate, resolveTimeZone, weeklyShapeGaps } from "@mindforge/core";
 import {
   about,
+  BANNER_FILE,
   CURRICULUM_FILE,
   deslugify,
   isConflictCopy,
@@ -123,6 +124,7 @@ export class ReindexWorkspace {
     await this.index.saveReferenceDocs(input.userId, referenceDocs);
     await this.index.saveRecords(input.userId, records);
     await this.index.forgetPaths(input.userId, input.missionId, input.deleted);
+    await this.reindexBanner(input);
 
     await this.reindexMission(input, decoder, warnings);
 
@@ -264,6 +266,20 @@ export class ReindexWorkspace {
       currentLevel: parsed.fields.currentLevel,
       reason: "Updated by a teach run",
     });
+  }
+
+  /**
+   * The banner (FR-T10): there when this sync carries it, gone when it deletes
+   * it, and untouched otherwise. A `put:workspace` of one lesson carries no banner
+   * and has decided nothing about it, the same reason a missing file is never a
+   * deletion there.
+   */
+  private async reindexBanner(input: ReindexInput): Promise<void> {
+    if (input.files.has(BANNER_FILE)) {
+      await this.index.saveBanner(input.userId, input.missionId, BANNER_FILE);
+    } else if (input.deleted.includes(BANNER_FILE)) {
+      await this.index.saveBanner(input.userId, input.missionId, null);
+    }
   }
 
   private readLessons(
