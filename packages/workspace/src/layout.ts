@@ -22,6 +22,16 @@ export const NOTES_FILE = "NOTES.md";
 export const BRIEFING_FILE = "BRIEFING.md";
 
 /**
+ * The mission's banner (FR-T10): artwork the curriculum step draws once, shown
+ * at the top of the mission page. One fixed path rather than a declaration
+ * somewhere, so a workspace written by hand in a terminal has one either way.
+ * SVG only, because the page shows it in an `<img>`, where an SVG can run no
+ * script and load nothing, which is what makes untrusted artwork safe outside
+ * the sandboxed frame.
+ */
+export const BANNER_FILE = `${ASSETS_DIR}/banner.svg`;
+
+/**
  * Files the run writes into the workspace that must never be uploaded back.
  *
  * Applied **at the walk, not at the upload**. A file excluded only from upload

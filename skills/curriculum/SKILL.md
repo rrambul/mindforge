@@ -15,7 +15,8 @@ the structure has to be revisable without throwing away the material.
 
 ## What you produce
 
-One file: `CURRICULUM.md`, in the format in [CURRICULUM-FORMAT.md](./CURRICULUM-FORMAT.md).
+One file: `CURRICULUM.md`, in the format in [CURRICULUM-FORMAT.md](./CURRICULUM-FORMAT.md). And,
+once per mission, its banner: `assets/banner.svg` (below).
 
 It has two levels, and both are yours:
 
@@ -108,6 +109,27 @@ is fitted to it, not the other way round:
 When the subject is bigger than the weeks, cut scope rather than cramming: a sixth lesson in a week
 or two subtopics in one module breaks the calendar the learner planned around. Say what you cut in
 `NOTES.md`. When the subject is smaller, go deeper rather than padding with review lessons.
+
+## The mission's banner
+
+The first time you write a curriculum, also draw `assets/banner.svg`: a wide piece of artwork that
+sits above the mission's name on its page. It is the one thing in the workspace that is decoration,
+so keep it small and keep it safe:
+
+- **SVG, `viewBox="0 0 1200 300"`**, and composed for that 4:1 strip: it is cropped, never
+  stretched, and on a phone it is about 90 pixels tall. Keep anything that matters in the middle.
+- **Drawn from this mission's subject**, in shapes: the thing being learned, abstracted. The services
+  of a cloud architecture as a flow, a chord on a staff, a borrow drawn as two arrows. Not a stock
+  landscape, and not the curriculum's track list as a diagram.
+- **No text.** The mission's name is printed under it, and words in a picture cannot be translated,
+  searched or read by a screen reader.
+- **Self-contained.** No `<script>`, no `<foreignObject>`, no `href` or `url(...)` pointing outside
+  the file (`url(#gradient)` is fine), no web fonts, no embedded raster images. It is shown as an
+  image, which ignores all of those anyway; one that relied on them would render as a blank strip.
+- **Under 20 KB.** Flat shapes and a few gradients. It is a banner, not an illustration.
+- **Legible on light and dark pages.** Give it its own background rather than a transparent one.
+
+When revising, leave an existing banner alone unless the mission's subject itself changed.
 
 ## Revising
 
