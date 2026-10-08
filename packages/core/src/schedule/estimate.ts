@@ -14,9 +14,12 @@
  *   median rather than the mean, because one lesson left open in a tab over lunch
  *   should not move every date on the schedule.
  * - **Daily pace** — focus minutes on this mission over the last 28 local days,
- *   divided by 28. Rest days are included on purpose: a pace measured only on the
- *   days you showed up is the pace of a learner who never rests, and a schedule
- *   built on it is missed by design.
+ *   divided by the days in that window. Rest days are included on purpose: a pace
+ *   measured only on the days you showed up is the pace of a learner who never
+ *   rests, and a schedule built on it is missed by design. **The window starts no
+ *   earlier than the mission did** (`paceWindowDays`): days before it existed are
+ *   not rest days, and dividing a three-day-old mission's time by 28 put a
+ *   one-week exam two months away.
  *
  * **No input, no estimate.** Below `MIN_TIMED_LESSONS` timed lessons, or with no
  * focus time in the window, the answer is unknown with the reason why. A default
@@ -28,13 +31,22 @@
  * missed.
  */
 
-import { addDays, type IsoDate } from "../time/calendar.js";
+import { addDays, calendarDaysBetween, type IsoDate } from "../time/calendar.js";
 
 /** Fewer timed lessons than this and the median is an anecdote. */
 export const MIN_TIMED_LESSONS = 3;
 
 /** The pace window, the same 28 days the frequency tracker's active-days figure uses. */
 export const PACE_WINDOW_DAYS = 28;
+
+/**
+ * How many days the pace is measured over: the last 28, or every day since the
+ * mission's first if that is fewer, today included either way. A first day after
+ * today (a clock that disagrees with a row) still counts today, never zero days.
+ */
+export function paceWindowDays(firstDay: IsoDate, today: IsoDate): number {
+  return Math.min(PACE_WINDOW_DAYS, Math.max(1, calendarDaysBetween(firstDay, today) + 1));
+}
 
 export interface Pace {
   readonly minutesPerLesson: number;

@@ -133,6 +133,35 @@ describe("weekStanding", () => {
     ).toEqual({ kind: "not-planned" });
   });
 
+  it("counts an off-plan lesson in the week's total, but never as behind or due", () => {
+    // A bridge on Wednesday: work this week, with no day of its own. Leaving it out
+    // put "2 of 5" under a module bar that said "2 of 6".
+    expect(
+      weekStanding(
+        {
+          week,
+          lessons: [
+            { day: 1, completed: true },
+            { day: 2, completed: true },
+            { day: null, completed: false },
+            { day: 3, completed: false },
+            { day: 4, completed: false },
+            { day: 5, completed: false },
+          ],
+          finishedOn: null,
+        },
+        "2026-10-07",
+      ),
+    ).toEqual({
+      kind: "in-progress",
+      total: 6,
+      completed: 2,
+      behind: 0,
+      dueToday: 1,
+      examToday: false,
+    });
+  });
+
   it("is upcoming before the week starts", () => {
     expect(weekStanding(progress([false, false]), "2026-10-02")).toEqual({
       kind: "upcoming",

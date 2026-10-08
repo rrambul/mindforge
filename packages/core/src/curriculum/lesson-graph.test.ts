@@ -5,6 +5,7 @@ import {
   missionProgress,
   moduleOutcomes,
   moduleProgress,
+  moduleStatus,
   nextLesson,
   orderModule,
   type LessonNode,
@@ -181,6 +182,89 @@ describe("orderModule", () => {
     ]);
 
     expect(ordered.map((l) => l.id)).toEqual(["c", "b", "a"]);
+  });
+});
+
+describe("orderModule — a bridge follows the lesson it bridges (FR-D2)", () => {
+  const week = [
+    lesson("d1", { position: 1, completed: true }),
+    lesson("d2", { position: 2, completed: true }),
+    lesson("d3", { position: 3 }),
+    lesson("d4", { position: 4 }),
+  ];
+
+  it("rather than sinking below the planned days for having no position", () => {
+    const bridge = lesson("bridge", { status: "generated", seq: 3, bridgeForId: "d2" });
+
+    for (const ordering of ["plan", "ease"] as const) {
+      expect(orderModule([...week, bridge], ordering).map((l) => l.id)).toEqual([
+        "d1",
+        "d2",
+        "bridge",
+        "d3",
+        "d4",
+      ]);
+    }
+  });
+
+  it("keeps two bridges toward one lesson in the order they were written", () => {
+    const first = lesson("first", { seq: 3, bridgeForId: "d2" });
+    const second = lesson("second", { seq: 4, bridgeForId: "d2" });
+
+    expect(orderModule([...week, second, first], "plan").map((l) => l.id)).toEqual([
+      "d1",
+      "d2",
+      "first",
+      "second",
+      "d3",
+      "d4",
+    ]);
+  });
+
+  it("goes last rather than before one of its own prerequisites", () => {
+    const bridge = lesson("bridge", { seq: 3, bridgeForId: "d2", prerequisiteIds: ["d4"] });
+
+    expect(orderModule([...week, bridge], "plan").map((l) => l.id)).toEqual([
+      "d1",
+      "d2",
+      "d3",
+      "d4",
+      "bridge",
+    ]);
+  });
+
+  it("stays put when the lesson it bridges is in another module", () => {
+    const bridge = lesson("bridge", { seq: 3, bridgeForId: "elsewhere" });
+
+    expect(orderModule([...week, bridge], "plan").map((l) => l.id)).toEqual([
+      "d1",
+      "d2",
+      "d3",
+      "d4",
+      "bridge",
+    ]);
+  });
+
+  it("is what comes next, before the rest of the week", () => {
+    const bridge = lesson("bridge", { status: "generated", seq: 3, bridgeForId: "d2" });
+
+    expect(nextLesson([...week, bridge], [TRACK], "plan")?.id).toBe("bridge");
+  });
+});
+
+describe("moduleStatus", () => {
+  it("opens a proposed module once one of its lessons is finished", () => {
+    expect(moduleStatus("proposed", { completed: 1, total: 5 })).toBe("active");
+  });
+
+  it("keeps the plan's word for a module nobody has started, or one with no plan", () => {
+    expect(moduleStatus("proposed", { completed: 0, total: 5 })).toBe("proposed");
+    expect(moduleStatus("proposed", null)).toBe("proposed");
+  });
+
+  it("never overrides a status the plan set itself", () => {
+    expect(moduleStatus("done", { completed: 5, total: 5 })).toBe("done");
+    expect(moduleStatus("dropped", { completed: 2, total: 5 })).toBe("dropped");
   });
 });
 

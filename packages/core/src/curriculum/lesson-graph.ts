@@ -56,6 +56,12 @@ export interface LessonNode {
   readonly seq: number | null;
   readonly completed: boolean;
   readonly prerequisiteIds: readonly string[];
+  /**
+   * For a bridge, the lesson it is a smaller step toward (FR-D2). It is listed
+   * right after that lesson, which is where it is taken: it has no row in the plan
+   * and so no position of its own to sort by.
+   */
+  readonly bridgeForId?: string | null;
 }
 
 export interface DerivedLesson {
@@ -174,8 +180,13 @@ export function deriveLessons(lessons: readonly LessonNode[]): ReadonlyMap<strin
  * `plan` — the plan's row order, which for a mission planned in weeks **is** the
  * order of the days (FR-B3). The curriculum run is told to order the rows so day 1
  * to day 5 build on each other, and listing day 4 before day 3 because it is easier
- * shows the learner an order they will not take. A lesson with no row — a bridge —
- * comes after the planned days.
+ * shows the learner an order they will not take.
+ *
+ * Either way a bridge follows the lesson it bridges (FR-D2), since that is when it
+ * is taken: the step it breaks out of that lesson comes before the lessons built
+ * on it. Sorted by its missing position instead, it fell to the bottom of the
+ * module, below days it was written to come before. Any other lesson with no row
+ * comes after the planned ones.
  */
 export type ModuleOrdering = "ease" | "plan";
 
@@ -199,7 +210,34 @@ export function orderModule(
     remaining = remaining.filter((lesson) => lesson !== next);
     for (const waiting of waitingOn.values()) waiting.delete(next.id);
   }
-  return ordered;
+  return afterTheirTargets(ordered);
+}
+
+/**
+ * Move each bridge to just after the lesson it bridges, behind any bridge already
+ * there, so two steps toward one lesson keep the order they were written in.
+ *
+ * Not when that would put it before one of its own prerequisites: then it goes
+ * last, after everything it could depend on. A bridge toward a lesson in another
+ * module is left where the sort put it.
+ */
+function afterTheirTargets(ordered: readonly LessonNode[]): readonly LessonNode[] {
+  const ids = new Set(ordered.map((lesson) => lesson.id));
+  const bridges = ordered.filter(
+    (lesson) => lesson.bridgeForId != null && ids.has(lesson.bridgeForId),
+  );
+  let result = ordered.filter((lesson) => !bridges.includes(lesson));
+
+  for (const bridge of bridges) {
+    let at = result.findIndex((lesson) => lesson.id === bridge.bridgeForId) + 1;
+    while (at < result.length && result[at]!.bridgeForId === bridge.bridgeForId) at += 1;
+
+    const before = new Set(result.slice(0, at).map((lesson) => lesson.id));
+    const waits = bridge.prerequisiteIds.some((id) => ids.has(id) && !before.has(id));
+    if (waits) at = result.length;
+    result = [...result.slice(0, at), bridge, ...result.slice(at)];
+  }
+  return result;
 }
 
 function byEase(a: LessonNode, b: LessonNode): number {
@@ -242,6 +280,18 @@ export function moduleProgress(lessons: readonly LessonNode[]): ModuleProgress |
     completed: lessons.filter((lesson) => lesson.completed).length,
     total: lessons.length,
   };
+}
+
+/**
+ * The status a module is shown with (FR-K5).
+ *
+ * Every module starts `proposed`, the plan's word, and nothing the learner does
+ * rewrites the file. So a module with a finished lesson read "Proposed" under
+ * "2 of 6 lessons done". Started is a fact about the lessons, derived here rather
+ * than stored, and it opens the module; every other status is the plan's to say.
+ */
+export function moduleStatus(stored: string, progress: ModuleProgress | null): string {
+  return stored === "proposed" && progress !== null && progress.completed > 0 ? "active" : stored;
 }
 
 /**

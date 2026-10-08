@@ -189,31 +189,35 @@ export function weekStanding(progress: WeekProgress, today: IsoDate): WeekStandi
     };
   }
 
-  const lessons = progress.lessons.filter(
+  // Days come from the plan; the count is every lesson the module has. A bridge
+  // has no day, so it is never behind or due, but it is work in this week, and
+  // leaving it out made "2 of 5" here sit under "2 of 6" in the module's bar.
+  const dated = progress.lessons.filter(
     (lesson): lesson is { day: number; completed: boolean } => lesson.day !== null,
   );
-  if (lessons.length === 0) return { kind: "not-planned" };
+  if (dated.length === 0) return { kind: "not-planned" };
 
   const untilStart = calendarDaysBetween(today, week.startsOn);
   if (untilStart > 0) return { kind: "upcoming", startsInDays: untilStart };
 
-  const completed = lessons.filter((lesson) => lesson.completed).length;
+  const total = progress.lessons.length;
+  const completed = progress.lessons.filter((lesson) => lesson.completed).length;
   const overBy = calendarDaysBetween(week.endsOn, today);
   if (overBy > 0) {
     return {
       kind: "overdue",
       daysOver: overBy,
-      lessonsLeft: lessons.length - completed,
-      total: lessons.length,
+      lessonsLeft: total - completed,
+      total,
     };
   }
 
-  const open = lessons.filter((lesson) => !lesson.completed);
+  const open = dated.filter((lesson) => !lesson.completed);
   const dayOf = (lesson: { day: number }) =>
     calendarDaysBetween(lessonDueOn(week, lesson.day), today);
   return {
     kind: "in-progress",
-    total: lessons.length,
+    total,
     completed,
     behind: open.filter((lesson) => dayOf(lesson) > 0).length,
     dueToday: open.filter((lesson) => dayOf(lesson) === 0).length,

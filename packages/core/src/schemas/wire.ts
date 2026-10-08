@@ -577,6 +577,17 @@ export const ReferenceDocSchema = z.object({
 });
 export type ReferenceDoc = z.infer<typeof ReferenceDocSchema>;
 
+/**
+ * The mission's banner (FR-T10). Both null when there is nothing to show: no
+ * workspace yet, or a workspace with no `assets/banner.svg`. A signed URL, like
+ * every file of a workspace, and it expires with its grant.
+ */
+export const MissionBannerSchema = z.object({
+  url: z.url().nullable(),
+  expiresAt: IsoDateTimeSchema.nullable(),
+});
+export type MissionBanner = z.infer<typeof MissionBannerSchema>;
+
 export const LearningRecordSchema = z.object({
   id: IdSchema,
   seq: z.number().int(),

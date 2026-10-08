@@ -5,6 +5,7 @@ import {
   median,
   MIN_TIMED_LESSONS,
   PACE_WINDOW_DAYS,
+  paceWindowDays,
   projectSchedule,
   schedulePace,
   type ModuleWork,
@@ -28,6 +29,23 @@ describe("median", () => {
   it("takes the middle value, or the mean of the middle two", () => {
     expect(median([30, 10, 20])).toBe(20);
     expect(median([40, 10, 20, 30])).toBe(25);
+  });
+});
+
+describe("paceWindowDays", () => {
+  it("counts every day since the mission's first, today included", () => {
+    // Created Monday, read on Wednesday: three days, not 28. Over 28, 72 minutes
+    // was 2.6 a day and a week's exam landed two months out.
+    expect(paceWindowDays("2026-10-05", "2026-10-07")).toBe(3);
+    expect(paceWindowDays("2026-10-07", "2026-10-07")).toBe(1);
+  });
+
+  it("stops at the 28-day window for an older mission", () => {
+    expect(paceWindowDays("2026-01-01", "2026-10-07")).toBe(PACE_WINDOW_DAYS);
+  });
+
+  it("is never zero days, even for a first day after today", () => {
+    expect(paceWindowDays("2026-10-09", "2026-10-07")).toBe(1);
   });
 });
 
