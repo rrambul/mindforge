@@ -509,7 +509,13 @@ read, so a revision that dropped or inserted a module moved every later date by 
 on screen to say so. A lesson's day comes from its row in the plan (`lessonDays`), not from
 `orderModule`'s easiest-first list, and an off-plan lesson — a bridge — has no day. The list, the
 "Next" badge and the briefing all use `orderModule(…, "plan")` for such a mission, so the screen
-shows the order the learner will take, and modules are taken in the order of their pinned weeks. The standing
+shows the order the learner will take, and modules are taken in the order of their pinned weeks.
+**A bridge is listed right after the lesson it bridges** (`LessonNode.bridgeForId`, either
+ordering), and so is what comes next: sorted by its missing position it fell below the days it was
+written to come before. It counts in the week's total like it counts in the module's bar — one
+denominator, so "2 of 5" never sits under "2 of 6" — but having no day it is never behind or due.
+A module the learner has finished a lesson in shows as open (`moduleStatus`); the plan proposes
+every module and nothing rewrites the file when one starts. The standing
 (not planned, upcoming, in progress, finished on time or late, overdue) is computed on read; `behind`
 counts only earlier days' unfinished lessons, and today's is reported as due today. Nothing slides and
 nothing locks (FR-B4). A mission created before weeks has no calendar.
@@ -1473,6 +1479,22 @@ and `Cross-Origin-Resource-Policy: cross-origin`, because the sandboxed frame's 
 Pyodide's own fetch cross-origin. The Python worker is kept warm; its start is bounded by
 `PYTHON_LOAD_TIMEOUT_MS` and a run's `RUNNER_TIMEOUT_MS` starts after it.
 
+### 7.5b The mission's banner (FR-T10)
+
+`assets/banner.svg` is the one decorative file in a workspace. The curriculum skill draws it once;
+the reindexer records it in `missions.banner_path` when a sync or `put:workspace` carries it and
+clears it when one deletes it (a sync that does neither has decided nothing). `workspace_files` was
+the first choice and the wrong one: only a real run's sync writes that manifest, so a banner landed
+from a terminal existed in Storage and nowhere the page could see it. A CHECK holds the column to
+that one path, so it can never aim the page at a lesson.
+
+`GET /v1/missions/:id/banner` mints a view grant and returns the file's URL, or nulls. The page
+draws it as an `<img>`, the only way untrusted SVG may appear outside the sandboxed frame: as an
+image it runs no script and loads nothing. It is decorative (`alt=""`), cropped to a 4:1 strip, and
+removes itself if the file fails rather than drawing a broken image. The lessons origin's
+`Cross-Origin-Resource-Policy: same-site` permits it because `lessons.<domain>` is same-site with
+the app; a deployment that put the two on different sites would lose the banner, and should.
+
 ### 7.6 Per-user memory (cross-mission)
 
 `teach`'s `NOTES.md` is **per workspace** — it can't tell a Rust mission what a Portuguese mission learned about how you like to be taught. Mindforge adds a **learner memory** that spans every mission.
@@ -1726,7 +1748,9 @@ import another's module to reach it.
   minutes. Lessons with no bound minutes are left out rather than counted as zero. Null below
   `MIN_TIMED_LESSONS` (3).
 - `dailyPace(minutesInWindow, windowDays)` — minutes ÷ days, rest days included, so a burst week
-  does not read as a habit. Null when the window holds nothing.
+  does not read as a habit. Null when the window holds nothing. The window is `paceWindowDays`: the
+  last 28 days, or every day since the mission was created if fewer. A three-day-old mission divided
+  by 28 read 2.6 minutes a day where the learner did 24, and put a week's exam two months out.
 - `estimateModule(...)` — remaining units (unfinished lessons, plus one for the exam until it is
   passed) × minutes per lesson ÷ pace, rounded **up** to whole days. The projected exam day is
   today plus that many days. Returns the basis (units, minutes per lesson, pace, samples) with it, so

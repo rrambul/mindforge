@@ -27,6 +27,14 @@ would be bookkeeping with no reader.
 - **The schedule** shows each week against its dates and where it stands, with one line on where
   your actual pace would put the test. Without enough history to estimate from, it says what's
   missing instead of guessing.
+- **A bridge lesson sits where you take it.** When a lesson lands too hard, the next one is a smaller
+  step toward it. That step is now listed right after the lesson it helps with, marked as a bridge,
+  and counted in the week's total the same way the module's progress bar counts it.
+- **Your pace is measured from the mission's first day.** A new mission's pace used to be averaged
+  over 28 days even when it was three days old, which put a week's test two months away.
+- **Modules you have started show as open**, not "proposed".
+- **Every mission has a banner** at the top of its page, drawn for its subject when the curriculum is
+  written.
 
 ## 0.2.0
 

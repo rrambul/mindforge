@@ -181,6 +181,11 @@ rollup.
   `cost_usd` null; the total is then reported as a floor ("at least $4.10") with the count of what
   it could not price, and unmeasured spend never exhausts a budget — refusing on an estimate would
   mean telling a learner they had spent money nobody priced.
+- **FR-T10** **A mission has a banner**: `assets/banner.svg`, drawn once by the curriculum step
+  (no text, no script, no external references) and shown above the mission's name on its page. It
+  is a workspace file like any other — canonical in Storage, indexed by the reindexer into
+  `missions.banner_path`, served by the lessons origin behind a view grant — and the page shows it
+  as an `<img>`, where an SVG runs nothing. A mission without one shows nothing in its place.
 
 ### 6.4b Exercises — lessons you do, not only read (`PLAN-HANDS-ON.md`)
 
@@ -313,6 +318,8 @@ rollup.
 The committed, pace-proposed module deadlines of `PLAN-EXAMS.md` (FR-U2, FR-U3, FR-U5) were
 replaced on 2026-10-04 by a calendar fixed when the mission is created. FR-U1 (the pace estimate),
 FR-U4 (the projected schedule) and FR-U6 (local days) stand, as information beside the calendar.
+The pace's window is the last 28 days or the days since the mission was created, whichever is fewer:
+days before a mission existed are not rest days on it.
 
 - **FR-B1** **A mission is planned in weeks.** Creating one takes a number of weeks (1–52) and a
   start, which defaults to the next week start in the learner's profile (today, if today is one), and
@@ -327,7 +334,8 @@ FR-U4 (the projected schedule) and FR-U6 (local days) stand, as information besi
 - **FR-B4** **The calendar is fixed.** Nothing slides when the learner falls behind, and nothing is
   locked when they work ahead. Every date is derived on read in `packages/core`.
 - **FR-B5** **Behind is a count, stated plainly**: for the week in progress, how many lessons of
-  earlier days are unfinished, out of the module's own total, with today's lesson shown as due today
+  earlier days are unfinished, out of the module's own total (every lesson it has, a bridge included,
+  the same denominator as its progress bar), with today's lesson shown as due today
   rather than late; for a week that has ended, whether its module finished on time, late (by how many
   days) or not yet. A week with nothing planned says so and is never "on track". No alarms, no
   streaks, no celebration.

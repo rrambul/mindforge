@@ -106,6 +106,7 @@ MISSION.md              from MISSION-FORMAT.md, filled in from the interview
 CURRICULUM.md           from CURRICULUM-FORMAT.md — 8–15 tracks, a module table each
 RESOURCES.md            what you grounded it in, as RESOURCES-FORMAT.md wants
 lessons/0001-<slug>.html
+assets/banner.svg       the mission's banner, once, as skills/curriculum/SKILL.md describes it
 assets/…                the shared stylesheet first, then anything a second lesson could reuse
 reference/<slug>.html   only when the lesson produced something worth revisiting
 ```
