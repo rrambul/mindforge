@@ -33,6 +33,13 @@ would be bookkeeping with no reader.
 - **Your pace is measured from the mission's first day.** A new mission's pace used to be averaged
   over 28 days even when it was three days old, which put a week's test two months away.
 - **Modules you have started show as open**, not "proposed".
+- **"Understood" means understood.** A lesson you mark understood is no longer judged too hard just
+  because you revealed its exercise's solution, and a bridge never gets a bridge of its own. Lesson
+  exercises are now written so the hard part is the lesson's subject, with incidental code handed to
+  you.
+- **Lessons are written in plainer English.** Every lesson and exam ends with a pass of Simplified
+  Technical English (ASD-STE100): shorter sentences, active voice, one instruction per sentence, no
+  idioms. The subject's own terms stay as they are.
 - **Every mission has a banner** at the top of its page, drawn for its subject when the curriculum is
   written.
 

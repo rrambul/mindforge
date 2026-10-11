@@ -267,12 +267,15 @@ rollup.
 - **FR-D1** **Every finished lesson is judged** too hard, in the zone or too easy, from what the
   learner did — attempts, hints, time — and the outcome they recorded (`lessonStrain` in
   `packages/core`, derived on read, never stored). Too hard: marked lost, an exercise tried and never
-  passed, or a pass only after rung 4 or 5. Too easy: every exercise passed first try, no hint before
+  passed, or a pass only after rung 4 or 5 — except that a lesson the learner marked understood is in
+  the zone whatever its exercise shows, with that evidence kept as reasons beside their word. An
+  exercise can miss its lesson, and the learner's own verdict outranks it. Too easy: every exercise passed first try, no hint before
   the pass, in at most half the expected minutes — with the timing known — and not marked shaky or
   lost. An unfinished lesson is `in-progress`, and nothing-to-judge is its own state; neither is ever
   shown as "in the zone". Every verdict carries its reasons.
 - **FR-D2** **Too hard → a bridge, never a rewrite.** The next lesson is a smaller step toward it; the
-  lesson itself and everything the learner did with it stay. One bridge per lesson. The learner can
+  lesson itself and everything the learner did with it stay. One bridge per lesson, and never a
+  bridge toward a bridge: when a bridge itself lands too hard, the plan resumes. The learner can
   also ask for one ("Try an easier version") on any lesson that landed too hard.
 - **FR-D3** **Two too-easy lessons in a row → the next is pitched a step harder** than the plan says.
   One is chance; two is the plan pitched low.

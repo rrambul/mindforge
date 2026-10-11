@@ -32,6 +32,7 @@ Read them from this repository, not from memory, and read them **before** writin
 | A lesson         | `skills/teach/SKILL.md` and `skills/teach/LEARNING-RECORD-FORMAT.md`      |
 | Its shape        | `skills/LESSON-SHAPE.md` — **applies to you in full**                     |
 | Its last pass    | `skills/humanizer/SKILL.md` — the `humanizer` skill, over the prose       |
+| Then             | `skills/asd-ste100/SKILL.md` — `asd-ste100`, STE-flavored, over the prose |
 | A module's exam  | `skills/EXAM-SHAPE.md` — **applies to you in full**, when one is due      |
 | The mission file | `skills/teach/MISSION-FORMAT.md`                                          |
 

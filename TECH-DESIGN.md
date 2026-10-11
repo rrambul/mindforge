@@ -1066,7 +1066,7 @@ try {
       disallowedTools: ["Bash"], //  removes the definition from the request (:1390)
       permissionMode: "dontAsk", //  deny anything not pre-approved
       plugins: [{ type: "local", path: TEACH_PLUGIN_DIR }], //  how the skill loads — see below
-      skills: ["mindforge-teach:teach", "mindforge-teach:humanizer"], //  namespaced; a filter
+      skills: ["mindforge-teach:teach", "mindforge-teach:humanizer", "mindforge-teach:asd-ste100"], // namespaced; a filter
       settingSources: [], //  ⚠ else the run inherits the host's ~/.claude
       strictMcpConfig: true,
       env: { ...process.env, CLAUDE_CONFIG_DIR: runConfigDir }, //  ⚠ replaces, never merges
@@ -1241,6 +1241,14 @@ name in `TeachPlugin.skills`, not only the first. A curriculum run loads no comp
 plan, not prose a learner reads. In the same run rather than a separate API call because the pass
 is then billed through `modelUsage` like every other turn (§12), and there is one writer of the
 lesson file, not two.
+
+**And then an ASD-STE100 pass** (2026-10-11). A second companion, `asd-ste100`
+([`danyuchn/asd-ste100-skill`](https://github.com/danyuchn/asd-ste100-skill), MIT, vendored the same
+way), runs after the humanizer in its STE-flavored mode: Simplified Technical English's sentence rules
+in full, its vocabulary rules as advice. The learner reads English as a second language, and the
+standard was written for exactly that reader. It keeps the subject's own terms and every hedge, skips a
+lesson not written in English, and is copied without its linter, which needs the shell a run does not
+have. A lesson run now loads three skills, and the handshake asserts on all three.
 
 ### 7.3b What the briefing cannot measure, and must therefore not claim
 
@@ -1725,7 +1733,10 @@ Three pure functions and one resolver, all in `packages/core`:
   before it, minutes from the earliest recorded start to it.
 - `lessonStrain(outcome, evidence[])` — the verdict and its reasons, or an unknown that says which
   (`in-progress`, `no-exercise`, `not-attempted`). The rules are in the file's header.
-- `nextAdjustment(judged, newest first)` — `bridge`, `harder`, `as-planned`, or null for no signal.
+  A lesson marked `understood` is never too hard from its exercise alone: the evidence stays as
+  reasons (`marked-understood` first), the verdict is in the zone. An exercise that missed its lesson
+  is a fault in the exercise, and `skills/LESSON-SHAPE.md` now requires the hard part to be the subject.
+- `nextAdjustment(judged, newest first)` — `bridge`, `harder`, `as-planned`, or null for no signal. Never a bridge toward a lesson that is itself a bridge (`JudgedLesson.isBridge`): a chain of steps has no floor, and on the AWS mission one reveal on a bridge ordered a step toward the step.
 - `resolveBridges(lessons)` — bridge → target and target → bridge, by slug.
 
 The gathering is `judgeLessons` in `apps/api/src/modules/exercises/infrastructure/`: two queries for
