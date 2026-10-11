@@ -439,3 +439,48 @@ describe("the exercise runner", () => {
     expect(script.includes("def run(code, tests)")).toBe(true);
   });
 });
+
+describe("the lessons' fonts", () => {
+  // The real packages, read once: the stylesheet's contract is what lesson files in
+  // Storage depend on, so it is tested against what will actually be served.
+  const real = createHandler({ env: ENV, objects: new FakeObjects({}), now: () => NOW });
+  const get = (path: string) => real(new Request(`https://lessons.example${path}`));
+
+  test("serves one stylesheet naming Literata and JetBrains Mono on this origin, woff2 only", async () => {
+    const res = await get("/fonts/lessons.css");
+    const css = await res.text();
+
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toBe("text/css; charset=utf-8");
+    expect(css).toContain("font-family: 'Literata'");
+    expect(css).toContain("font-family: 'JetBrains Mono'");
+    expect(css).toContain("url(/fonts/literata-latin-400-normal.woff2)");
+    // Portuguese needs latin-ext's ranges as much as latin's; nothing else is kept.
+    expect(css).toContain("literata-latin-ext-400-normal.woff2");
+    expect(css).not.toMatch(/cyrillic|greek|vietnamese|\.woff\)/u);
+  });
+
+  test("serves every file the stylesheet names, readable from a sandboxed frame", async () => {
+    const css = await (await get("/fonts/lessons.css")).text();
+    const names = [...css.matchAll(/url\(\/fonts\/([\w.-]+)\)/gu)].map((m) => m[1]!);
+    expect(names.length).toBe(12);
+
+    for (const name of names) {
+      const res = await get(`/fonts/${name}`);
+      expect(res.status).toBe(200);
+      expect(res.headers.get("content-type")).toBe("font/woff2");
+      // A font is fetched in CORS mode, and the frame's origin is opaque.
+      expect(res.headers.get("access-control-allow-origin")).toBe("*");
+      expect(res.headers.get("cross-origin-resource-policy")).toBe("cross-origin");
+    }
+  });
+
+  test.each([
+    "/fonts/literata-cyrillic-400-normal.woff2",
+    "/fonts/literata-latin-400-normal.woff",
+    "/fonts/../package.json",
+    "/fonts/OFL.txt",
+  ])("serves nothing off the list: %s", async (path) => {
+    expect((await get(path)).status).toBe(404);
+  });
+});

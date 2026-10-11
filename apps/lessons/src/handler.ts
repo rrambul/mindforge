@@ -1,6 +1,7 @@
 import { contentTypeFor, resolveGrantedPath, verifyViewToken } from "@mindforge/core";
 
 import type { LessonsEnv } from "./env.js";
+import { FONTS_PREFIX, FONTS_STYLESHEET, loadFonts, type FontSet } from "./fonts.js";
 import type { WorkspaceObjects } from "./objects.js";
 import { LANGUAGES_META, PAGE_LANGUAGES, type RunnerPage } from "./runner/browser/languages.js";
 import { runnerScript, type RunnerScript } from "./runner/bundle.js";
@@ -48,11 +49,15 @@ export interface HandlerDeps {
   readonly now: () => number;
   /** The runner bundle. Injected so tests of the routing need not run `Bun.build`. */
   readonly runner?: () => Promise<RunnerScript>;
+  /** The lesson fonts. Injected for the same reason; read from their packages once. */
+  readonly fonts?: () => Promise<FontSet>;
 }
 
 export function createHandler(deps: HandlerDeps): (request: Request) => Promise<Response> {
   const headers = securityHeaders(deps.env.appOrigin);
   const runner = deps.runner ?? runnerScript;
+  let fontSet: Promise<FontSet> | null = null;
+  const fonts = deps.fonts ?? (() => (fontSet ??= loadFonts()));
 
   return async function handle(request: Request): Promise<Response> {
     const url = new URL(request.url);
@@ -68,6 +73,8 @@ export function createHandler(deps: HandlerDeps): (request: Request) => Promise<
     if (page !== undefined) return runnerPage(deps.env, await runner(), page);
     if (url.pathname === RUNNER_SCRIPT) return runnerScriptResponse(deps.env, await runner(), url);
     if (url.pathname.startsWith("/pyodide/")) return pyodideResponse(url.pathname, headers);
+    if (url.pathname.startsWith(FONTS_PREFIX))
+      return fontResponse(url.pathname, await fonts(), headers);
     if (!url.pathname.startsWith(VIEW_PREFIX)) return notFound(headers);
 
     const [token, ...encoded] = url.pathname.slice(VIEW_PREFIX.length).split("/");
@@ -240,6 +247,36 @@ async function pyodideResponse(
       "Cross-Origin-Resource-Policy": "cross-origin",
     },
   });
+}
+
+/**
+ * The lessons' fonts (`fonts.ts`): the stylesheet a lesson imports, and the files
+ * it names. An allowlist, like Pyodide's, and public for the same reason: they
+ * are published typefaces with nothing of any learner's in them.
+ *
+ * `Access-Control-Allow-Origin: *` is not optional here. A font is always fetched
+ * in CORS mode, and a lesson's frame is sandboxed without `allow-same-origin`, so
+ * its origin is opaque and every font request from it is cross-origin — without
+ * the header the browser drops the font and the lesson silently falls back.
+ * A day's cache rather than a year's: the names are a contract that outlives a
+ * package upgrade, so the bytes behind them can change.
+ */
+function fontResponse(pathname: string, set: FontSet, headers: Record<string, string>): Response {
+  const shared = {
+    ...headers,
+    "Cache-Control": "public, max-age=86400",
+    "Access-Control-Allow-Origin": "*",
+    "Cross-Origin-Resource-Policy": "cross-origin",
+  };
+  if (pathname === FONTS_STYLESHEET) {
+    return new Response(set.stylesheet, {
+      headers: { ...shared, "Content-Type": "text/css; charset=utf-8" },
+    });
+  }
+
+  const file = set.files.get(pathname.slice(FONTS_PREFIX.length));
+  if (file === undefined) return notFound(headers);
+  return new Response(Bun.file(file), { headers: { ...shared, "Content-Type": "font/woff2" } });
 }
 
 /**
