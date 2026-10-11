@@ -27,6 +27,7 @@
   },
   "strainReason": {
     "marked-lost": "marcada como perdida",
+    "marked-understood": "você marcou como entendida",
     "never-passed": "o exercício nunca passou",
     "heavy-hints": "passou depois de ver o formato da solução ou o código",
     "first-try-no-hints-fast": "primeira tentativa, sem dicas, bem abaixo do tempo esperado",
