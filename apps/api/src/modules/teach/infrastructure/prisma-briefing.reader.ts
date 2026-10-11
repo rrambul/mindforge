@@ -139,6 +139,7 @@ function describeOutcome(row: {
 
 const REASON_PHRASES: Readonly<Record<StrainReason, string>> = {
   "marked-lost": "the learner marked it lost",
+  "marked-understood": "the learner marked it understood",
   "never-passed": "they tried the exercise and never passed it",
   "heavy-hints": "they passed only after being shown the shape of a solution or the code",
   "first-try-no-hints-fast": "passed first try, with no hints, in under half the expected time",
@@ -201,6 +202,7 @@ async function readAdaptation(
     title: lesson.title,
     strain: strains.get(lesson.id)!,
     bridged: bridges.bridgeOf.has(lesson.id),
+    isBridge: lesson.adjustment === "bridge",
   }));
 
   const lessonLandings = finished.slice(0, OUTCOME_LIMIT).flatMap((lesson) => {

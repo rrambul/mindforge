@@ -361,6 +361,7 @@ function upcoming(lessons: readonly LessonRow[], bridges: Bridges): UpcomingAdju
       title: lesson.title,
       strain: lesson.strain,
       bridged: bridges.bridgeOf.has(lesson.id),
+      isBridge: lesson.adjustment?.kind === "bridge",
     })),
   );
 

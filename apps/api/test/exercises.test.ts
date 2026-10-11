@@ -246,8 +246,10 @@ describe("POST /v1/lessons/:id/exercises/:key/solution-reveals", () => {
   it("makes a pass after it heavy help, not a first-try pass", async () => {
     await reveal();
     await attempt({ results: [PASS] });
+    // Shaky, which agrees with the reveal. Marked understood, the learner's word would
+    // outrank the exercise (FR-D1) and the reveal would stay as a reason, not a verdict.
     await db.$executeRawUnsafe(
-      `update lessons set completed_at = now(), outcome = 'understood' where id = $1::uuid`,
+      `update lessons set completed_at = now(), outcome = 'shaky' where id = $1::uuid`,
       lessonId,
     );
 
