@@ -14,8 +14,14 @@ import type { LessonOutcome } from "../schemas/lesson.js";
  * they *said*, the outcome chip. The chip is never prefilled from this; the two are
  * shown side by side, not blended.
  *
- * - **too-hard**: marked `lost`; or tried and never passed; or passed only after a
- *   hint at rung 4 (the shape of a solution) or 5 (the code).
+ * - **too-hard**: marked `lost`; or tried and never passed, or passed only after a
+ *   hint at rung 4 (the shape of a solution) or 5 (the code) — **unless the learner
+ *   marked it `understood`**. Then it is in the zone, with the exercise's evidence
+ *   kept beside their word as reasons. An exercise can miss its lesson: an AWS
+ *   authorisation lesson whose exercise was mostly regular-expression plumbing had
+ *   its solution revealed by a learner who had understood the authorisation, and
+ *   the reveal alone ordered a bridge toward a lesson they said had landed. Their
+ *   `shaky` or `lost` still agrees with the evidence and is still too hard.
  * - **too-easy**: every exercise passed on its first attempt, with no hint before
  *   the pass, in at most half the lesson's expected minutes, and not marked `shaky`
  *   or `lost`. **Timing must be known** — a first-try pass with no clock behind it
@@ -110,6 +116,7 @@ export type StrainVerdict = (typeof STRAIN_VERDICTS)[number];
  */
 export const STRAIN_REASONS = [
   "marked-lost",
+  "marked-understood",
   "never-passed",
   "heavy-hints",
   "first-try-no-hints-fast",
@@ -129,14 +136,18 @@ export function lessonStrain(
   if (outcome === null) return { verdict: null, unknown: "in-progress" };
 
   const tried = exercises.filter((e) => e.attempted);
-  const reasons: StrainReason[] = [];
-
-  if (outcome === "lost") reasons.push("marked-lost");
-  if (tried.some((e) => !e.passed)) reasons.push("never-passed");
+  const struggled: StrainReason[] = [];
+  if (tried.some((e) => !e.passed)) struggled.push("never-passed");
   if (tried.some((e) => e.passed && (e.highestHintBeforePass ?? 0) >= HEAVY_HINT_LEVEL)) {
-    reasons.push("heavy-hints");
+    struggled.push("heavy-hints");
   }
-  if (reasons.length > 0) return { verdict: "too-hard", reasons };
+
+  if (outcome === "lost") return { verdict: "too-hard", reasons: ["marked-lost", ...struggled] };
+  if (struggled.length > 0) {
+    return outcome === "understood"
+      ? { verdict: "in-zone", reasons: ["marked-understood", ...struggled] }
+      : { verdict: "too-hard", reasons: struggled };
+  }
 
   if (tried.length === 0) {
     return { verdict: null, unknown: exercises.length === 0 ? "no-exercise" : "not-attempted" };
@@ -166,6 +177,8 @@ export interface JudgedLesson {
   readonly strain: Strain;
   /** A bridge lesson toward this one already exists — written, finished or not. */
   readonly bridged: boolean;
+  /** This lesson is itself a bridge. */
+  readonly isBridge: boolean;
 }
 
 /**
@@ -177,7 +190,11 @@ export interface JudgedLesson {
  *   smaller step toward it, before moving on. Never a rewrite: the lesson and what
  *   the learner did with it stay as they are. **One bridge per lesson**: until the
  *   bridge is finished, the too-hard lesson is still the newest judged one, and
- *   without this every press would order another step toward it.
+ *   without this every press would order another step toward it. **And no bridge
+ *   toward a bridge**: a step toward a step is a chain with no floor, each one
+ *   further from the lesson the learner was trying to reach. When a bridge itself
+ *   lands too hard the plan resumes, and an easier version is the learner's to ask
+ *   for (FR-D2), not the app's to keep ordering.
  * - **harder** — the two newest judged lessons were both too easy. One is chance;
  *   two in a row is the plan pitched low.
  * - **as-planned** — otherwise.
@@ -196,7 +213,9 @@ export function nextAdjustment(newestFirst: readonly JudgedLesson[]): Adjustment
 
   if (latest === undefined) return null;
   if (latest.strain.verdict === "too-hard") {
-    return latest.bridged ? { kind: "as-planned" } : { kind: "bridge", lesson: latest };
+    return latest.bridged || latest.isBridge
+      ? { kind: "as-planned" }
+      : { kind: "bridge", lesson: latest };
   }
   if (
     previous !== undefined &&

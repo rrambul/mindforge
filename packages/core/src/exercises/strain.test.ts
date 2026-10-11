@@ -119,13 +119,23 @@ describe("lessonStrain", () => {
   });
 
   it("calls it too hard when the pass came after being shown the shape or the code", () => {
-    expect(lessonStrain("understood", [evidence({ highestHintBeforePass: 4 })])).toEqual({
+    expect(lessonStrain("shaky", [evidence({ highestHintBeforePass: 4 })])).toEqual({
       verdict: "too-hard",
       reasons: ["heavy-hints"],
     });
     // A concept (rung 3) is help, not rescue.
-    expect(lessonStrain("understood", [evidence({ highestHintBeforePass: 3 })]).verdict).toBe(
-      "in-zone",
+    expect(lessonStrain("shaky", [evidence({ highestHintBeforePass: 3 })]).verdict).toBe("in-zone");
+  });
+
+  it("takes the learner's 'understood' over an exercise that missed the lesson", () => {
+    // 0003 on the AWS mission: understood, solution revealed because the exercise
+    // was regex plumbing rather than authorisation. Not a reason for a bridge.
+    expect(lessonStrain("understood", [evidence({ highestHintBeforePass: 5 })])).toEqual({
+      verdict: "in-zone",
+      reasons: ["marked-understood", "heavy-hints"],
+    });
+    expect(lessonStrain("understood", [evidence({ passed: false, attemptsToPass: null })])).toEqual(
+      { verdict: "in-zone", reasons: ["marked-understood", "never-passed"] },
     );
   });
 
@@ -178,12 +188,18 @@ describe("lessonStrain", () => {
 });
 
 describe("nextAdjustment", () => {
-  const lesson = (slug: string, strain: Strain, bridged = false): JudgedLesson => ({
+  const lesson = (
+    slug: string,
+    strain: Strain,
+    bridged = false,
+    isBridge = false,
+  ): JudgedLesson => ({
     lessonId: `id-${slug}`,
     slug,
     title: slug,
     strain,
     bridged,
+    isBridge,
   });
   const hard: Strain = { verdict: "too-hard", reasons: ["never-passed"] };
   const easy: Strain = { verdict: "too-easy", reasons: ["first-try-no-hints-fast"] };
@@ -204,6 +220,10 @@ describe("nextAdjustment", () => {
 
   it("builds one bridge per lesson, not one per press", () => {
     expect(nextAdjustment([lesson("hard", hard, true)])).toEqual({ kind: "as-planned" });
+  });
+
+  it("never bridges toward a bridge: the plan resumes", () => {
+    expect(nextAdjustment([lesson("step", hard, false, true)])).toEqual({ kind: "as-planned" });
   });
 
   it("pushes harder only after two too-easy lessons in a row", () => {
