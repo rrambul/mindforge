@@ -1487,6 +1487,16 @@ and `Cross-Origin-Resource-Policy: cross-origin`, because the sandboxed frame's 
 Pyodide's own fetch cross-origin. The Python worker is kept warm; its start is bounded by
 `PYTHON_LOAD_TIMEOUT_MS` and a run's `RUNNER_TIMEOUT_MS` starts after it.
 
+**The lessons' fonts** (2026-10-11). A lesson's `font-src 'self' data:` rules out every web-font
+service, so the lessons origin serves two typefaces from their installed packages (`fonts.ts`):
+**Literata** for prose and **JetBrains Mono** for code, OFL-1.1, `latin` and `latin-ext` only,
+`woff2` only. `/fonts/lessons.css` is built at first request from the packages' own `@font-face` rules
+with every `url()` pointed at `/fonts/`; `LESSON-SHAPE.md` has every shared stylesheet import it. The
+same two headers as Pyodide's files, for a sharper reason: a font is always fetched in CORS mode, so
+without `Access-Control-Allow-Origin: *` the sandboxed frame drops it silently and the lesson falls
+back to whatever the system has. The paths carry no version, because they are written into lesson
+stylesheets that live in a learner's Storage, so they are cached for a day rather than as immutable.
+
 ### 7.5b The mission's banner (FR-T10)
 
 `assets/banner.svg` is the one decorative file in a workspace. The curriculum skill draws it once;
