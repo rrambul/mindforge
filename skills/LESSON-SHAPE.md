@@ -243,6 +243,22 @@ cut it from the task. A first lesson on the interview clock cannot ask for a tic
 load and double-booking strategy. It can ask the learner to read a run against the clock. A new
 domain is fine for practice, as long as everything it needs that was not taught is given.
 
+**The hard part of the exercise is the lesson's subject, and nothing else.** Whatever the learner
+struggles with is what the app reads back: a revealed solution says the lesson was too hard, so an
+exercise whose difficulty lives somewhere else measures the wrong thing and teaches it too. A lesson
+on how AWS decides whether a request is allowed must not turn on regular expressions, string
+parsing or wildcard matching. Before you write it, name the one decision or skill the lesson
+teaches, then:
+
+- **Hand over everything incidental** — parsing, matching helpers, data loading, boilerplate — in
+  the starter, written and working, and say in the prompt that it is done.
+- **Pick the form the subject takes in real work.** For a platform or a concept that is usually
+  reading and deciding — given this policy and these three requests, which are allowed and which
+  statement decides each — or filling in, or finding the bug in, a policy, a config or a template,
+  or a lab. Write code only when writing code is what the lesson teaches, like calling the SDK.
+- **Check the exercise against the intent.** If a learner who fully understood the lesson could
+  still get stuck on it, the exercise is testing something else. Cut that part or give it to them.
+
 ## Mark the two sections
 
 Wrap the exercise and the debrief so they can be told apart from the explanation:
@@ -286,7 +302,10 @@ When you adapt, say so in the lesson's `<head>`, because the learner is shown it
 The reason is read by the learner on the curriculum screen. State the evidence plainly — "You passed
 the last two exercises first try, well under the expected time" — with no praise and no apology.
 
-## Last: run the humanizer over the prose
+## Last: run the humanizer over the prose, then ASD-STE100
+
+Two passes, in this order, and nothing written after them. First the humanizer, then
+`asd-ste100`.
 
 When the lesson file is written and every exercise in it is final, invoke the `humanizer` skill on
 the lesson in **file mode**, and let it rewrite the file in place. Lessons written by a model read
@@ -307,3 +326,20 @@ The humanizer's own rule holds here in full: **it changes how a thing is said, n
 No claim, number, name, step or example may be added or lost, and the prose budget above still
 applies to the result — a rewrite that makes the explanation longer has gone wrong. Do it once; do
 not run it over reference documents or the learning record, which are notes, not lessons.
+
+Then invoke the `asd-ste100` skill on the same prose, in its **STE-flavored** mode: the sentence rules
+in full (active voice, simple tenses, one instruction per sentence, at most 20 words in an
+instruction and 25 in a description, no semicolons, no phrasal verbs, no noun stacks of four or more
+words), the vocabulary rules as advice only. The learner reads English as a second language, and a
+lesson they have to parse twice is a lesson that teaches the parsing. The same protected list holds:
+tags, attributes, `<script>`, `<style>`, `<pre>`, `<code>`, `href` and `src` stay byte-for-byte.
+Three things this pass must not do:
+
+- **Rename a term of the subject.** "Principal", "assume a role", "bucket policy" are the words the
+  learner will meet in the documentation and the exam; keep them, and define one in a sentence the
+  first time it appears if the lesson did not.
+- **Strengthen a hedge or add a fact.** "May fail" stays "may fail"; the skill says this itself, and it
+  is the easiest rule to break while shortening.
+- **Run its linter.** You have no shell. Apply the rules by reading.
+
+Skip this pass when the lesson is not in English: its rules are rules of English.

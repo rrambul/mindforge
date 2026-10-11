@@ -39,6 +39,16 @@ MIT, Copyright (c) 2025 Siqi Chen, and `humanizer/LICENSE` travels with it for t
 server run loads it as a second skill in the teach plugin, and `/teach-me` uses the copy a person
 already has installed.
 
+`asd-ste100/` is vendored the same way — verbatim, never edited, `diff -r skills/asd-ste100
+~/.claude/skills/asd-ste100` empty. The source is
+[`danyuchn/asd-ste100-skill`](https://github.com/danyuchn/asd-ste100-skill), MIT, Copyright (c) 2026
+Dustin Yuchen Teng, taken at `32511c6`, and `asd-ste100/LICENSE` travels with it. It applies the rules
+of ASD-STE100 Simplified Technical English without ASD's dictionary, which is not free to
+redistribute. `LESSON-SHAPE.md` runs it after the humanizer, in its STE-flavored mode. The teach
+plugin copies its rules and examples and leaves `scripts/ste-lint.py`, since a run has no shell. A
+second verbatim copy lives in `.claude/skills/asd-ste100/` so that Claude Code sessions in this
+repository can use it too.
+
 `curriculum/` is Mindforge's own skill, not vendored. It maps a subject into ordered subtopics and
 writes `CURRICULUM.md`; it writes no lessons. Structure and material are produced by separate skills
 so the structure can be revised without discarding the material.
@@ -59,6 +69,8 @@ handled there, and `TECH-DESIGN.md` §7.3 says why at length.
 ```sh
 cp ~/.claude/skills/teach/*.md skills/teach/
 cp ~/.claude/skills/humanizer/SKILL.md ~/.claude/skills/humanizer/LICENSE skills/humanizer/
+rsync -a --delete --exclude .git ~/.claude/skills/asd-ste100/ skills/asd-ste100/
+rsync -a --delete skills/asd-ste100/ .claude/skills/asd-ste100/
 pnpm --filter @mindforge/workspace test:unit   # the fixtures pin the headings the parsers match on
 ```
 

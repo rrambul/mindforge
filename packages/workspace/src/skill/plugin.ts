@@ -51,6 +51,12 @@ export const TEACH_SKILL_REF = `${TEACH_PLUGIN_NAME}:teach`;
 export const HUMANIZER_SKILL_REF = `${TEACH_PLUGIN_NAME}:humanizer`;
 
 /**
+ * `asd-ste100`, Simplified Technical English: the third skill in the teach plugin,
+ * the last pass over a lesson's prose, after the humanizer (`LESSON-SHAPE.md`).
+ */
+export const STE100_SKILL_REF = `${TEACH_PLUGIN_NAME}:asd-ste100`;
+
+/**
  * The `curriculum` skill, which maps a subject into subtopics and writes
  * `CURRICULUM.md`.
  *

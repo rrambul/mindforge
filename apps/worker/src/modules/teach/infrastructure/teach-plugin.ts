@@ -32,8 +32,17 @@ const CURRICULUM_FORMAT_DOCS = ["CURRICULUM-FORMAT.md"] as const;
  * Skills a lesson run loads beside `teach`, each a directory under `skills/` and the
  * files in it to copy. The licence travels with the copy because MIT's permission
  * is conditional on it.
+ *
+ * `asd-ste100` takes its rules and examples and leaves its linter: the run has no
+ * shell to run it with, and `LESSON-SHAPE.md` says so. Order is the order the
+ * passes run in — the humanizer first, Simplified Technical English last, because
+ * the learner reads English as a second language and plain structure is the last
+ * thing that should touch the prose.
  */
-const TEACH_COMPANIONS = { humanizer: ["SKILL.md", "LICENSE"] } as const;
+const TEACH_COMPANIONS = {
+  humanizer: ["SKILL.md", "LICENSE"],
+  "asd-ste100": ["SKILL.md", "LICENSE", "references/writing-rules.md", "examples/before-after.md"],
+} as const;
 
 /** Repo root, from this file's location. `apps/worker/src/modules/teach/infrastructure` → up six. */
 function repoRoot(): string {
@@ -68,7 +77,7 @@ export async function writeTeachPlugin(destination: string): Promise<WrittenTeac
 }
 
 /**
- * The teach plugin for an exam run (FR-E3): the same skill and humanizer, with
+ * The teach plugin for an exam run (FR-E3): the same skill and companions, with
  * `EXAM-SHAPE.md` appended after `LESSON-SHAPE.md`.
  *
  * The same plugin rather than a third one because an exam is written by the `teach`

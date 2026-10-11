@@ -2,7 +2,7 @@ import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { HUMANIZER_SKILL_REF, TEACH_SKILL_REF } from "@mindforge/workspace";
+import { HUMANIZER_SKILL_REF, STE100_SKILL_REF, TEACH_SKILL_REF } from "@mindforge/workspace";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import {
@@ -136,12 +136,41 @@ describe("writeTeachPlugin", () => {
     );
   });
 
-  it("names both skills for options.skills, the main one first", async () => {
+  it("writes ASD-STE100 beside them, verbatim, with its licence and rules but not its linter", async () => {
+    const plugin = await writeTeachPlugin(destination);
+    const upstream = (file: string) =>
+      readFile(new URL(`../../../skills/asd-ste100/${file}`, import.meta.url), "utf8");
+
+    for (const file of [
+      "SKILL.md",
+      "LICENSE",
+      "references/writing-rules.md",
+      "examples/before-after.md",
+    ]) {
+      await expect(readFile(join(destination, `skills/asd-ste100/${file}`), "utf8")).resolves.toBe(
+        await upstream(file),
+      );
+    }
+    // No shell in a run, so nothing to run it with.
+    await expect(
+      readFile(join(destination, "skills/asd-ste100/scripts/ste-lint.py"), "utf8"),
+    ).rejects.toThrow();
+    expect(plugin.skills).toContain(STE100_SKILL_REF);
+  });
+
+  it("tells the run to finish with the Simplified Technical English pass", async () => {
+    await writeTeachPlugin(destination);
+    const composed = await readFile(join(destination, "skills/teach/SKILL.md"), "utf8");
+
+    expect(composed).toContain("Then invoke the `asd-ste100` skill on the same prose");
+  });
+
+  it("names every skill for options.skills, the main one first", async () => {
     // `options.skills` is a filter: a humanizer on disk but not named is hidden
     // from the model and refused by the Skill tool.
     const plugin = await writeTeachPlugin(destination);
 
-    expect(plugin.skills).toEqual([TEACH_SKILL_REF, HUMANIZER_SKILL_REF]);
+    expect(plugin.skills).toEqual([TEACH_SKILL_REF, HUMANIZER_SKILL_REF, STE100_SKILL_REF]);
   });
 
   it("tells the run to end each lesson with the humanizer", async () => {
@@ -166,7 +195,7 @@ describe("writeExamPlugin (FR-E3)", () => {
     const plugin = await writeExamPlugin(destination);
     const composed = await readFile(join(destination, "skills/teach/SKILL.md"), "utf8");
 
-    expect(plugin.skills).toEqual([TEACH_SKILL_REF, HUMANIZER_SKILL_REF]);
+    expect(plugin.skills).toEqual([TEACH_SKILL_REF, HUMANIZER_SKILL_REF, STE100_SKILL_REF]);
     expect(composed.indexOf("The shape of a Mindforge exam")).toBeGreaterThan(
       composed.indexOf("The shape of a Mindforge lesson"),
     );
