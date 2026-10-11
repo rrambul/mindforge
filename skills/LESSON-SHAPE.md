@@ -259,6 +259,29 @@ teaches, then:
 - **Check the exercise against the intent.** If a learner who fully understood the lesson could
   still get stuck on it, the exercise is testing something else. Cut that part or give it to them.
 
+## Typography
+
+Every lesson uses the same two typefaces, which Mindforge serves to the lesson frame: **Literata** for
+prose and **JetBrains Mono** for code. A lesson cannot load a font from anywhere else, because the
+frame's policy blocks it, so a Google Fonts link renders as nothing. The workspace's shared stylesheet
+(usually `assets/lesson.css`) starts with this line, before any other rule:
+
+```css
+@import url("/fonts/lessons.css");
+```
+
+Then it names the families with fallbacks, so a lesson opened from a local file still reads well:
+
+```css
+--serif: Literata, "Iowan Old Style", Palatino, Georgia, serif;
+--mono: "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
+```
+
+Literata comes in 400, 400 italic, 600 and 700; JetBrains Mono in 400 and 700. Other weights are
+synthesised by the browser and look worse, so use only those. Headings, labels and small UI text may
+use the system sans-serif. When the shared stylesheet already exists, check that it has the import
+and these families, and add them if it does not.
+
 ## Mark the two sections
 
 Wrap the exercise and the debrief so they can be told apart from the explanation:
