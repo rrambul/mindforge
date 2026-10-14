@@ -8,6 +8,10 @@ import {
   type BriefingReader,
 } from "../src/modules/teach/application/briefing.port.js";
 import { ReindexWorkspace } from "../src/modules/teach/application/reindex-workspace.js";
+import {
+  MISSION_WORKSPACE_READER,
+  type MissionWorkspaceReader,
+} from "../src/modules/teach/application/teach.port.js";
 import { adminDb, bootApp, deleteUsers, signUp, type TestUser } from "./support/stack.js";
 
 /**
@@ -249,6 +253,52 @@ describe("a curriculum with no module marked open", () => {
     }
 
     expect(moduleOf(await gather()).slug).toBe("rls-basics");
+  });
+
+  /** Write a planned lesson, finished or not. */
+  async function written(seq: number, slug: string, finished: boolean) {
+    await db.$executeRawUnsafe(
+      `update lessons set status = 'generated', seq = $3::int, storage_path = $4,
+         content_hash = 'sha', completed_at = case when $5::boolean then now() end
+        where mission_id = $1::uuid and slug = $2`,
+      missionId,
+      slug,
+      seq,
+      `lessons/000${seq}-${slug}.html`,
+      finished,
+    );
+  }
+
+  const canWrite = async () =>
+    (await app
+      .get<MissionWorkspaceReader>(MISSION_WORKSPACE_READER, { strict: false })
+      .find(alice.id, missionId))!.lessonToWrite;
+
+  it("moves to the next module when the last lesson here is written but not yet read", async () => {
+    // The AWS mission on 2026-10-13: day 5 written and unread made week 1 the open
+    // module, the briefing said it had nothing left to write, and the run invented
+    // an extra lesson there instead of writing week 2's first.
+    await db.$executeRawUnsafe(
+      `delete from lesson_edges e using lessons l
+        where e.lesson_id = l.id and l.mission_id = $1::uuid and l.slug = 'policy-basics'`,
+      missionId,
+    );
+    await written(1, "query-plans", true);
+    await written(2, "indexes", false);
+
+    const track = moduleOf(await gather());
+    expect(track.slug).toBe("rls-basics");
+    expect(track.nextLesson?.slug).toBe("policy-basics");
+    expect(await canWrite()).toBe(true);
+  });
+
+  it("has nothing to write while every planned lesson waits on one not yet read", async () => {
+    // `policy-basics` needs `indexes`, which is written and unread.
+    await written(1, "query-plans", true);
+    await written(2, "indexes", false);
+
+    expect(await canWrite()).toBe(false);
+    expect((await gather()).currentTrack).toMatchObject({ status: "not-tracked" });
   });
 
   it("still prefers a module a person marked open", async () => {

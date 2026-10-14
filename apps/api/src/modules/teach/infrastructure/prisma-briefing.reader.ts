@@ -4,7 +4,7 @@ import {
   lessonDays,
   lessonDueOn,
   nextAdjustment,
-  nextLesson,
+  nextLessonToWrite,
   orderModule,
   resolveBridges,
   weekOf,
@@ -422,8 +422,9 @@ async function readCurrentTrack(
   // track `proposed` — so a module marked open is the exception, and without a
   // fallback every lesson on a fresh curriculum was written off-plan, under no
   // module (found 2026-09-24, the Node.js mission). The open module is otherwise
-  // the one the mission's next lesson is in: the same `nextLesson` the
-  // curriculum screen badges, so the run writes what the screen says is next.
+  // the one the next lesson *to write* is in (`nextLessonToWrite`), not the next
+  // lesson to read: an unread written lesson once kept the run in a module with
+  // nothing left to write, and it invented one (2026-10-13).
   const track = marked ?? (await nextLessonTrack(tx, missionId, ordering));
   if (!track) return NO_TRACK.noneOpen;
 
@@ -484,7 +485,7 @@ async function nextLessonTrack(
     missionId,
   );
   const { nodes } = await readNodes(tx, missionId);
-  const next = nextLesson(
+  const next = nextLessonToWrite(
     nodes,
     tracks.map((track) => track.id),
     ordering,
@@ -590,13 +591,10 @@ async function readPlan(
     nodes.filter((node) => node.trackId === trackId),
     ordering,
   );
-  const next = nextLesson(nodes, [trackId], ordering);
+  // The lesson to write, never a written one the learner has not read yet:
+  // `nextLesson` returns that so the app can say "read this" (M5); here, where the
+  // only verb is "teach", it is not an instruction.
+  const next = nextLessonToWrite(nodes, [trackId], ordering);
 
-  return {
-    plan: module.map(brief),
-    // A lesson that is already written is never the one to write. `nextLesson`
-    // returns it so the app can say "read this" (M5); here, where the only verb
-    // is "teach", it is not an instruction.
-    nextLesson: next === null || next.status === "generated" ? null : brief(next),
-  };
+  return { plan: module.map(brief), nextLesson: next === null ? null : brief(next) };
 }

@@ -14,6 +14,7 @@ import {
   AgentRunNotFound,
   BridgeNotNeeded,
   DailyBudgetExhausted,
+  NothingToWrite,
   RunAlreadyActive,
   RunTransitionInvalid,
   WorkspaceKeyUnavailable,
@@ -223,6 +224,7 @@ describe("TeachRuns", () => {
       workspaceKey: "postgres-rls",
       hasCurriculum: true,
       examDue: null,
+      lessonToWrite: true,
     });
   });
 
@@ -361,6 +363,7 @@ describe("TeachRuns", () => {
         workspaceKey: null,
         hasCurriculum: true,
         examDue: null,
+        lessonToWrite: true,
       });
 
       const run = await teach.request(ALICE, MISSION, TZ);
@@ -379,6 +382,7 @@ describe("TeachRuns", () => {
         workspaceKey: null,
         hasCurriculum: true,
         examDue: null,
+        lessonToWrite: true,
       });
       missions.existingKey = "rls-postgres";
 
@@ -395,6 +399,7 @@ describe("TeachRuns", () => {
         workspaceKey: null,
         hasCurriculum: true,
         examDue: null,
+        lessonToWrite: true,
       });
 
       await expect(teach.request(ALICE, MISSION, TZ)).rejects.toThrow(WorkspaceKeyUnavailable);
@@ -555,7 +560,11 @@ describe("choosing the run kind", () => {
     runs = new FakeRuns();
   });
 
-  function withCurriculum(hasCurriculum: boolean, examDue: string | null = null): TeachRuns {
+  function withCurriculum(
+    hasCurriculum: boolean,
+    examDue: string | null = null,
+    lessonToWrite = true,
+  ): TeachRuns {
     const missions = new FakeMissions();
     missions.missions.set(MISSION, {
       missionId: MISSION,
@@ -564,6 +573,7 @@ describe("choosing the run kind", () => {
       workspaceKey: "postgres-rls",
       hasCurriculum,
       examDue,
+      lessonToWrite,
     });
 
     const clock = new FixedClock(NOW);
@@ -590,6 +600,30 @@ describe("choosing the run kind", () => {
   it("still takes an explicit kind, which nothing in the app sends", async () => {
     const run = await withCurriculum(false).request(ALICE, MISSION, TZ, "generate_lesson");
     expect(run.kind).toBe("generate_lesson");
+  });
+
+  it("refuses a press with nothing to write, rather than queue a run that invents a lesson", async () => {
+    // The AWS mission on Oct 13: day 5 written and unread, so nothing could be
+    // written until it was finished — and the run wrote an off-plan lesson.
+    await expect(withCurriculum(true, null, false).request(ALICE, MISSION, TZ)).rejects.toThrow(
+      NothingToWrite,
+    );
+    expect(runs.rows.size).toBe(0);
+  });
+
+  it("still writes a due exam, or an asked-for bridge, with no planned lesson to write", async () => {
+    const exam = await withCurriculum(true, "track-ownership", false).request(ALICE, MISSION, TZ);
+    expect(exam.kind).toBe("generate_exam");
+
+    runs = new FakeRuns();
+    const bridge = await withCurriculum(true, null, false).request(
+      ALICE,
+      MISSION,
+      TZ,
+      "generate_lesson",
+      { bridgeFor: "lesson-1" },
+    );
+    expect(bridge.input).toMatchObject({ bridgeFor: "lesson-1" });
   });
 
   it("writes a module's exam once its lessons are done, and records which module (FR-E3)", async () => {

@@ -22,6 +22,14 @@ export interface MissionWorkspace {
    * none is waiting — and always null without a curriculum.
    */
   readonly examDue: string | null;
+  /**
+   * Whether a planned lesson can be written now (`nextLessonToWrite`): one exists
+   * whose prerequisites are finished, or a module has no plan at all and the run
+   * writes into it unplanned. False when every planned lesson is written,
+   * or waits on one the learner has not finished — and then a lesson run has
+   * nothing to write, and one was seen to invent a lesson rather than stop.
+   */
+  readonly lessonToWrite: boolean;
 }
 
 /**

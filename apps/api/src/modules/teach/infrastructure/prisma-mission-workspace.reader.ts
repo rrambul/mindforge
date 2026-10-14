@@ -1,4 +1,4 @@
-import { moduleAwaitingExam } from "@mindforge/core";
+import { moduleAwaitingExam, nextLessonToWrite, type LessonNode } from "@mindforge/core";
 import { Inject, Injectable } from "@nestjs/common";
 
 import { USER_SCOPED_DB, type UserScopedDb } from "../../../shared/persistence/user-scoped-db.js";
@@ -18,7 +18,7 @@ export class PrismaMissionWorkspaceReader implements MissionWorkspaceReader {
   constructor(@Inject(USER_SCOPED_DB) private readonly db: UserScopedDb) {}
 
   async find(userId: string, missionId: string): Promise<MissionWorkspace | null> {
-    const [rows, modules] = await this.db.run(userId, (tx) =>
+    const [rows, modules, lessons, edges] = await this.db.run(userId, (tx) =>
       Promise.all([
         tx.$queryRawUnsafe<
           {
@@ -50,6 +50,33 @@ export class PrismaMissionWorkspaceReader implements MissionWorkspaceReader {
             order by t.position, t.slug`,
           missionId,
         ),
+        // The lesson graph, for whether anything can be written now. Lessons only:
+        // an exam is not a node (FR-E2). Exams and lesson order do not matter to the
+        // question, which is whether any planned lesson has its prerequisites done.
+        tx.$queryRawUnsafe<
+          {
+            id: string;
+            track_id: string | null;
+            status: "planned" | "generated";
+            difficulty: number | null;
+            position: number | null;
+            seq: number | null;
+            completed: boolean;
+          }[]
+        >(
+          `select l.id, l.track_id, l.status, l.difficulty, l.position, l.seq,
+                  l.completed_at is not null as completed
+             from lessons l left join tracks t on t.id = l.track_id
+            where l.mission_id = $1::uuid and l.kind = 'lesson'
+              and (t.id is null or t.status <> 'dropped')`,
+          missionId,
+        ),
+        tx.$queryRawUnsafe<{ lesson_id: string; prereq_id: string }[]>(
+          `select e.lesson_id, e.prereq_id from lesson_edges e
+             join lessons l on l.id = e.lesson_id
+            where l.mission_id = $1::uuid`,
+          missionId,
+        ),
       ]),
     );
 
@@ -62,6 +89,9 @@ export class PrismaMissionWorkspaceReader implements MissionWorkspaceReader {
       status: row.status,
       workspaceKey: row.workspace_key,
       hasCurriculum: row.has_curriculum,
+      // A module with no lessons at all has no plan yet, and a lesson run writes
+      // into it the way it did before M4 planned lessons: never "nothing to write".
+      lessonToWrite: canWrite(lessons, edges) || modules.some((module) => module.lessons === 0n),
       examDue: moduleAwaitingExam(
         modules.map((module) => ({
           id: module.id,
@@ -116,4 +146,40 @@ export class PrismaMissionWorkspaceReader implements MissionWorkspaceReader {
     const existing = await this.find(userId, missionId);
     return existing?.workspaceKey ?? key;
   }
+}
+
+/** Whether any planned lesson can be written now — `nextLessonToWrite` over every module. */
+function canWrite(
+  rows: readonly {
+    id: string;
+    track_id: string | null;
+    status: "planned" | "generated";
+    difficulty: number | null;
+    position: number | null;
+    seq: number | null;
+    completed: boolean;
+  }[],
+  edges: readonly { lesson_id: string; prereq_id: string }[],
+): boolean {
+  const prerequisites = new Map<string, string[]>();
+  for (const edge of edges) {
+    prerequisites.set(edge.lesson_id, [
+      ...(prerequisites.get(edge.lesson_id) ?? []),
+      edge.prereq_id,
+    ]);
+  }
+  const nodes: LessonNode[] = rows.map((row) => ({
+    id: row.id,
+    trackId: row.track_id,
+    status: row.status,
+    difficulty: row.difficulty,
+    position: row.position,
+    seq: row.seq,
+    completed: row.completed,
+    prerequisiteIds: prerequisites.get(row.id) ?? [],
+  }));
+  const modules = [
+    ...new Set(nodes.flatMap((node) => (node.trackId === null ? [] : [node.trackId]))),
+  ];
+  return nextLessonToWrite(nodes, modules) !== null;
 }

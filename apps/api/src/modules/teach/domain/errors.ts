@@ -32,6 +32,23 @@ export class RunAlreadyActive extends DomainError {
 }
 
 /**
+ * A press with nothing to write (FR-T3): every planned lesson is written, or
+ * waits on a lesson the learner has not finished, and no module is waiting for
+ * its exam. Refused before a run is queued, because a run told to teach with no
+ * lesson named writes one anyway — an extra, off-plan lesson in a finished week
+ * (the AWS mission, 2026-10-13).
+ */
+export class NothingToWrite extends DomainError {
+  readonly kind: DomainErrorKind = "conflict";
+  readonly slug = "nothing-to-write";
+  readonly detailKey: ServerMessageKey = "error.teach.nothing_to_write";
+
+  constructor(missionId: string) {
+    super(`Nothing can be written for mission ${missionId} until the learner finishes a lesson`);
+  }
+}
+
+/**
  * The run id is not one of yours.
  *
  * `not_found` rather than `forbidden`, for the reason `MissionNotFound` gives:

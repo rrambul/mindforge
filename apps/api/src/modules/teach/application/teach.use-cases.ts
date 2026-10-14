@@ -20,6 +20,7 @@ import {
   AgentRunNotFound,
   BridgeNotNeeded,
   DailyBudgetExhausted,
+  NothingToWrite,
   RunAlreadyActive,
   RunTransitionInvalid,
   WorkspaceKeyUnavailable,
@@ -103,6 +104,16 @@ export class TeachRuns {
     }
 
     const resolved = kind ?? inferKind(mission);
+    // Only when the kind was inferred and no bridge was asked for: a bridge has its
+    // lesson named, and an explicit kind is a caller that knows what it wants.
+    if (
+      kind === undefined &&
+      resolved === "generate_lesson" &&
+      extras.bridgeFor === undefined &&
+      !mission.lessonToWrite
+    ) {
+      throw new NothingToWrite(missionId);
+    }
 
     const workspaceKey = await this.ensureWorkspaceKey(userId, mission);
 
