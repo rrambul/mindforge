@@ -92,6 +92,8 @@ const EN = {
    */
   "error.teach.run_already_active":
     "This mission is already being taught. Wait for that run to finish.",
+  "error.teach.nothing_to_write":
+    "There is nothing new to write yet. Finish the lessons you have first: the next lesson, or the module's exam, comes after them.",
   "error.teach.run_not_found": "That run doesn't exist.",
   "error.teach.run_transition_invalid": "That run has already finished.",
   "error.teach.workspace_key_unavailable":
@@ -216,6 +218,8 @@ const PT_BR: Readonly<Record<ServerMessageKey, string>> = {
     "Essa missão ou habilidade aparece duas vezes no plano da semana.",
   "error.teach.run_already_active":
     "Esta missão já está sendo ensinada. Aguarde essa execução terminar.",
+  "error.teach.nothing_to_write":
+    "Ainda não há nada novo para escrever. Termine primeiro as lições que você já tem: a próxima lição, ou a prova do módulo, vem depois delas.",
   "error.teach.run_not_found": "Essa execução não existe.",
   "error.teach.run_transition_invalid": "Essa execução já terminou.",
   "error.teach.workspace_key_unavailable":

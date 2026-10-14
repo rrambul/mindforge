@@ -7,6 +7,7 @@ import {
   moduleProgress,
   moduleStatus,
   nextLesson,
+  nextLessonToWrite,
   orderModule,
   type LessonNode,
 } from "./lesson-graph.js";
@@ -525,5 +526,45 @@ describe("the plan's order, for a mission planned in weeks (FR-B3)", () => {
     const lessons = week().map((l) => (l.id === "day2" ? { ...l, completed: true } : l));
     expect(nextLesson(lessons, [TRACK], "plan")!.id).toBe("day3");
     expect(nextLesson(lessons, [TRACK])!.id).toBe("day4");
+  });
+});
+
+describe("nextLessonToWrite", () => {
+  const WEEK2 = "track-2";
+
+  it("skips a written lesson the learner has not finished, and writes the next planned one", () => {
+    // The AWS mission on Oct 13: day 5 written and unread, week 2 planned. "Next" for
+    // the learner is day 5; the next thing to *write* is week 2's first lesson.
+    const lessons = [
+      lesson("d4", { position: 4, status: "generated", completed: true }),
+      lesson("d5", { position: 5, status: "generated" }),
+      lesson("w2d1", { trackId: WEEK2, position: 1, prerequisiteIds: ["d4"] }),
+      lesson("w2d2", { trackId: WEEK2, position: 2, prerequisiteIds: ["w2d1"] }),
+    ];
+
+    expect(nextLesson(lessons, [TRACK, WEEK2], "plan")?.id).toBe("d5");
+    expect(nextLessonToWrite(lessons, [TRACK, WEEK2], "plan")?.id).toBe("w2d1");
+  });
+
+  it("writes the earlier module's planned lesson first", () => {
+    const lessons = [
+      lesson("d5", { position: 5 }),
+      lesson("w2d1", { trackId: WEEK2, position: 1 }),
+    ];
+
+    expect(nextLessonToWrite(lessons, [TRACK, WEEK2], "plan")?.id).toBe("d5");
+  });
+
+  it("is null when every planned lesson waits on one the learner has not finished", () => {
+    const lessons = [
+      lesson("d5", { position: 5, status: "generated" }),
+      lesson("w2d1", { trackId: WEEK2, position: 1, prerequisiteIds: ["d5"] }),
+    ];
+
+    expect(nextLessonToWrite(lessons, [TRACK, WEEK2], "plan")).toBeNull();
+  });
+
+  it("is null when everything is written", () => {
+    expect(nextLessonToWrite([lesson("a", { status: "generated" })], [TRACK])).toBeNull();
   });
 });

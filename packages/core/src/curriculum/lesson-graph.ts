@@ -390,3 +390,37 @@ export function nextLesson(
 
   return null;
 }
+
+/**
+ * The next lesson a teach run should **write**: the first planned lesson, in the
+ * modules' order and each module's own order, whose prerequisites are finished.
+ *
+ * Not `nextLesson`, which answers "what should I do next" and so returns a written
+ * lesson the learner has not finished yet. That is the right badge for the
+ * curriculum screen and the wrong instruction for a run: on the AWS mission an
+ * unread day-5 lesson made week 1 the module "in progress", the briefing then said
+ * week 1 had nothing left to write, and the agent invented an extra lesson there
+ * instead of writing week 2's first (2026-10-13). Null when nothing can be written
+ * now — every planned lesson is written, or waits on one the learner has not
+ * finished.
+ */
+export function nextLessonToWrite(
+  lessons: readonly LessonNode[],
+  moduleOrder: readonly string[],
+  ordering: ModuleOrdering = "ease",
+): LessonNode | null {
+  const derived = deriveLessons(lessons);
+
+  for (const trackId of moduleOrder) {
+    const module = orderModule(
+      lessons.filter((lesson) => lesson.trackId === trackId),
+      ordering,
+    );
+    const candidate = module.find(
+      (lesson) => lesson.status === "planned" && derived.get(lesson.id)!.unblocked,
+    );
+    if (candidate) return candidate;
+  }
+
+  return null;
+}
