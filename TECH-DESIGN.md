@@ -1690,8 +1690,17 @@ unblocked(l)   = every prerequisite of l is completed
 fundamental(l) = l has dependents; rank by dependent count
 nextLesson     = first unblocked, incomplete planned lesson,
                  module order, then within a module orderModule's order
+nextLessonToWrite = the same walk, but only lessons still `planned`
 orderModule    = prerequisites first; among what is free, difficulty ascending, then position
 ```
+
+`nextLesson` is what the learner should do next, so it can be a written lesson they have not read.
+`nextLessonToWrite` is what a teach run should write, and the briefing uses only it, for the open
+module and for the lesson it names. The two were one function until 2026-10-13, when an unread
+day-5 lesson kept the AWS mission's run in week 1, the briefing named nothing to write, and the
+agent invented an off-plan lesson rather than write week 2's first. A press with nothing to write
+(every planned lesson written, or waiting on an unread one, and no exam due) is now refused before
+a run is queued (`NothingToWrite`, 409); a module with no plan at all still counts as writable.
 
 `moduleOutcomes` sits beside it (FR-P4) and returns four counts — understood, shaky, lost, and
 **unrecorded**. The fourth is the one that keeps the other three honest: they have to sum to the

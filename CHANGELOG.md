@@ -40,6 +40,9 @@ would be bookkeeping with no reader.
 - **Lessons are written in plainer English.** Every lesson and exam ends with a pass of Simplified
   Technical English (ASD-STE100): shorter sentences, active voice, one instruction per sentence, no
   idioms. The subject's own terms stay as they are.
+- **"Teach me the next thing" writes the next planned lesson**, even when the last one written is
+  still unread. It used to stay in that week and invent an extra lesson. When nothing can be written
+  until you finish a lesson, the button now says so instead of starting a run.
 - **Lessons use Literata**, a serif made for reading on screens, with JetBrains Mono for code. Every
   existing mission's lessons switched too.
 - **Every mission has a banner** at the top of its page, drawn for its subject when the curriculum is
